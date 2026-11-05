@@ -748,7 +748,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 <script src="app.js?v=45"></script>
 <script src="venda/FluxoLivre.js?v=14" defer></script><!-- 29/10: Alterar fluxo -->
 <script src="venda-dossie.js?v=71" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
-<script src="venda/contrato-vendida.js?v=3" defer></script>
+<script src="venda/contrato-vendida.js?v=4" defer></script>
 <script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV da Análise de vendas (período, tipo, rua) --><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 /*POLL-INI*/
@@ -1239,8 +1239,9 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
  * (BANCO DE DADOS VENDAS CONDOMÍNIO): "vendida para X" é quem está na linha da venda, não a
  * proposta mais nova da unidade (a unidade 18 mostrava uma proposta RECEBIDA de outro cliente e a
  * 31 uma NEGADA com outro corretor). Situação pela linha, mesma régua do contrato-vendida.js:
- * contrato ENVIADO/ASSINADO = vendida; PAGOU PREFERÊNCIA ou termo de pré-reserva assinado =
- * preferência; linha sem isso = reservada; DISTRATO não conta. Unidade sem linha segue a base UNIDADES. */
+ * 04/11/2026 (dono): vendida só com a ETAPA Concluída (assinaturas concluídas e venda lançada no Mais Controle);
+ * antes disso a casa é reservada — PAGOU PREFERÊNCIA ou termo de pré-reserva assinado = preferência (roxo, só no
+ * mapa interno); DISTRATO não conta. Unidade sem linha segue a base UNIDADES. */
 let AN_PLAN=null, AN_PLAN_LENDO=false, AN_PLAN_ERRO="";
 async function anCarregarPlanilha(forcar){
   if(AN_PLAN_LENDO || (AN_PLAN && !forcar)) return;
@@ -1274,8 +1275,10 @@ function anPlanilhaDaUnidade(un){
   const ass=PROP_NORM(anPlVal(l,"ASSINATURA - SITUAÇÃO"));
   const si=PROP_NORM(anPlVal(l,"STATUS INTERNO"));
   const pre=PROP_NORM(anPlVal(l,"PRÉ-RESERVA - SITUAÇÃO"));
+  const concl=window.ContratoVendida ? ContratoVendida.concluida(l)
+    : (ass==="ASSINADO" && !!String(anPlVal(l,"MC - VENDA ID")||"").trim());
   let estado="reservada";
-  if(ass==="ENVIADO" || ass==="ASSINADO") estado="vendida";
+  if(concl) estado="vendida";
   else if(si==="PAGOU PREFERENCIA" || pre==="ASSINADO") estado="preferencia";
   const nomes=[];
   ["PROPONENTE","COMPRADOR 1","COMPRADOR 2","COMPRADOR 3"].forEach(c=>{
@@ -1313,7 +1316,7 @@ function anPropostaDaUnidade(un){
 /* ---- 03/11/2026 (dono): filtros da Análise de vendas e VGV vendido em destaque ----
    Período (pela data de assinatura do contrato), tipo e rua. Tipo e rua valem para a tela toda (cartões, mapa e
    tabela); o período vale para o que foi vendido. No VGV só é venda o contrato ASSINADO por todos; contrato enviado
-   aparece em "Em assinatura". O mapa segue a régua de 31/10 (enviado já pinta de vendida). Contas em
+   aparece em "Em assinatura". O mapa só pinta de vendida com a ETAPA Concluída (04/11). Contas em
    venda/vgv-condominio.js. */
 const AN_F={per:"tudo",mes:"",tri:"",ano:"",de:"",ate:"",tipo:"",rua:""};
 try{ Object.assign(AN_F,JSON.parse(localStorage.getItem("an_filtros")||"{}")); }catch(e){}
@@ -2552,11 +2555,15 @@ async function propCarregar(forcar, bt){
   else { propAviso("err", propErro(r && r.erro)); }
 }
 /* 31/10/2026 (dono): venda do condomínio com contrato ENVIADO/ASSINADO na Clicksign e proposta ainda fora de
-   "Vendidas" (saiu sem o botão Vendida): marca a proposta VENDIDA e a unidade VENDIDA = SIM — regra em
-   venda/contrato-vendida.js, a mesma da Planilha Casas Condomínio. Uma vez por abertura da página. */
-let PROP_VARREU=false;
+   "Vendidas" (saiu sem o botão Vendida): marca a proposta VENDIDA — regra em venda/contrato-vendida.js, a mesma da
+   Planilha Casas Condomínio. 04/11/2026 (dono): e confere o MAPA de todas as vendas: a casa fica RESERVADA enquanto
+   está no banco de vendas e só vira VENDIDA com a ETAPA Concluída. Uma vez por abertura da página. */
+let PROP_VARREU=false, PROP_VARREU_EM=0;
 async function propVarrerContratosEnviados(){
-  if(PROP_VARREU) return;
+  /* 04/11/2026: de novo a cada 15 min com a página aberta (o propCarregar do polling chama aqui) — pega a venda
+     que concluiu a etapa e o SIM que o servidor grava quando o contrato final é gerado */
+  if(PROP_VARREU && Date.now()-PROP_VARREU_EM < 15*60*1000) return;
+  PROP_VARREU_EM=Date.now();
   if(!window.ContratoVendida){ setTimeout(propVarrerContratosEnviados, 1500); return; }   // o módulo é defer
   PROP_VARREU=true;
   let r=null;
@@ -2567,18 +2574,31 @@ async function propVarrerContratosEnviados(){
     return;
   }
   const enviados=r.linhas.filter(l=>ContratoVendida.contratoEnviado(l)).length;
+  const concl=r.linhas.filter(l=>ContratoVendida.concluida(l)).length;
   const ids=ContratoVendida.pendentes(r.linhas, r.titulo);
-  console.log("[contrato enviado → vendida] linhas "+r.linhas.length+", contrato enviado/assinado "+enviados+", a conferir "+ids.length);
+  console.log("[venda → mapa] linhas "+r.linhas.length+", contrato enviado/assinado "+enviados+", etapa concluída "+concl+", a conferir "+ids.length);
   if(!ids.length) return;
-  propAviso("ok","Conferindo "+ids.length+" venda(s) com contrato enviado para assinatura… (cada uma leva alguns segundos)");
   const msgs=[];
   await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar,
     aviso: (id,t,h)=>{ const l=r.linhas.find(x=>x.id===id); msgs.push((t==="ok"?"✓ ":"⚠ ")+"Un. "+esc(String((l&&l.v&&(l.v["UNIDADE"]||l.v[r.titulo]))||""))+" — "+h); },
     aoTerminar: async n=>{
-      const mostrar=()=>{ if(msgs.length) propAviso(msgs.some(m=>m.indexOf("⚠")===0)?"err":"ok","<b>Contrato enviado = vendida</b><br>"+msgs.join("<br>")); else propAviso("ok",""); };
+      const mostrar=()=>{ if(msgs.length) propAviso(msgs.some(m=>m.indexOf("⚠")===0)?"err":"ok","<b>Vendas × mapa</b><br>"+msgs.join("<br>")); else propAviso("ok",""); };
       mostrar();
       if(n){ await propCarregar(true); mostrar(); try{ UNS=[]; simCarregarUnidades(true); }catch(e){} }
     }});
+}
+/* 04/11/2026 (dono): o servidor põe VENDIDA = SIM na unidade quando a proposta vira VENDIDA; no mapa ela fica
+   RESERVADA até a ETAPA da venda ficar Concluída — confere a unidade logo depois do botão. */
+async function propCorrigirMapaUnidade(un){
+  if(!window.ContratoVendida) return;
+  const so=v=>String(v==null?"":v).replace(/\D/g,"").replace(/^0+/,""), alvo=so(un); if(!alvo) return;
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  if(!r||!r.ok||!Array.isArray(r.linhas)) return;
+  const ids=r.linhas.filter(l=>so((l.v||{})["UNIDADE"]||(l.v||{})[r.titulo])===alvo).map(l=>l.id);
+  if(!ids.length) return;
+  await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar, forcar: true,
+    aoTerminar: async n=>{ if(n){ try{ UNS=[]; simCarregarUnidades(true); }catch(e){} } } });
 }
 function propAviso(t,m){
   const a=document.getElementById("prop-aviso");
@@ -4588,7 +4608,7 @@ async function propStatusInterno(id, nome){
     if(!motivo){ const av0=document.getElementById("prop-siAviso"); av0.className="sim-aviso err"; av0.textContent="Escreva o motivo do distrato."; return; }
     if(!confirm("Confirmar o DISTRATO da unidade "+(p.unidade||"")+"?\n\nA venda sai do BANCO DE DADOS VENDAS CONDOMÍNIO (fica guardada em DISTRATOS CONDOMÍNIO) e a unidade volta a DISPONÍVEL.")) return;
   } else if(k==="VENDIDA"){
-    if(!confirm("Marcar a unidade "+(p.unidade||"")+" como VENDIDA?\n\nA unidade passa para VENDIDA = SIM, os dados da venda são revalidados no BANCO DE DADOS VENDAS CONDOMÍNIO e o corretor recebe o e-mail.")) return;
+    if(!confirm("Marcar a unidade "+(p.unidade||"")+" como VENDIDA?\n\nNo mapa a unidade fica RESERVADA até a ETAPA da venda ficar Concluída; os dados da venda são revalidados no BANCO DE DADOS VENDAS CONDOMÍNIO e o corretor recebe o e-mail.")) return;
   } else if(k==="PAGOU PREFERENCIA"){
     if(!confirm("Marcar PAGOU PREFERÊNCIA na unidade "+(p.unidade||"")+"?\n\nA linha da venda já é criada no BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
   }
@@ -4616,7 +4636,7 @@ async function propStatusInterno(id, nome){
   }
   p.statusInterno=nome; if(p.dados) p.dados.statusInterno=nome;
   if(k==="DISTRATO") p.status="DISTRATO";
-  if(k==="VENDIDA") p.status="VENDIDA";
+  if(k==="VENDIDA"){ p.status="VENDIDA"; propCorrigirMapaUnidade(p.unidade); }
   propSIMarcar(k);
   if(k==="VENDIDA" && r.venda){ propMarcarAtual("VENDIDA"); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} }
   else {
@@ -4703,7 +4723,7 @@ function propFecharPreReserva(){
   if(window.VendaBlocos && VendaBlocos.soltarPreReserva) VendaBlocos.soltarPreReserva();
 }
 async function propStatus(id, status){
-  if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
+  if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nOs dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO. No mapa a unidade fica RESERVADA até a ETAPA da venda ficar Concluída.")) return;
   /* 03/11/2026 (dono): Reservar cria a venda, manda o link ao corretor e abre o prazo de 5 dias */
   if(status==="RESERVADA" && !confirm("Reservar esta proposta?\n\n• a unidade fica RESERVADA no mapa;\n• a venda é criada no BANCO DE DADOS VENDAS CONDOMÍNIO;\n• o corretor recebe o link para completar dados e documentos;\n• prazo de "+PROP_RESERVA_DIAS+" dias corridos para gerar o contrato — sem contrato, a reserva cai sozinha.")) return;
   if(status==="NEGADA" && PROP_NORM((PROPS.find(x=>x.id===id)||{}).status)==="RESERVADA" &&
@@ -4745,7 +4765,8 @@ async function propStatus(id, status){
   }
   if(_conf) clearInterval(_conf);
   pararProg();
-  if(r && r.ok && status==="VENDIDA"){ propMarcarAtual(status); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} return; }
+  if(r && r.ok && status==="VENDIDA"){ propMarcarAtual(status); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){}
+    propCorrigirMapaUnidade((PROPS.find(x=>x.id===id)||{}).unidade); return; }
   if(r && r.ok){
     av.className="sim-aviso ok";
     av.innerHTML="<b>✓ Status: "+esc(r.status||status)+".</b> "+esc(r.reflexo||"")+"<br><span style='font-size:12px'>Unidade, mapa e lista de propostas já atualizados."+

@@ -290,7 +290,7 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
 .lista-ed .ln{display:grid;grid-template-columns:1fr 1fr 30px;gap:6px}
 .lista-ed input{padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--sup);font-size:12.5px}
 @media print{header,.crumb,.tabs-outer,.gfil{display:none}}
-.anxs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.anx{display:inline-block;font:700 11px 'Barlow',sans-serif;padding:2px 8px;border-radius:12px;border:1px solid rgba(41,87,120,.35);background:rgba(41,87,120,.07);color:var(--azul,#295778);text-decoration:none;white-space:nowrap}a.anx:hover{background:var(--azul,#295778);color:#fff}.anx.venc{opacity:.55;cursor:help}.anx0{color:#b9770e;margin-top:4px}html[data-tema="escuro"] .anx{color:#8fdcd2;border-color:rgba(143,220,210,.4);background:rgba(143,220,210,.08)}
+.anxs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.anx{display:inline-block;font:700 11px 'Barlow',sans-serif;padding:2px 8px;border-radius:12px;border:1px solid rgba(41,87,120,.35);background:rgba(41,87,120,.07);color:var(--azul,#295778);text-decoration:none;white-space:nowrap}a.anx:hover{background:var(--azul,#295778);color:#fff}.anx.venc{opacity:.55;cursor:help}.anx0{color:#b9770e;margin-top:4px}.anx.mc{border-color:rgba(42,157,92,.45);background:rgba(42,157,92,.08);color:#1f7a46}a.anx.mc:hover{background:#2a9d5c;color:#fff}html[data-tema="escuro"] .anx{color:#8fdcd2;border-color:rgba(143,220,210,.4);background:rgba(143,220,210,.08)}
 </style>
 </head>
 <body>
@@ -885,12 +885,28 @@ function afAnexosHtml(i,compacto){ return afAnexosId(AF_C.id[i],compacto); }
 function afAnexosId(id,compacto){
   const A=((AF_D&&AF_D.anexos)||{}).itens;
   if(!A) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos do Mais Controle: o robô do servidor ainda não fez a primeira leitura. Assim que rodar, os arquivos (boleto, NF, recibo, comprovante) aparecem aqui e na lista.</div>`;
-  const it=A[String(id)]; if(!it) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
+  const it=A[String(id)];
+  /* 05/11 (dono): toda linha diz em que pé está o anexo, e o lançamento abre direto no Mais Controle */
+  const mcUrl=afUrlMc(it), mcLk=mcUrl?`<a class="anx mc" href="${esc(mcUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abrir este lançamento no Mais Controle">↗ Mais Controle</a>`:"";
+  if(!it||!it.v){
+    const fora=!it, na=it&&it.nao_achado;
+    const curto=fora?"📎 fora da leitura dos anexos":na?"📎 não achado no Mais Controle":"📎 ainda não lido";
+    const longo=fora?`este pagamento não está na leitura do robô (ele lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).`
+      :na?`o robô procurou na lista de pagamentos do Mais Controle em ${fD(String(na).slice(0,10))} e não achou este lançamento (data/valor diferentes ou parecido com outro). Ele procura de novo em 3 dias.`
+      :"o robô já achou o lançamento no Mais Controle e abre os arquivos na próxima rodada.";
+    return compacto?`<div class="anxs"><span class="small anx0">${curto}</span>${mcLk}</div>`:`<div class="small muted" style="margin:0 0 12px">📎 Anexos: ${longo} ${mcLk}</div>`;
+  }
   const ls=it.a||[], agora=new Date().toISOString().slice(0,16);
-  if(!ls.length) return compacto?`<div class="small anx0">📎 sem anexo no Mais Controle</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}.</p></div>`;
+  if(!ls.length) return compacto?`<div class="anxs"><span class="small anx0">📎 sem anexo no Mais Controle</span>${mcLk}</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}. ${mcLk}</p></div>`;
   const lk=a=>{ const venc=a.x&&a.x<agora; return venc||!a.u?`<span class="anx venc" title="Link vencido — o robô renova na próxima rodada">📎 ${esc(afAnexoTipo(a))}</span>`:`<a class="anx" href="${esc(a.u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")}">📎 ${esc(afAnexoTipo(a))}</a>`; };
-  if(compacto) return `<div class="anxs">${ls.slice(0,4).map(lk).join("")}${ls.length>4?`<span class="small muted">+${ls.length-4}</span>`:""}</div>`;
-  return `<div class="vbox" style="margin:0 0 12px"><h4>📎 Anexos do Mais Controle (${ls.length})</h4>${ls.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--borda,#e3e9ee)">${lk(a)}<span class="small" style="flex:1">${esc(a.n||"")}</span><span class="small muted">${a.o==="P"?"no pagamento":"no lançamento"}${a.s?" · "+Math.max(1,Math.round(a.s/1024))+" KB":""}</span></div>`).join("")}<div class="small muted" style="margin-top:6px">Lido em ${fD((it.v||"").slice(0,10))}. Os links valem por alguns dias e são renovados pelo robô.</div></div>`;
+  if(compacto) return `<div class="anxs">${ls.slice(0,4).map(lk).join("")}${ls.length>4?`<span class="small muted">+${ls.length-4}</span>`:""}${mcLk}</div>`;
+  return `<div class="vbox" style="margin:0 0 12px"><h4>📎 Anexos do Mais Controle (${ls.length})</h4>${ls.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--borda,#e3e9ee)">${lk(a)}<span class="small" style="flex:1">${esc(a.n||"")}</span><span class="small muted">${a.o==="P"?"no pagamento":"no lançamento"}${a.s?" · "+Math.max(1,Math.round(a.s/1024))+" KB":""}</span></div>`).join("")}<div class="small muted" style="margin-top:6px">Lido em ${fD((it.v||"").slice(0,10))}. Os links valem por alguns dias e são renovados pelo robô. ${mcLk}</div></div>`;
+}
+/* 05/11: o link do lançamento no Mais Controle — a parcela que o robô achou (o mesmo endereço que o robô de água e
+   energia usa nos e-mails dele). Sem a parcela, nada: link errado é pior que nenhum. */
+function afUrlMc(it){
+  const m=(it&&it.mc)||{}, p=(m.parcelas||[])[0];
+  return p&&/^[0-9a-f-]{36}$/i.test(p)?"https://acessar.maiscontroleerp.com.br/#/payable-installments/"+p:"";
 }
 
 function afAbrirDrawer(i){

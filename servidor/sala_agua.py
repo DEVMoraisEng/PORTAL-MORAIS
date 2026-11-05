@@ -292,6 +292,16 @@ def montar_sala(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None) -> dic
             if len(arquivos) >= MAX_RODADAS * 2:
                 break
     arquivos.sort(key=lambda f: f.name, reverse=True)
+    #: 04/11: o que o e-mail do robô de fato mandou (a rodada e as tarefas de reenvio das 10:00 e 14:00 anotam aqui).
+    #: Sem isto, a rodada que disse "e-mail NÃO enviado" ficava vermelha mesmo depois de o reenvio mandar.
+    enviados = set()
+    try:
+        enviados = {x.strip() for x in (rel / "emails_enviados.txt").read_text(encoding="utf-8", errors="replace").splitlines()
+                    if x.strip()}
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        avisos.append("emails_enviados.txt: %s" % type(e).__name__)
     rodadas = []
     for i, f in enumerate(arquivos[:MAX_RODADAS]):
         try:
@@ -301,6 +311,7 @@ def montar_sala(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None) -> dic
             continue
         r = ler_rodada(texto, f.name)
         r["conc"] = concessionarias(texto)
+        r["email_enviado"] = f.name in enviados
         pdf = f.with_suffix(".pdf")
         r["pdf"] = pdf.name if pdf.exists() else None
         if i < COM_TEXTO:
@@ -387,3 +398,43 @@ if __name__ == "__main__":
     for r in sala["rodadas"][:5]:
         print(r["inicio"], "ok" if r["ok"] else "COM PROBLEMA", "·", len(r["problemas"]), "pendência(s) de cadastro ·",
               len(r["duplicados"]), "repetida(s) ·", ", ".join("%s=%s" % (k, v["st"]) for k, v in r["estados"].items()))
+
+
+# ------------------------------------------------------------- 04/11: problemas para a aba de Ligações
+#: Vai para o dist/ do site (PÚBLICO): só casa, concessionária, UC/matrícula, o motivo SEM valores e os ids das linhas do
+#: Notion / links do Mais Controle (que só abrem logado). Nada de CPF, nome de cliente ou R$.
+_RE_VALOR = re.compile(r"\s*R\$\s*[\d.]+(,\d\d)?")
+_RE_ID_NOTION = re.compile(r"([0-9a-f]{32})(?:\?|$)")
+_RE_DOC = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b|\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
+
+
+def _id_notion(url: str) -> str | None:
+    m = _RE_ID_NOTION.search(str(url or "").replace("-", ""))
+    return m.group(1) if m else None
+
+
+def _limpo(t: str) -> str:
+    return _RE_DOC.sub("•••", _RE_VALOR.sub("", str(t or ""))).strip(" —-·")[:240]
+
+
+def problemas_publicos(sala: dict | None, agora: dt.datetime | None = None) -> dict:
+    """O que a aba "PROBLEMAS COM AS LIGAÇÕES" do ligacoes.html lê (dist/agua_problemas.json)."""
+    agora = agora or dt.datetime.now(dt.timezone.utc)
+    if not sala or not sala.get("rodadas"):
+        return {"ok": False, "itens": [], "duplicadas": []}
+    r = next((x for x in sala["rodadas"] if x.get("pend")), sala["rodadas"][0])
+    itens = []
+    for g in ((r.get("pend") or {}).get("grupos") or []):
+        if g.get("so_aviso"):
+            continue
+        for it in g.get("itens") or []:
+            itens.append({"grupo": g.get("chave"), "titulo": g.get("titulo"), "quem": g.get("quem"), "fazer": g.get("fazer"),
+                          "obra": it.get("obra"), "conc": it.get("conc") or "", "motivo": _limpo(it.get("detalhe") or ""),
+                          "uc": ", ".join(sorted({str(n.get("uc") or "") for n in it.get("notion") or [] if n.get("uc")}))[:80],
+                          "notion": [i for i in (_id_notion(n.get("url")) for n in it.get("notion") or []) if i][:4],
+                          "mc": [u for u in (it.get("mc") or []) if str(u).startswith("https://")][:3]})
+    dup = [{"tipo": d.get("tipo"), "obra": d.get("obra"), "conc": d.get("conc"), "uc": d.get("uc"),
+            "notion": [i for i in (_id_notion(n.get("url")) for n in d.get("notion") or []) if i][:6]}
+           for d in sala.get("duplicadas") or []]
+    return {"ok": True, "updated_at": agora.isoformat(timespec="seconds"), "rodada": r.get("arquivo"),
+            "rodada_inicio": r.get("inicio"), "itens": itens, "duplicadas": dup}

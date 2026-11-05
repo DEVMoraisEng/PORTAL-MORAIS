@@ -171,3 +171,28 @@ def test_pendencias_casa_a_casa_pelas_regras_do_robo(tmp_path):
     d = sala["duplicadas"]
     assert len(d) == 1 and d[0]["tipo"] == "casa" and d[0]["obra"] == "XX 01 QD 01 LT 01 CS 1" and len(d[0]["notion"]) == 2
     assert sala["rodadas"][0]["conc"] == {} or isinstance(sala["rodadas"][0]["conc"], dict)
+
+
+def test_email_reenviado_conta_como_enviado(tmp_path):
+    pasta = _pasta(tmp_path)
+    (pasta / "relatorios" / "emails_enviados.txt").write_text("rodada_2026-11-04_0730.txt\n", encoding="utf-8")
+    sala = A.montar_sala(pasta, hoje=dt.date(2026, 11, 4))
+    assert sala["rodadas"][0]["email_enviado"] is True and sala["rodadas"][1]["email_enviado"] is False
+
+
+def test_problemas_publicos_sem_valor_nem_cpf():
+    sala = {"rodadas": [{"arquivo": "rodada_2026-11-04_0730.txt", "inicio": "2026-11-04T07:30:00", "pend": {"grupos": [
+        {"chave": "duvida", "titulo": "Lançamento em dúvida", "quem": "Financeiro", "fazer": "conferir", "so_aviso": False,
+         "itens": [{"obra": "XX 01 QD 01 LT 01 CS 1", "conc": "SANESC", "detalhe": "R$ 123,45 — CPF 123.456.789-00 sem obra",
+                    "mc": ["https://mc/#/payable-installments/uu"],
+                    "notion": [{"url": "https://www.notion.so/Casa-0123456789abcdef0123456789abcdef", "uc": "777"}]}]},
+        {"chave": "cliente", "titulo": "Casa do cliente", "so_aviso": True, "itens": [{"obra": "Y"}]}]}}],
+        "duplicadas": [{"tipo": "casa", "obra": "XX", "conc": "EQUATORIAL", "uc": "sem UC",
+                        "notion": [{"url": "https://www.notion.so/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}]}
+    d = A.problemas_publicos(sala)
+    it = d["itens"][0]
+    assert d["ok"] and len(d["itens"]) == 1 and it["grupo"] == "duvida"
+    assert "123,45" not in it["motivo"] and "456.789" not in it["motivo"] and "sem obra" in it["motivo"]
+    assert it["notion"] == ["0123456789abcdef0123456789abcdef"] and it["uc"] == "777" and it["mc"]
+    assert d["duplicadas"][0]["notion"] == ["a" * 32]
+    assert A.problemas_publicos(None)["ok"] is False
