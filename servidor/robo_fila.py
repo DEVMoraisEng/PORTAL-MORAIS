@@ -665,6 +665,7 @@ def main(argv=None) -> int:
     if a.robo:                          # sem a trava da fila (não usam a fila), mas um de cada vez no MC
         return na_vez(a.robo, lambda: robo_antigo(a.robo))
     codigo = com_trava(rodada)
+    atualizar_codigo()
     publicar_escritorio()
     return codigo
 
@@ -679,6 +680,44 @@ def publicar_escritorio() -> None:
             publicar_problemas_agua((escritorio_robos.ULTIMO or {}).get("agua"))
     except Exception as e:
         log("[escritorio] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+
+
+#: 05/11: o servidor só recebia código novo quando alguém clicava num .bat — o PR #103 ficou 13 h sem chegar. Agora a
+#: fila (de minuto em minuto) faz o git pull sozinha a cada ATUALIZAR_MIN, só com o clone limpo e nenhum robô do MC
+#: rodando (quem já está rodando termina com o código com que começou).
+ATUALIZAR_MIN = 15
+MARCA_PULL = CENTRAL / "ultimo-git-pull.txt"
+URL_REPO = "https://github.com/DEVMoraisEng/PORTAL-MORAIS.git"
+
+
+def atualizar_codigo(agora=time.time, rodar=subprocess.run) -> str | None:
+    try:
+        if MARCA_PULL.exists() and agora() - MARCA_PULL.stat().st_mtime < ATUALIZAR_MIN * 60:
+            return None
+        CENTRAL.mkdir(parents=True, exist_ok=True)
+        MARCA_PULL.write_text(dt.datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
+        try:
+            if any(RODANDO.glob("*.json")):
+                return "robô rodando — fica para a próxima"
+        except Exception:
+            pass
+        st = rodar(["git", "status", "--porcelain", "-uno"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        if (st.stdout or "").strip():
+            log("[atualizar] clone com mudança local, não puxei: %s" % (st.stdout or "").strip().replace("\n", " | ")[:200])
+            return "clone sujo"
+        antes = rodar(["git", "rev-parse", "--short", "HEAD"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        r = rodar(["git", "pull", "--ff-only", URL_REPO, "main"], cwd=RAIZ, capture_output=True, text=True, timeout=180)
+        depois = rodar(["git", "rev-parse", "--short", "HEAD"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        if r.returncode:
+            log("[atualizar] git pull FALHOU: %s" % ((r.stderr or r.stdout or "").strip().splitlines() or [""])[-1][:200])
+            return "falhou"
+        if (antes.stdout or "").strip() != (depois.stdout or "").strip():
+            log("[atualizar] código novo: %s → %s" % ((antes.stdout or "").strip(), (depois.stdout or "").strip()))
+            return "atualizado"
+        return "em dia"
+    except Exception as e:
+        log("[atualizar] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+        return "falhou"
 
 
 ARQ_PROBLEMAS_AGUA = "dist/agua_problemas.json"

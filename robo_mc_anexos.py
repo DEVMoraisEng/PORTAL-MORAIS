@@ -139,6 +139,34 @@ def escolher(aud):
     return ultimo_pg                      # {id do lançamento: data do último pagamento}
 
 
+def cobertura(aud, itens) -> list[str]:
+    """05/11 (dono: "tá tudo sem anexo"): por tipo de alerta da Fiscalização, quantos pagamentos têm arquivo, foram
+    lidos sem arquivo, não foram achados no MC, esperam a próxima rodada ou estão fora da leitura (mais velhos)."""
+    c = aud.get("cols") or {}
+    ids, dps = c.get("id") or [], c.get("dp") or []
+    lim = (HOJE - dt.timedelta(days=DIAS)).isoformat()
+    conta = {}
+    for f in aud.get("fiscal") or []:
+        try:
+            tipo, i = f[0], int(f[1])
+            idl = str(int(ids[i]))
+        except (TypeError, ValueError, IndexError):
+            continue
+        it = itens.get(idl)
+        if it and it.get("v"):
+            k = "com arquivo" if it.get("a") else "lido sem arquivo"
+        elif it and it.get("nao_achado"):
+            k = "não achado no MC"
+        elif it:
+            k = "esperando abrir"
+        else:
+            k = "fora da leitura (> %d dias)" % DIAS if (dps[i] or "") < lim else "fora da leitura"
+        conta.setdefault(tipo, {}).setdefault(k, 0)
+        conta[tipo][k] += 1
+    return ["  %s: %s" % (t, ", ".join("%s %d" % kv for kv in sorted(v.items(), key=lambda kv: -kv[1])))
+            for t, v in sorted(conta.items())]
+
+
 # ----------------------------------------------------------------- Mais Controle
 def _lista(x):
     if isinstance(x, list):
@@ -821,6 +849,15 @@ def main():
     if not (SUPABASE_URL and SUPABASE_KEY):
         log("faltam SUPABASE_URL / SUPABASE_SERVICE_KEY (robos-portal.json › robos)")
         return 2
+    if os.environ.get("ANEXOS_COBERTURA"):          # 05/11: só a conta, sem abrir o Mais Controle
+        aud = sb_baixar_json()
+        itens = (aud.get("anexos") or {}).get("itens") or {}
+        log(f"anexos gravados em {(aud.get('anexos') or {}).get('em')}: {len(itens)} lançamento(s), "
+            f"{sum(1 for x in itens.values() if x.get('a'))} com arquivo")
+        log("cobertura por alerta da Fiscalização:")
+        for ln in cobertura(aud, itens):
+            log(ln)
+        return 0
     sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
     from venda.mc.erp import do_ambiente, pelo_porteiro
     if not pelo_porteiro():
@@ -851,6 +888,14 @@ def main():
         com = sum(1 for x in itens.values() if x.get("a"))
         log(f"anexos: {len(itens)} lançamentos ({com} com arquivo) · " + " · ".join(f"{k} {v}" for k, v in est.items())
             + f" · auditoria.json {tam // 1024} KB")
+        try:
+            linhas = cobertura(atual, itens)
+            if linhas:
+                log("cobertura por alerta da Fiscalização:")
+                for ln in linhas:
+                    log(ln)
+        except Exception as e:  # noqa: BLE001
+            log(f"  (cobertura: {type(e).__name__})")
         if est["consultados"] and not est["lidos"]:
             log(f"FALHOU: nenhum dos {est['consultados']} lançamentos consultados foi lido no MC — veja os erros acima.")
             return 1

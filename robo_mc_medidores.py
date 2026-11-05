@@ -687,7 +687,15 @@ def main() -> int:
         if not alvo:
             log("FALHOU: nenhuma obra na aba — nada gravado.")
             return 1
-        compras, est = ler_solicitacoes(alvo)
+        try:
+            compras, est = ler_solicitacoes(alvo)
+        except RuntimeError:
+            raise
+        except Exception as e:      # 04/11 20:09: a sessão do MC caiu e o porteiro fechou a aba no meio (TargetClosed)
+            log(f"  1ª tentativa caiu ({type(e).__name__}) — espero 60 s o porteiro e tento de novo")
+            import time as _t
+            _t.sleep(60)
+            compras, est = ler_solicitacoes(alvo)
     except RuntimeError as e:
         log(f"FALHOU: {e}")
         return 1

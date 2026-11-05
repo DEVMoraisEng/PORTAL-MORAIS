@@ -372,3 +372,10 @@ def test_com_muitos_achados_esperando_nao_le_a_lista(monkeypatch):
     itens, est = ra.rodada(ra.LeitorMC(erp), dict(aud_falsa(), anexos={"itens": ant}), {101: D(5), 888: D(4)})
     assert not [x for x in erp.pedidos if x[0] == "/payable-installments/paginated-result"]
     assert itens["101"]["v"] and "888" not in itens
+
+
+def test_cobertura_por_alerta():
+    aud = aud_falsa()
+    itens = {"101": {"v": "x", "a": [{"o": "P"}]}, "303": {"nao_achado": "2026-11-04"}}
+    l = ra.cobertura(aud, itens)
+    assert l == ["  DUP: não achado no MC 1"]
