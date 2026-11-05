@@ -93,13 +93,10 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         run: python fetch_pos_obra.py
 
-      # 04/11/26 — dist/medidores_mc.json: medidores (padrão de energia e
-      # hidrômetro) já comprados no Mais Controle por obra, lidos do
-      # dist/analise/analise_detalhe.json (Orçado x Realizado). Alimenta o
-      # alerta "MEDIDOR … COMPRADO" das Ligações. Falhar não derruba o site.
-      - name: Medidores comprados no Mais Controle
-        continue-on-error: true
-        run: python medidores_mc.py
+      # 05/11/26 — dist/medidores_mc.json NÃO é mais gerado aqui: vem do robô do
+      # servidor (robo_mc_medidores.py, solicitações/OC do Mais Controle, de hora
+      # em hora), que publica o arquivo direto no repositório. O medidores_mc.py
+      # (Orçado x Realizado) saiu — gerar aqui sobrescreveria a leitura do servidor.
 
       # Gera dist/docs.json (base DOCUMENTOS + atividades de documentação).
       # Step SEPARADO pelo mesmo motivo do Pós Obra: se a leitura desta base

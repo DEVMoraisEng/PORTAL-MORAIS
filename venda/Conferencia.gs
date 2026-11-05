@@ -26,6 +26,17 @@ function confColReal_(pg, nome) {
   for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(nome) && pg.properties[n].type === "files") return n;
   return "";
 }
+/* 03/11/2026: quantos arquivos cada coluna da conferência tem agora (ConferenciaDocs.anexosMudaram) */
+function confContagem_(pg) {
+  return ConferenciaDocs.contagemArquivos(function (c) {
+    var r = confColReal_(pg, c);
+    return r ? (ctrValor_(pg.properties[r]) || []).length : 0;
+  });
+}
+function confAnexosMudaram_(o, pageId) {
+  try { return ConferenciaDocs.anexosMudaram(o, confContagem_(ctrLerPaginaVenda_(pageId))); }
+  catch (e) { ctrErro_("conferencia anexos " + String(pageId).slice(0, 8), e); return false; }
+}
 
 function conferirDocumentos_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8), t0 = Date.now();
@@ -61,7 +72,8 @@ function conferirDocumentos_(col, sess, p) {
     catch (e) { leituras[it.id] = { ok: false, erro: "LEITURA_FALHOU" }; }
   });
   var linhas = ConferenciaDocs.resultado(itens, leituras);
-  var o = { carimbo: ctrCarimbo_(x.d), em: new Date().toISOString(), por: ctrTxt_(sess && sess.u), linhas: linhas, confirmados: {} };
+  var o = { carimbo: ctrCarimbo_(x.d), em: new Date().toISOString(), por: ctrTxt_(sess && sess.u), linhas: linhas, confirmados: {},
+           arquivos: confContagem_(pg) };
   try { confGravar_(p.pageId, o); } catch (e) { ctrErro_("conferirDocumentos " + pid + " registro", e); return { ok: false, erro: "GRAVACAO_FALHOU" }; }
   var n = { ok: 0, diverge: 0, ilegivel: 0 };
   linhas.forEach(function (l) { n[l.situacao] = (n[l.situacao] || 0) + 1; });
@@ -74,7 +86,9 @@ function conferenciaEstado_(col, p) {
   if (!o) return { ok: true, feito: false };
   var atual = true;
   try { var x = confDados_(col, p); atual = !x.resp && ctrCarimbo_(x.d) === o.carimbo; } catch (e) { atual = false; }
-  return { ok: true, feito: true, linhas: o.linhas || [], confirmados: o.confirmados || {}, em: o.em || "", por: o.por || "", atual: atual };
+  var anexos = confAnexosMudaram_(o, p.pageId);
+  return { ok: true, feito: true, linhas: o.linhas || [], confirmados: o.confirmados || {}, em: o.em || "", por: o.por || "",
+           atual: atual && !anexos, anexosMudaram: anexos };
 }
 
 /* "Conferi, está certo": a pessoa abriu o documento e confirmou visualmente (ilegível ou divergência aceita). */
@@ -107,6 +121,7 @@ function confAviso_(pageId, hash) {
   var o = confLer_(pageId);
   if (!o) return "Conferência dos documentos: não foi feita";
   if (o.carimbo !== hash) return "Conferência dos documentos: os dados mudaram depois dela — confira de novo";
+  if (confAnexosMudaram_(o, pageId)) return "Conferência dos documentos: os documentos anexados mudaram depois dela — confira de novo";
   var r = ConferenciaDocs.resumo(o.linhas, o.confirmados);
   return r ? "Conferência dos documentos: " + r : "";
 }

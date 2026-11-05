@@ -933,13 +933,19 @@ test("29/10 fluxo: valor da casa só muda com quem está em FLUXO_PRECO_USUARIOS
   assert.equal(JSON.parse(c.txt("FLUXO PERSONALIZADO")).valor, 300000);
 });
 
-test("29/10 fluxo: o servidor recusa mexer no financiamento; pós-chaves só 0, 12 ou 24 (31/10: o prazo pode mudar)", () => {
+test("29/10 fluxo: o servidor recusa financiamento acima da carta (05/11: abaixo salva); pós-chaves só 0, 12 ou 24 (31/10: o prazo pode mudar)", () => {
   const c = cenarioFluxo();
   const base = c.acao("fluxoEditar").atual;
-  const fin = { valor: base.valor, linhas: base.linhas.map((l) => (l.t === "fin" ? { ...l, v: l.v - 1000 } : l.t === "sinal" && l.v === 1000 ? { ...l, v: 2000 } : l)) };
-  const r1 = c.acao("salvarFluxo", { fluxo: fin, motivo: "x" });
+  const acima = { valor: base.valor, linhas: base.linhas.map((l) => (l.t === "fin" ? { ...l, v: l.v + 1000 } : l.t === "sinal" && l.v === 2000 ? { ...l, v: 1000 } : l)) };
+  const r1 = c.acao("salvarFluxo", { fluxo: acima, motivo: "x" });
   assert.equal(r1.erro, "CAMPOS_INVALIDOS");
-  assert.match(r1.erros.join(";"), /não mudam/);
+  assert.match(r1.erros.join(";"), /O financiamento não pode passar do valor aprovado na carta: R\$ /);
+  /* 05/11 (dono): financiar 1.000 a menos, com os 1.000 no balão — salva */
+  let foi = false;
+  const abaixo = { valor: base.valor, linhas: base.linhas.map((l) => (l.t === "fin" ? { ...l, v: l.v - 1000 } : l.t === "balao" && !foi ? (foi = true, { ...l, v: l.v + 1000 }) : l)) };
+  assert.ok(foi, "o cenário tem balão");
+  const r2 = c.acao("salvarFluxo", { fluxo: abaixo, motivo: "cliente financia menos" });
+  assert.equal(r2.ok, true, JSON.stringify(r2));
   const pos = { valor: base.valor, linhas: base.linhas.map((l) => (l.t === "pos" ? { ...l, n: 13, v: l.v * 24 / 13 } : l)) };
   assert.match(c.acao("salvarFluxo", { fluxo: pos, motivo: "x" }).erros.join(";"), /só 0, 12 ou 24 parcelas/);
   const r36 = FluxoLivre.mudarPrazo(base, 36);

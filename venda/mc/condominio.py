@@ -167,6 +167,11 @@ def ajustar_dados_livre(fx: dict, dados: dict) -> None:
     livre = fx.get("livre")
     if not livre or not livre["valor"]:
         return
+    # 05/11/2026 (dono): o financiamento pode baixar no Alterar fluxo (até a carta) — o dado da venda segue a linha do
+    # fluxo, não a coluna VALOR DO CRÉDITO (as parcelas já saem das linhas em parcelas_livres)
+    fins = [l for l in livre["linhas"] if l["t"] == "fin"]
+    if fins:
+        dados["financiado"] = round(sum(_total_linha(l) for l in fins), 2)
     if livre.get("semComissao"):
         # 30/10: venda direta (isenção da comissão, só JC/JV) — comissão zero, como o contrato (valoresCondominio)
         dados["total"] = dados["aquisicao"] = livre["valor"]

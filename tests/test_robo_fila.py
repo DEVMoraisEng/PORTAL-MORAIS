@@ -239,3 +239,82 @@ def test_atender_retrato_que_falha_nao_muda_o_feito(tmp_path, monkeypatch):
         assert len(chamadas) == 2, falha
         log_do_dia = next((tmp_path / "logs").glob("*.log")).read_text(encoding="utf-8")
         assert "retratos depois de gravar" in log_do_dia, falha
+
+
+# ------------------------------------------------- 04/11: a vez no Mais Controle
+def _central(tmp_path, monkeypatch):
+    monkeypatch.setattr(R, "CENTRAL", tmp_path)
+    monkeypatch.setattr(R, "TRAVA_MC", tmp_path / "vez.trava")
+    monkeypatch.setattr(R, "RODANDO", tmp_path / "rodando")
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+
+
+def test_na_vez_marca_trabalhando_e_apaga_no_fim(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    visto = {}
+    def robo():
+        visto.update(json.loads((tmp_path / "rodando" / "anexos.json").read_text(encoding="utf-8")))
+        return 0
+    assert R.na_vez("anexos", robo) == 0
+    assert visto["fase"] == "trabalhando" and visto["robo"] == "anexos"
+    assert not (tmp_path / "rodando" / "anexos.json").exists()
+
+
+def test_na_vez_espera_quem_esta_no_mc_e_desiste_no_prazo(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    import fcntl
+    outro = open(tmp_path / "vez.trava", "a+")
+    fcntl.flock(outro.fileno(), fcntl.LOCK_EX)
+    R.marcar_rodando("medicoes", "trabalhando")
+    t = [0.0]
+    cod = R.na_vez("indices", lambda: 0, espera_s=60, dormir=lambda s: t.__setitem__(0, t[0] + s), relogio=lambda: t[0])
+    assert cod == 1
+    log = "".join(p.read_text(encoding="utf-8") for p in (tmp_path / "logs").glob("*.log"))
+    assert "[vez] indices esperando a vez no Mais Controle (usando agora: medicoes)" in log
+    assert "[indices] FALHOU: esperei 1 min" in log
+    assert not (tmp_path / "rodando" / "indices.json").exists()
+    fcntl.flock(outro.fileno(), fcntl.LOCK_UN)
+    outro.close()
+    assert R.na_vez("indices", lambda: 7) == 7          # solta a trava: entra na hora
+
+
+def test_publicar_arquivo_novo_apaga_a_copia_do_clone(tmp_path, monkeypatch):
+    """04/11: arquivo NOVO largado no clone faria o próximo git pull parar ("untracked working tree file")."""
+    monkeypatch.setattr(R, "RAIZ", tmp_path)
+    (tmp_path / "dist").mkdir()
+    (tmp_path / "dist" / "novo.json").write_text("{}", encoding="utf-8")
+
+    class Res:
+        def __init__(self, c):
+            self.returncode = c
+    monkeypatch.setattr(R.subprocess, "run", lambda cmd, **k: Res(1 if "ls-files" in cmd else 0))
+    assert "não publiquei" in R.publicar_arquivo({}, "dist/novo.json", "x")
+    assert not (tmp_path / "dist" / "novo.json").exists()
+
+
+def test_atualizar_codigo_so_com_clone_limpo_e_sem_robo(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    monkeypatch.setattr(R, "MARCA_PULL", tmp_path / "pull.txt")
+    chamadas = []
+
+    class Res:
+        def __init__(self, out="", code=0):
+            self.stdout, self.stderr, self.returncode = out, "", code
+    heads = iter(["aaa", "bbb"])
+    def rodar(cmd, **k):
+        chamadas.append(cmd[1])
+        return Res(next(heads)) if cmd[1] == "rev-parse" else Res()
+    assert R.atualizar_codigo(rodar=rodar) == "atualizado" and "pull" in chamadas
+    assert R.atualizar_codigo(rodar=rodar) is None                       # dentro dos 15 min: nem tenta
+    (tmp_path / "pull.txt").unlink()
+    R.marcar_rodando("anexos", "trabalhando")
+    assert R.atualizar_codigo(rodar=lambda *a, **k: (_ for _ in ()).throw(AssertionError("não podia rodar git"))).startswith("robô começando")
+    assert not (tmp_path / "pull.txt").exists()                           # não gasta os 15 min: tenta no minuto seguinte
+    import os as _os, time as _time
+    velho = _time.time() - 600
+    _os.utime(tmp_path / "rodando" / "anexos.json", (velho, velho))     # rodando há 10 min: já carregou o código
+    heads2 = iter(["ccc", "ccc"])
+    assert R.atualizar_codigo(rodar=lambda cmd, **k: Res(next(heads2)) if cmd[1] == "rev-parse" else Res()) == "em dia"
+    R.marcar_rodando("anexos", None)
+    (tmp_path / "pull.txt").unlink()
+    assert R.atualizar_codigo(rodar=lambda cmd, **k: Res(" M x.py") if cmd[1] == "status" else Res()) == "clone sujo"

@@ -170,8 +170,24 @@ td.conf-roxo{background:#EDE4FF !important;color:#5B21B6;font-weight:700}
 .aviso-med .it b{letter-spacing:.2px}
 .aviso-med .it .bt-mini{font-size:11px;padding:3px 9px;border-radius:7px;border:1px solid #34D399;background:#fff;color:#065F46;cursor:pointer;font-weight:700}
 .aviso-med .rod{font-size:11px;opacity:.85;margin-top:5px}
+.aviso-med .it a.bt-mini{text-decoration:none;display:inline-block}
+.aviso-med .it a.bt-mini.mc{border-color:#60A5FA;color:#1E3A8A;background:#EFF6FF}
+html[data-tema="escuro"] .aviso-med .it a.bt-mini.mc{background:transparent;color:#bfdbfe;border-color:#2c4f80}
 html[data-tema="escuro"] .aviso-med{background:#11291f;border-color:#2f6b52;color:#a7f3d0}
 html[data-tema="escuro"] .aviso-med .it .bt-mini{background:transparent;color:#a7f3d0;border-color:#2f6b52}
+/* 04/11/26: PROBLEMAS COM AS LIGAÇÕES — quadro do Mais Controle e do que o robô viu */
+.aviso-prob{background:#FFF7ED;border:1px solid #FDBA74;color:#7C2D12;border-radius:10px;padding:9px 12px;font-size:12.5px;margin:8px 0}
+.aviso-prob.mc{background:#EFF6FF;border-color:#93C5FD;color:#1E3A8A}
+.aviso-prob .tt{font-weight:800;margin-bottom:4px}
+.aviso-prob .it{display:flex;gap:10px;align-items:center;justify-content:space-between;flex-wrap:wrap;padding:6px 0;border-top:1px dashed rgba(0,0,0,.12)}
+.aviso-prob .it:first-of-type{border-top:0}
+.aviso-prob .it .small{opacity:.85}
+.aviso-prob .lks{display:flex;gap:6px;flex-wrap:wrap}
+.aviso-prob a.mini{font-size:11px;padding:3px 9px;border-radius:7px;text-decoration:none;font-weight:700;white-space:nowrap}
+.aviso-prob a.mini:not(.az){background:#fff;border:1px solid currentColor;color:inherit}
+html[data-tema="escuro"] .aviso-prob a.mini:not(.az){background:transparent}
+html[data-tema="escuro"] .aviso-prob{background:#2a1a0e;border-color:#7c4a1e;color:#fed7aa}
+html[data-tema="escuro"] .aviso-prob.mc{background:#0f1d33;border-color:#2c4f80;color:#bfdbfe}
 /* 04/11/26 — ligada há 1 mês ou mais e sem UC: linha vermelha forte */
 tbody tr.lin-semuc td{background:#FCA5A5 !important}
 tbody tr.lin-semuc td.stick{background:#F87171 !important}
@@ -884,7 +900,8 @@ const SETORES_LIG = [
   {
     nome: "CONTROLE DE CONTAS",
     d: "Vencimentos, UC e casas vendidas não transferidas",
-    abas: ["vencidas", "semUcContas", "contasGeral", "vendidas"],
+    /* 04/11/26: PROBLEMAS COM AS LIGAÇÕES — o que impede o robô de água e energia (cadastro do Notion e Mais Controle) */
+    abas: ["vencidas", "semUcContas", "problemas", "contasGeral", "vendidas"],
     filtroBase: null
   }
 ];
@@ -923,8 +940,10 @@ function noFluxo(l){
    para atravessarem tabela, PDF e escolha de colunas sem virar caso especial
    em cada lugar. */
 const CALC = { PROC_SANESC: "\u0000TEMPO_SANESC", LIG_CORRIDO: "\u0000TEMPO_LIGACAO",
-               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO", PRAZO_UC: "\u0000PRAZO_SEM_UC" };
+               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO", PRAZO_UC: "\u0000PRAZO_SEM_UC", PROBLEMA: "\u0000PROBLEMA_LIG" };
 const CALC_DEF = {};
+CALC_DEF[CALC.PROBLEMA] = { titulo: "PROBLEMA", valor: l => { const p = problemasDaLinha(l); return p.length ? p.join(" · ") : null; },
+  dica: "o que impede o robô de água e energia de lançar esta casa — some sozinho quando corrigido" };
 CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasProcessoSanesc,
   dica: "da DATA DE LIBERAÇÃO até a DATA DA APROVAÇÃO SANESC (ou até hoje, se ainda não aprovou)" };
 /* Renomeadas (pedido ago/26) pros nomes que a equipe já usa na reunião —
@@ -1194,6 +1213,18 @@ const ABAS = {
     // status que ainda geram conta e UC já preenchida.
     base: l => ["NAO LIGADO", "TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) < 0
             && sel(l, C.UC_OK) === "SIM"
+  },
+  problemas: {
+    titulo: "PROBLEMAS COM AS LIGAÇÕES",
+    /* 04/11/26 (dono): tudo que trava o robô de água e energia, numa lista só. O que é do Notion se corrige aqui
+       mesmo (clique na célula); o que é do Mais Controle fica no quadro de cima, com o link direto. Linha repetida,
+       UC repetida e "ligada sem UC" são calculadas AQUI (somem na hora em que corrige); o resto vem da rodada das
+       07:30 do robô (dist/agua_problemas.json) e some na rodada seguinte. */
+    colunas: [C.OBRA, C.CONC, CALC.PROBLEMA, C.STATUS, C.UC, C.UC_OK, C.DT_UC, C.CPF, C.RESP],
+    filtros: [C.CONC, C.STATUS, C.RESP],
+    sensiveis: true,
+    pdf: true,
+    base: l => problemasDaLinha(l).length > 0
   },
   semUcContas: {
     titulo: "Ligações sem UC (ligadas sem UC)",
@@ -1761,6 +1792,7 @@ function boot(){
   lerEstaticoJa("vendas.json", "vendas_lig", pintarVendas);
   // 04/11/26: medidores comprados no Mais Controle (alerta da aba "apta")
   lerEstaticoJa("medidores_mc.json", "medidores_mc", pintarMedidores);
+  lerEstaticoJa("agua_problemas.json", "agua_problemas", pintarProblemasAgua);   // 04/11/26: PROBLEMAS COM AS LIGAÇÕES
   // valida a sessão em segundo plano — token velho cai fora
   ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
   conferirBackend();
@@ -3583,7 +3615,7 @@ const LEGENDA_SEM_UC = `<div class="legenda"><span><i class="pt lin-semuc"></i> 
 
 /* ===================== 04/11/26 — MEDIDOR COMPRADO NO MAIS CONTROLE =====================
  * Aba "Verificar se a obra está apta para a solicitação". O dist/medidores_mc.json
- * (medidores_mc.py, do Orçado x Realizado do MC) diz quantos PADRÃO DE ENERGIA
+ * (05/11: robô do servidor robo_mc_medidores.py — solicitações/OC do MC) diz quantos PADRÃO DE ENERGIA
  * (medidor de energia → EQUATORIAL) e HIDRÔMETRO (medidor de água → SANEAGO /
  * SANESC) já foram comprados para o centro de custo de cada obra.
  * BAIXA PARCIAL: a solicitação de compra não diz de qual casa é o medidor,
@@ -3591,6 +3623,90 @@ const LEGENDA_SEM_UC = `<div class="legenda"><span><i class="pt lin-semuc"></i> 
  * COMPRADO = SIM. Comprou 1 de 2: avisa 1; marcou SIM numa casa: o aviso some;
  * quando a compra da outra casa entrar no MC, o aviso volta sozinho para a
  * casa que falta. Só entram casas ainda NÃO LIGADAS (obra antiga não acende). */
+/* ===================== 04/11/26 — PROBLEMAS COM AS LIGAÇÕES =====================
+ * Aba do setor CONTROLE DE CONTAS. Três problemas são vistos AQUI, na base que a tela já tem (e somem na hora em
+ * que a célula é corrigida): casa ligada sem UC/matrícula, a mesma casa com duas linhas da mesma concessionária e
+ * a mesma UC/matrícula em casas diferentes. O resto vem da última rodada do robô de água e energia
+ * (dist/agua_problemas.json, publicado pelo servidor sem valores nem CPF): UC de outro titular, casa sem CPF,
+ * NÃO LIGADO com fatura, portal da concessionária e o que é do Mais Controle (conta paga?, taxa sem boleto,
+ * lançamento em dúvida) — esses com o link direto para o Mais Controle no quadro de cima. */
+let AGUA_PROB = null;
+const PROB_MC = ["pago", "taxa", "duvida"];
+function pintarProblemasAgua(r){
+  if (!r || r.ok === false) return;
+  AGUA_PROB = r; PROB_IDX = null;
+  if (SETOR_ATUAL && ABA_ATUAL) renderAba();
+}
+function idNotion(id){ return String(id || "").replace(/-/g, "").toLowerCase(); }
+function urlNotion(id){ return "https://www.notion.so/" + idNotion(id); }
+function ucChaveProb(l){
+  if (ehLinhaEsgoto(l) || normN(sel(l, C.UC_OK)) === "INEXISTE") return "";
+  const u = String(txt(getL(l, C.UC) || "")).toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return (u.length >= 4 && !/TRANSFER|INEXISTE/.test(u)) ? u : "";
+}
+let PROB_IDX = null, PROB_IDX_EM = 0;
+function idxProblemas(){
+  if (PROB_IDX && PROB_IDX.n === LIG.length && Date.now() - PROB_IDX_EM < 1500) return PROB_IDX;
+  const casa = {}, uc = {}, robo = {};
+  LIG.forEach(l => {
+    const k = normN(l.obra) + "|" + normN(sel(l, C.CONC));
+    (casa[k] = casa[k] || []).push(l);
+    const u = ucChaveProb(l);
+    if (u) (uc[u] = uc[u] || new Set()).add(normN(l.obra));
+  });
+  ((AGUA_PROB || {}).itens || []).forEach(it => (it.notion || []).forEach(id => {
+    (robo[idNotion(id)] = robo[idNotion(id)] || []).push(it);
+  }));
+  /* 05/11: as REPETIDAS que o robô viu na base dele (a mesma casa 2x, a mesma UC em casas diferentes) também entram
+     na linha — a conta da tela pode não bater com a do robô (UC escrita diferente, casa com nome diferente) */
+  ((AGUA_PROB || {}).duplicadas || []).forEach(d => (d.notion || []).forEach(id => {
+    (robo[idNotion(id)] = robo[idNotion(id)] || []).push({ grupo: "dup_" + d.tipo,
+      titulo: d.tipo === "uc" ? "UC/matrícula " + (d.uc || "") + " repetida em outra casa" : "Linha repetida na base do Notion" });
+  }));
+  PROB_IDX = { n: LIG.length, casa: casa, uc: uc, robo: robo }; PROB_IDX_EM = Date.now();
+  return PROB_IDX;
+}
+function ligadaSemUcProb(l){
+  if (["LIGADO", "ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l, C.STATUS))) < 0) return false;
+  if (ehLinhaEsgoto(l) || normN(sel(l, C.UC_OK)) === "INEXISTE") return false;
+  const uc = String(txt(getL(l, C.UC) || "")).trim();
+  return !uc || uc === "-";
+}
+function problemasDaLinha(l){
+  if (!l || !l.id) return [];
+  const ix = idxProblemas(), out = [];
+  if (ligadaSemUcProb(l)) out.push("Ligada sem UC/matrícula");
+  const nCasa = (ix.casa[normN(l.obra) + "|" + normN(sel(l, C.CONC))] || []).length;
+  if (nCasa > 1) out.push("Linha repetida: " + nCasa + " linhas desta casa na " + (sel(l, C.CONC) || "mesma concessionária"));
+  const u = ucChaveProb(l);
+  if (u && ix.uc[u] && ix.uc[u].size > 1) out.push("UC/matrícula repetida em " + ix.uc[u].size + " casas");
+  (ix.robo[idNotion(l.id)] || []).forEach(it => {
+    // o que a tela já calculou sozinha não repete; o que ela não viu, o robô completa
+    if (it.grupo === "sem_uc" && out.some(x => /^Ligada sem UC/.test(x))) return;
+    if (it.grupo === "dup_casa" && out.some(x => /^Linha repetida/.test(x))) return;
+    if ((it.grupo === "dup_uc" || it.grupo === "repetida") && out.some(x => /^UC\/matrícula/.test(x))) return;
+    out.push(String(it.titulo || it.grupo).replace(/[<>&]/g, "") + (PROB_MC.indexOf(it.grupo) >= 0 ? " (Mais Controle)" : ""));
+  });
+  return out.filter((x, i) => out.indexOf(x) === i);
+}
+/* Quadro de cima da aba: o que é do Mais Controle (com o link) e o que o robô viu mas a tela não achou a linha. */
+function avisoProblemasHtml(){
+  const r = AGUA_PROB;
+  if (!r) return `<div class="aviso-inline"><span class="load"></span> buscando as pendências da última rodada do robô de água e energia…</div>`;
+  const idsLig = new Set(LIG.map(l => idNotion(l.id)));
+  const mc = (r.itens || []).filter(it => PROB_MC.indexOf(it.grupo) >= 0);
+  const soltos = (r.itens || []).filter(it => PROB_MC.indexOf(it.grupo) < 0 && it.grupo !== "sem_uc" && it.grupo !== "repetida"
+                                        && !(it.notion || []).some(id => idsLig.has(idNotion(id))));
+  const quando = r.rodada_inicio ? fmtData(String(r.rodada_inicio).slice(0, 10)) + " " + String(r.rodada_inicio).slice(11, 16) : "";
+  const linha = it => `<div class="it"><span><b>${esc(it.obra || "—")}</b>${it.conc ? " · " + esc(it.conc) : ""}${it.uc ? " · UC " + esc(it.uc) : ""} — ${esc(it.titulo || "")}${it.motivo ? ": " + esc(it.motivo) : ""}${it.fazer ? `<br><span class="small">O que fazer: ${esc(it.fazer)}${it.quem ? " (" + esc(it.quem) + ")" : ""}</span>` : ""}</span>
+      <span class="lks">${(it.mc || []).map((u, i) => `<a class="bt az mini" href="${esc(u)}" target="_blank" rel="noopener">Abrir no Mais Controle${(it.mc || []).length > 1 ? " " + (i + 1) : ""}</a>`).join("")}${(it.notion || []).slice(0, 2).map((id, i) => `<a class="bt mini" href="${esc(urlNotion(id))}" target="_blank" rel="noopener">Notion${(it.notion || []).length > 1 ? " " + (i + 1) : ""}</a>`).join("")}</span></div>`;
+  let h = "";
+  if (mc.length) h += `<div class="aviso-prob mc"><div class="tt">🧾 ${mc.length} no Mais Controle — resolve o Financeiro, pelo link</div>${mc.map(linha).join("")}</div>`;
+  if (soltos.length) h += `<div class="aviso-prob"><div class="tt">⚠ ${soltos.length} que o robô apontou e a planilha não achou a linha — abra no Notion</div>${soltos.map(linha).join("")}</div>`;
+  h += `<div class="small muted" style="margin:4px 0 8px">Linha repetida, UC repetida e ligada sem UC somem assim que você corrige aqui na tabela. O resto vem da rodada do robô${quando ? " de " + esc(quando) : ""} e some na próxima rodada (seg–sex 07:30). Clique no endereço para abrir a casa.</div>`;
+  return h;
+}
+
 let MEDIDORES_MC = null;
 function pintarMedidores(r){
   if (!r || r.ok === false || !r.obras) return;
@@ -3629,7 +3745,7 @@ function alertasMedidores(){
     const pend = g.linhas.filter(l => sel(l, C.LIBERADO) !== "SIM" && normN(sel(l, C.STATUS)) === "NAO LIGADO");
     const falta = Math.min(Math.min(m.comprado, g.linhas.length) - sim, pend.length);
     if (falta > 0) out.push({ nome: g.nome, tp: g.tp, comprado: m.comprado, orcado: m.orcado, sim: sim, total: g.linhas.length, falta: falta,
-                              casas: pend.map(l => l.obra) });
+                              casas: pend.map(l => l.obra), sols: m.solicitacoes || [] });
   });
   return out.sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR") || (a.tp < b.tp ? -1 : 1));
 }
@@ -3641,8 +3757,13 @@ function avisoMedidoresHtml(){
   const quando = MEDIDORES_MC.data_extracao ? " · leitura do Mais Controle de " + fmtData(String(MEDIDORES_MC.data_extracao).slice(0,10)) : "";
   return `<div class="aviso-med"><div class="tt">🛒 ${al.length} ${al.length === 1 ? "medidor comprado" : "medidores comprados"} no Mais Controle esperando o SIM na planilha</div>
     ${al.map(a => `<div class="it"><span>${ic(a.tp)} <b>${esc(nome(a.tp))} DA OBRA ${esc(a.nome)} COMPRADO</b> — ${num(a.comprado)} comprado${a.comprado === 1 ? "" : "s"} no MC, ${num(a.sim)} de ${num(a.total)} ${a.total === 1 ? "casa" : "casas"} com SIM · marque <b>SIM</b> em ${num(a.falta)} ${a.falta === 1 ? "casa" : "casas"} na coluna MEDIDOR COMPRADO</span>
-      <button class="bt-mini" onclick="verObraMedidor(${esc(JSON.stringify(a.nome))})">ver as casas</button></div>`).join("")}
+      <button class="bt-mini" onclick="verObraMedidor(${esc(JSON.stringify(a.nome))})">ver as casas</button>${linksSolicitacao(a.sols)}</div>`).join("")}
     <div class="rod">Baixa parcial: o aviso de cada obra some quando as casas com SIM alcançam o que foi comprado; se outra compra entrar no MC, ele volta para a casa que falta${esc(quando)}.</div></div>`;
+}
+/* 05/11/26 (dono): a solicitação de compra no Mais Controle, direto (a mesma rota que a tela do MC abre) */
+function linksSolicitacao(sols){
+  return (sols || []).filter(x => /^[0-9a-f-]{36}$/i.test(String(x.id || ""))).slice(0, 4).map(x =>
+    `<a class="bt-mini mc" href="https://acessar.maiscontroleerp.com.br/#/purchase-request/${esc(x.id)}/items" target="_blank" rel="noopener" title="Abrir a solicitação no Mais Controle">↗ Solicitação ${esc(x.n || "")}</a>`).join("");
 }
 function verObraMedidor(nome){
   const b = document.getElementById("set-busca");
@@ -4072,6 +4193,8 @@ function renderAba(){
   if (!def.alertaCor && fonte === "ligacoes" && linhas.some(ligadaSemUcMes)) html += LEGENDA_SEM_UC;
   /* 04/11/26: medidor comprado no Mais Controle */
   if (ABA_ATUAL === "aptas") html += avisoMedidoresHtml();
+  /* 04/11/26: problemas com as ligações — o que é do Mais Controle, com o link */
+  if (ABA_ATUAL === "problemas") html += avisoProblemasHtml();
   /* 21/10: aviso da conferência semanal (a data fica roxa na tabela) */
   if (confTemSemana(ABA_ATUAL) && linhas.length){
     const atr = linhas.filter(l => confAtrasada(l, ABA_ATUAL));

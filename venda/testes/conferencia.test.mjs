@@ -79,3 +79,23 @@ test("camposParaCorrigir: endereço são cinco colunas; comprador 2 e fiadores; 
   assert.deepEqual(K.camposParaCorrigir("f1-id", "rg", false, v({})), []);
   assert.deepEqual(K.camposParaCorrigir("xx", "nome", false, v({})), []);
 });
+
+/* 03/11/2026 (dono): a conferência rodou logo que a linha da venda nasceu, antes de a fila copiar os documentos
+   da proposta; ficou "não anexado" com os arquivos já na linha e nada mandava conferir de novo. */
+test("anexosMudaram: contagem guardada × agora; conferência antiga (sem contagem) só pelo que estava não anexado", () => {
+  const agora = K.contagemArquivos((c) => (c === "DOC. PROPONENTE" || c === "COMPROVANTE DE ENDEREÇO" ? 1 : 0));
+  assert.deepEqual(Object.keys(agora), K.COLUNAS);
+  assert.equal(agora["DOC. PROPONENTE"], 1);
+  const antes = K.contagemArquivos(() => 0);
+  assert.equal(K.anexosMudaram({ arquivos: antes, linhas: [] }, agora), true, "chegou arquivo depois");
+  assert.equal(K.anexosMudaram({ arquivos: agora, linhas: [] }, agora), false, "nada mudou");
+  assert.equal(K.anexosMudaram({ arquivos: agora, linhas: [] }, antes), true, "arquivo saiu");
+  const sem = { linhas: [{ coluna: "DOC. PROPONENTE", situacao: "ilegivel", semArquivo: true }] };
+  assert.equal(K.anexosMudaram(sem, agora), true, "antiga: estava não anexado e agora tem");
+  assert.equal(K.anexosMudaram(sem, antes), false, "antiga: continua sem arquivo");
+  assert.equal(K.anexosMudaram({ linhas: [{ coluna: "DOC. PROPONENTE", situacao: "ilegivel", motivo: "documento não anexado" }] }, agora), true,
+               "linha guardada antes do semArquivo existir");
+  assert.equal(K.anexosMudaram({ linhas: [{ coluna: "DOC. PROPONENTE", situacao: "ok" }] }, agora), false, "antiga lida: não invalida");
+  assert.equal(K.anexosMudaram(null, agora), false);
+  assert.equal(K.anexosMudaram(sem, null), false, "sem a contagem de agora (leitura falhou): não inventa");
+});

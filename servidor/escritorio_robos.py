@@ -45,6 +45,8 @@ PORTEIRO_LOG = CENTRAL / "porteiro.log"
 TAREFAS_CACHE = CENTRAL / "escritorio-tarefas.json"   # 04/11: última leitura boa do Agendador (às vezes ele não responde)
 PDFS_ENVIADOS = CENTRAL / "escritorio-pdfs.txt"       # 04/11: PDFs de relatório que já subiram para o bucket
 PASTA_PDF = "robos/pdf"
+RODANDO = CENTRAL / "rodando"       # 04/11: robo_fila.marcar_rodando — quem está no Mais Controle agora (tarefa ou .bat)
+MAX_RODANDO_H = 3                   # marca mais velha que isto é de um robô que morreu sem apagar
 MAX_LOG = 80                # linhas do log por robô (últimos DIAS_LOG dias)
 DIAS_LOG = 3
 MAX_PDF_POR_VEZ = 40
@@ -213,6 +215,8 @@ ConvertTo-Json -InputObject @($lista) -Depth 5 -Compress
 """
 
 RESULTADOS = {0: "terminou bem", 267009: "trabalhando agora", 267011: "ainda não rodou",
+              2147942667: "NÃO COMEÇOU: a pasta da tarefa não existe (0x8007010B)",
+              2147942402: "NÃO COMEÇOU: o programa da tarefa não foi achado (0x80070002)",
               267014: "foi interrompida", 2147750687: "já estava rodando (pulou)", 1: "terminou com erro"}
 DIAS = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"]
 
@@ -507,6 +511,49 @@ def tarefas_com_reserva(erros: list) -> list:
         return []
 
 
+def _pid_vivo(pid) -> bool:
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)          # PROCESS_QUERY_LIMITED_INFORMATION; nunca os.kill no Windows
+        if not h:
+            return False
+        try:
+            cod = ctypes.c_ulong()
+            return bool(k.GetExitCodeProcess(h, ctypes.byref(cod))) and cod.value == 259   # STILL_ACTIVE
+        finally:
+            k.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def rodando_agora(pasta: pathlib.Path = RODANDO, agora: dt.datetime | None = None, vivo=_pid_vivo) -> dict:
+    """{robô: {"fase", "desde"}} de quem está no Mais Controle agora — rodado pela tarefa ou à mão (.bat)."""
+    agora = agora or dt.datetime.now(dt.timezone.utc)
+    out = {}
+    try:
+        arquivos = list(pasta.glob("*.json"))
+    except Exception:
+        return out
+    for f in arquivos:
+        try:
+            d = json.loads(f.read_text(encoding="utf-8"))
+            desde = dt.datetime.fromisoformat(str(d.get("desde")))
+            if (agora - desde).total_seconds() > MAX_RODANDO_H * 3600 or not vivo(d.get("pid")):
+                continue
+            out[f.stem] = {"fase": d.get("fase") or "trabalhando", "desde": d.get("desde"), "fase_em": d.get("fase_em")}
+        except Exception:
+            continue
+    return out
+
+
 def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
     erros = []
     tarefas = tarefas_com_reserva(erros) if os.name == "nt" else []
@@ -546,7 +593,8 @@ def montar(hoje: dt.date | None = None, conferir: bool = True) -> dict:
         agua, _ = None, erros.append("sala da água e energia: %s" % type(e).__name__)
     return {"versao": VERSAO, "gerado": dt.datetime.now().astimezone().isoformat(timespec="seconds"),
             "tarefas": tarefas, "rodadas": rods, "saude": saude, "log": log,
-            "porteiro": porteiro, "coordenador": coordenador, "agua": agua, "avisos": erros}
+            "porteiro": porteiro, "coordenador": coordenador, "agua": agua, "rodando": rodando_agora(),
+            "avisos": erros}
 
 
 def subir_pdfs(dados: dict, log=print) -> int:
@@ -619,9 +667,14 @@ def subir(dados: dict) -> int:
     return len(corpo)
 
 
+ULTIMO: dict | None = None          # 04/11: o último retrato publicado (o robo_fila tira dele os problemas da água)
+
+
 def publicar(log=print) -> bool:
+    global ULTIMO
     try:
         dados = montar()
+        ULTIMO = dados
         pdfs = subir_pdfs(dados, log)
         n = subir(dados)
         log("escritório publicado: %d tarefas, %d robôs com rodadas, %d PDF novo(s), porteiro %s, %d KB" % (

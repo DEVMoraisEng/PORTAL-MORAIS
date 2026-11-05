@@ -250,6 +250,12 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 .pino.erro{background:var(--st-erro)}.pino.ped{background:#d9a514}
 @media (prefers-reduced-motion:no-preference){.pino.erro{animation:pulo 1.4s ease-in-out infinite}}
 @keyframes pulo{50%{margin-top:-4px}}
+.sala3d-linha{display:flex;gap:12px;align-items:flex-start}
+.sala3d-linha>.sala3d{flex:1 1 auto;min-width:0}
+.avisos3d{flex:0 0 300px;position:sticky;top:10px;max-height:min(74vh,760px);display:flex}
+.avisos3d:empty,.sala3d.hide+.avisos3d{display:none}
+.avisos3d .quadro-avisos{position:static;width:100%;max-height:100%}
+@media (max-width:900px){.sala3d-linha{flex-direction:column;align-items:stretch}.avisos3d{flex:none;position:static;max-height:none}}
 .quadro-avisos{position:absolute;right:10px;top:10px;z-index:3;width:min(320px,calc(100% - 20px));max-height:calc(100% - 60px);display:flex;flex-direction:column;
   background:color-mix(in srgb,var(--sup) 96%,transparent);border:1px solid var(--border);border-left:4px solid var(--st-erro);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.22);font-size:12px}
 .qa-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border2)}
@@ -319,9 +325,13 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
     <button type="button" class="bt" id="bt-agenda" title="Horários de hoje e o que já rodou">📅 Agenda de hoje</button>
     <span class="vistas" role="group" aria-label="Como ver"><button type="button" id="v-3d" aria-pressed="true">Sala 3D</button><button type="button" id="v-lista" aria-pressed="false">Lista</button></span>
   </div>
-  <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
-    <span class="dica3d">Arraste para girar · role ou pince para aproximar · clique num robô</span>
-  </section>
+  <div class="sala3d-linha">
+    <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
+      <span class="dica3d">Arraste para girar · role ou pince para aproximar · clique num robô</span>
+    </section>
+    <!-- 04/11 (dono): os avisos ficam FORA da sala, no canto, para não cobrir as mesas -->
+    <aside class="avisos3d" id="avisos3d" aria-label="Quem precisa de atenção"></aside>
+  </div>
   <div id="carregando" class="carregando">Chamando os robôs para a reunião…</div>
   <section class="sala hide" id="sala-recepcao">
     <h2>Recepção <small>quem abre a porta do Mais Controle e atende o portal</small></h2>
@@ -344,7 +354,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
 <script src="app.js?v=45"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
-<script src="escritorio-3d.js?v=5"></script>
+<script src="escritorio-3d.js?v=6"></script>
 <script>
 /* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
  * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
@@ -367,7 +377,7 @@ const CATALOGO = {
   fila:     { nome: "Atendente da fila", cargo: "Balcão do portal", ico: "🛎️", cor: "#1B5173", recepcao: true,
     faz: "De minuto em minuto atende os pedidos feitos no portal (lançar venda, distrato, anexar contrato, ZIP) pela aba do porteiro." },
   coordenador: { nome: "Coordenador da fila", cargo: "Gerência", ico: "🧭", cor: "#c27c0e", recepcao: true,
-    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
+    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos → medidores), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
   contas:   { nome: "Contas, clientes e obras", cargo: "Cadastro", ico: "🏦", cor: "#3f7cac",
     faz: "Espelha as contas bancárias do Mais Controle no Notion, confere os proprietários (nome e CPF/CNPJ) e cria no MC as obras marcadas “Criar”." },
   bases:    { nome: "Bases no Notion", cargo: "Arquivo", ico: "🗂️", cor: "#6c5ce7",
@@ -380,6 +390,8 @@ const CATALOGO = {
     faz: "Lê no Mais Controle cada venda do condomínio e guarda o retrato financeiro (pagas, a vencer, em atraso) para a aba Financeiro." },
   anexos:   { nome: "Anexos da auditoria", cargo: "Auditoria", ico: "📎", cor: "#3aa79a",
     faz: "Traz do Mais Controle boleto, NF, recibo e comprovante dos pagamentos com alerta para o 📎 da Auditoria Financeira." },
+  medidores: { nome: "Medidores", cargo: "Compras", ico: "📟", cor: "#8e6bbf",
+    faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
   agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
     faz: "Coleta as contas de água e energia das obras." }
 };
@@ -431,7 +443,7 @@ function montarRobos(D) {
   (D.tarefas || []).forEach(t => pega(t.chave).tarefas.push(t));
   Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
   /* 04/11: todo robô conhecido tem mesa, mesmo sem tarefa agendada ainda (ex.: anexos da auditoria) */
-  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos"].forEach(pega);
+  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"].forEach(pega);
   const PL = D.coordenador, plAtivo = !!(PL && !["terminado", "cancelado"].includes(PL.status));
   mapa.forEach(r => { r.log = ((D.log || {})[r.chave]) || []; });
   /* porteiro: a linha "porteiro: …" mais nova de qualquer rodada */
@@ -444,7 +456,10 @@ function montarRobos(D) {
   const robos = [...mapa.values()].map(r => {
     const cat = catDe(r.chave, (r.tarefas[0] || {}).titulo);
     const ult = r.rodadas[0] || null;
-    const rodando = r.tarefas.some(t => t.estado === "trabalhando");
+    /* 04/11: o servidor diz quem está no Mais Controle agora — também o que foi rodado por um .bat, que o
+       Agendador não mostra (o anexos das 17:12 aparecia "deu errado" com a rodada nova no meio) */
+    const agoraR = (D.rodando || {})[r.chave];
+    const rodando = r.tarefas.some(t => t.estado === "trabalhando") || !!agoraR;
     const desligado = r.tarefas.length && r.tarefas.every(t => t.estado === "desligada");
     const proximas = r.tarefas.map(t => t.proxima).filter(Boolean).sort();
     const res = r.tarefas.map(t => t.resultado).filter(x => x != null);
@@ -484,7 +499,18 @@ function montarRobos(D) {
     else if (desligado) { st = "off"; stTexto = "desligado"; }
     else if (ult) { st = ult.ok ? "ok" : "erro"; stTexto = ult.ok ? "deu certo" : "deu errado"; stHora = quando(ult.inicio); }
     else if (res.length) { st = resRuim ? "erro" : "ok"; stTexto = resRuim ? "deu errado" : "deu certo"; stHora = quando(r.tarefas[0].ultima); }
-    if (rodando && r.chave !== "porteiro" && r.chave !== "fila") { st = "trab"; stTexto = "trabalhando"; }
+    /* 05/11: a tarefa que nem começou (0x8007010B às 05:20 e 22:00) não deixa relatório — a mesa ficava "deu certo"
+       pela rodada à mão da véspera. Resultado ruim da tarefa MAIS NOVO que a última rodada manda na mesa. */
+    if (!["porteiro", "fila", "coordenador"].includes(r.chave)) {
+      const ruim = r.tarefas.filter(t => t.resultado != null && ![0, 267009, 267011, 267014].includes(t.resultado) && t.ultima
+                                   && (!ult || !dataDe(ult.inicio) || dataDe(t.ultima) > dataDe(ult.inicio)))
+                            .sort((a, b) => String(b.ultima).localeCompare(String(a.ultima)))[0];
+      if (ruim) { st = "erro"; stTexto = /NÃO COMEÇOU/.test(ruim.resultado_texto || "") ? "a tarefa não começou" : "deu errado"; stHora = quando(ruim.ultima); }
+    }
+    if (rodando && r.chave !== "porteiro" && r.chave !== "fila") {
+      st = "trab"; stTexto = agoraR && agoraR.fase === "esperando a vez" ? "esperando a vez no Mais Controle" : "trabalhando";
+      if (agoraR && agoraR.desde) stHora = "desde " + hhmm(dataDe(agoraR.desde));
+    }
     if (st === "sem" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
     const noPlano = plAtivo && PL.fila.find(i => i.chave === r.chave && (i.estado === "esperando" || i.estado === "rodando"));
     if (noPlano && noPlano.estado === "esperando" && st !== "trab") { st = "pedido"; stTexto = "na fila do coordenador (" + (PL.fila.indexOf(noPlano) + 1) + "º)"; }
@@ -494,7 +520,7 @@ function montarRobos(D) {
     } else if (ped && (st === "trab" || Date.now() - ped >= PEDIDO_VALE_MS)) delete PEDIDOS[r.chave];
     return Object.assign(r, { cat, ult, st, stTexto, stHora, proxima: proximas[0] || null, ultP: r.chave === "porteiro" ? ultP : null });
   });
-  const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos"];
+  const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
   robos.sort((a, b) => {
     const ia = ordem.indexOf(a.chave), ib = ordem.indexOf(b.chave);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
@@ -532,11 +558,19 @@ const CAT_AGUA = {
 };
 const ORDEM_AGUA = ["coletor", "cadastro", "notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias", "email"];
 const PASSOS_AGUA = ["notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias"];
-function estadoEmail(x) { const e = String((x && x.email) || ""); return /NÃO enviado|nao enviado/i.test(e) ? "erro" : /enviado/i.test(e) ? "ok" : "off"; }
+function estadoEmail(x) {
+  if (x && x.email_enviado) return "ok";        // 04/11: saiu (na rodada ou no reenvio das 10:00/14:00)
+  const e = String((x && x.email) || ""); return /NÃO enviado|nao enviado/i.test(e) ? "erro" : /enviado/i.test(e) ? "ok" : "off";
+}
+function textoEmail(x) {
+  const e = String((x && x.email) || "");
+  if (x && x.email_enviado) return /NÃO enviado|nao enviado/i.test(e) ? "enviado depois, pela tarefa de reenvio (na rodada: " + e + ")" : (e || "e-mail enviado");
+  return e || "a rodada não escreveu nada sobre o e-mail";
+}
 function estadoAgua(k, x) {
   if (!x) return { st: "off", texto: "" };
   if (PASSOS_AGUA.includes(k)) return (x.estados || {})[k] || { st: "off", texto: "não rodou nesta rodada" };
-  if (k === "email") return { st: estadoEmail(x), texto: x.email || "a rodada não escreveu nada sobre o e-mail" };
+  if (k === "email") return { st: estadoEmail(x), texto: textoEmail(x) };
   if (k === "cadastro") {
     const d = (x.duplicados || []).length, p = (x.problemas || []).length;
     return { st: d ? "erro" : "ok", texto: d ? d + " linha(s) repetida(s) no Notion" + (p ? " · " + p + " pendência(s) de cadastro" : "") : p ? p + " pendência(s) de cadastro" : "base sem pendências" };
@@ -683,7 +717,7 @@ function relatorioAgua(x) {
   if ((x.alertas || []).length) h += `<h4>Alertas da rodada</h4><ul>${x.alertas.map(a => `<li>${esc(a)}</li>`).join("")}</ul>`;
   h += `<h4>Passo a passo</h4><div class="tbl"><table class="passos">${PASSOS_AGUA.map(k => { const e = (x.estados || {})[k] || { st: "off", texto: "" };
     return `<tr><td>${esc(CAT_AGUA[k].ico)} ${esc(CAT_AGUA[k].nome)}</td><td>${seloAgua(e.st)}</td><td class="txt">${esc(e.texto)}</td></tr>`; }).join("")}
-    <tr><td>${esc(CAT_AGUA.email.ico)} E-mail</td><td>${seloAgua(estadoEmail(x))}</td><td class="txt">${esc(x.email || "")}</td></tr></table></div>`;
+    <tr><td>${esc(CAT_AGUA.email.ico)} E-mail</td><td>${seloAgua(estadoEmail(x))}</td><td class="txt">${esc(textoEmail(x))}</td></tr></table></div>`;
   const dup = x.duplicados || [], prob = x.problemas || [];
   if (dup.length || prob.length) h += `<h4>Cadastro no Notion</h4><p class="meta" style="margin-top:0">${dup.length} repetida(s) · ${prob.length} pendência(s) — detalhes na mesa “Cadastro no Notion”.</p>`;
   h += pdfHtml(x);
@@ -901,6 +935,10 @@ function causaDe(r) {
     return "A sessão do Mais Controle no Chrome central caiu" + (P && P.texto ? " — o último robô viu: “" + P.texto + "”" : "") + ". Quem entra é o dono, pela janela do Chrome central no servidor.";
   }
   if (r.chave === "fila") return r.stTexto === "sem sinal" ? "A fila do portal não dá sinal: o servidor pode estar desligado, sem internet, ou a tarefa da fila parou." : "Algum pedido do portal deu erro — veja a coluna RESULTADO na FILA DO ROBÔ.";
+  if (r.stTexto === "a tarefa não começou") {
+    const t = r.tarefas.filter(t => /NÃO COMEÇOU/.test(t.resultado_texto || "")).sort((a, b) => String(b.ultima).localeCompare(String(a.ultima)))[0];
+    if (t) return t.titulo + " (" + quando(t.ultima) + "): " + t.resultado_texto.replace(/^NÃO COMEÇOU: /, "o Agendador não conseguiu começar — ") + ".";
+  }
   const u = r.ult;
   if (u && !u.ok) {
     const a = (u.atencao || [])[0];
@@ -927,7 +965,7 @@ function oQueFazer(r) {
 }
 /* 04/11: só os robôs que entram pelo porteiro podem ser disparados pelo portal (o de água e energia ainda pode
    logar sozinho no ERP e derrubar a sessão de todo mundo) */
-const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos"];
+const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
 function tarefaParaRodar(r) {
   if (!ROBOS_PELO_PORTEIRO.includes(r.chave)) return null;
   return r.tarefas.find(t => t.estado !== "desligada" && /^MoraisEng - /.test(t.nome) && !/porteiro|\(fila\)/i.test(t.nome)) || null;
