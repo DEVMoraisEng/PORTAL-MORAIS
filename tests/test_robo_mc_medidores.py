@@ -70,3 +70,10 @@ def test_so_as_obras_da_aba_apta():
         {"obra": "XX 02 QD 01 LT 01 ÚNICA", "v": {"STATUS": "NÃO LIGADO", "FEZ A SOLICITAÇÃO?": "SIM"}}]}
     assert rm.obras_da_aba(dados) == {"TB17QD49LT11": "TB 17 QD 49 LT 11"}
     assert rm.chave_lote("TB 17 QD 49 LT 11") in rm.obras_da_aba(dados)
+
+
+def test_guarda_a_solicitacao_para_o_link_do_mc():
+    sol = dict(SOL_8192, id="6486e261-b336-4263-99e5-a27de4efb5ca")
+    o = rm.somar(rm.compras_da_solicitacao(sol))["TB 21 QD 50 LT 34"]
+    assert o["agua"]["solicitacoes"] == [{"id": "6486e261-b336-4263-99e5-a27de4efb5ca", "n": 8192}]
+    assert o["energia"]["solicitacoes"][0]["n"] == 8192
