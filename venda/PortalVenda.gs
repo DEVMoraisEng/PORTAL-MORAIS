@@ -40,7 +40,7 @@ function tratar_(p) {
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "assinaturaTrocarEmail" /* 03/11 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
-                 "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
+                 "recebimentoConfirmar" /* entrega 14 */, "recebimentoRemover", "recebimentoValor", "recebimentoLerContratoFin", "recebimentoMC" /* 05/11 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
                  "excluirArquivoEspaco" /* 05/11: Excluir um anexo do dossiê */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
@@ -128,6 +128,11 @@ function executar_(col, sess, p) {
       case "antecipacaoPdf":    return antecipacaoPdf_(col, sess, p);
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
+      /* 05/11/2026: vários pagamentos por item, valor esperado editável, outros, contrato de financiamento e Mais Controle */
+      case "recebimentoRemover": return recebimentoRemover_(col, sess, p);
+      case "recebimentoValor": return recebimentoValor_(col, sess, p);
+      case "recebimentoLerContratoFin": return recebimentoLerContratoFin_(col, sess, p);
+      case "recebimentoMC": return recebimentoMC_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }
 }

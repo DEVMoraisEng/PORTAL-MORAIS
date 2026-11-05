@@ -97,7 +97,8 @@ test("conta digitada com operação: entra no contrato; sem operação o '– Op
 
 /* ---------------- recebimentos (puro) ---------------- */
 test("RecebimentoVenda puro: colunas, datas, destinatários, assunto e corpo sem CPF", () => {
-  assert.deepEqual(REC.colunas("SINAL"), { data: "RECEBIMENTO - SINAL DATA", comprovante: "RECEBIMENTO - SINAL COMPROVANTE", por: "RECEBIMENTO - SINAL POR" });
+  assert.deepEqual(REC.colunas("SINAL"), { data: "RECEBIMENTO - SINAL DATA", comprovante: "RECEBIMENTO - SINAL COMPROVANTE", por: "RECEBIMENTO - SINAL POR",
+                                           pagamentos: "RECEBIMENTO - SINAL PAGAMENTOS" /* 05/11 */ });
   assert.equal(Object.keys(REC.colunasNecessarias()).length, 9);
   assert.equal(REC.item("entrada").esperado, "CONTRATO - ENTRADA VALOR");
   assert.equal(REC.item("FINANCIAMENTO").esperado, "VALOR FINANCIADO");
@@ -133,22 +134,25 @@ function cenarioRec({ props = {}, venda = {}, colunas, mail = "ok" } = {}) {
 }
 const hoje = () => new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 
-test("recebimentoEstado: três itens com o valor esperado; nada confirmado", () => {
+test("recebimentoEstado: os itens com o valor esperado (05/11: + FGTS); nada confirmado", () => {
   const c = cenarioRec();
   const r = chamar(c, { action: "recebimentoEstado" });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.deepEqual(r.itens.map((x) => [x.id, x.esperado, x.confirmado, x.comprovantes]),
-    [["SINAL", 10000, false, 0], ["ENTRADA", 20000, false, 0], ["FINANCIAMENTO", 150000, false, 0]]);
+    [["SINAL", 10000, false, 0], ["ENTRADA", 20000, false, 0], ["FINANCIAMENTO", 150000, false, 0], ["FGTS", null, false, 0]]);
+  assert.deepEqual(r.itens.map((x) => x.modo), ["antigo", "antigo", "antigo", ""], "sem as colunas de 05/11: o jeito da entrega 14");
+  assert.match(r.itens[3].erro, /^COLUNA_FALTANDO: RECEBIMENTO - FGTS PAGAMENTOS/);
   assert.equal(r.emailConfigurado, false);
   /* TESTES consulta */
   assert.equal(chamar(c, { action: "recebimentoEstado" }, tokenDe("TESTES")).ok, true);
 });
 
-test("recebimento: colunas faltando viram COLUNA_FALTANDO legível", () => {
+test("recebimento: coluna faltando fica só no item (05/11: não quebra o bloco)", () => {
   const c = cenarioRec({ colunas: colunasVenda() });
   const r = chamar(c, { action: "recebimentoEstado" });
-  assert.equal(r.ok, false);
-  assert.match(r.erro, /^COLUNA_FALTANDO: RECEBIMENTO - SINAL DATA, /);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.itens.every((x) => /^COLUNA_FALTANDO: RECEBIMENTO - \w+ PAGAMENTOS/.test(x.erro)), JSON.stringify(r.itens.map((x) => x.erro)));
+  assert.match(chamar(c, { action: "recebimentoConfirmar", item: "SINAL", data: "2026-10-01" }).erro, /^COLUNA_FALTANDO: RECEBIMENTO - SINAL PAGAMENTOS/);
 });
 
 test("confirmar: grava data, comprovante e login; e-mail com assunto padrão, sem CPF; TESTES não grava", () => {

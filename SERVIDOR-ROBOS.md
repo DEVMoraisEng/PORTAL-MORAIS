@@ -400,3 +400,40 @@ schtasks /Create /TN "MoraisEng - Documentos do Orçamento" /SC DAILY /ST 05:50 
   /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo documentos"
 ```
 O Escritório de Robôs mostra a mesa "Documentos do Orçamento"; o Coordenador o põe por último na fila (`ORDEM`).
+
+# RECEBIMENTOS DA CASA DE RUA (05/11/2026) — baixa do sinal e parcelas de financiamento/FGTS
+
+Pedido "mc-recebimento" (aba Recebimentos do painel da casa) → `venda/mc/recebimentos.py`. Dá baixa de cada pagamento
+do sinal/entrada registrado no portal (com o comprovante na pasta de arquivos da venda) e acerta as parcelas de sinal,
+financiamento e FGTS quando o valor mudou (guarda a venda inteira antes em `_central\backups-vendas\`, relê e confere;
+se não bater, grava de volta e avisa). Rotas que gravam e o que conferir ao vivo: comentário em `venda/mc/erp.py`.
+
+Trava PRÓPRIA (vale também na fila "teste" — o dono pediu o 1º processo inteiro no teste gravando de verdade):
+`"pode_gravar_recebimento": true` na fila do `_central\robos-portal.json` **e** o arquivo
+`C:\AUTOMAÇÕES MAIS CONTROLE\_central\RECEBIMENTO_APLICAR.txt` (só o dono cria). Sem os dois, só prévia (o texto
+diz o que faria). O `VENDA_APLICAR.txt` não entra nesta conta.
+
+## 1. (dono) Colunas no Notion de TESTE
+`py -3.14 venda/ferramentas/criar_colunas_recebimentos.py <id da VENDAS de teste> <arquivo do token>` (só mostra) e depois
+com `--criar`. Publicar o PORTAL-VENDA de teste com RecebimentoVenda.gs, RegrasVenda.js, OpenAILeitor.js, ClaudeLeitor.js,
+PortalVenda.gs e LogContratoVenda.js.
+
+## 2. (servidor) Prévia
+Atualizar o clone e rodar `python -m pytest -q venda/mc/testes tests/test_robo_fila.py`. Numa casa de TESTE já lançada
+(MC - VENDA ID), registrar no portal o sinal em dois pagamentos (ex.: 3 mil + 2 mil, um com comprovante em PDF).
+Sem a trava, a coluna MC - RECEBIMENTOS mostra "prévia: baixaria …" e qual conta usaria.
+
+## 3. (dono) Ligar a gravação só no teste
+`"pode_gravar_recebimento": true` na fila "teste" + criar o `RECEBIMENTO_APLICAR.txt`. Clicar "Conferir no Mais Controle".
+
+## 4. Conferir na venda de teste do Mais Controle (centavo por centavo)
+- duas baixas parciais na parcela do sinal (valor e data do portal), parcela "em aberto" depois da 1ª e quitada depois da 2ª;
+- conta: a do comprovante quando o PDF tem agência e conta de uma conta do Mais Controle; senão a padrão da venda;
+- comprovante na pasta "Arquivos" da venda com o nome `COMPROVANTE SINAL <data> <id>.pdf`;
+- mudar o valor do FGTS na aba (ou ler um contrato de financiamento de teste): parcela de FGTS criada/alterada, total da
+  venda igual à soma das parcelas, backup em `_central\backups-vendas\`;
+- pedir "Conferir" de novo: nada é baixado duas vezes.
+Se algo divergir, anotar o CORPO da resposta do ERP (log do servidor) e corrigir a rota em `erp.py` antes da produção.
+
+## 5. (dono) Produção
+Só depois do teste certo: colunas na VENDAS de produção, publicar o PORTAL-VENDA de produção e ligar a trava na fila "producao".
