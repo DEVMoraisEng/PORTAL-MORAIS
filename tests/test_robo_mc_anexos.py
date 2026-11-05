@@ -385,3 +385,16 @@ def test_nao_achado_recente_fica_fora_da_rodada():
     assert not ra._rechecar({"nao_achado": ra.HOJE.isoformat()}, D(2), lim, agora)
     velho = (ra.HOJE - dt.timedelta(days=ra.REPROCURAR_DIAS)).isoformat()
     assert ra._rechecar({"nao_achado": velho}, D(2), lim, agora)
+
+
+def test_alerta_da_fiscalizacao_velho_entra_e_lista_em_pedacos(monkeypatch):
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101, 202, 303], "dp": [D(5), D(300), D(300)], "st": [1, 0, 1]},
+           "fiscal": [["TARDIO", 1, "x"]]}
+    alvo = ra.escolher(aud)
+    assert set(alvo) == {101, 202}            # 202: alerta da Fiscalização com 300 dias entra; 303 (só situação) não
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    leitor = ra.LeitorMC(ErpFalso())
+    itens, est = ra.rodada(leitor, aud_falsa(), alvo)
+    assert "202" not in itens or not itens["202"].get("nao_achado")   # o pedaço velho fica para a próxima rodada
