@@ -171,9 +171,12 @@ test("modelo PRONTO quando a obra está finalizada, com prazos do loteamento (te
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.ok(c.pdfTexto().startsWith("MODELO PRONTO"));
+  /* 05/11/2026 (dono): casa de rua — prazos fixos do modelo, mesmo sem nada no cadastro do setor */
   const semPrazo = cenario({ obra: { "OBRA FINALIZADA?": sel("SIM") }, venda: { "CONTRATO - HABITE-SE Nº": rt("HB-5") },
-                             loteamento: { "PRAZO POSSE (DIAS)": null } });
-  assert.ok(semPrazo.gerar().faltas.includes("Loteamento: prazo de posse (dias)"));
+                             loteamento: { "PRAZO POSSE (DIAS)": null, "PRAZO CHAVES (DIAS ÚTEIS)": null } });
+  assert.equal(semPrazo.gerar().ok, true);
+  assert.equal(CV.marcadores(CV.montarDadosContrato({ venda: {}, obra: {}, loteamento: {} })).PRAZO_POSSE_DIAS, "20 (vinte)");
+  assert.equal(CV.marcadores(CV.montarDadosContrato({ venda: {}, obra: {}, loteamento: {} })).PRAZO_CHAVES_DIAS, "02 (dois)");
 });
 
 test("valor com $ e \\ entra literal (a substituição do Docs interpreta os dois)", () => {
@@ -287,7 +290,6 @@ test("I-2: endereço repetido em DOCUMENTOS (sem relação) -> falta de obra amb
 
 test("I-2: cadastro duplicado (vendedor, loteamento, corretor) vira falta, sem cópia", () => {
   const casos = [["db-vend", "Vendedor: cadastro duplicado em VENDEDORES – CONTRATO"],
-                 ["db-lote", "Loteamento: cadastro duplicado em LOTEAMENTOS – CONTRATO"],
                  ["db-corr", "Corretor: cadastro duplicado em CORRETORES – CONTRATO"]];
   for (const [base, falta] of casos) {
     const c = cenario({ duplicar: { [base]: true } });
@@ -296,6 +298,16 @@ test("I-2: cadastro duplicado (vendedor, loteamento, corretor) vira falta, sem c
     assert.deepEqual(r.faltas, [falta], base);
     assert.equal(c.d.estado.copias.length, 0, base);
   }
+  /* 05/11/2026: casa de rua não lê mais o cadastro de loteamento — duplicado lá não trava */
+  assert.equal(cenario({ duplicar: { "db-lote": true } }).gerar().ok, true);
+});
+test("casa de rua sem a matrícula lida: pede para ler a matrícula, nunca o cadastro do setor", () => {
+  const c = cenario({ venda: { "CONTRATO - MATRÍCULA DO LOTEAMENTO": null, "CONTRATO - CARTÓRIO DO LOTEAMENTO": null, "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": null } });
+  const r = c.gerar();
+  assert.equal(r.erro, "FALTAM_DADOS");
+  assert.ok(r.faltas.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler"), JSON.stringify(r.faltas));
+  assert.ok(!r.faltas.some(f => /LOTEAMENTOS|Loteamento:/.test(f)), "nada de cadastro de loteamento");
+  assert.ok(!(r.campos && r.campos.grupos || []).some(g => g.grupo === "loteamento"), "sem formulário de loteamento");
 });
 
 test("I-2: cadastro duplicado por acento/caixa diferentes também conta", () => {

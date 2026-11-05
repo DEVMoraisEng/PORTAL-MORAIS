@@ -32,6 +32,7 @@ const PROPS = {
 
 function colunasVenda(sem = []) {
   const c = Object.assign({}, COLUNAS_REAIS, {
+    "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": "rich_text", "CONTRATO - MATRÍCULA DO LOTEAMENTO": "rich_text", "CONTRATO - CARTÓRIO DO LOTEAMENTO": "rich_text",
     " VALOR NA MÃO ": "number", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", " COMISSÃO ": "number",
     CORRETOR: { tipo: "select", opcoes: ["Corretor Teste"] }, SETOR: { tipo: "select", opcoes: ["Setor Teste"] },
     "OBRA-AUTO": "relation", CASA: "rich_text", "Email": "email",
@@ -62,9 +63,11 @@ const VENDA = {
   "CONTRATO - FORMA DE PAGAMENTO": sel("PIX"), "CONTRATO - COMISSÃO FORMA": sel("PIX"),
   "CONTRATO - COMISSÃO VENCIMENTO": rt("na assinatura do financiamento"), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR"),
   "DATA DA ENTREGA": dat("2027-06-30"),
+  /* 05/11/2026: loteamento da casa (lido da matrícula pela IA) */
+  "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": rt("Residencial Teste"), "CONTRATO - MATRÍCULA DO LOTEAMENTO": rt("M-100"), "CONTRATO - CARTÓRIO DO LOTEAMENTO": rt("Cartório Teste"),
   "CONTRATO GERADO": GERADO,
 };
-const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO") };
+const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO"), "CIDADE ": rt("Cidade Teste") };
 const VENDEDOR = {
   NOME: tit("Construtora Teste Ltda"), TIPO: sel("PJ"), "CPF/CNPJ": rt("00.000.000/0001-00"), "ENDEREÇO / SEDE": rt("Av. Teste, 100"),
   "REPRESENTANTE NOME": rt("Beltrano Representante"), "REPRESENTANTE CPF": rt("000.000.002-72"), "REPRESENTANTE E-MAIL": rt("beltrano@teste.example"),

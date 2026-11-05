@@ -755,6 +755,9 @@ var ContratoVenda = (function () {
     return out;
   }
 
+  /* 05/11/2026 (dono): itens 9.8/9.9 do contrato da casa pronta — "posse em até 20 (vinte) dias" e "chaves em até 02 (dois)
+     dias úteis", iguais em todos os contratos assinados; não aparecem na tela nem vêm de cadastro */
+  var PRAZO_POSSE_RUA = "20 (vinte)", PRAZO_CHAVES_RUA = "02 (dois)";
   function montarDadosContrato(f) {
     f = f || {};
     var v = f.venda || {}, o = f.obra || {};
@@ -810,7 +813,9 @@ var ContratoVenda = (function () {
       loteamento: f.loteamento ? {
         denominacao: txt(v.DENOMINACAO_LOTEAMENTO) || txt(f.loteamento.denominacao), municipioUf: txt(f.loteamento.municipioUf),
         matricula: txt(f.loteamento.matricula), cartorio: txt(f.loteamento.cartorio),
-        prazoPosseDias: txt(f.loteamento.prazoPosseDias), prazoChavesDias: txt(f.loteamento.prazoChavesDias)
+        /* 05/11/2026 (dono): casa de rua — prazos fixos do modelo, iguais aos 41 contratos assinados que trazem a cláusula */
+        prazoPosseDias: cond ? txt(f.loteamento.prazoPosseDias) : PRAZO_POSSE_RUA,
+        prazoChavesDias: cond ? txt(f.loteamento.prazoChavesDias) : PRAZO_CHAVES_RUA
       } : null,
       imovel: {
         endereco: txt(v.ENDERECO), lote: lq ? lq.lote : "", quadra: lq ? lq.quadra : "",
@@ -912,16 +917,14 @@ var ContratoVenda = (function () {
        o cadastro em LOTEAMENTOS não é mais exigido */
     var l = d.loteamento;
     if (d.condominio) { /* nada a exigir */ }
-    else if (!l) faltas.push("Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
     else {
-      exige(!vazio(l.denominacao), "Loteamento", "denominação");
-      exige(!vazio(l.municipioUf), "Loteamento", "município/UF");
-      exige(!vazio(l.matricula), "Loteamento", "matrícula do loteamento");
-      exige(!vazio(l.cartorio), "Loteamento", "cartório");
-      if (pronto) {
-        exige(!vazio(l.prazoPosseDias), "Loteamento", "prazo de posse (dias)");
-        exige(!vazio(l.prazoChavesDias), "Loteamento", "prazo de entrega das chaves (dias)");
-      }
+      /* 05/11/2026 (dono): casa de rua — sem cadastro de loteamento; o que falta sai da matrícula da casa (IA) ou da obra */
+      var LER = " — anexe a matrícula da casa e clique em Ler";
+      l = l || {};
+      exige(!vazio(l.denominacao), "Imóvel", "denominação do loteamento" + LER);
+      exige(!vazio(l.matricula), "Imóvel", "matrícula-mãe do loteamento" + LER);
+      exige(!vazio(l.cartorio), "Imóvel", "cartório do loteamento" + LER);
+      exige(!vazio(l.municipioUf), "Imóvel", "município (CIDADE na ficha da obra)");
     }
 
     if (d.condominio) faltasCondominio(d, faltas);

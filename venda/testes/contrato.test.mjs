@@ -116,7 +116,8 @@ test("faltas agrupadas e legíveis; cadastros ausentes", () => {
   f.venda.SINAL_VALOR = null; f.venda.ENDERECO = "SEM QUADRA";
   const faltas = C.faltasContrato(C.montarDadosContrato(f));
   assert.ok(faltas.includes("Vendedor: cadastro em VENDEDORES – CONTRATO"));
-  assert.ok(faltas.includes("Loteamento: cadastro em LOTEAMENTOS – CONTRATO"));
+  assert.ok(faltas.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler"));   /* 05/11: sem cadastro de loteamento */
+  assert.ok(!faltas.some(x => /LOTEAMENTOS/.test(x)));
   assert.ok(faltas.includes("Corretor: cadastro em CORRETORES – CONTRATO"));
   assert.ok(faltas.includes("Negociação: sinal (valor)"));
   assert.ok(faltas.includes("Imóvel: lote e quadra no endereço"));
@@ -136,13 +137,14 @@ test("alvará é exigido nos dois modelos", () => {
   assert.ok(faltas.includes("Imóvel: alvará (data)"));
 });
 
-test("prazos do loteamento só no modelo PRONTO", () => {
+test("casa de rua: prazos de posse e chaves fixos do modelo (05/11/2026), nunca pedidos", () => {
   const f = fontes(); f.loteamento.prazoPosseDias = ""; f.loteamento.prazoChavesDias = "";
-  const faltas = C.faltasContrato(C.montarDadosContrato(f));
-  assert.ok(faltas.includes("Loteamento: prazo de posse (dias)"));
-  assert.ok(faltas.includes("Loteamento: prazo de entrega das chaves (dias)"));
-  f.obra.obraFinalizada = "NÃO";
-  assert.deepEqual(C.faltasContrato(C.montarDadosContrato(f)), []);
+  const d = C.montarDadosContrato(f);
+  assert.ok(!C.faltasContrato(d).some(x => /prazo/i.test(x)));
+  assert.equal(C.marcadores(d).PRAZO_POSSE_DIAS, "20 (vinte)");
+  assert.equal(C.marcadores(d).PRAZO_CHAVES_DIAS, "02 (dois)");
+  f.loteamento.prazoPosseDias = "30";   /* o que estiver no cadastro do setor não vale mais */
+  assert.equal(C.marcadores(C.montarDadosContrato(f)).PRAZO_POSSE_DIAS, "20 (vinte)");
 });
 
 test("nome do comprador 1 com separadores variados", () => {

@@ -366,7 +366,7 @@
     var itens = [["Denominação", l.denominacao], ["Matrícula do loteamento", l.matricula], ["Cartório", l.cartorio]]
       .filter(function (x) { return x[1]; });
     if (!itens.length) return "";
-    return '<div class="dz-aviso">Dados do loteamento encontrados (matrícula e cartório ficam gravados na casa; o nome fica na casa quando vem da certidão mãe — se veio só da matrícula, preencher uma vez no cadastro do setor, em LOTEAMENTOS – CONTRATO):</div><ul>' +
+    return '<div class="dz-aviso">Condomínio/loteamento lido do documento (gravado na casa e usado no contrato):</div><ul>' +
       itens.map(function (x) { return "<li>" + esc(x[0]) + ": " + esc(x[1]) + "</li>"; }).join("") + "</ul>";
   }
   function htmlImovel(e, ui) {

@@ -390,7 +390,8 @@ function ctrFontes_(col, pageId) {
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), venda.CORRETOR);
   var duplicados = [];
   if (lv && lv.duplicado) duplicados.push("Vendedor: cadastro duplicado em VENDEDORES – CONTRATO");
-  if (ll && ll.duplicado) duplicados.push("Loteamento: cadastro duplicado em LOTEAMENTOS – CONTRATO");
+  /* 05/11/2026 (dono): casa de rua não usa mais o cadastro de loteamento — só o condomínio ainda lê a linha */
+  if (cond && ll && ll.duplicado) duplicados.push("Loteamento: cadastro duplicado em LOTEAMENTOS – CONTRATO");
   if (lc && lc.duplicado) duplicados.push("Corretor: cadastro duplicado em CORRETORES – CONTRATO");
   if (duplicados.length) return { duplicados: duplicados };
   function t(l, nome) { return ctrTxt_(ctrCampo_(l.c, nome)); }
@@ -424,7 +425,15 @@ function ctrFontes_(col, pageId) {
       vendedor.banco = dc.banco; vendedor.agencia = dc.agencia; vendedor.operacao = ""; vendedor.conta = dc.conta; vendedor.pix = dc.pix;
     } else ctrLog_("contrato: conta da obra " + contaId.slice(0, 8) + " sem banco nem numero; ficou a do vendedor");
   }
-  var loteamento = ll ? {
+  /* 05/11/2026 (dono): na CASA DE RUA o loteamento vem só da própria casa — denominação, matrícula-mãe e cartório lidos
+     pela IA da matrícula (colunas CONTRATO - … DO LOTEAMENTO) e o município da CIDADE da obra; os prazos de posse e
+     chaves são fixos do modelo (ContratoVenda). O cadastro por SETOR não serve: um setor tem vários condomínios e
+     matrículas-mãe (47 contratos assinados: 25 condomínios, 20 matrículas-mãe). Ninguém digita loteamento no contrato. */
+  var loteamento = !cond ? {
+    denominacao: "", municipioUf: obra.cidade ? obra.cidade + "/GO" : "",
+    matricula: ctrTxt_(cv("CONTRATO - MATRÍCULA DO LOTEAMENTO")), cartorio: ctrTxt_(cv("CONTRATO - CARTÓRIO DO LOTEAMENTO")),
+    prazoPosseDias: "", prazoChavesDias: ""
+  } : ll ? {
     /* município: a coluna do cadastro; sem ela, a CIDADE da obra (DOCUMENTOS) + /GO */
     /* registro do loteamento: o da CASA (lido da certidão) vale antes do cadastro do setor */
     denominacao: t(ll, "DENOMINAÇÃO"), municipioUf: t(ll, "MUNICÍPIO/UF") || (obra.cidade ? obra.cidade + "/GO" : ""),

@@ -86,7 +86,7 @@ test("areaM2 e dataValida normalizam e recusam lixo", () => {
   assert.equal(R.dataValida("março de 2026"), "");
 });
 
-test("matrícula: preenche os campos da casa (com o registro do loteamento) e devolve o nome do loteamento só para a tela", () => {
+test("matrícula: preenche os campos da casa com nome, registro e cartório do condomínio/loteamento (05/11/2026)", () => {
   const p = R.planejarGravacao("IMOVEL_MATRICULA", MATRICULA, {}, "2026-10-08");
   const CI = R.COL_IMOVEL;
   assert.equal(p.props[CI.MATRICULA_INDIVIDUAL], "98.765");
@@ -97,8 +97,8 @@ test("matrícula: preenche os campos da casa (com o registro do loteamento) e de
   assert.ok(Object.keys(p.props).every((c) => c.startsWith("CONTRATO - ")));
   assert.equal(p.props[CI.LOTEAMENTO_MATRICULA], "11.111", "registro do loteamento é da casa");
   assert.equal(p.props[CI.LOTEAMENTO_CARTORIO], "CRI da 9ª Circunscrição");
-  assert.ok(!Object.values(p.props).includes("LOTEAMENTO JARDIM DE TESTE"), "o nome do loteamento é do setor");
-  assert.ok(p.observacoes.some((o) => /nome do loteamento na certidão/.test(o)));
+  assert.equal(p.props[R.COL_IMOVEL_OPC.LOTEAMENTO_DENOMINACAO], "LOTEAMENTO JARDIM DE TESTE", "o nome também é da casa (sem cadastro do setor)");
+  assert.ok(!p.observacoes.some((o) => /cadastro do setor/.test(o)));
 });
 
 test("matrícula sem loteamento não devolve loteamento; área ilegível não grava e avisa", () => {
@@ -219,7 +219,7 @@ test("matrícula ponta a ponta: sobe, lê, grava as CONTRATO - *, marca o DOSSI�
   assert.equal(n.pagina.properties["CONTRATO - ÁREA DO LOTE (M²)"].number, 360.5);
   assert.equal(n.pagina.properties["IMÓVEL - MATRÍCULA"].files.length, 1);
   assert.equal(n.pagina.properties["DOSSIÊ IMÓVEL"].select.name, "FALTA DOCUMENTO");
-  assert.match(txt(n, "DOSSIÊ IMÓVEL - OBSERVAÇÃO"), /nome do loteamento na certidão/);
+  assert.doesNotMatch(txt(n, "DOSSIÊ IMÓVEL - OBSERVAÇÃO"), /cadastro do setor/);
   assert.equal(n.pagina.properties["DOSSIÊ"].select, null, "o DOSSIÊ do comprador fica como estava");
   assert.deepEqual(n.pagina.properties["DOSSIÊ - OBSERVAÇÃO DO COMPRADOR"].rich_text, []);
 });
@@ -335,9 +335,9 @@ test("tela: servidor antigo (sem imovel) não mostra a seção; coluna faltando 
   assert.match(h, /A base não tem a coluna IMÓVEL - ALVARÁ — avise o desenvolvedor/);
 });
 
-test("tela: loteamento encontrado aparece para preencher no setor, escapado; mensagem do imóvel fica na seção dele", () => {
+test("tela: condomínio/loteamento lido aparece (gravado na casa), escapado; mensagem do imóvel fica na seção dele", () => {
   const h = D.html(base, ui({ loteamento: { denominacao: "<b>JARDIM</b>", matricula: "11.111", cartorio: "" }, msg: "Lido: 4 campos", msgGrupo: "imovel" }));
-  assert.match(h, /preencher uma vez no cadastro do setor/);
+  assert.match(h, /gravado na casa e usado no contrato/);
   assert.match(h, /&lt;b&gt;JARDIM/);
   assert.doesNotMatch(h, /Cartório:/);
   const iImovel = h.indexOf("Documentos do imóvel"), iMsg = h.indexOf("Lido: 4 campos");

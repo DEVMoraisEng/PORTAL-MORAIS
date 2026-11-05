@@ -41,17 +41,17 @@ test("camposAbertos: faltas de vendedor PJ, corretor e loteamento viram campos; 
   assert.deepEqual(f.outras, ["Comprador 1: RG", "Vendedor: cadastro em VENDEDORES – CONTRATO"]);
 });
 
-test("camposAbertos: corretor e loteamento sem cadastro viram 'criar'; sem SETOR o loteamento não tem como criar", () => {
+test("camposAbertos: corretor sem cadastro vira 'criar'; casa de rua não abre formulário de loteamento (05/11/2026)", () => {
   const faltas = CV.faltasContrato(CV.montarDadosContrato({ venda: { CORRETOR: "Corretor Novo" }, obra: { obraFinalizada: "SIM" } }));
   const f = CV.camposAbertos(faltas, { modelo: "PRONTO", chaveLoteamento: "Setor Novo" });
   const cor = f.grupos.find((g) => g.grupo === "corretor"), lot = f.grupos.find((g) => g.grupo === "loteamento");
   assert.deepEqual([cor.criar, cor.campos.map((c) => c.coluna)], [true, ["CRECI", "CPF/CNPJ"]]);
-  assert.deepEqual([lot.criar, lot.campos.map((c) => c.coluna)],
-    [true, ["DENOMINAÇÃO", "MUNICÍPIO/UF", "MATRÍCULA DO LOTEAMENTO", "CARTÓRIO", "PRAZO POSSE (DIAS)", "PRAZO CHAVES (DIAS ÚTEIS)"]]);
+  assert.equal(lot, undefined, "loteamento vem da matrícula da casa, nunca digitado");
+  assert.ok(f.outras.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler"));
   assert.ok(f.outras.includes("Vendedor: cadastro em VENDEDORES – CONTRATO"));
   const sem = CV.camposAbertos(faltas, { modelo: "PRONTO", chaveLoteamento: "" });
   assert.equal(sem.grupos.some((g) => g.grupo === "loteamento"), false);
-  assert.ok(sem.outras.includes("Loteamento: cadastro em LOTEAMENTOS – CONTRATO"));
+  assert.ok(!sem.outras.some((x) => /LOTEAMENTOS/.test(x)));
   /* sem corretor na venda: não há nome para criar a linha */
   const s2 = CV.camposAbertos(["Corretor: corretor na venda"], {});
   assert.deepEqual([s2.grupos.length, s2.outras], [0, ["Corretor: corretor na venda"]]);
@@ -154,7 +154,8 @@ test("salvarCamposContrato: loteamento sem cadastro — cria na 1ª base com o S
   assert.deepEqual([e.metodo, e.base], ["POST", "db-lote"]);
   assert.equal(e.props.SETOR.rich_text[0].text.content, "Setor Novo");
   assert.equal(e.props["OBSERVAÇÃO"], undefined);
-  assert.ok(textoPre(c).includes("Contrato de Residencial Novo em Cidade Teste/GO"), textoPre(c));
+  /* 05/11/2026: na casa de rua o contrato usa o loteamento da casa (IA), não o do cadastro */
+  assert.ok(textoPre(c).includes("Contrato de Residencial Teste em Cidade Teste/GO"), textoPre(c));
   /* base sem coluna SETOR: o setor vai no título */
   const t = cenario({ venda: { SETOR: sel("Setor Outro") },
     esquemas: { "db-lote": { NOME: "title", "DENOMINAÇÃO": "rich_text", "MUNICÍPIO/UF": "rich_text", "MATRÍCULA DO LOTEAMENTO": "rich_text", "CARTÓRIO": "rich_text" } } });

@@ -448,14 +448,15 @@ var RegrasVenda = (function () {
         if (conf && !iguais(conf, atuais[CI.CONFRONTACOES], "texto"))
           obs("as confrontações da matrícula são diferentes das gravadas — mantidas as da certidão mãe, conferir");
       } else propor(CI.CONFRONTACOES, conf, "texto");
-      /* registro do loteamento (matrícula e cartório) é da casa; o nome oficial do loteamento é do setor: só volta para a tela */
+      /* 05/11/2026 (dono): nome, matrícula-mãe e cartório do condomínio/loteamento são da CASA e vão para o contrato —
+         não existe mais cadastro do setor para isso (um setor tem vários condomínios). Com certidão mãe anexada, a leitura
+         dela vale por cima (documento mais recente). */
       var lot = { denominacao: limpar(leitura.loteamento_denominacao), matricula: limpar(leitura.loteamento_matricula),
                   cartorio: limpar(leitura.loteamento_cartorio) };
+      propor(COL_IMOVEL_OPC.LOTEAMENTO_DENOMINACAO, lot.denominacao, "texto");
       propor(CI.LOTEAMENTO_MATRICULA, lot.matricula, "texto");
       propor(CI.LOTEAMENTO_CARTORIO, lot.cartorio, "texto");
       if (lot.denominacao || lot.matricula || lot.cartorio) plano.loteamento = lot;
-      if (lot.denominacao)
-        obs("nome do loteamento na certidão: " + lot.denominacao + " (fica no cadastro do setor; conferir se é o mesmo)");
     } else if (esp.tipo === "alvara" || esp.tipo === "habitese") {
       var ehAlvara = esp.tipo === "alvara";
       propor(ehAlvara ? COL_IMOVEL.ALVARA_NUMERO : COL_IMOVEL.HABITESE_NUMERO, limpar(leitura.numero), "texto");
