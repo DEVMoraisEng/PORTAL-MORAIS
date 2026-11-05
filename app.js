@@ -655,11 +655,19 @@ function confirmarSessao(action){
  * Só entram aqui ações que dá para repetir sem estrago (gravar o mesmo valor
  * de novo; o Liberar confere se as atividades já existem antes de criar). */
 const GRAVA_ANTES = ["obraUpdate", "obraLiberar", "obraConta", "obraAtvUpdate",
-                     "updateVenda", "docUpdate", "posObraUpdate", "posObraAtvUpdate"];
+                     "updateVenda", "docUpdate", "posObraUpdate", "posObraAtvUpdate",
+                     /* 05/11/26 — FALTAVAM as Ligações (e investidores). Eram as
+                        únicas gravações de campo que ainda viviam só na memória
+                        enquanto esperavam a vez: no CELULAR, travar a tela ou
+                        trocar de app (WhatsApp) no meio do envio jogava a
+                        gravação fora, e a edição local continuava mostrando o
+                        valor novo SÓ naquele aparelho — no Notion e para os
+                        outros ficava o antigo ("SANESC APROVADA? = NÃO"). */
+                     "ligUpdate", "ligVendaUpdate", "investidorUpdate"];
 const _emVooFila = new Set();          // itens da fila que ESTA página está enviando agora
 function _chaveCampo(q){
   q = q || {};
-  return [q.action, String(q.pageId||"").replace(/-/g,""), q.prop || (q.conta!==undefined ? "#conta" : "")].join("|");
+  return [q.action, String(q.pageId||"").replace(/-/g,""), q.prop || q.campo || (q.conta!==undefined ? "#conta" : "")].join("|");
 }
 function _guardarAntes(payload, rotulo){
   if(GRAVA_ANTES.indexOf(payload.action) < 0) return null;
@@ -816,6 +824,40 @@ window.addEventListener("offline", atualizarStatus);
    houver item, e toda vez que a aba volta pro primeiro plano. */
 function tentarSincronizar(){ if(fila().length) sincronizar(); }
 setInterval(tentarSincronizar, 20000);
+
+/* ===================== 05/11/26 — CELULAR =====================
+ * Dois buracos que só aparecem no toque (relato de quem preenche pelo
+ * celular: "às vezes não salva"):
+ *  1) DATA que grava ao SAIR do campo (onblur — feito assim para o
+ *     computador, onde o "change" avisa com o ano pela metade enquanto a
+ *     pessoa digita). No celular a data vem pronta do seletor, mas o campo
+ *     continua com o foco: se a pessoa fecha o painel arrastando, trava a
+ *     tela ou troca de app, o blur nunca vem e a data não é enviada.
+ *     Agora, no toque, escolher a data já encerra o campo (e grava).
+ *     Só type="date": no datetime-local o iPhone escolhe dia e hora em dois
+ *     passos — fechar no primeiro cortaria a hora (e lá já grava no change).
+ *  2) TEXTO digitado (observação, UC) só grava no "change", que só vem ao
+ *     sair do campo. Trocar de app com o teclado aberto perdia o texto.
+ *     Agora, ao a página ir para segundo plano, o campo em edição é
+ *     encerrado: o change dispara e a gravação vai para a fila guardada
+ *     (GRAVA_ANTES) antes de o celular congelar a página. */
+(function(){
+  const toque = () => { try{ return matchMedia("(pointer: coarse)").matches; }catch(e){ return false; } };
+  document.addEventListener("change", e => {
+    const el = e.target;
+    if(!toque() || !el || el.tagName !== "INPUT" || el.type !== "date" || !el.value) return;
+    setTimeout(() => { if(document.activeElement === el) el.blur(); }, 0);   // depois dos onchange da própria tela
+  }, true);
+  const encerrarCampo = () => {
+    if(!toque()) return;
+    const el = document.activeElement;
+    if(!el || el === document.body) return;
+    const t = el.tagName;
+    if(t === "INPUT" || t === "TEXTAREA" || t === "SELECT"){ try{ el.blur(); }catch(err){} }
+  };
+  document.addEventListener("visibilitychange", () => { if(document.hidden) encerrarCampo(); });
+  window.addEventListener("pagehide", encerrarCampo);
+})();
 document.addEventListener("visibilitychange", ()=>{ if(!document.hidden) tentarSincronizar(); });
 window.addEventListener("load", tentarSincronizar);
 /* renova a sessão em segundo plano quando faltar menos de 15 dias (ver tokenExp) */
