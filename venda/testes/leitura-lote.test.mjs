@@ -101,8 +101,8 @@ test("certidão mãe: denominação, matrícula-mãe, cartório e as confrontaç
   assert.equal(p.props[CI.LOTEAMENTO_MATRICULA], "55.555");
   assert.equal(p.props[CI.LOTEAMENTO_CARTORIO], "CRI da 9ª Circunscrição");
   assert.equal(p.props[CI.CONFRONTACOES], "Frente 6 m para a Rua Teste; fundo 6 m com a casa 2");
-  assert.equal(p.props[CI.AREA], 120, "área vazia: a da certidão mãe preenche");
-  assert.ok(p.observacoes.some((o) => /privativa 70.5 m²/.test(o)));
+  assert.ok(!(CI.AREA in p.props), "05/11 (dono): a área vem só da matrícula do imóvel");
+  assert.ok(!p.observacoes.some((o) => /privativa/.test(o)));
   const comArea = R.planejarGravacao("IMOVEL_CERTIDAO_MAE", MAE, { [CI.AREA]: 250 }, "2026-10-08");
   assert.ok(!(CI.AREA in comArea.props), "a área da matrícula individual vale");
   const naoAchou = R.planejarGravacao("IMOVEL_CERTIDAO_MAE", Object.assign({}, MAE, { unidade_encontrada: "NAO", unidade_confrontacoes: "" }),
@@ -306,7 +306,7 @@ test("decidirEspaco: imóvel vai direto; documento de pessoa só SUGERE o compra
   assert.deepEqual([ana.espaco, ana.pessoa, ana.sugestao], [null, true, "C1"], "CPF ganha do nome; nunca guarda sozinho");
   assert.equal(R.decidirEspaco(CLASSES.rgBruno, venda).sugestao, "C2");
   assert.equal(R.decidirEspaco(CLASSES.luzAna, venda).sugestao, "C1", "comprovante: o comprador do nome do titular");
-  assert.equal(R.decidirEspaco(CLASSES.luzMae, venda).sugestao, "", "titular que não é comprador: sem sugestão");
+  assert.equal(R.decidirEspaco(CLASSES.luzMae, venda).sugestao, "C1", "05/11 (dono): comprovante de outro titular vai para o comprador 1");
   assert.equal(R.decidirEspaco(CLASSES.frente, venda).sugestao, "");
   assert.equal(R.decidirEspaco(CLASSES.frente, { [R.COL.CLIENTES]: "ANA TESTE" }).sugestao, "C1", "frente sem nome, um comprador só");
   assert.equal(R.decidirEspaco(CLASSES.rgAna, {}).sugestao, "", "venda sem nomes: sem sugestão");

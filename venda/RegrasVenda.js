@@ -153,6 +153,7 @@ var RegrasVenda = (function () {
     if (!e1 && !e2 && !vazio(leitura.nome)) { e1 = mesmaPessoa(leitura.nome, n1); e2 = mesmaPessoa(leitura.nome, n2); }
     var sugestao = e1 && !e2 ? "C1" : e2 && !e1 ? "C2" : "";
     /* identidade sem nome nem CPF lidos (ex.: frente do RG só com a foto) numa venda de um comprador só */
+    if (!sugestao && tipo === "COMPROVANTE") sugestao = "C1";   /* 05/11 (dono): no comprovante o nome não importa */
     if (!sugestao && tipo === "IDENTIDADE" && vazio(leitura.nome) && soDigitos(leitura.cpf).length !== 11 && !n2 && !c2 && posE < 0) sugestao = "C1";
     return { espaco: null, tipo: tipo, pessoa: true, sugestao: sugestao, motivo: "CONFIRMAR_COMPRADOR" };
   }
@@ -423,9 +424,7 @@ var RegrasVenda = (function () {
       }
     } else if (esp.tipo === "comprovante") {
       propor(esp.comprador === 2 ? COL.C2_END : COL.C1_END, leitura.endereco_completo, "texto");
-      var dono = esp.comprador === 2 ? atuais[COL.C2_NOME] : atuais[COL.CLIENTES];
-      if (!vazio(leitura.titular) && !vazio(dono) && !contemNome(dono, leitura.titular))
-        obs("o comprovante está em nome de outra pessoa — conferir (se for de parente, pedir a declaração)");
+      /* 05/11/2026 (dono): no comprovante vale só o endereço; o nome do titular não é conferido */
       var d = dataDoc(leitura.data_emissao);
       if (!d) obs("não consegui ler a data do comprovante — conferir se tem menos de 90 dias");
       else {
@@ -489,13 +488,7 @@ var RegrasVenda = (function () {
         obs("a certidão não descreve esta unidade" + (limpar(leitura.unidade_identificacao) ? " (achei: " + limpar(leitura.unidade_identificacao) + ")" : "") +
           " — confrontações não gravadas, conferir");
       }
-      /* área: a da matrícula individual vale; a da certidão mãe só preenche o campo vazio */
-      var aPriv = areaM2(leitura.unidade_area_privativa_m2), aTot = areaM2(leitura.unidade_area_total_m2);
-      if (achou && (aPriv || aTot)) {
-        if (vazio(atuais[CM.AREA]) && aTot) gravar(CM.AREA, aTot);
-        obs("áreas da unidade na certidão mãe: " + (aPriv ? "privativa " + aPriv + " m²" : "") + (aPriv && aTot ? ", " : "") +
-          (aTot ? "total " + aTot + " m²" : "") + " — conferir com CONTRATO - ÁREA DO LOTE (M²)");
-      }
+      /* 05/11/2026 (dono): a área do lote vem SÓ da matrícula do imóvel — a certidão mãe não grava nem comenta área */
     } else {
       propor(COL.FINANCIADO, valorBR(leitura.valor_financiado), "number");
       propor(COL.FGTS, valorBR(leitura.valor_fgts), "number");

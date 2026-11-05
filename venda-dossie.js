@@ -214,14 +214,18 @@
    * Documento de pessoa nunca é guardado sem a confirmação (regra do dono). */
   var TIPO_ROTULO = { IDENTIDADE: "identidade", COMPROVANTE: "comprovante de endereço", APROVACAO: "aprovação da Caixa",
                       MATRICULA: "matrícula", CERTIDAO_MAE: "certidão mãe", ALVARA: "alvará", HABITESE: "habite-se", OUTRO: "não reconhecido" };
-  function chavePessoa(a) { return (a.pessoa && a.pessoa.chave) || "arq:" + a.id; }
+  /* 05/11/2026 (dono): no comprovante de endereço o nome do titular não importa, só o endereço — cada comprovante
+     vira uma linha própria (não se junta à pessoa pelo nome) e já vem como Comprador 1 */
+  function ehComprovante(a) { return String(a && a.tipo || "").toUpperCase() === "COMPROVANTE"; }
+  function chavePessoa(a) { return ehComprovante(a) ? "comp:" + a.id : (a.pessoa && a.pessoa.chave) || "arq:" + a.id; }
   function pessoasDoEnvio(s) {
     var lista = [], vistas = {};
     ((s && s.arquivos) || []).forEach(function (a) {
       if (a.estado !== "pessoa") return;
-      var k = chavePessoa(a);
+      var k = chavePessoa(a), comp = ehComprovante(a);
       if (!vistas[k]) {
-        vistas[k] = { chave: k, nome: (a.pessoa && a.pessoa.nome) || "", tipos: [], arquivos: [], sugestao: a.sugestao || "" };
+        vistas[k] = { chave: k, nome: comp ? "Comprovante de endereço (" + a.nome + ")" : (a.pessoa && a.pessoa.nome) || "",
+                      tipos: [], arquivos: [], sugestao: comp ? (a.sugestao || "C1") : a.sugestao || "" };
         lista.push(vistas[k]);
       }
       var p = vistas[k];
@@ -283,7 +287,8 @@
     h += '<ul class="dz-res dz-soltos">' + s.arquivos.map(function (a) {
       var t = a.estado === "classificando" ? "identificando…" : a.estado === "erro" ? "não consegui identificar (" + (a.erro || "erro") + ")"
         : (TIPO_ROTULO[a.tipo] || a.tipo || "") +
-          (a.estado === "pessoa" ? " de " + ((a.pessoa && a.pessoa.nome) || "nome não lido") + " — confirme o comprador abaixo"
+          (a.estado === "pessoa" ? (ehComprovante(a) ? " — confirme de qual comprador abaixo"
+             : " de " + ((a.pessoa && a.pessoa.nome) || "nome não lido") + " — confirme o comprador abaixo")
            : a.estado === "desconhecido" ? " — diga o que é abaixo" : a.estado === "ignorado" ? " — ignorado"
            : a.espaco ? " → guardado em " + (ROTULOS[a.espaco] || a.espaco) : "");
       return '<li class="' + (a.estado === "erro" ? "dz-erro" : "") + '">' + esc(a.nome) + " → " + esc(t) +
