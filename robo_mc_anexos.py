@@ -61,7 +61,13 @@ DIAS_FISCAL = int(os.environ.get("ANEXOS_DIAS_FISCAL") or 730)
 #: a lista do MC é lida em pedaços de JANELA_LISTA_DIAS (os mais recentes primeiro): 90 dias eram ~70 páginas e
 #: ~20 min; dois anos de uma vez passariam do tempo da rodada. Cada rodada lê um pedaço e guarda o que achou.
 JANELA_LISTA_DIAS = int(os.environ.get("ANEXOS_JANELA_LISTA_DIAS") or 60)
-ESCOPO = (os.environ.get("ANEXOS_ESCOPO") or "alertas").strip().lower()
+#: 05/11 (dono: "no primeiro momento vamos validar todos que estão na página"): TODOS os pagamentos da auditoria. Os
+#: com alerta (situação do auditor ou Fiscalização) vêm primeiro e ganham link para abrir o arquivo; os outros guardam
+#: só o que tem (nome e tipo de cada arquivo) e o botão do Mais Controle — copiar 21 mil lançamentos para o Supabase
+#: passaria do espaço do plano gratuito.
+ESCOPO = (os.environ.get("ANEXOS_ESCOPO") or "todos").strip().lower()
+DIAS_TODOS = int(os.environ.get("ANEXOS_DIAS_TODOS") or 3650)
+ALERTAS: set = set()                 # preenchido pelo escolher(): lançamentos com alerta (ganham link do arquivo)
 MAX_ITENS = int(os.environ.get("ANEXOS_MAX_ITENS") or 700)
 MAX_MB_RODADA = float(os.environ.get("ANEXOS_MAX_MB") or 250)
 #: 04/11 (3ª rodada de verdade): a 1ª rodada (1445 lançamentos) passou dos 40 min do robo_fila e foi cortada sem
@@ -134,16 +140,21 @@ def escolher(aud):
     st = d.get("st") or []
     lim = (HOJE - dt.timedelta(days=DIAS)).isoformat()
     lim_fiscal = (HOJE - dt.timedelta(days=max(DIAS, DIAS_FISCAL))).isoformat()
+    lim_todos = (HOJE - dt.timedelta(days=max(DIAS, DIAS_TODOS))).isoformat()
     com_fiscal = {int(f[1]) for f in (aud.get("fiscal") or []) if isinstance(f, (list, tuple)) and len(f) > 1}
     ultimo_pg = {}
+    ALERTAS.clear()
     for i, idl in enumerate(c["id"]):
         dp = c["dp"][i] or ""
-        if not idl or dp < (lim_fiscal if i in com_fiscal else lim):
+        if not idl:
             continue
         rot = st[c["st"][i]] if isinstance(c["st"][i], int) and c["st"][i] < len(st) else str(c["st"][i])
-        if ESCOPO != "todos" and rot == "OK" and i not in com_fiscal:
+        alerta = (rot not in ("OK", "CONFORME") and dp >= lim) or (i in com_fiscal and dp >= lim_fiscal)
+        if not alerta and not (ESCOPO == "todos" and dp >= lim_todos):
             continue
         ultimo_pg[int(idl)] = max(ultimo_pg.get(int(idl), ""), dp)
+        if alerta:
+            ALERTAS.add(int(idl))
     return ultimo_pg                      # {id do lançamento: data do último pagamento}
 
 
@@ -708,7 +719,7 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
     # 04/11 (pedido do dono, "se sempre conferir tudo vai demorar demais"): o robô LEMBRA os UUIDs do MC de cada
     # lançamento que já achou ("mc" no item). A lista de pagamentos (a parte lenta: 200 páginas) só é lida para os
     # que ainda não tem, e só na janela das datas deles; para de ler quando achou todos.
-    ordem = sorted(alvo, key=lambda i: alvo[i], reverse=True)       # pagamento mais recente primeiro
+    ordem = sorted(alvo, key=lambda i: (i in ALERTAS, alvo[i]), reverse=True)   # com alerta antes; recente primeiro
     vao = []
     for idl in ordem:
         it_ant = ant.get(str(idl))
@@ -784,7 +795,7 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
                 itens[str(idl)] = novo
                 continue
             if it_ant:
-                itens[str(idl)] = renovar(leitor, it_ant, agora) if it_ant.get("a") else it_ant
+                itens[str(idl)] = renovar(leitor, it_ant, agora, int(idl) in ALERTAS or not ALERTAS) if it_ant.get("a") else it_ant
                 renovados += 1 if it_ant.get("a") else 0
             continue
         consultados += 1
@@ -810,9 +821,14 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
                 itens[str(idl)] = it_ant
             continue
         lista, ja = [], {a.get("f"): a for a in (it_ant or {}).get("a", [])}
+        com_link = int(idl) in ALERTAS or not ALERTAS       # sem escolher() (testes, descoberta): todos com link
         for origem, a in arqs:
-            reg = {"f": a["id"], "n": str(a.get("name") or "arquivo")[:120], "t": a.get("type") or a.get("mimeType") or "",
+            reg = {"f": a["id"], "n": str(a.get("name") or "arquivo")[:120 if com_link else 60], "t": a.get("type") or a.get("mimeType") or "",
                    "o": "P" if origem == "PAID" else "L", "s": a.get("sizeInBytes") or a.get("size") or 0}
+            if not com_link:
+                reg["sl"] = 1               # sem link: o arquivo abre pelo botão do Mais Controle
+                lista.append(reg)
+                continue
             try:
                 u = leitor.link(a["id"])
                 v = validade_s(u) if u else None
@@ -846,11 +862,16 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
                    "chamadas": leitor.chamadas}
 
 
-def renovar(leitor, it, agora):
-    """Renova links que vencem nas próximas 36 h (link do MC: pede de novo; cópia: assina de novo)."""
+def renovar(leitor, it, agora, com_link=True):
+    """Renova links que vencem nas próximas 36 h (link do MC: pede de novo; cópia: assina de novo). Arquivo "sem link"
+    (lançamento sem alerta) não tem o que renovar — só ganha link se o lançamento passou a ter alerta."""
     lim = (agora + dt.timedelta(hours=36)).isoformat(timespec="minutes")
     for a in it.get("a", []):
-        if a.get("x") and a["x"] > lim:
+        if a.get("sl"):
+            if not com_link:
+                continue
+            a.pop("sl", None)
+        elif a.get("x") and a["x"] > lim:
             continue
         try:
             if a.get("p"):
