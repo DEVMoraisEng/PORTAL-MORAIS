@@ -773,6 +773,7 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
             apagar += [a["p"] for a in it.get("a", []) if a.get("p")]
     vao_set = set(vao)
     no_tempo = True
+    caiu = [False]
     for idl in vao + [i for i in ordem if i not in vao_set]:
         it_ant = ant.get(str(idl))
         if no_tempo and (relogio() - t0) / 60 >= MAX_MIN:
@@ -797,7 +798,8 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
                 itens[str(idl)] = novo
                 continue
             if it_ant:
-                itens[str(idl)] = renovar(leitor, it_ant, agora, int(idl) in ALERTAS or not ALERTAS) if it_ant.get("a") else it_ant
+                itens[str(idl)] = (renovar(leitor, it_ant, agora, int(idl) in ALERTAS or not ALERTAS)
+                                   if it_ant.get("a") and not caiu[0] else it_ant)
                 renovados += 1 if it_ant.get("a") else 0
             continue
         consultados += 1
@@ -817,8 +819,15 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
             # 04/11 (2ª rodada): a sessão do MC caiu no meio — para com "não está logado" (o rodar_e_relatar espera o
             # porteiro entrar de novo e repete a rodada uma vez) em vez de terminar "OK" com quase nada lido
             if "não está logado" in str(e) or "HTTP 401" in str(e):
-                raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle — a sessão caiu no meio "
-                                   "da rodada") from None
+                # 05/11 13:24: a sessão caiu com 8 min de rodada e "nada gravado" jogava fora o que já tinha lido.
+                # Agora para de abrir, guarda o que leu e a rodada termina com código 1 (o porteiro entra de novo e a
+                # próxima continua de onde parou)
+                consultados -= 1
+                erros -= 1
+                erros_lanc[0] -= 1
+                caiu[0] = True
+                no_tempo = False
+                log("  a sessão do Mais Controle caiu no meio — paro de abrir e guardo o que já li")
             if it_ant:
                 itens[str(idl)] = it_ant
             continue
@@ -861,6 +870,7 @@ def rodada(leitor, aud, alvo, relogio=time.monotonic):
                    "nao_achados": sum(1 for x in itens.values() if not x.get("v") and x.get("nao_achado")),
                    "consultados": consultados, "lidos": consultados - erros_lanc[0], "copiados": copiados, "mb": round(mb, 1),
                    "erros": erros, "renovados": renovados, "apagados": len(apagar), "achados_no_mc": len(mapa),
+                   "caiu": caiu[0],
                    "chamadas": leitor.chamadas}
 
 
@@ -953,6 +963,10 @@ def main():
                     log(ln)
         except Exception as e:  # noqa: BLE001
             log(f"  (cobertura: {type(e).__name__})")
+        if est.get("caiu"):
+            log(f"FALHOU: o Chrome do porteiro não está logado no Mais Controle — a sessão caiu no meio da rodada "
+                f"(gravei os {est['lidos']} lido(s) antes da queda).")
+            return 1
         if est["consultados"] and not est["lidos"]:
             log(f"FALHOU: nenhum dos {est['consultados']} lançamentos consultados foi lido no MC — veja os erros acima.")
             return 1

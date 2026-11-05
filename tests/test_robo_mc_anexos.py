@@ -275,9 +275,8 @@ def test_sessao_que_cai_no_meio_para_para_repetir(monkeypatch):
     alvo = ra.escolher(aud)
     leitor = ra.LeitorMC(Erp())
     leitor.preparar_casamento(aud, alvo)
-    import pytest
-    with pytest.raises(RuntimeError, match="não está logado"):
-        ra.rodada(leitor, aud, alvo)
+    itens, est = ra.rodada(leitor, aud, alvo)        # 05/11: não joga fora — devolve e marca que caiu (o main sai com 1)
+    assert est["caiu"] and est["lidos"] == 0
     assert leitor.lidos_lista >= 1 and leitor.data_bate >= 1
 
 
@@ -409,3 +408,21 @@ def test_sem_alerta_guarda_o_arquivo_sem_link(monkeypatch):
     itens, est = ra.rodada(leitor, aud_falsa(), {101: D(5)})
     a = itens["101"]["a"]
     assert a and all(x.get("sl") and "u" not in x for x in a) and not subidos and est["copiados"] == 0
+
+
+def test_sessao_que_cai_no_meio_guarda_o_que_ja_leu(monkeypatch):
+    """05/11 13:24: a sessão caiu e "nada gravado" jogou fora 8 min de leitura."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpFalso):
+        n = 0
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            if caminho == "/folder" and params.get("origin") == "TRADE_PAYABLE":
+                Erp.n += 1
+                if Erp.n > 1:
+                    raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle")
+            return ErpFalso.pedir(self, metodo, caminho, corpo, params)
+    itens, est = ra.rodada(ra.LeitorMC(Erp()), aud_falsa(), {101: D(5), 303: D(6)})
+    assert est["caiu"] and est["lidos"] == 1
+    assert sum(1 for x in itens.values() if x.get("v")) == 1
