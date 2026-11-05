@@ -172,9 +172,16 @@ def test_numero_com_ponto_de_milhar():
     assert R._num("10.5") == 10.5
 
 
-def test_comissao_paga_por_obrigatoria_e_conta_da_mao():
+def test_comissao_paga_por_vazia_vale_comprador_e_conta_da_mao():
+    # 05/11/2026 (dono): casa de rua — a coluna saiu da tela; vazia vale COMPRADOR (o contrato diz sempre comprador)
     d = R.dados_da_pagina(pagina(**{"CONTRATO - COMISSÃO PAGA POR": {"type": "select", "select": None}}))
+    assert d["comissao_paga_por"] == "COMPRADOR"
+    assert "Falta COMISSÃO PAGA POR (comprador ou vendedor)" not in R.faltas(d)
+    d = R.dados_da_pagina(pagina(**{"CONTRATO - COMISSÃO PAGA POR": {"type": "select", "select": {"name": "IMOBILIARIA"}}}))
     assert "Falta COMISSÃO PAGA POR (comprador ou vendedor)" in R.faltas(d)
+    # VENDEDOR escrito à mão (venda antiga) é respeitado: o ERP recebe o valor inteiro
+    d = R.dados_da_pagina(pagina(**{"CONTRATO - COMISSÃO PAGA POR": {"type": "select", "select": {"name": "VENDEDOR"}}}))
+    assert d["comissao_paga_por"] == "VENDEDOR" and d["aquisicao"] == d["total"]
     d = R.dados_da_pagina(pagina(**{"VALOR NA MÃO": num(255000)}))
     assert "Valor na mão + comissão diferente do valor do contrato" in R.faltas(d)
 

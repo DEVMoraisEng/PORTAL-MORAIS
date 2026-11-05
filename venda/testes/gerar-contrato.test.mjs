@@ -75,7 +75,7 @@ test("vendedor PF: parágrafo PJ some e nenhum marcador de bloco sobra", () => {
   assert.ok(!t.includes("{{#") && !t.includes("{{/") && !t.includes("{{"));
 });
 
-test("intermediária presente mantém o bloco; comissão do vendedor mantém o último bloco (marcador no último parágrafo)", () => {
+test("intermediária presente mantém o bloco; VENDEDOR na coluna PAGA POR não abre o bloco do vendedor (05/11/2026: sempre o comprador)", () => {
   const c = cenario({ venda: {
     "CONTRATO - INTERMEDIÁRIA VALOR": num(20000), "CONTRATO - INTERMEDIÁRIA VENCIMENTO": dat("2027-01-10"),
     "CONTRATO - COMISSÃO PAGA POR": sel("VENDEDOR"),
@@ -84,7 +84,7 @@ test("intermediária presente mantém o bloco; comissão do vendedor mantém o �
   const t = c.pdfTexto();
   assert.ok(t.includes("Intermediária 20.000,00 em 10/01/2027"), t);
   assert.ok(!t.includes("Não há intermediária."));
-  assert.ok(t.includes("Comissão paga pelo vendedor Construtora Teste Ltda"), t);
+  assert.ok(!t.includes("Comissão paga pelo vendedor"), t);
   assert.ok(!t.includes("{{"));
 });
 
@@ -382,6 +382,7 @@ test("coluna nova ausente na VENDAS -> COLUNA_FALTANDO", () => {
 test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url do último", () => {
   const c = cenario();
   const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta;   /* testemunhas e conta de recebimento têm testes próprios */
+  delete est0.comissaoCorretor;   /* 05/11/2026: bloco Pagamento da comissão (comissao-corretor.test.mjs) */
   assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
   const r = c.gerar();
   const e = c.acao("contratoEstado");
@@ -393,7 +394,7 @@ test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url
   assert.match(e.url, /^https:\/\/s3\.falso\//);
   const dois = cenario({ venda: { "CONTRATO GERADO": { files: [
     { name: "a.pdf", type: "file", file: { url: "https://s3.falso/a" } }, { name: "b.pdf", type: "file", file: { url: "https://s3.falso/b" } }] } } });
-  const estDois = dois.acao("contratoEstado"); delete estDois.conta;
+  const estDois = dois.acao("contratoEstado"); delete estDois.conta; delete estDois.comissaoCorretor;
   assert.deepEqual(estDois, { ok: true, gerado: true, etapa: "FINAL", pre: null, nome: "b.pdf", url: "https://s3.falso/b", envioDesatualizado: false });
 });
 

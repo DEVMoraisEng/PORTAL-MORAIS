@@ -533,6 +533,9 @@
     /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
     var fb = fiadoresDoEstado(r && r.fiadores);
     if (fb) o.fiadores = fb;
+    /* 05/11/2026: casa de rua — bloco Pagamento da comissão (só vem fora do condomínio) */
+    var cc = comissaoDoEstado(r && r.comissaoCorretor);
+    if (cc) o.comissaoCorretor = cc;
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -625,6 +628,53 @@
     var p = { campos: campos };
     if (contaDigitada) p.conta = contaDigitada;
     return n || contaDigitada ? p : null;
+  }
+  /* ---- 05/11/2026 (dono): casa de rua — "Pagamento da comissão — <corretor>" na aba Contrato, sempre ----
+   * Quem paga é SEMPRE o comprador (texto fixo); a forma ({{COMISSAO_FORMA}}) sai do cadastro do corretor em
+   * CORRETORES – CONTRATO (chave PIX, banco, agência, conta, titular). Dá para preencher ali e salvar no cadastro
+   * (salvarCamposContrato com soSalvar). Nada aqui trava o contrato: a comissão é opcional na casa de rua. */
+  function comissaoDoEstado(x) {
+    if (!x || typeof x !== "object") return null;
+    return { pagaPor: "COMPRADOR", corretor: String(x.corretor || ""), temCadastro: !!x.temCadastro, duplicado: !!x.duplicado,
+             forma: String(x.forma || ""), formaLegada: !!x.formaLegada,
+             colunasFaltando: Array.isArray(x.colunasFaltando) ? x.colunasFaltando.map(String) : [],
+             campos: (Array.isArray(x.campos) ? x.campos : []).map(function (c) {
+               return { coluna: String(c.coluna || ""), rotulo: String(c.rotulo || c.coluna || ""), valor: String(c.valor || ""), existe: c.existe !== false };
+             }).filter(function (c) { return c.coluna; }) };
+  }
+  function htmlComissaoCorretor(cc, u, dis) {
+    if (!cc) return "";
+    u = u || {};
+    var rasc = u.rascunho || {}, nome = cc.corretor;
+    var h = '<div class="dz-linha dz-grupo"><b>Pagamento da comissão' + (nome ? " — " + esc(nome) : "") + "</b></div>";
+    h += '<div class="dz-linha"><span class="dz-rot">Comissão paga por: <b>COMPRADOR</b></span></div>';
+    if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta da comissão.</div>';
+    if (cc.duplicado) return h + '<div class="dz-aviso">O corretor tem cadastro duplicado em CORRETORES – CONTRATO — deixe uma linha só.</div>';
+    h += '<div class="dz-linha"><span class="dz-rot">No contrato: ' + (cc.forma ? esc(cc.forma) : "<i>em branco (sem dados de pagamento)</i>") +
+      (cc.formaLegada ? " <small>(da coluna antiga CONTRATO - COMISSÃO FORMA)</small>" : "") + "</span></div>";
+    if (cc.colunasFaltando.length)
+      h += '<div class="dz-aviso">A base CORRETORES – CONTRATO não tem a coluna ' + esc(cc.colunasFaltando.join(", ")) + " — avise o desenvolvedor.</div>";
+    var disB = dis || (u.ocupadoContrato === "comissao" ? " disabled" : "");
+    cc.campos.forEach(function (c) {
+      var k = "com|" + c.coluna, v = k in rasc ? rasc[k] : c.valor;
+      h += '<div class="dz-linha"><label class="dz-rot">' + esc(c.rotulo) + '</label><input type="text" maxlength="300" data-com-campo="' +
+        esc(c.coluna) + '" data-com-orig="' + esc(c.valor) + '" value="' + esc(v) + '"' + (c.existe ? disB : " disabled") + "></div>";
+    });
+    if (!cc.temCadastro) h += '<div class="dz-msg dz-nota">' + esc(nome) + " ainda não tem cadastro: o salvar cria a linha em CORRETORES – CONTRATO.</div>";
+    if (u.ocupadoContrato === "comissao") h += '<div class="dz-linha"><b>salvando no cadastro do corretor…</b></div>';
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-salvar"' + disB + ">Salvar no cadastro do corretor</button></div>";
+    h += '<div class="dz-msg dz-nota">Vale para todas as vendas deste corretor. Depois de salvar, gere o pré-contrato de novo.</div>';
+    return h;
+  }
+  /* caixas [{coluna, orig, valor}] -> { corretor: {COLUNA: valor} } só com o que mudou e não está vazio; null = nada mudou */
+  function pedidoComissao(caixas) {
+    var o = {}, n = 0;
+    (caixas || []).forEach(function (x) {
+      var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+      if (!x.coluna || !v || v === String(x.orig || "").trim()) return;
+      o[x.coluna] = v; n++;
+    });
+    return n ? { corretor: o } : null;
   }
   /* resposta FALTAM_DADOS -> { faltas (as que o formulário não cobre), campos (ou null: servidor antigo) } */
   function faltasDaResposta(r) {
@@ -813,6 +863,7 @@
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
     h += htmlConta(e.conta, u, dis);
+    h += htmlComissaoCorretor(e.comissaoCorretor, u, dis);   /* 05/11/2026: casa de rua */
     h += htmlTestemunhas(e.testemunhas, dis);
     h += htmlFluxo(e.fluxo, u, dis, e);
     h += htmlCondicoes(e.condicoes, u, dis);
@@ -861,6 +912,9 @@
     }
     var conta = textoConta(e.conta);
     if (conta) h += '<div class="dz-linha"><span class="dz-rot">Conta de recebimento: ' + esc(conta) + "</span></div>";
+    /* 05/11/2026: casa de rua — comissão paga pelo comprador e a forma que foi para o contrato (só texto) */
+    if (e.comissaoCorretor) h += '<div class="dz-linha"><span class="dz-rot">Comissão paga por: COMPRADOR' +
+      (e.comissaoCorretor.forma ? " · " + esc(e.comissaoCorretor.forma) : "") + "</span></div>";
     var test = nomesTestemunhas(e.testemunhas);
     if (test) h += '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura: ' + esc(test) + "</span></div>";
     var f = e.fluxo;
@@ -1400,7 +1454,8 @@
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
-                   rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
+                   rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2,
+                   comissaoDoEstado: comissaoDoEstado, htmlComissaoCorretor: htmlComissaoCorretor, pedidoComissao: pedidoComissao };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -2485,6 +2540,7 @@
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
+      raiz.querySelectorAll("[data-com-campo]").forEach(function (x) { uiC.rascunho["com|" + x.getAttribute("data-com-campo")] = x.value; });   /* 05/11/2026 */
       rascunhoFia(uiC.rascunho, caixasFia());   /* 01/11: bloco Fiadores — só o que foi mexido */
     }
     function caixasFia() {
@@ -3217,6 +3273,28 @@
         if (r.conta && estadoC) { estadoC.conta = contaDoEstado(r.conta); uiC.contaDigitar = undefined; limparRascunhoConta(); }
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
+      }
+      if (acao === "c-com-salvar") {
+        /* 05/11/2026: grava só os dados de pagamento no cadastro do corretor (não gera pré-contrato) */
+        guardarRascunho();
+        var caixasCom = [];
+        raiz.querySelectorAll("[data-com-campo]").forEach(function (x) {
+          if (!x.disabled) caixasCom.push({ coluna: x.getAttribute("data-com-campo"), orig: x.getAttribute("data-com-orig"), valor: x.value });
+        });
+        var pedCom = pedidoComissao(caixasCom);
+        if (!pedCom) { uiC.msg = "Nada mudou — preencha ou corrija um campo antes de salvar."; pintar(); return; }
+        uiC.ocupadoContrato = "comissao"; uiC.msg = ""; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "salvarCamposContrato", pageId: pageId, soSalvar: true, campos: pedCom }, 60000);
+        if (seq !== seqC || !vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) {
+          Object.keys(uiC.rascunho).forEach(function (k) { if (/^com\|/.test(k)) delete uiC.rascunho[k]; });
+          await carregarContrato();   /* relê o bloco e o aviso de pré-contrato desatualizado */
+          uiC.msg = "Dados de pagamento salvos no cadastro do corretor.";
+        } else uiC.msg = mensagemContrato(r);
+        pintar();
+        return;
       }
       if (acao === "c-fia-salvar" || acao === "c-fia-conjuge") return aoClicarFia(acao);
       if (acao === "c-condesp-ia" || acao === "c-condesp-salvar") return aoClicarCondEsp(acao);

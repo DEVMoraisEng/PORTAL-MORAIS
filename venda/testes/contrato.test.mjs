@@ -94,7 +94,7 @@ test("comprador 2 incompleto é falta", () => {
   assert.ok(!faltas.includes("Comprador 2: estado civil"));
 });
 
-test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
+test("vendedor PF e intermediária; VENDEDOR na coluna PAGA POR é ignorado (05/11/2026: sempre o comprador)", () => {
   const f = fontes();
   f.vendedor = Object.assign({}, f.vendedor, { tipo: "PF", nome: "INVESTIDOR TESTE", cpfCnpj: "111.444.777-35", nacionalidade: "brasileiro", estadoCivil: "casado", profissao: "empresário", rg: "5555 SSP/GO", representanteNome: "" });
   f.venda.COMISSAO_PAGA_POR = "VENDEDOR";
@@ -102,12 +102,12 @@ test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
   const d = C.montarDadosContrato(f);
   assert.deepEqual(C.faltasContrato(d), []);
   const m = C.marcadores(d), b = C.blocos(d);
-  assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: true,
+  assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: false,
     TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
-  assert.equal(m.VALOR_IMOVEL, "300.000,00");
-  assert.equal(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
+  assert.equal(d.comissao.pagaPor, "COMPRADOR");
+  assert.notEqual(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
   assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
-  assert.equal(m.COMISSAO_RESPONSAVEL, "INVESTIDOR TESTE");
+  assert.notEqual(m.COMISSAO_RESPONSAVEL, "INVESTIDOR TESTE");
   assert.equal(m.INTERMEDIARIA_VALOR, "250.000,00");
 });
 
@@ -229,11 +229,11 @@ test("valor de aquisição inválido (negativo) vira falta", () => {
   assert.ok(C.faltasContrato(C.montarDadosContrato(g)).includes("Negociação: valor de aquisição inválido"));
 });
 
-test("comissão paga pelo vendedor: a soma não é exigida (na mão não entra no contrato)", () => {
+test("05/11/2026: VENDEDOR na coluna PAGA POR não livra a soma (a comissão é sempre do comprador na casa de rua)", () => {
   const f = fontes();
   f.venda.COMISSAO_PAGA_POR = "VENDEDOR";
   f.venda.VALOR_NA_MAO = 1;
-  assert.ok(!C.faltasContrato(C.montarDadosContrato(f)).some((x) => x.includes("na mão")));
+  assert.ok(C.faltasContrato(C.montarDadosContrato(f)).some((x) => x.includes("na mão")));
 });
 
 test("comprador 1 vindo de CLIENTES: primeira fronteira ' E ', mesmo com E dentro do nome", () => {

@@ -442,7 +442,10 @@ function ctrFontes_(col, pageId) {
   } : null;
   var corretor = lc ? {
     nome: lc.titulo, creci: t(lc, "CRECI"), cpfCnpj: t(lc, "CPF/CNPJ"), nacionalidade: t(lc, "NACIONALIDADE"),
-    endereco: t(lc, "ENDEREÇO PROFISSIONAL"), email: t(lc, "E-MAIL")
+    endereco: t(lc, "ENDEREÇO PROFISSIONAL"), email: t(lc, "E-MAIL"),
+    /* 05/11/2026 (dono): pagamento da comissão (casa de rua) — ContratoVenda monta o {{COMISSAO_FORMA}}; coluna que a base
+       não tem sai vazia (nada trava) */
+    pix: t(lc, "CHAVE PIX"), banco: t(lc, "BANCO"), agencia: t(lc, "AGÊNCIA"), conta: t(lc, "CONTA"), titular: t(lc, "TITULAR DA CONTA")
   } : null;
   /* condomínio: o corretor da linha do condomínio vale; CORRETORES – CONTRATO só completa o que faltar */
   if (cond && cond.corretor.nome) {
@@ -734,7 +737,11 @@ function contratoEstado_(col, p) {
       try { var fbF = fiaEstadoFinal_(col, p, pgE); if (fbF) r.fiadores = fbF; } catch (e3) { ctrErro_("contratoEstado fiadores final", e3); }
     }
   }
-  else try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+  else {
+    try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
+    /* 05/11/2026 (dono): casa de rua — bloco "Pagamento da comissão" (paga por COMPRADOR + dados do corretor), sempre */
+    try { var cc = ctrComissaoCorretorEstado_(pgE); if (cc) r.comissaoCorretor = cc; } catch (e) { ctrErro_("contratoEstado comissao", e); }
+  }
   /* entrega 10 + rodada 1 (H5): lista de testemunhas (só id e nome), a escolha desta venda e o par padrão pelo tipo do vendedor
      (casa de rua e contrato final também: lê os cadastros só aqui, e só quando há lista para mostrar) */
   if (typeof assConfig_ === "function") {
@@ -1195,7 +1202,76 @@ function redigirCondicoesEspeciais_(col, sess, p) {
 
 /* Ação "salvarCamposContrato": p.campos = { vendedor: {COLUNA: valor}, corretor: {...}, loteamento: {...} },
    p.conta (opcional) = a mesma da escolherContaRecebimento. Confere tudo antes de gravar qualquer coisa. */
+/* ---- 05/11/2026 (dono): pagamento da comissão do corretor (casa de rua) ----
+ * O corretor da venda (coluna CORRETOR) e a linha dele em CORRETORES – CONTRATO: { pagaPor, corretor, temCadastro,
+ * campos: [{coluna, rotulo, valor, existe}], colunasFaltando, forma, formaLegada } (ContratoVenda.estadoComissaoCorretor).
+ * null = cadastro não configurado. duplicado = { duplicado: true }. */
+function ctrComissaoCorretorEstado_(pg) {
+  if (!prop_("DB_CORRETORES")) return null;
+  var v = ctrPorChave_(pg.properties), nome = ctrTxt_(ctrCampo_(v, "CORRETOR")).trim();
+  var formaAntiga = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_FORMA));
+  if (!nome) return ContratoVenda.estadoComissaoCorretor("", null, null, formaAntiga);
+  var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
+  if (lc && lc.duplicado) return { pagaPor: "COMPRADOR", corretor: nome, duplicado: true, campos: [], colunasFaltando: [], forma: "" };
+  var linha = null, colunas;
+  if (lc) {
+    linha = {};
+    ContratoVenda.CAMPOS_PAGAMENTO_CORRETOR.forEach(function (c) { linha[c.coluna] = ctrTxt_(ctrCampo_(lc.c, c.coluna)); });
+    colunas = Object.keys(lc.props || {});
+  } else {
+    var dbc = String(prop_("DB_CORRETORES")).split(",")[0].trim();
+    try { colunas = Object.keys(ctrTiposDaBase_(dbc).tipos); } catch (e) { colunas = null; }
+    /* ctrTiposDaBase_ devolve as chaves já normalizadas — a comparação é pela mesma chave */
+  }
+  return ContratoVenda.estadoComissaoCorretor(lc ? lc.titulo : nome, linha, colunas, formaAntiga);
+}
+/* "Salvar no cadastro do corretor" (p.soSalvar): grava só o grupo corretor, só as colunas de pagamento, na linha do corretor
+ * da venda (cria a linha com o nome da venda se não existir). Não gera pré-contrato. Coluna que a base não tem:
+ * COLUNA_FALTANDO com os nomes — nada é gravado e o contrato não é afetado. */
+function salvarPagamentoCorretor_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), rot = "salvarPagamentoCorretor";
+  var campos = p.campos && typeof p.campos === "object" && !Array.isArray(p.campos) ? p.campos : {};
+  var grupos = Object.keys(campos);
+  if (grupos.length !== 1 || grupos[0] !== "corretor" || (p.conta !== undefined && p.conta !== null))
+    return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Só os dados de pagamento do corretor"] };
+  var permitidas = ContratoVenda.CAMPOS_PAGAMENTO_CORRETOR.map(function (c) { return c.coluna; });
+  var fora = Object.keys(campos.corretor || {}).filter(function (c) { return permitidas.indexOf(c) < 0; });
+  if (fora.length) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Corretor: campo não permitido aqui"] };
+  var val = ContratoVenda.validarCampos(campos);
+  if (!val.ok) { ctrLog_(rot + " " + pid + " invalidos " + val.erros.length); return { ok: false, erro: "CAMPOS_INVALIDOS", erros: val.erros }; }
+  if (!prop_("DB_CORRETORES")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
+  var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+  if (info.base === "CONDOMINIO") return { ok: false, erro: "SO_CASA_DE_RUA" };
+  var nome = ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), "CORRETOR")).trim();
+  if (!nome) return { ok: false, erro: "CORRETOR_NA_VENDA_FALTANDO" };
+  var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
+  if (lc && lc.duplicado) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Corretor: cadastro duplicado em CORRETORES – CONTRATO"] };
+  var erros = [], faltando = [], V = val.valores.corretor, dbc = "", props, tipos, titulo = "";
+  if (lc && lc.id) tipos = ctrTiposDaLinha_(lc.props);
+  else { dbc = String(prop_("DB_CORRETORES")).split(",")[0].trim(); var bc = ctrTiposDaBase_(dbc); tipos = bc.tipos; titulo = bc.titulo; }
+  Object.keys(V).forEach(function (c) { if (!tipos[RegrasVenda.chave(c)]) faltando.push(c); });
+  if (faltando.length) {
+    ctrLog_(rot + " " + pid + " colunas faltando " + faltando.length);
+    return { ok: false, erro: "COLUNA_FALTANDO: " + faltando.join(", "), colunas: faltando };
+  }
+  props = ctrPropsCadastro_("corretor", V, tipos, erros);
+  if (!lc) { if (!titulo) erros.push("Corretor: a base CORRETORES não tem coluna de título"); else props[titulo] = ctrValorCadastro_("title", nome); }
+  if (erros.length) { ctrLog_(rot + " " + pid + " colunas " + erros.length); return { ok: false, erro: "CAMPOS_INVALIDOS", erros: erros }; }
+  try {
+    if (lc) notion_("PATCH", "/pages/" + lc.id, { properties: props });
+    else notion_("POST", "/pages", { parent: { database_id: dbc }, properties: props });
+  } catch (e) {
+    ctrErro_(rot + " " + pid + " gravar", e);
+    return { ok: false, erro: "GRAVACAO_FALHOU", salvos: [] };
+  }
+  ctrLog_(rot + " " + pid + " salvos " + Object.keys(V).length + (lc ? "" : " (com linha nova)"));
+  var r = { ok: true, salvos: ["corretor"] };
+  try { r.comissaoCorretor = ctrComissaoCorretorEstado_(ctrLerPaginaVenda_(p.pageId)); } catch (e) { ctrErro_(rot + " estado", e); }
+  return r;
+}
+
 function salvarCamposContrato_(col, sess, p) {
+  if (p && p.soSalvar === true) return salvarPagamentoCorretor_(col, sess, p);   /* 05/11/2026: bloco Pagamento da comissão */
   var pid = String(p.pageId).slice(0, 8), rot = "salvarCamposContrato";
   var campos = p.campos && typeof p.campos === "object" && !Array.isArray(p.campos) ? p.campos : {};
   var temCampos = Object.keys(campos).length > 0;
