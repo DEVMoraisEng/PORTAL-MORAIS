@@ -1192,7 +1192,7 @@ test("plano 23 A: contrato ASSINADO — o servidor recusa as ações de gravar d
   const c = assinadoPorTodos();
   for (const a of ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                    "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
-                   "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
+                   "excluirArquivoEspaco" /* 05/11 */, "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
   assert.equal(c.estado().ok, true);
   assert.equal(c.acao("contratoEstado").erro, undefined, "leitura segue");
@@ -1222,7 +1222,7 @@ test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônju
 const MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
 const TRAVADAS_ABERTO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                          "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
-                         "salvarFluxo", "lerCrlv", "corrigirConferencia"];
+                         "salvarFluxo", "lerCrlv", "corrigirConferencia", "excluirArquivoEspaco" /* 05/11 */];
 test("03/11: envelope do contrato ENVIADO — toda ação que muda o contrato responde ENVELOPE_ABERTO com a mensagem; leituras e o envelope seguem", () => {
   const c = cenario();
   assert.equal(c.enviar().ok, true);

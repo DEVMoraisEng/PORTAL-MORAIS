@@ -425,6 +425,9 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 #painel[data-aba="andamento"] #pn-body>[data-sec="andamento"],
 #painel[data-aba="documentos"] #dossie-wrap,#painel[data-aba="contrato"] #contrato-wrap,#painel[data-aba="recebimentos"] #contrato-wrap{display:block}
 #painel[data-aba="contrato"] #contrato-wrap>.vb-rec,#painel[data-aba="recebimentos"] #contrato-wrap>:not(.vb-rec){display:none}
+/* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê (venda-dossie.js, evento dossie:compradores) esconde o grupo
+   Comprador 2 da aba Compradores. Só no painel da casa de rua (#painel); o cartão do condomínio não muda. */
+#painel[data-compradores="1"] #pn-body [data-comprador2]{display:none}
 /* campos em duas colunas dentro das abas (a lista inteira numa coluna só era o que fazia 16 telas de rolagem) */
 .pn-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:0 11px}
 .pn-grade>.campo{padding:0 11px}
@@ -3770,6 +3773,14 @@ window.addEventListener("venda:contrato-enviado", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
   if(id) condMarcarVendidaFila([String(id)]);
 });
+/* 05/11/2026: seletor "Compradores 1 | 2" do dossiê → atributo no #painel (o CSS esconde o Comprador 2 em 1).
+   n = 0 (casa trocando, estado ainda não veio) tira o atributo: mostra tudo. Outra casa que não a aberta é ignorada. */
+window.addEventListener("dossie:compradores", ev=>{
+  const d=(ev&&ev.detail)||{}, painel=document.getElementById("painel"); if(!painel) return;
+  if(d.n!==1&&d.n!==2){ painel.removeAttribute("data-compradores"); return; }
+  if(d.pageId!==OBRA_ABERTA) return;
+  painel.setAttribute("data-compradores",String(d.n));
+});
 window.addEventListener("venda:dados-gravados", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
   if(id) recarregarCamposCasa(String(id));
@@ -4098,11 +4109,12 @@ function renderPainel(V,pageId,sensPendente){
     (porAba[aba]||porAba.andamento).push(nome);
   });
   const blocoTitulado=(nomes,titulo)=>nomes.length?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+nomes.map(n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente)).join("")+`</div>`:"";
-  const porGrupo=(nomes,padrao)=>{
-    const out=[]; nomes.forEach(n=>{ const g=grupoNoPainelCasa(n)||padrao; let x=out.find(o=>o.titulo===g); if(!x){ x={titulo:g,campos:[]}; out.push(x); } x.campos.push(n); });
-    return out.map(g=>blocoTitulado(g.campos,g.titulo)).join("");
+  const porGrupo=(nomes,padrao,c2)=>{
+    const out=[]; nomes.forEach(n=>{ const g=grupoNoPainelCasa(n)||padrao; const t=c2&&g===padrao&&/^COMPRADOR 2 - /.test(normNome(n))?"Comprador 2":g; let x=out.find(o=>o.titulo===t); if(!x){ x={titulo:t,campos:[]}; out.push(x); } x.campos.push(n); });
+    /* 05/11: c2 = aba Compradores — o grupo Comprador 2 vai numa caixa data-comprador2 (o seletor do dossiê esconde) */
+    return out.map(g=>c2&&g.titulo==="Comprador 2"?`<div data-comprador2>${blocoTitulado(g.campos,g.titulo)}</div>`:blocoTitulado(g.campos,g.titulo)).join("");
   };
-  sec.compradores+=porGrupo(porAba.compradores,"Compradores");
+  sec.compradores+=porGrupo(porAba.compradores,"Compradores",true);
   sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
   sec.documentos+=blocoTitulado(porAba.documentos,"Dossiê — observações");
   sec.andamento+=pnPorDepartamento(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");

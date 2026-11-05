@@ -40,7 +40,8 @@ function tratar_(p) {
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "assinaturaTrocarEmail" /* 03/11 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
-                 "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */].indexOf(p.action) >= 0;
+                 "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
+                 "excluirArquivoEspaco" /* 05/11: Excluir um anexo do dossiê */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
@@ -64,6 +65,8 @@ function executar_(col, sess, p) {
       case "lerDocumento": return lerDocumento_(col, sess, p);
       case "anexarDocumento": return anexarDocumento_(col, p);
       case "soltarDocumento": return soltarDocumento_(col, p);
+      case "verArquivoEspaco": return verArquivoEspaco_(col, p);              /* 05/11: Ver um anexo do dossiê (só leitura) */
+      case "excluirArquivoEspaco": return excluirArquivoEspaco_(col, sess, p); /* 05/11: Excluir um anexo do dossiê */
       case "lerDocumentos": return lerDocumentos_(col, sess, p);
       case "copiarComprovante": return copiarComprovante_(col, sess, p);
       case "conferir":     return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.CONFERIDO, "Conferido");
@@ -291,11 +294,28 @@ function estado_(col, p, sess) {
   var imovel = estadoImovel_(col, a);
   var arqs = RegrasVenda.contarArquivos(a);
   if (!imovel.erro) for (var k in imovel.arquivos) arqs[k] = imovel.arquivos[k];
+  /* 05/11: nomes dos arquivos de cada espaço (comprador e imóvel), na ordem da coluna — a tela lista e oferece Ver/Excluir.
+     arquivos (só a contagem) segue igual para a tela antiga. */
+  var nomes = nomesArquivos_(a, RegrasVenda.ESPACOS);
+  if (!imovel.erro) { var ni = nomesArquivos_(a, RegrasVenda.ESPACOS_IMOVEL); for (var kn in ni) nomes[kn] = ni[kn]; }
   return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", tipoCasaPelaObra: tipoAuto, arquivos: RegrasVenda.contarArquivos(a),
+           arquivosNomes: nomes, comprador2ComDados: comprador2ComDados_(a),
            dossie: a[C.DOSSIE] || "", observacao: a[C.OBS] || "", doisCompradores: RegrasVenda.temDoisCompradores(a),
            imovel: imovel,
            /* entrega 13: espaços com arquivo anexado e ainda não lido (os dois grupos), na ordem de leitura */
            pendentes: RegrasVenda.pendentesValidos(lerPendentes_(p.pageId), arqs) };
+}
+function nomesArquivos_(a, espacos) {
+  var r = {};
+  Object.keys(espacos).forEach(function (id) {
+    r[id] = (a[espacos[id].coluna] || []).map(function (f) { return String((f && f.name) || "arquivo"); });
+  });
+  return r;
+}
+/* 05/11: algum campo COMPRADOR 2 - * preenchido (texto ou arquivo) — com o seletor do dossiê em 1, a tela avisa que ele
+   ainda sai no contrato. Nada é apagado sozinho. */
+function comprador2ComDados_(a) {
+  return Object.keys(a).some(function (k) { return /^COMPRADOR 2 - /.test(RegrasVenda.chave(k)) && !RegrasVenda.vazio(a[k]); });
 }
 /* seção "Documentos do imóvel": arquivos por espaço, estado, observação e os dados do contrato já gravados */
 function estadoImovel_(col, a) {
@@ -562,6 +582,72 @@ function anexarDocumento_(col, p) {
   catch (e) { console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120)); return { ok: false, erro: "UPLOAD_FALHOU" }; }
   var pend = mudarPendentes_(p.pageId, function (x) { RegrasVenda.marcarPendente(x, p.espaco, !!p.trocar); });
   return { ok: true, pageId: p.pageId, espaco: p.espaco, pendentes: pend ? RegrasVenda.ordenarEspacos(Object.keys(pend)) : null };
+}
+
+/* 05/11/2026: Ver e Excluir um anexo do dossiê (lista "N arquivos" da linha do documento).
+ * p.n = posição do arquivo na coluna (0 = o primeiro), como veio em arquivosNomes do estado.
+ * Ver só lê (o link do Notion não vai para a tela: o arquivo volta em base64, como o verDocumentoConferencia). */
+function arquivoDoEspaco_(col, p) {
+  var esp = RegrasVenda.espaco(p.espaco);
+  if (!esp) return { erro: "ESPACO_DESCONHECIDO" };
+  if (esp.grupo === "imovel" && col.imovelErro) return { erro: col.imovelErro };
+  if (!col.mapa[esp.coluna]) return { erro: "COLUNA_FALTANDO: " + esp.coluna };
+  var a = lerPagina_(col, p.pageId), lista = a[esp.coluna] || [];
+  if (!lista.length) return { erro: "SEM_ARQUIVO" };
+  var n = Number(p.n);
+  if (!(n >= 0 && n < lista.length && Math.floor(n) === n)) return { erro: "ARQUIVO_MUDOU" };
+  return { esp: esp, a: a, lista: lista, n: n };
+}
+function verArquivoEspaco_(col, p) {
+  var x = arquivoDoEspaco_(col, p);
+  if (x.erro) return { ok: false, erro: x.erro };
+  if (p.nome !== undefined && p.nome !== null && String(p.nome) !== String(x.lista[x.n].name || "")) return { ok: false, erro: "ARQUIVO_MUDOU" };
+  var b = null;
+  try { b = baixarArquivo_(x.lista[x.n]); } catch (e) { b = null; }
+  if (!b) return { ok: false, erro: "ARQUIVO_NAO_LEGIVEL" };
+  return { ok: true, nome: String(x.lista[x.n].name || "arquivo"), mime: b.mime, base64: b.base64, n: x.n, total: x.lista.length };
+}
+/* Tira só o arquivo n da coluna do espaço (a API do Notion troca a lista inteira: os outros são reenviados como
+ * {type:"file"}). p.nome tem de bater com o nome do arquivo n — se a lista mudou (outra pessoa anexou ou excluiu),
+ * ARQUIVO_MUDOU e nada é apagado. Espaço vazio depois: sai dos "novos para ler" e o dossiê conferido (ou lido)
+ * volta a ser conferido — a FALTA DOCUMENTO se faltar um obrigatório, senão LIDO PELA IA – CONFERIR.
+ * Os dados que a IA já leu desse documento ficam (decisão do dono). Uma escrita só no Notion. */
+function excluirArquivoEspaco_(col, sess, p) {
+  var R = RegrasVenda, x = arquivoDoEspaco_(col, p);
+  if (x.erro) return { ok: false, erro: x.erro };
+  var alvo = x.lista[x.n];
+  if (!String(p.nome || "") || String(p.nome) !== String(alvo.name || "")) return { ok: false, erro: "ARQUIVO_MUDOU" };
+  var resto = x.lista.filter(function (_, i) { return i !== x.n; });
+  var props = {};
+  props[col.mapa[x.esp.coluna]] = { files: resto.map(R.manterArquivo) };
+  var grupo = x.esp.grupo === "imovel" ? "imovel" : "comprador", D = colunasDossie_(grupo), depois = {}, g = {};
+  for (var k in x.a) depois[k] = x.a[k];
+  depois[x.esp.coluna] = resto;
+  var est = null, atual = String(x.a[D.estado] || "");
+  if (!resto.length && (atual === R.ESTADOS.CONFERIDO || atual === R.ESTADOS.LIDO)) {
+    est = grupo === "imovel" ? R.estadoImovelAposLeitura(R.contarArquivos(depois, R.ESPACOS_IMOVEL))
+                             : R.estadoAposLeitura(R.contarArquivos(depois), R.temDoisCompradores(depois));
+    if (est.estado !== atual) g[D.estado] = est.estado;
+  }
+  g[D.obs] = R.juntarObservacoes(x.a[D.obs], [x.esp.rotulo + ": arquivo " + String(alvo.name || "") + " excluído pelo portal" +
+    (g[D.estado] ? " — dossiê voltou a " + g[D.estado] : "")], hoje_("dd/MM"), sess.u);
+  for (var canon in g) {
+    var real = col.mapa[canon], tipo = col.schema[real].tipo, v = g[canon];
+    if (tipo === "select") v = R.resolverOpcao(col.schema[real].opcoes, v);
+    props[real] = propNotion_(tipo, v);
+  }
+  try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); }
+  catch (e) {
+    if (/^NOTION_OCUPADO/.test(String(e.message || e))) throw e;
+    console.error("PORTAL-VENDA exclusão de arquivo falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "GRAVACAO_FALHOU" };
+  }
+  var pend = null;
+  if (!resto.length) pend = mudarPendentes_(p.pageId, function (o) { delete o[p.espaco]; });
+  var r = { ok: true, pageId: p.pageId, espaco: p.espaco, total: resto.length, grupo: grupo };
+  if (g[D.estado]) r.dossie = g[D.estado];
+  if (pend) r.pendentes = R.ordenarEspacos(Object.keys(pend));
+  return r;
 }
 
 /* "Ler documentos": lê numa chamada todos os espaços anexados e ainda não lidos (os dois grupos).

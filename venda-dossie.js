@@ -42,7 +42,13 @@
     IA_SO_OPENAI: "O Redigir com IA só funciona com a OpenAI ligada.",
     MODELO_NAO_CONFIGURADO: "O modelo do contrato do condomínio não está configurado.",
     MODELO_ILEGIVEL: "Não consegui abrir o modelo do contrato para a IA ler.",
-    LEITURA_RECUSADA: "A IA não quis redigir esse pedido — reescreva com mais detalhe."
+    LEITURA_RECUSADA: "A IA não quis redigir esse pedido — reescreva com mais detalhe.",
+    /* 05/11: Ver e Excluir cada anexo do dossiê */
+    ARQUIVO_MUDOU: "A lista de arquivos mudou (alguém anexou ou excluiu) — a tela foi atualizada; confira e tente de novo.",
+    ESPACO_DESCONHECIDO: "Documento desconhecido — atualize a página e tente de novo.",
+    CONTRATO_ASSINADO: "O contrato já foi assinado — os documentos do dossiê não podem mais ser excluídos.",
+    ENVELOPE_ABERTO: "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.",
+    NOTION_OCUPADO: "O Notion está ocupado — tente de novo em 1 minuto."
   };
 
   function esc(s) {
@@ -98,6 +104,10 @@
       return '<button type="button" data-acao="dois" data-valor="' + n + '" class="bt ghost bt-mini' +
         ((ui.dois ? "2" : "1") === n ? " on" : "") + '">' + n + "</button>";
     }).join(" ") + "</div>";
+    /* 05/11/2026: em 1, a aba Compradores esconde o comprador 2 — mas o que já está gravado dele sai no contrato.
+       Nada é apagado sozinho: só avisa. */
+    if (!ui.dois && (e.comprador2ComDados || e.doisCompradores))
+      h += '<div class="dz-aviso">O comprador 2 tem dados gravados e vai sair no contrato. Apague os dados dele para tirá-lo.</div>';
     h += htmlSoltar(e, ui);
     h += htmlLerTodos(e, ui, "topo");
     DOCS.forEach(function (d) {
@@ -129,6 +139,26 @@
        Ler de novo e "+ Anexar" (frente e verso). Antes eram sempre três botões, dois apagados. */
     var st = !n ? "falta" : novo ? "novo" : "ok";
     var txt = !n ? "falta" : (n + (n === 1 ? " arquivo" : " arquivos")) + (novo ? " · novo, não lido" : "");
+    /* 05/11/2026: o contador "N arquivos" abre a lista dos arquivos do espaço, cada um com Ver e Excluir (a exclusão
+       confirma na própria linha: Sim, excluir / Cancelar). Servidor antigo, sem os nomes: o contador fica em texto. */
+    var nomes = (e && e.arquivosNomes && Array.isArray(e.arquivosNomes[d.id])) ? e.arquivosNomes[d.id] : null;
+    var aberta = !!(nomes && nomes.length && ui.listas && ui.listas[d.id]);
+    if (n && nomes && nomes.length)
+      txt = '<button type="button" class="dz-arqs-bt" data-acao="arquivos" data-espaco="' + d.id + '" aria-expanded="' + aberta + '">' +
+        txt + (aberta ? " ▴" : " ▾") + "</button>";
+    var lista = "";
+    if (aberta) {
+      var conf = ui.excluir && ui.excluir.espaco === d.id ? Number(ui.excluir.n) : -1;
+      lista = '<ul class="dz-arqs">' + nomes.map(function (nome, i) {
+        var at = ' data-espaco="' + d.id + '" data-n="' + i + '"';
+        var acoes = conf === i
+          ? '<b class="dz-arq-conf">Excluir este arquivo?</b> <button type="button" class="bt bt-mini dz-perigo" data-acao="excluir-sim"' + at + dis(travado || ocupado || testes) + ">Sim, excluir</button> " +
+            '<button type="button" class="bt ghost bt-mini" data-acao="excluir-nao"' + at + ">Cancelar</button>"
+          : '<button type="button" class="bt ghost bt-mini" data-acao="ver-arq"' + at + dis(ocupado) + ">Ver</button> " +
+            '<button type="button" class="bt ghost bt-mini" data-acao="excluir-arq"' + at + dis(travado || ocupado || testes) + ">Excluir</button>";
+        return '<li><span class="dz-arq-nome">' + esc(nome) + "</span>" + '<span class="dz-acoes">' + acoes + "</span></li>";
+      }).join("") + "</ul>";
+    }
     var b = !n
       ? '<button type="button" class="bt bt-mini" data-acao="anexar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Anexar</button>"
       : '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Trocar</button> " +
@@ -137,7 +167,7 @@
     return '<div class="dz-linha dz-doc dz-doc-' + st + '"><span class="dz-rot"><i class="dz-st" aria-hidden="true"></i>' + esc(d.rotulo) +
       ' <small class="dz-st-txt' + (novo ? " dz-novo" : "") + '">' + txt + "</small>" +
       (ui.ocupado === d.id ? " <b>" + esc(ui.ocupadoTexto || "lendo…") + "</b>" : "") + "</span>" +
-      '<span class="dz-acoes">' + b + (extra || "") + "</span></div>";
+      '<span class="dz-acoes">' + b + (extra || "") + "</span>" + lista + "</div>";
   }
   /* botão único da casa: lê comprador e imóvel juntos (uma chamada, uma escrita). Aparece no topo do
      dossiê e no fim dos documentos do imóvel; a mensagem sai junto do botão clicado (onde). */
@@ -398,6 +428,12 @@
   /* entrega 13: depois de gravar no Notion, o painel da casa (vendas.html) recarrega os campos ao ouvir
      window "venda:dados-gravados" com detail { pageId, gravados? } (gravados: { coluna: valor } quando há) */
   var EVENTO_GRAVADO = "venda:dados-gravados";
+  /* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê manda na aba Compradores do painel da casa de rua. O vendas.html
+     ouve window "dossie:compradores" com detail { pageId, n }: n = 1 esconde o comprador 2, 2 mostra, 0 = ainda não
+     sabe (casa trocando / estado não carregou) e o painel mostra tudo. Só o painel (#painel) ouve; o cartão do
+     condomínio não tem esse seletor. */
+  var EVENTO_COMPRADORES = "dossie:compradores";
+  function detalheCompradores(pageId, u) { return { pageId: pageId, n: u ? (u.dois ? 2 : 1) : 0 }; }
   function detalheGravado(pageId, r) {
     var d = { pageId: pageId };
     if (r && r.gravados && typeof r.gravados === "object" && Object.keys(r.gravados).length) d.gravados = r.gravados;
@@ -1355,6 +1391,7 @@
                    grupoDoEspaco: grupoDoEspaco,
                    linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
                    detalheGravado: detalheGravado, EVENTO_GRAVADO: EVENTO_GRAVADO,
+                   detalheCompradores: detalheCompradores, EVENTO_COMPRADORES: EVENTO_COMPRADORES,
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
@@ -1445,6 +1482,12 @@
     "#dossie-wrap .dz-st-txt{color:var(--text3,#5a8099);font-weight:600}#dossie-wrap .dz-doc-falta .dz-st-txt{color:#C0392B}" +
     "#dossie-wrap .dz-acoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}" +
     "#dossie-wrap>.grp+.dz-doc{border-top:0}" +
+    /* 05/11/2026: lista dos arquivos do espaço (Ver / Excluir) aberta pelo contador */
+    "#dossie-wrap .dz-arqs-bt{border:0;background:none;padding:0;font:inherit;color:var(--azul,#1d4f63);text-decoration:underline;cursor:pointer}" +
+    "#dossie-wrap .dz-arqs{flex:1 1 100%;list-style:none;margin:6px 0 0;padding:0 0 0 18px}" +
+    "#dossie-wrap .dz-arqs li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0;font-size:13px}" +
+    "#dossie-wrap .dz-arq-nome{flex:1 1 180px;min-width:0;overflow-wrap:anywhere}" +
+    "#dossie-wrap .dz-arq-conf{color:#a12a22}#dossie-wrap .bt.dz-perigo{background:#c0392b;border-color:#c0392b;color:#fff}" +
     /* 04/11: o que falta para gerar o contrato da casa, com a caixa do campo ali mesmo */
     ".vb-blocos .dz-faltas-venda{margin:8px 22px 4px;padding:10px 0 4px;border:1.5px solid #E67E22;border-radius:10px;background:rgba(230,126,34,.05)}" +
     ".vb-blocos .dz-faltas-venda>.dz-aviso{margin:0 14px 6px;font-weight:700}" +
@@ -1492,6 +1535,7 @@
     if (!mesmaCasa(pageId)) return;
     if (r.ok) {
       estado = r; if (r.doisCompradores) ui.dois = true;
+      avisarCompradores(pageId);
       if (r.tipoCasaPelaObra) avisarGravado(pageId, { ok: true, gravados: { "TIPO DE CASA": r.tipoCasa } });   // gravado pela obra ao abrir
     }
     else ui.msg = mensagemDeErro(r.erro);
@@ -1557,6 +1601,10 @@
       inp.click();
     });
   }
+  function avisarCompradores(pageId, desconhecido) {
+    try { window.dispatchEvent(new CustomEvent(EVENTO_COMPRADORES, { detail: detalheCompradores(pageId, desconhecido ? null : ui) })); }
+    catch (e) { /* sem CustomEvent: o painel mostra os dois compradores */ }
+  }
   function avisarGravado(pageId, r) {
     try { window.dispatchEvent(new CustomEvent(EVENTO_GRAVADO, { detail: detalheGravado(pageId, r) })); }
     catch (e) { /* navegador sem CustomEvent: o painel só atualiza ao reabrir a casa */ }
@@ -1577,8 +1625,18 @@
     var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
     var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r;
     if (!pageId) return;
-    if (acao === "dois") { ui.dois = b.getAttribute("data-valor") === "2"; pintar(); return; }
+    if (acao === "dois") { ui.dois = b.getAttribute("data-valor") === "2"; avisarCompradores(pageId); pintar(); return; }
+    /* 05/11: lista dos arquivos do espaço e a confirmação da exclusão (só a tela; nada vai ao servidor) */
+    if (acao === "arquivos") {
+      var ea = b.getAttribute("data-espaco"); ui.listas = ui.listas || {};
+      ui.listas[ea] = !ui.listas[ea]; if (!ui.listas[ea] && ui.excluir && ui.excluir.espaco === ea) ui.excluir = null;
+      pintar(); return;
+    }
+    if (acao === "excluir-nao") { ui.excluir = null; pintar(); return; }
     if (ui.ocupado) return;
+    if (acao === "excluir-arq") { ui.excluir = { espaco: b.getAttribute("data-espaco"), n: Number(b.getAttribute("data-n")) }; pintar(); return; }
+    if (acao === "ver-arq") return verArquivo(pageId, b.getAttribute("data-espaco"), Number(b.getAttribute("data-n")));
+    if (acao === "excluir-sim") return excluirArquivo(pageId, b.getAttribute("data-espaco"), Number(b.getAttribute("data-n")));
     if (acao === "tipo") {
       ui.ocupado = "tipo"; pintar();
       r = await chamarVenda({ action: "tipoCasa", pageId: pageId, valor: b.getAttribute("data-valor") });
@@ -1630,6 +1688,47 @@
       r = await chamarVenda({ action: "devolver", pageId: pageId, motivo: motivo, grupo: grupo });
       return depoisDeGravar(pageId, r, nomeDossie + " devolvido.", false, grupo);
     }
+  }
+  /* 05/11/2026: Ver um anexo — a janela abre antes da espera (senão o navegador bloqueia o pop-up), como o
+     "Abrir documento" da conferência; o arquivo chega em base64 e vira um blob na janela nova. */
+  function nomeDoArquivo(espaco, n) {
+    var l = estado && estado.arquivosNomes && estado.arquivosNomes[espaco];
+    return l && l[n] !== undefined ? l[n] : null;
+  }
+  async function verArquivo(pageId, espaco, n) {
+    var w = window.open("about:blank", "_blank"), grupo = grupoDoEspaco(espaco), nome = nomeDoArquivo(espaco, n);
+    var pedido = { action: "verArquivoEspaco", pageId: pageId, espaco: espaco, n: n };
+    if (nome !== null) pedido.nome = nome;
+    ui.ocupado = espaco; ui.ocupadoTexto = "abrindo…"; ui.msg = ""; ui.msgGrupo = grupo; pintar();
+    var r = await chamarVenda(pedido, 90000);
+    if (!mesmaCasa(pageId)) { if (w) { try { w.close(); } catch (e) {} } return; }
+    ui.ocupado = null; ui.ocupadoTexto = "";
+    if (r.ok && r.base64) {
+      var bin = atob(r.base64), bytes = new Uint8Array(bin.length);
+      for (var k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+      var url = URL.createObjectURL(new Blob([bytes], { type: r.mime || "application/pdf" }));
+      if (w) { try { w.opener = null; } catch (e) {} w.location.href = url; }
+      else ui.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+      pintar();
+      return;
+    }
+    if (w) { try { w.close(); } catch (e) {} }
+    ui.msg = r.mensagem || mensagemDeErro(r.erro);
+    if (r.erro === "ARQUIVO_MUDOU") return carregarEstado(pageId);
+    pintar();
+  }
+  /* Excluir (depois do "Sim, excluir" na linha): manda o índice e o nome — o servidor recusa se a lista mudou */
+  async function excluirArquivo(pageId, espaco, n) {
+    var nome = nomeDoArquivo(espaco, n), grupo = grupoDoEspaco(espaco);
+    ui.excluir = null;
+    if (nome === null) { ui.msg = mensagemDeErro("ARQUIVO_MUDOU"); ui.msgGrupo = grupo; return carregarEstado(pageId); }
+    ui.ocupado = espaco; ui.ocupadoTexto = "excluindo…"; ui.msg = ""; ui.msgGrupo = grupo; ui.resultados = null; pintar();
+    var r = await chamarVenda({ action: "excluirArquivoEspaco", pageId: pageId, espaco: espaco, n: n, nome: nome }, 90000);
+    if (r.ok && !r.total && ui.listas) ui.listas[espaco] = false;
+    var texto = r.ok ? "Arquivo " + nome + " excluído." + (r.dossie ? " Dossiê voltou a " + r.dossie + "." : "") : "";
+    await depoisDeGravar(pageId, r, texto, false, grupo);
+    /* ENVELOPE_ABERTO volta com a frase pronta do servidor */
+    if (!r.ok && r.mensagem && mesmaCasa(pageId)) { ui.msg = r.mensagem; pintar(); }
   }
   /* ---- "Soltar todos os documentos": identifica cada arquivo (3 de cada vez), guarda o que é do imóvel,
    * pergunta quem é quem para os documentos de pessoa e, confirmado, guarda e lê tudo numa leitura só ---- */
@@ -1685,7 +1784,7 @@
     s.arquivos.forEach(function (a) { porId[a.id] = a; });
     pessoasDoEnvio(s).forEach(function (p) {
       if (p.escolha === "NAO") s.arquivos.forEach(function (a) { if (a.estado === "pessoa" && chavePessoa(a) === p.chave) a.estado = "ignorado"; });
-      if (p.escolha === "C2") ui.dois = true;
+      if (p.escolha === "C2") { ui.dois = true; avisarCompradores(pageId); }
     });
     s.arquivos.forEach(function (a) { if (a.estado === "desconhecido" && a.escolha === "IGNORAR") a.estado = "ignorado"; });
     for (var i = 0; i < destinos.length; i++) {
@@ -3616,14 +3715,14 @@
     var id = obraAberta();
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
-      if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
+      if (paginaDoBloco !== null) { avisarCompradores(paginaDoBloco, true); paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
       if (blocosCasa) { blocosCasa.parar(); blocosCasa = null; }
       return;
     }
     if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
         !!(body.firstElementChild && body.firstElementChild.querySelector(".load")))) return;
     if (!wrap()) {
-      if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; }
+      if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; avisarCompradores(id, true); }
       var w = document.createElement("div"); w.id = "dossie-wrap";
       w.addEventListener("click", aoClicar);
       /* entrega 13: soltar vários arquivos na área "Soltar todos os documentos aqui" */
