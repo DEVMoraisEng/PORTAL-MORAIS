@@ -911,6 +911,17 @@
       "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
+      /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca maior que a carta de aprovação)" — o
+         financiamento ganha o campo de valor (só o valor; até o da proposta); FGTS, subsídio e pré-reserva seguem fixos */
+      var carta = l.t === "fin" ? F.tetoFinanciamento(ed.padrao) : 0;
+      if (tp.fixo && carta > 0) {
+        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">até ' + esc(F.moeda(carta)) + " (carta de aprovação)</div></td><td></td>" +
+          '<td><input type="text" inputmode="decimal" data-fx="v" data-k="' + k + '" value="' + esc(numBR(l.v)) + '"' + dis + ' style="width:7.5em;text-align:right"' +
+          ' aria-label="Valor do financiamento, até ' + esc(F.moeda(carta)) + '">' +
+          "</td><td>" + esc(l.n) + "</td><td>—</td><td></td><td></td>" +
+          '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
+        return;
+      }
       if (tp.fixo) {
         h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "fixo — vem da proposta") + '</div></td><td></td>' +
           '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
@@ -1018,6 +1029,7 @@
     var l = ed.linhas[k];
     if (!l || (campo !== "v" && campo !== "n" && campo !== "t")) return false;
     ed.travadas = ed.travadas || {};
+    if (l.t === "fin" && campo === "v") return true;   /* 05/11: financiamento baixou — o simulador refaz as soltas; ele não trava */
     if (!ajustavelFx(l)) { delete ed.travadas[k]; return false; }
     ed.travadas[k] = true;
     return true;

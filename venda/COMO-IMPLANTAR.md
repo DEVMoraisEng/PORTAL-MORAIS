@@ -1461,3 +1461,23 @@ automático com cadeado.
 - **Cadeados são só da tela** (não são gravados). Validações e servidor não mudaram.
 - **Implantar:** sobe com o site (FluxoLivre v13, venda-dossie v70, cache v289). No Apps Script nada é obrigatório: o
   servidor não usa `guiar`; colar `FluxoLivre.gs` de novo só para manter a cópia igual.
+
+## Financiamento menor que a carta no Alterar fluxo (05/11/2026)
+
+Pedido do dono: "alguns preferem reduzir o valor a financiar (nunca pode ser maior que o valor da carta de aprovação)".
+
+- **Na tela:** a linha Financiamento ganha o campo de valor (sem quantidade, data, ↻ nem ✕) e a nota "até R$ X (carta de
+  aprovação)". X = o financiamento da proposta (VALOR DO CRÉDITO). Baixar o valor refaz as pré-chaves, balões e
+  pós-chaves soltos pela régua do simulador (o financiamento não trava nem é mexido pelo simulador). FGTS, subsídio e
+  pré-reserva continuam fixos.
+- **Regra (`FluxoLivre.validar`, a mesma na tela e no servidor):** financiamento > 0 e até o da proposta, na mesma
+  quantidade de linhas; acima = "O financiamento não pode passar do valor aprovado na carta: R$ X". A coluna VALOR DO
+  CRÉDITO não é regravada (continua sendo a carta).
+- **Quem lê o financiamento do fluxo alterado:** contrato (já lia a linha `fin`), robô do Mais Controle
+  (`venda/mc/condominio.py`: parcelas já saíam das linhas; agora o dado `financiado` também), cartão (quadro do pro
+  soluto e "como se chega", com a carta ao lado quando reduzido), Gerar venda (`CondominioVenda.mapear` copia o VALOR
+  FINANCIADO da linha).
+- **Implantar (teste primeiro):** no PORTAL-VENDA colar `FluxoLivre.gs` (de `venda/FluxoLivre.js`), `CondominioVenda.gs`
+  (de `venda/CondominioVenda.js`) e `PortalVenda.gs` (`venda-v24`) e publicar a MESMA implantação — sem o FluxoLivre novo
+  o servidor recusa o fluxo com financiamento reduzido. Robô: `git pull` no servidor (`venda/mc/condominio.py`). Site:
+  FluxoLivre v14, venda-dossie v71, cache v290.

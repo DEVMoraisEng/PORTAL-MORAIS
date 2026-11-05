@@ -33,6 +33,15 @@ var CondominioVenda = (function () {
   "use strict";
 
   function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
+  function FLV() { return typeof FluxoLivre !== "undefined" ? FluxoLivre : require("./FluxoLivre.js"); }
+  /* 05/11/2026 (dono): o financiamento pode baixar no Alterar fluxo (até a carta) — com FLUXO PERSONALIZADO vale a
+     soma das linhas de financiamento dele; sem fluxo alterado (ou ilegível), a coluna VALOR DO CRÉDITO */
+  function financiado(L) {
+    var livre = FLV().ler(String(L.v("FLUXO PERSONALIZADO") || ""));
+    if (!livre) return L.v("VALOR DO CRÉDITO");
+    var fins = livre.linhas.filter(function (l) { return l.t === "fin"; });
+    return fins.length ? FLV().soma(fins) : L.v("VALOR DO CRÉDITO");
+  }
 
   var COLUNA_ID = "CONDOMÍNIO - VENDA ID";
   var TIPOS_COPIAVEIS = ["rich_text", "number", "date", "select", "email", "phone_number", "url"];
@@ -188,7 +197,7 @@ var CondominioVenda = (function () {
     por("DATA DA VENDA", L.v("DATA DA VENDA"));
     por("DATA DE ASSINATURA DO CONTRATO", L.v("DATA DE ASSINATURA DO CONTRATO"));
     por("VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)", L.v("VALOR DE VENDA"));
-    por("VALOR FINANCIADO", L.v("VALOR DO CRÉDITO"));
+    por("VALOR FINANCIADO", financiado(L));
     por("VALOR DO SUBSÍDIO", L.v("SUBISÍDIO"));
     por("VALOR DO FGTS", L.v("VALOR DO FGTS"));
     /* texto no condomínio, select na VENDAS: vira a opção de mesmo nome (ou uma nova) */

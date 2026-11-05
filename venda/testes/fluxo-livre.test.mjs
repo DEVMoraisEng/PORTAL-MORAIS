@@ -107,11 +107,15 @@ test("fluxo da proposta passa nas regras dela mesma", () => {
   assert.deepEqual(F.validar(p, p).erros, []);
 });
 
-test("financiamento e FGTS não mudam: trocar valor entre eles e as parcelas é recusado", () => {
+test("FGTS não muda; financiamento só baixa (05/11, dono: até a carta) — subir é recusado", () => {
   const p = F.doPadrao(comPos), f = F.normalizar(p);
-  f.linhas.find((l) => l.t === "fin").v -= 1000;
-  f.linhas.find((l) => l.t === "pre").v += 1000 / 12;
-  assert.match(F.validar(f, p).erros.join(";"), /financiamento, FGTS e subsídio não mudam/);
+  f.linhas.find((l) => l.t === "fin").v += 1200;
+  f.linhas.find((l) => l.t === "pre").v -= 100;
+  assert.match(F.validar(f, p).erros.join(";"), /O financiamento não pode passar do valor aprovado na carta/);
+  const fg = F.normalizar(p);
+  fg.linhas.find((l) => l.t === "fgts").v -= 1200;
+  fg.linhas.find((l) => l.t === "pre").v += 100;
+  assert.match(F.validar(fg, p).erros.join(";"), /financiamento, FGTS e subsídio não mudam/);
   const sem = F.normalizar(p);
   sem.linhas = sem.linhas.filter((l) => l.t !== "fgts");
   assert.match(F.validar(sem, p).erros.join(";"), /não mudam/);

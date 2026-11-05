@@ -356,11 +356,25 @@ var FluxoLivre = (function () {
        0, 12 ou 24 no total (o prazo pode mudar — 31/10), parcela até o teto e sem começar antes da proposta */
     if (padrao) {
       padrao = normalizar(padrao);
+      /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca pode ser maior que o valor da carta de
+         aprovação)" — o financiamento pode BAIXAR (> 0 e até o da proposta = VALOR DO CRÉDITO, a carta), na mesma
+         quantidade de linhas; pré-reserva, FGTS e subsídio continuam iguais aos da proposta */
       var fixos = function (ls) {
-        return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo; })
+        return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo && l.t !== "fin"; })
           .map(function (l) { return l.t + ":" + totalLinhaC(l); }).sort().join("|");
       };
-      if (fixos(f.linhas) !== fixos(padrao.linhas)) erros.push("Pré-reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta");
+      var nFin = function (ls) { return ls.filter(function (l) { return l.t === "fin"; }).length; };
+      if (fixos(f.linhas) !== fixos(padrao.linhas) || nFin(f.linhas.slice(0, MAX_LINHAS)) !== nFin(padrao.linhas))
+        erros.push("Pré-reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta" +
+          (nFin(padrao.linhas) ? " (o financiamento só pode baixar o valor)" : ""));
+      else {
+        var carta = tetoFinanciamento(padrao), finF = 0, kFin = -1;
+        f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) { if (l.t === "fin") { finF += totalLinhaC(l); if (kFin < 0) kFin = k; } });
+        if (finF > c(carta)) {
+          var mc = "O financiamento não pode passar do valor aprovado na carta: " + moeda(carta);
+          (porLinha[kFin] = porLinha[kFin] || []).push(mc); erros.push(mc);
+        }
+      }
       /* 31/10 (dono): com pré-reserva, o restante do sinal se divide livre, mas só nos prazos do sinal (ato/30/60/90,
          no máximo 4 parcelas até 3 meses da assinatura) e sem baixar o sinal da proposta (o mínimo de hoje) */
       var temPR = padrao.linhas.some(function (l) { return l.t === "prereserva"; });
@@ -402,6 +416,11 @@ var FluxoLivre = (function () {
     var dif = c(f.valor) - somaC(f.linhas);
     if (dif !== 0) erros.unshift((dif > 0 ? "Faltam " : "Sobram ") + moeda(Math.abs(dif) / 100) + " para fechar com o valor da casa");
     return { ok: !erros.length, diferenca: dif / 100, erros: erros, porLinha: porLinha, avisos: avisos, porBem: porBem, errosBem: errosBem };
+  }
+
+  /* 05/11/2026: o financiamento aprovado na carta = o da proposta (gavetas: VALOR DO CRÉDITO); 0 sem financiamento */
+  function tetoFinanciamento(padrao) {
+    return somaC((padrao && Array.isArray(padrao.linhas) ? normalizar(padrao).linhas : []).filter(function (l) { return l.t === "fin"; })) / 100;
   }
 
   /* Atalho "Redistribuir": a linha k absorve a diferença inteira; os centavos que sobram vão na última parcela dela.
@@ -758,7 +777,7 @@ var FluxoLivre = (function () {
   return { TIPOS: TIPOS, ORDEM: ORDEM, MAX_LINHAS: MAX_LINHAS, MAX_MOTIVO: MAX_MOTIVO, POS_TETO: POS_TETO, LIMITE_PRE_CHAVES: LIMITE_PRE_CHAVES,
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
-           docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar,
+           docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
            normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };

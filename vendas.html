@@ -1217,10 +1217,10 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=45"></script>
 <script src="venda/painel-casa.js?v=1"></script>
-<script src="venda/FluxoLivre.js?v=13"></script><!-- 29/10: Alterar fluxo -->
+<script src="venda/FluxoLivre.js?v=14"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=70"></script>
+<script src="venda-dossie.js?v=71"></script>
 <script src="venda/contrato-vendida.js?v=3"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -1997,7 +1997,10 @@ function condAbatimentos(l,fx){
   let h='<div class="cd-abat"><b style="color:var(--azul);font-size:14px">COMO SE CHEGA NO PRO SOLUTO</b>'+
     '<table class="cd-fl" style="margin-top:6px"><tbody>'+
     linha(mudouPreco?"Valor de venda (alterado no fluxo; na proposta "+cdBRL(vProp)+")":"Valor de venda",venda)+
-    linha("Crédito aprovado (financiamento)",cred,true)+
+    /* 05/11/2026 (dono): financiamento reduzido no Alterar fluxo — o fluxo vale; a carta fica de referência */
+    (alt&&cred!=null&&Number(g("VALOR DO CRÉDITO"))>cred+0.004
+      ?linha("Financiamento (reduzido no fluxo; carta aprovada "+cdBRL(Number(g("VALOR DO CRÉDITO")))+")",cred,true)
+      :linha("Crédito aprovado (financiamento)",cred,true))+
     (entr!=null?linha("Entrada (valor para entrada informado)",entr):linha("Entrada (valor de venda − crédito)",entradaCalc))+
     linha("FGTS usado na entrada",fgts,true)+
     linha("Subsídio usado na entrada",sub,true)+

@@ -85,12 +85,17 @@ test("editor: valor da casa mudou mostra o campo do segundo motivo e pede ele (q
   assert.doesNotMatch(botao(D.htmlFluxoVivo({ ...ed, motivoPreco: "aprovado" }, ""), "c-fluxo-salvar"), /disabled/);
 });
 
-test("financiamento e FGTS só aparecem (sem campos nem botões); o tipo não oferece eles para linha nova", () => {
-  const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
+test("FGTS só aparece (sem campos nem botões); financiamento só o valor, até a carta (05/11); o tipo não oferece eles para linha nova", () => {
+  const ed = editor(); ed.linhas.push({ t: "fgts", v: 1, n: 1, d: "", i: 1, x: "" }); ed.padrao = { ...ed.padrao, linhas: [...ed.padrao.linhas, ed.linhas[3]] };
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  const linhaFgts = h.match(/<tr data-fx-linha="3">.*?<\/tr>/s)[0];
+  assert.match(linhaFgts, /FGTS.*fixo — vem da proposta/s);
+  assert.doesNotMatch(linhaFgts, /não muda/);
+  assert.doesNotMatch(linhaFgts, /<input|<select|data-acao/);
   const linhaFin = h.match(/<tr data-fx-linha="2">.*?<\/tr>/s)[0];
-  assert.match(linhaFin, /Financiamento.*fixo — vem da proposta/s);
-  assert.doesNotMatch(linhaFin, /não muda/);
-  assert.doesNotMatch(linhaFin, /<input|<select|data-acao/);
+  assert.match(linhaFin, /Financiamento.*até R\$ 70\.000,00 \(carta de aprovação\)/s);
+  assert.equal((linhaFin.match(/<input/g) || []).length, 1);
+  assert.doesNotMatch(linhaFin, /<select|data-acao/);
   assert.doesNotMatch(h, /<option value="fin">/);
 });
 
