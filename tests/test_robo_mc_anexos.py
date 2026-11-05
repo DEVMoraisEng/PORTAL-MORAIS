@@ -372,3 +372,11 @@ def test_com_muitos_achados_esperando_nao_le_a_lista(monkeypatch):
     itens, est = ra.rodada(ra.LeitorMC(erp), dict(aud_falsa(), anexos={"itens": ant}), {101: D(5), 888: D(4)})
     assert not [x for x in erp.pedidos if x[0] == "/payable-installments/paginated-result"]
     assert itens["101"]["v"] and "888" not in itens
+
+
+def test_nao_achado_recente_fica_fora_da_rodada():
+    agora = dt.datetime.now(dt.timezone.utc)
+    lim = D(ra.RECHECAR_DIAS)
+    assert not ra._rechecar({"nao_achado": ra.HOJE.isoformat()}, D(2), lim, agora)
+    velho = (ra.HOJE - dt.timedelta(days=ra.REPROCURAR_DIAS)).isoformat()
+    assert ra._rechecar({"nao_achado": velho}, D(2), lim, agora)
