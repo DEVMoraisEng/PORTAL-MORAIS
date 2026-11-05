@@ -666,3 +666,14 @@ test("conta da obra como SELEÇÃO (produção): acha a linha da CONTAS BANCÁRI
   assert.equal(sem.gerar().ok, true);
   assert.ok(!sem.pdfTexto().includes("77777-7"));
 });
+
+/* 05/11/2026 (dono): o modelo grifa também o texto fixo em volta do marcador ("nº", "m²", "Cartório") — o FINAL sai limpo */
+test("contrato FINAL sem o amarelo do texto fixo em volta dos marcadores do modelo", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { realce: "em volta", cabecalhos: MODELO_COM_CAB } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  const nCopias = c.d.estado.copias.length;
+  const r = c.acao("aprovarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const s = c.d.estado.salvos[c.d.estado.copias[nCopias].id];
+  assert.deepEqual(s.grifos, [], JSON.stringify(s.grifos));
+});

@@ -863,6 +863,17 @@ function ctrPreparar_(col, p, pid, rot) {
 /* Copia o modelo, preenche (grifar = pré-contrato), confere e exporta o PDF: { pdf } ou { resp }.
    A cópia com dado pessoal é apagada sempre (finally). 01/11/2026 (plano 23 A, dono: "pq veio com nome de provisorio"):
    a cópia se chama prep.titulo (ClicksignVenda.tituloDocumento) — o PDF exportado herda esse nome como título. */
+/* tira o fundo (grifo) de todo texto da seção; nunca derruba a geração */
+function ctrSemGrifo_(sec) {
+  try {
+    if (!sec || typeof sec.findElement !== "function") return;
+    var r = null;
+    while ((r = sec.findElement(DocumentApp.ElementType.TEXT, r))) {
+      var t = r.getElement().asText(), n = t.getText().length;
+      if (n) t.setBackgroundColor(0, n - 1, null);
+    }
+  } catch (e) { ctrLog_("contrato: não consegui tirar o grifo do modelo (" + String(e && e.message || e).slice(0, 80) + ")"); }
+}
 function ctrGerarPdf_(prep, pid, rot, grifar) {
   var copia = null;
   try {
@@ -881,6 +892,9 @@ function ctrGerarPdf_(prep, pid, rot, grifar) {
     ctrSecoes_(doc).forEach(function (sec) {
       ctrTirarTrechosVazios_(sec, prep.marcadores);
       aplicarMarcadores_(sec, prep.marcadores, grifar);
+      /* 05/11/2026 (dono, "no contrato final ainda ficaram algumas marcações"): o modelo traz o amarelo também no
+         texto fixo em volta do marcador ("nº {{ALVARA_NUMERO}}", "{{AREA}} m²", "Cartório") — o final sai sem grifo nenhum */
+      if (!grifar) ctrSemGrifo_(sec);
     });
     var sobrando = ctrMarcadoresSobrando_(doc);
     if (sobrando.length) {

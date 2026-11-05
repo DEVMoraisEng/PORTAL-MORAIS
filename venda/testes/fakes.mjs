@@ -336,7 +336,9 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
   const REALCE = "#FFFF00";
   const par = (t) => {
     const p = { texto: String(t), fundo: Array(String(t).length).fill(null) };
-    if (realce) for (const m of p.texto.matchAll(/\{\{[^{}]*\}\}/g)) p.fundo.fill(REALCE, m.index, m.index + m[0].length);
+    /* realce "em volta" (05/11/2026): como o modelo real, o amarelo pega também até 3 caracteres antes e depois do marcador ("nº {{X}}", "{{AREA}} m²") */
+    const folga = realce === "em volta" ? 3 : 0;
+    if (realce) for (const m of p.texto.matchAll(/\{\{[^{}]*\}\}/g)) p.fundo.fill(REALCE, Math.max(0, m.index - folga), Math.min(p.texto.length, m.index + m[0].length + folga));
     return p;
   };
   const clonar = (p) => ({ texto: p.texto, fundo: p.fundo.slice() });
@@ -392,6 +394,14 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     }
     return null;
   };
+  /* findElement(ElementType.TEXT, desde?): cada parágrafo é um elemento de texto (como o Docs) */
+  const elementos = (lista, vivo, desde) => {
+    vivo();
+    const ps = lista(), i = desde ? ps.indexOf(desde._p) + 1 : 0;
+    if (i >= ps.length) return null;
+    const p = ps[i];
+    return { _p: p, getElement: () => Texto(p, vivo) };
+  };
   /* trechos com fundo (cor não nula) de um parágrafo: [{ trecho, cor }] */
   const trechos = (p) => {
     const r = [];
@@ -409,7 +419,8 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     if (!d.cab[k]) return null;
     const vivo = () => { if (!d.aberto) throw new Error("Document is closed"); };
     return { getText: () => d.cab[k].texto, replaceText: (padrao, rep) => { vivo(); trocar(d.cab[k], padrao, rep); },
-             findText: (padrao, desde) => achar(() => [d.cab[k]], vivo, padrao, desde) };
+             findText: (padrao, desde) => achar(() => [d.cab[k]], vivo, padrao, desde),
+             findElement: (tipo, desde) => elementos(() => [d.cab[k]], vivo, desde) };
   };
   function docAberto(id) {
     const d = docs[id];
@@ -452,6 +463,7 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
           getText: () => d.pars.map((p) => p.texto).join("\n"),
           replaceText: (padrao, rep) => { vivo(); d.pars.forEach((p) => trocar(p, padrao, rep)); },
           findText: (padrao, desde) => achar(() => d.pars, vivo, padrao, desde),
+          findElement: (tipo, desde) => elementos(() => d.pars, vivo, desde),
         };
       },
       getHeader: () => secao(d, "header"),
@@ -506,7 +518,7 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     },
   });
   const extras = {
-    DocumentApp: { openById: (id) => {
+    DocumentApp: { ElementType: { TEXT: "TEXT" }, openById: (id) => {
       if (falhaAbrir) throw new Error(falhaAbrir);
       if (!docs[id]) throw new Error("Document not found");
       docs[id].aberto = true; estado.abertos.push(id);
