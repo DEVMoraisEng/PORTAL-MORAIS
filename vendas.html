@@ -1223,7 +1223,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=14"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=71"></script>
+<script src="venda-dossie.js?v=72"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -2109,7 +2109,9 @@ function condAbaDoBloco(el){
 /* 03/11/2026 (dono): a pré-reserva sai do fluxo — a reserva agora é o Reservar da proposta, com 5 dias para gerar
    o contrato. A aba e a etapa só aparecem na venda que já tem termo de pré-reserva gerado ou enviado. */
 function condUsaPreReserva(l){
-  return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")));
+  /* 06/11/2026 (dono): o termo voltou pela pergunta do Reservar — a data limite gravada também mostra a aba */
+  return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")) ||
+                !!String(cdVal(l,"PRÉ-RESERVA - DATA LIMITE")||"").trim());
 }
 function condAbasHtml(l){
   const pr=condUsaPreReserva(l);
