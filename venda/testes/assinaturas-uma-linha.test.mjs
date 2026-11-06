@@ -79,11 +79,11 @@ test("termo de confissão: credora, devedor(es), cônjuge, fiadores e cônjuge d
   assert.ok(!/CORRETOR/.test(linhas.join("\n")));
 });
 
-test("pré-reserva: vendedora, pré-reservante e testemunhas; o cônjuge só com a opção ligada; comprador 2 e corretor nunca", () => {
+test("pré-reserva (06/11: sem testemunhas): vendedora e pré-reservante; o cônjuge só com a opção ligada; comprador 2 e corretor nunca", () => {
   const papeis = (opc) => CS.blocoAssinaturas(dados(), CONFIG, "PRE_RESERVA", opc).split("\n")
     .filter((x) => /^[A-ZÀ-Ü\/ 12-]+$/.test(x) && !/^_+$/.test(x));
-  assert.deepEqual(papeis(), ["VENDEDORA", "PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
-  assert.deepEqual(papeis({ incluirConjuge: true }), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.deepEqual(papeis(), ["VENDEDORA", "PRÉ-RESERVANTE"]);
+  assert.deepEqual(papeis({ incluirConjuge: true }), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE"]);
 });
 
 test("casa de rua: rótulo VENDEDOR (o texto do modelo) e vendedor pessoa física com CPF", () => {

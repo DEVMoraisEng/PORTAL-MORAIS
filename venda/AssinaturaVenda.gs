@@ -502,6 +502,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var config = assConfig_(p.pageId), cfg = {};
   for (k in config) cfg[k] = config[k];
   cfg.incluirCorretor = false;
+  cfg.semTestemunhas = true;   /* 06/11/2026 (dono): o termo de pré-reserva não leva testemunhas */
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
     .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
   if (faltas.length) {

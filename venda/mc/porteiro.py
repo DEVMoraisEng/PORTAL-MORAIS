@@ -62,11 +62,14 @@ class AbaPorteiro:
                                % (porta, type(e).__name__)) from None
         ctx = nav.contexts[0] if nav.contexts else nav.new_context()
         page = ctx.new_page()
+        from venda.mc import registro_aba
+        registro = registro_aba.registrar(page, porta)   # 06/11/26: robô morto → a faxina do porteiro fecha
 
         def fechar():
             try:
                 page.close()
             finally:
+                registro_aba.desregistrar(registro)
                 pw.stop()          # só desconecta: o Chrome do porteiro continua aberto
         aba = cls(page, fechar)
         try:

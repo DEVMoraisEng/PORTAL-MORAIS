@@ -732,7 +732,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
 <script>
 /* =====================================================================
  * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
@@ -950,7 +950,7 @@ CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasPr
    os títulos antigos ("Prazo corrido"/"Tempo corrido") ficam só no dica/comentário
    pra quem for procurar no histórico. */
 CALC_DEF[CALC.LIG_CORRIDO] = { titulo: "PRAZO SEM LIGAÇÃO", valor: diasCorridosLigacao,
-  dica: "da DATA DE SOLICITAÇÃO até a Data de Ligação (ou até hoje, se ainda não ligou)" };
+  dica: "da DATA DE SOLICITAÇÃO (na SANESC aprovada, da DATA DA APROVAÇÃO) até a Data de Ligação (ou até hoje, se ainda não ligou)" };
 CALC_DEF[CALC.PRAZO_LIBER] = { titulo: "PRAZO SEM SOLICITAÇÃO", valor: prazoDesdeLiberacao,
   dica: "da DATA DE LIBERAÇÃO até a DATA DE SOLICITAÇÃO (ou até hoje, se ainda não solicitou)" };
 CALC_DEF[CALC.PRAZO_UC] = { titulo: "PRAZO SEM UC", valor: prazoSemUc,
@@ -1171,7 +1171,10 @@ const ABAS = {
        As duas colunas já têm regra local que zera quando a pessoa marca
        LIGADO + Data de Ligação, então incluir a segunda não segura ninguém
        na fila depois de resolvido. */
-    base: l => sel(l, C.FEZ) === "SIM" && noFluxo(l)
+    /* 05/11/26: SANESC só entra aqui depois de APROVADA (SIM ou data da aprovação).
+       Antes a obra com "SOLICITAÇÃO SANESC APROVADA? = NÃO" aparecia nas duas
+       abas ao mesmo tempo — no Acompanhamento SANESC e aqui. */
+    base: l => sel(l, C.FEZ) === "SIM" && noFluxo(l) && sanescLiberadaLigacao(l)
             && (temAlerta(l, C.ALERTA_INFO1) || temAlerta(l, C.ALERTA_LIG)),
     /* Atrasada primeiro: é a razão de a pessoa abrir esta aba. */
     ordenar: (a, b) => (temAlerta(b, C.ALERTA_LIG) ? 1 : 0) - (temAlerta(a, C.ALERTA_LIG) ? 1 : 0)
@@ -1439,6 +1442,15 @@ REGRAS_ALERTA[normN(C.ALERTA_SOL)] = _regraSanesc;
    um nunca apareça na aba do outro. */
 const TXT_LIG_AVISO    = "⚠️ VERIFICAR SE A LIGAÇÃO FOI EFETIVADA";
 const TXT_LIG_ATRASADO = "🚨 ATRASADO! VERIFICAR PROBLEMA";
+/* 05/11/26 — na SANESC a etapa da LIGAÇÃO só começa depois que a solicitação é
+   aprovada (SOLICITAÇÃO SANESC APROVADA? = SIM ou DATA DA APROVAÇÃO preenchida —
+   a data é a prova, igual à _regraSanesc). Antes disso a pendência é a
+   aprovação (aba Acompanhamento SANESC), não a ligação. Demais concessionárias:
+   sempre liberada. */
+function sanescLiberadaLigacao(l){
+  if (normN(sel(l, C.CONC)) !== "SANESC") return true;
+  return sel(l, C.APROVADA) === "SIM" || dataPreenchida(l, C.DT_APROV);
+}
 function _nivelPrazoLigacao(l){
   const dias = diasCorridosLigacao(l);      // null enquanto não tiver DATA DE SOLICITAÇÃO
   if (dias == null) return "";
@@ -1449,13 +1461,15 @@ function _nivelPrazoLigacao(l){
 REGRAS_NIVEL[normN(C.ALERTA_LIG)] = l => {
   const ligou = normN(sel(l, C.STATUS)) === "LIGADO";
   if (etapaFechada(l, C.DT_LIG, ligou)) return "";
-  if (ligou) return "alerta";               // ligou mas falta datar: pede atenção
+  if (ligou) return "alerta";
+  if (!sanescLiberadaLigacao(l)) return "";   // 05/11: SANESC ainda sem aprovação — o alerta é o da aprovação               // ligou mas falta datar: pede atenção
   return _nivelPrazoLigacao(l);
 };
 REGRAS_ALERTA[normN(C.ALERTA_LIG)] = l => {
   const ligou = normN(sel(l, C.STATUS)) === "LIGADO";
   if (etapaFechada(l, C.DT_LIG, ligou)) return "";
   if (ligou) return TXT_PREENCHER_DATA;
+  if (!sanescLiberadaLigacao(l)) return "";   // 05/11: SANESC ainda sem aprovação — o alerta é o da aprovação
   const nivel = _nivelPrazoLigacao(l);
   if (nivel === "atraso") return TXT_LIG_ATRASADO;
   if (nivel === "alerta") return TXT_LIG_AVISO;
@@ -1629,8 +1643,15 @@ function diasProcessoSanesc(l){
   return diasAte(ini, fim);
 }
 /* Da solicitação até a ligação (qualquer concessionária), também correndo. */
+/* 05/11/26 — SANESC com aprovação: o PRAZO SEM LIGAÇÃO conta da DATA DA
+   APROVAÇÃO (a ligação só pode acontecer depois dela), não da solicitação.
+   Sem a data da aprovação, e nas demais concessionárias: da DATA DE SOLICITAÇÃO. */
+function inicioPrazoLigacao(l){
+  if (normN(sel(l, C.CONC)) === "SANESC" && dataPreenchida(l, C.DT_APROV)) return dataReal(l, C.DT_APROV);
+  return dataReal(l, C.DT_SOL);
+}
 function diasCorridosLigacao(l){
-  return diasAte(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
+  return diasAte(inicioPrazoLigacao(l), dataReal(l, C.DT_LIG));
 }
 /* Da liberação até a solicitação: é o tempo que a obra está esperando alguém
    solicitar. Enquanto não solicitar, conta até hoje. */

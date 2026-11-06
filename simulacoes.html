@@ -745,9 +745,9 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
     <div class="modal-cx" id="sim-modalCx"></div>
   </div>
 
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
 <script src="venda/FluxoLivre.js?v=14" defer></script><!-- 29/10: Alterar fluxo -->
-<script src="venda-dossie.js?v=71" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda-dossie.js?v=78" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=4" defer></script>
 <script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV da Análise de vendas (período, tipo, rua) --><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
@@ -2680,7 +2680,8 @@ function propReservaPrazoHtml(p){
   const v=propReservaVence(p); if(!v) return "";
   const h=(v.getTime()-Date.now())/36e5;
   const quando=v.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
-  return '<div style="margin-top:6px;font-weight:700;color:'+(h<24?'#C0392B':'var(--azul)')+'">⏳ Reserva vence em '+esc(quando)+
+  const termo=(((p.dados||{}).reserva)||{}).termo;   /* 06/11: o vigia grava quando o prazo é a data limite do termo */
+  return '<div style="margin-top:6px;font-weight:700;color:'+(h<24?'#C0392B':'var(--azul)')+'">⏳ Reserva vence em '+esc(quando)+(termo?' (data limite do termo de pré-reserva)':'')+
     (h<=0 ? ' — prazo esgotado: o robô derruba na próxima rodada se o contrato não tiver sido gerado.' : ' (faltam '+propHorasTxt(h)+').')+'</div>';
 }
 function propVencida(p){ const h=propReservaFaltaH(p); return h!==null && h<24; }
@@ -3687,6 +3688,7 @@ function propVer(id){
         <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
       </div>
+      ${PROP_NORM(p.status)==='RESERVADA'?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de pré-reserva</button></div>`:""}
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
       <div style="margin-top:10px"><button class="bt" style="background:#B7791F;color:#fff" onclick="propAlerta('${p.id}')">📣 Enviar alerta de pendências ao corretor</button>
@@ -3694,7 +3696,7 @@ function propVer(id){
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
         <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no mapa, cria a venda no
         BANCO DE DADOS VENDAS CONDOMÍNIO e manda ao corretor o link para completar os dados e documentos.
-        A reserva vale <b>${PROP_RESERVA_DIAS} dias corridos</b>: sem contrato gerado nesse prazo ela cai sozinha
+        A reserva vale <b>${PROP_RESERVA_DIAS} dias corridos</b> — com termo de pré-reserva, até a <b>data limite do termo</b>: sem contrato gerado nesse prazo ela cai sozinha
         (a unidade volta a disponível e a venda vai para DISTRATOS CONDOMÍNIO). <b>Negar</b> faz o mesmo na hora.
         A proposta vira <b>VENDIDA</b> sozinha quando o contrato é gerado — e só então o corretor recebe o e-mail de venda.
         ${propReservaPrazoHtml(p)}
@@ -4685,10 +4687,20 @@ function propSimNao(msg){
 }
 /* 28/10 (dono): proposta que JÁ pagou a preferência também gera o termo — acha a linha da venda pela unidade
    no BANCO DE DADOS VENDAS CONDOMÍNIO (simsVendasCond, o mesmo da Planilha Casas Condomínio). */
-async function propPreReservaDaUnidade(id){
-  const p=PROPS.find(x=>x.id===id)||{}, av=document.getElementById("prop-siAviso");
+/* 06/11/2026 (dono): depois do Reservar, pergunta se gera o termo de pré-reserva; Sim abre a pergunta rápida
+   (valor, data do pagamento e data limite — a data limite vira o prazo da reserva). A linha da venda vem da resposta
+   do Reservar; sem ela (resposta perdida), procura pela unidade. */
+async function propOferecerTermo(id, r){
+  if(!(await propSimNao("Reserva feita. Gerar o termo de pré-reserva agora?"))) return;
+  const v=r && r.emailCorretor && r.emailCorretor.venda;
+  if(v && v.ok && v.linha) propAbrirPreReserva(String(v.linha), {rapido:true});
+  else propPreReservaDaUnidade(id, {rapido:true});
+}
+async function propPreReservaDaUnidade(id, o){
+  const p=PROPS.find(x=>x.id===id)||{}, av=document.getElementById("prop-detAviso")||document.getElementById("prop-siAviso");   /* 06/11: o botão mora na Decisão */
   const so=v=>String(v==null?"":v).replace(/\D/g,"").replace(/^0+/,"");
   const un=so(p.unidade);
+  const avAntes=av?[av.className, av.innerHTML]:null;   /* 06/11: a mensagem do Reservar volta depois da busca */
   if(av){ av.className="sim-aviso ok"; av.textContent="Procurando a venda da unidade "+(p.unidade||"")+"…"; }
   let r=null;
   try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
@@ -4698,12 +4710,12 @@ async function propPreReservaDaUnidade(id){
   const achadas=(r.linhas||[]).filter(l=>un && so(val(l,"UNIDADE"))===un);
   if(!achadas.length){ if(av){ av.className="sim-aviso err"; av.textContent="A unidade "+(p.unidade||"")+" não tem linha no BANCO DE DADOS VENDAS CONDOMÍNIO. Marque PAGOU PREFERÊNCIA de novo para criar."; } return; }
   if(achadas.length>1){ if(av){ av.className="sim-aviso err"; av.textContent="A unidade "+(p.unidade||"")+" tem "+achadas.length+" linhas no banco de vendas — abra pela Planilha Casas Condomínio."; } return; }
-  if(av){ av.className="sim-aviso"; av.textContent=""; }
-  propAbrirPreReserva(String(achadas[0].id));
+  if(av){ av.className=avAntes[0]; av.innerHTML=avAntes[1]; }
+  propAbrirPreReserva(String(achadas[0].id), o);
 }
 /* 28/10/2026 — TERMO DE PRÉ-RESERVA pela proposta: abre por cima a mesma tela do cartão da unidade
    (conta para devolução, gerar, ver e enviar à Clicksign), desenhada pelo venda-dossie.js na linha da venda. */
-function propAbrirPreReserva(linha){
+function propAbrirPreReserva(linha, o){
   if(!window.VendaBlocos || !VendaBlocos.montarPreReserva){ alert("A tela do termo ainda está carregando — tente de novo em instantes."); return; }
   let fundo=document.getElementById("prop-pr-fundo");
   if(!fundo){
@@ -4716,7 +4728,7 @@ function propAbrirPreReserva(linha){
     document.body.appendChild(fundo);
   }
   fundo.style.display="flex";
-  VendaBlocos.montarPreReserva(document.getElementById("prop-pr-tela"), linha);
+  VendaBlocos.montarPreReserva(document.getElementById("prop-pr-tela"), linha, o);
 }
 function propFecharPreReserva(){
   const f=document.getElementById("prop-pr-fundo"); if(f) f.style.display="none";
@@ -4755,7 +4767,9 @@ async function propStatus(id, status){
     if(conferido===true){
       av.className="sim-aviso ok";
       av.textContent="Demorou, mas gravou: a proposta está como "+status+".";
-      propMarcarAtual(status); propSincronizarTudo(); return;
+      propMarcarAtual(status); propSincronizarTudo();
+      if(status==="RESERVADA") propOferecerTermo(id, null);
+      return;
     }
     av.className="sim-aviso err";
     av.textContent = conferido===false
@@ -4776,6 +4790,7 @@ async function propStatus(id, status){
       (r.reservaCaiu ? (r.reservaCaiu.ok ? " A venda da reserva foi para DISTRATOS CONDOMÍNIO." : " ⚠ A venda da reserva não saiu do banco de vendas: "+esc(r.reservaCaiu.mensagem||r.reservaCaiu.erro||"")) : "")+"</span>";
     propMarcarAtual(status);
     propSincronizarTudo();
+    if(status==="RESERVADA") propOferecerTermo(id, r);
   }else{
     av.className="sim-aviso err";
     av.innerHTML=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);

@@ -112,6 +112,8 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 /* alertas */
 .al{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
+.al .at-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:20px;color:#fff;font-size:12px;font-weight:800;white-space:nowrap}
+.al .at-casa{font-weight:600;color:var(--text3);font-size:11.5px;margin-left:4px}
 /* rótulo ainda sem nome de obra resolvido — some sozinho quando o Notion responde */
 .al .end.end-vazio{color:var(--text4);font-weight:600;font-style:italic}
 .al .end:hover{text-decoration:underline;cursor:pointer}
@@ -165,10 +167,11 @@ td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fb
 /* cor das linhas = SITUAÇÃO DO PROCESSO (fórmula do Notion) — item 5: cores mais distintas entre si */
 tbody tr.sit1 td{background:#FFF3AD}
 tbody tr.sit1 td.stick{background:#FCE87F}
-tbody tr.sit2 td{background:#FFD8A0}
-tbody tr.sit2 td.stick{background:#FDC06E}
-tbody tr.sit3 td{background:#FFB3B3}
-tbody tr.sit3 td.stick{background:#FF8F8F}
+/* 06/11/26: cores do ⚠️ >45 dias e do 🚨 >45 dias e não recebeu trocadas entre si (pedido do Morais) */
+tbody tr.sit2 td{background:#FFB3B3}
+tbody tr.sit2 td.stick{background:#FF8F8F}
+tbody tr.sit3 td{background:#FFD8A0}
+tbody tr.sit3 td.stick{background:#FDC06E}
 tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brightness(.96)}
 .chkcompleto{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--verde);color:#fff;font-size:9px;font-weight:900;margin-left:7px;vertical-align:middle}
 
@@ -180,8 +183,8 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .legenda .sw input{margin:0;accent-color:var(--azul)}
 .legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.18)}
 .legenda .dot.sit1{background:#FFF3AD;border-color:#E8CE5A}
-.legenda .dot.sit2{background:#FFD8A0;border-color:#EDA344}
-.legenda .dot.sit3{background:#FFB3B3;border-color:#E05252}
+.legenda .dot.sit2{background:#FFB3B3;border-color:#E05252}
+.legenda .dot.sit3{background:#FFD8A0;border-color:#EDA344}
 .legenda .dot.sit0{background:var(--sup);border-color:var(--border)}
 
 /* painel obra */
@@ -1241,12 +1244,12 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
 <script src="venda/painel-casa.js?v=6"></script>
 <script src="venda/FluxoLivre.js?v=14"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=77"></script>
+<script src="venda-dossie.js?v=78"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
@@ -2132,10 +2135,20 @@ function condAbaDoBloco(el){
 /* 03/11/2026 (dono): a pré-reserva sai do fluxo — a reserva agora é o Reservar da proposta, com 5 dias para gerar
    o contrato. A aba e a etapa só aparecem na venda que já tem termo de pré-reserva gerado ou enviado. */
 function condUsaPreReserva(l){
-  return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")));
+  /* 06/11/2026 (dono): o termo voltou pela pergunta do Reservar — a data limite gravada também mostra a aba */
+  return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")) ||
+                !!String(cdVal(l,"PRÉ-RESERVA - DATA LIMITE")||"").trim());
+}
+/* 06/11/2026 (dono): a ABA Pré-reserva fica disponível enquanto o contrato não foi gerado (reservas de antes da
+   pergunta do Reservar também geram o termo pelo cartão); com contrato gerado e sem pré-reserva, oculta. A faixa de
+   etapas continua com condUsaPreReserva: o termo é opcional e não vira "próximo passo" de toda venda. */
+function condMostraAbaPR(l){
+  if(!l) return false;
+  const contrato=cdTemArq(cdVal(l,"CONTRATO GERADO"))||!!cdSit(l,"ASSINATURA - SITUAÇÃO");
+  return !contrato || condUsaPreReserva(l);
 }
 function condAbasHtml(l){
-  const pr=condUsaPreReserva(l);
+  const pr=condMostraAbaPR(l);
   if(!pr && COND_ABA==="prereserva") COND_ABA="resumo";
   return '<div class="cd-abas"><div class="tabs" role="tablist">'+CD_ABAS.filter(a=>pr||a[0]!=="prereserva").map(a=>'<button type="button" role="tab" class="tab'+(a[0]===COND_ABA?" on":"")+'" aria-selected="'+(a[0]===COND_ABA)+'" data-aba="'+a[0]+'" onclick="condTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div></div>';
 }
@@ -3100,14 +3113,24 @@ function renderAtrasados(){
   const dados = DADOS.set.length?DADOS.set:DADOS.hub;
   if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar a situação do processo.</div>'; return; }
   const ORDEM={sit3:0, sit2:1, sit1:2}; // mais urgente primeiro
-  const COR={sit1:"#E8CE5A", sit2:"#E67E22", sit3:"#c0392b"};
+  const COR={sit1:"#E8CE5A", sit2:"#c0392b", sit3:"#E67E22"};   // 06/11: ⚠️ e 🚨 trocaram de cor
   const TXT={sit1:"⏳ Tempo corrido > 20 dias", sit2:"⚠️ Tempo corrido > 45 dias", sit3:"🚨 Tempo corrido > 45 dias e não recebeu"};
   const linhas=dados.map(v=>({v, prazo:corSituacao(v.valores)})).filter(x=>ORDEM[x.prazo]!==undefined);
   linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo]);
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo com pendência de prazo. 🎉</div>'; return; }
-  box.innerHTML=linhas.map(({v,prazo})=>
-    `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${jsArg(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${TXT[prazo]}</span></div>`
-  ).join("");
+  /* 06/11/26: além do status, o tempo corrido do processo — o mesmo contador da
+     fórmula SITUAÇÃO DO PROCESSO do Notion: dateBetween(now(), DATA DE ENVIO DOS
+     DOCUMENTOS, "days") (dias inteiros; >=20 ⏳, >=45 ⚠️/🚨) */
+  const agora=Date.now();
+  const tempo=v=>{ const d=String(getV(v.valores,"DATA DE ENVIO DOS DOCUMENTOS")||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    return {dias:Math.floor((agora-new Date(d+"T00:00:00"))/86400000), data:d.split("-").reverse().join("/")}; };
+  linhas.forEach(x=>{ x.t=tempo(x.v); });
+  linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo] || ((b.t?b.t.dias:-1)-(a.t?a.t.dias:-1)));
+  box.innerHTML=linhas.map(({v,prazo,t})=>{
+    const casa=getV(v.valores,"CASA");
+    return `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${jsArg(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}${casa?` <small class="at-casa">Casa ${esc(casa)}</small>`:""}</span>`+
+      `<span class="txt">${TXT[prazo]}${t?` <b class="at-dias" style="background:${COR[prazo]}${prazo==="sit1"?";color:#4a3b00":""}" title="Documentos enviados em ${t.data}">${t.dias} dias</b>`:""}</span></div>`;
+  }).join("");
 }
 
 /* ---------- PLANILHA (todas as colunas, rolagem em cima e embaixo) ---------- */

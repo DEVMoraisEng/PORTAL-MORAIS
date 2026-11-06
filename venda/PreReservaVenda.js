@@ -1,7 +1,8 @@
 /* PreReservaVenda — regras puras do Termo de Pré-Reserva do condomínio (27/10/2026).
  * O termo garante a prioridade da unidade até o prazo para decidir a compra mediante um valor, abatido do
  * preço se o contrato for assinado e devolvido integralmente se não for. 31/10/2026 (dono): valor e data do
- * pagamento são de cada venda (colunas da linha, no cartão); o prazo é o pagamento + 7 dias corridos. A data
+ * pagamento são de cada venda (colunas da linha, no cartão); o prazo é o pagamento + 7 dias corridos — 06/11/2026: agora é a
+ * DATA LIMITE digitada (pergunta do Reservar), e o pagamento + 7 só vale para venda antiga sem ela. A data
  * pode ser alterada e a coluna PRÉ-RESERVA - HISTÓRICO guarda quem alterou. Vem ANTES do contrato, no mesmo cartão da unidade.
  * Arquivo do projeto PORTAL-VENDA (cola como PreReservaVenda.gs) e testado no node
  * (venda/testes/pre-reserva.test.mjs). Sem rede, sem Notion, sem Drive. Repositório público: nenhum dado real. */
@@ -17,7 +18,8 @@ var PreReservaVenda = (function () {
     SITUACAO: "PRÉ-RESERVA - SITUAÇÃO",
     VALOR: "PRÉ-RESERVA - VALOR",                     /* 31/10 */
     DATA_PAGAMENTO: "PRÉ-RESERVA - DATA PAGAMENTO",
-    HISTORICO: "PRÉ-RESERVA - HISTÓRICO"
+    HISTORICO: "PRÉ-RESERVA - HISTÓRICO",
+    DATA_LIMITE: "PRÉ-RESERVA - DATA LIMITE"          /* 06/11 */
   };
   var PRAZO_DIAS = 7;
   var HISTORICO_MAX = 1900;
@@ -30,6 +32,7 @@ var PreReservaVenda = (function () {
   TIPOS[COL.VALOR] = "number";
   TIPOS[COL.DATA_PAGAMENTO] = "date";
   TIPOS[COL.HISTORICO] = "rich_text";
+  TIPOS[COL.DATA_LIMITE] = "date";
 
   function C() { return typeof ContratoVenda !== "undefined" ? ContratoVenda : require("./ContratoVenda.js"); }
   function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
@@ -61,6 +64,10 @@ var PreReservaVenda = (function () {
     return d.toISOString().slice(0, 10);
   }
 
+  /* 06/11/2026 (dono): a DATA LIMITE é digitada por venda (Reservar ou cartão) e vale no termo e no prazo da reserva;
+   * venda antiga, sem ela gravada, continua com pagamento + 7 dias corridos. */
+  function prazoEfetivo(limite, dataPagamento) { return dataIso(limite) || prazoDe(dataPagamento); }
+
   /* Sinal da venda = ato + 30 + 60 + 90 dias do fluxo da linha; 0 = desconhecido (não barra por ele). */
   function sinalDoFluxo(fl) {
     fl = fl || {};
@@ -69,7 +76,9 @@ var PreReservaVenda = (function () {
     return soma / 100;
   }
 
-  /* Entrada do cartão { valor, data, hojeISO, sinal } -> { ok, valor, data } ou { ok:false, erro }.
+  /* Entrada do cartão { valor, data, hojeISO, sinal, limite?, limiteAtual? } -> { ok, valor, data, limite? } ou { ok:false, erro }.
+   * 06/11/2026: limite = DATA LIMITE digitada; ausente (chamada antiga) = não mexe nela; "" só enquanto não houver uma
+   * gravada (limiteAtual). Não pode ser antes de hoje (a não ser a já gravada) nem antes do pagamento.
    * 01/11/2026: hojeISO vem do SERVIDOR (São Paulo) — sem ele a data futura não é checada (chamada antiga);
    * sinal 0/ausente = desconhecido, não barra pelo valor. */
   function validarPagamento(p) {
@@ -80,7 +89,17 @@ var PreReservaVenda = (function () {
     if (!data) return { ok: false, erro: "PR_DATA_INVALIDA" };
     if (hoje && data > hoje) return { ok: false, erro: "PR_DATA_FUTURA" };
     if (sinal !== null && valor > sinal) return { ok: false, erro: "PR_VALOR_MAIOR_QUE_SINAL" };
-    return { ok: true, valor: valor, data: data };
+    var out = { ok: true, valor: valor, data: data };
+    if (p.limite === undefined || p.limite === null) return out;
+    var limite = dataIso(p.limite), atual = dataIso(p.limiteAtual);
+    if (!limite) {
+      if (txt(p.limite) || atual) return { ok: false, erro: "PR_LIMITE_INVALIDA" };
+      out.limite = ""; return out;
+    }
+    if (hoje && limite < hoje && limite !== atual) return { ok: false, erro: "PR_LIMITE_PASSADA" };
+    if (limite < data) return { ok: false, erro: "PR_LIMITE_ANTES_DO_PAGAMENTO" };
+    out.limite = limite;
+    return out;
   }
 
   /* Linha do histórico (nenhum dado pessoal além do usuário do portal); "" se nada mudou.
@@ -90,6 +109,10 @@ var PreReservaVenda = (function () {
     var partes = [], va = valorDe(antes.valor), vd = valorDe(depois.valor), da = dataIso(antes.data), dd = dataIso(depois.data);
     if (va !== vd) partes.push("valor " + (va === null ? "—" : "R$ " + C().moedaBR(va)) + " → " + (vd === null ? "—" : "R$ " + C().moedaBR(vd)));
     if (da !== dd) partes.push("pagamento " + (da ? dataBR(da) : "—") + " → " + (dd ? dataBR(dd) : "—"));
+    if (depois.limite !== undefined && depois.limite !== null) {   /* 06/11 */
+      var la = dataIso(antes.limite), ld = dataIso(depois.limite);
+      if (la !== ld) partes.push("data limite " + (la ? dataBR(la) : "—") + " → " + (ld ? dataBR(ld) : "—"));
+    }
     if (!partes.length) return "";
     return txt(quando) + " " + (txt(quem) || "?") + ": " + partes.join("; ");
   }
@@ -101,7 +124,7 @@ var PreReservaVenda = (function () {
     return linhas.join("\n").slice(-HISTORICO_MAX);
   }
 
-  /* d = ContratoVenda.montarDadosContrato(fontes) da linha do condomínio; x = { conta, valor, dataPagamento, hojeISO, cidade } */
+  /* d = ContratoVenda.montarDadosContrato(fontes) da linha do condomínio; x = { conta, valor, dataPagamento, dataLimite, hojeISO, cidade } */
   function montar(d, x) {
     d = d || {}; x = x || {};
     var c1 = d.comprador1 || {}, co = d.condominio || {};
@@ -111,7 +134,7 @@ var PreReservaVenda = (function () {
                        email: txt(c1.email), telefone: txt(c1.telefone) },
       unidade: txt(co.unidade), tabela: co.tabela || null,
       sinal: !co.livre ? sinalDoFluxo(co.fluxo) : 0,
-      conta: txt(x.conta), valor: valorDe(x.valor), dataPagamento: dataIso(x.dataPagamento), dataLimite: prazoDe(x.dataPagamento),
+      conta: txt(x.conta), valor: valorDe(x.valor), dataPagamento: dataIso(x.dataPagamento), dataLimite: prazoEfetivo(x.dataLimite, x.dataPagamento),
       hojeISO: txt(x.hojeISO), cidade: txt(x.cidade) || "Goiânia"
     };
   }
@@ -219,7 +242,7 @@ var PreReservaVenda = (function () {
 
   var api = { COL: COL, TIPOS: TIPOS, montar: montar, faltas: faltas, marcadores: marcadores, baseCarimbo: baseCarimbo, dispensada: dispensada,
               validarConta: validarConta, montarConta: montarConta, lerConta: lerConta, TIPOS_CONTA: TIPOS_CONTA,
-              valorDe: valorDe, dataIso: dataIso, prazoDe: prazoDe, PRAZO_DIAS: PRAZO_DIAS, validarPagamento: validarPagamento, sinalDoFluxo: sinalDoFluxo,
+              valorDe: valorDe, dataIso: dataIso, prazoDe: prazoDe, prazoEfetivo: prazoEfetivo, PRAZO_DIAS: PRAZO_DIAS, validarPagamento: validarPagamento, sinalDoFluxo: sinalDoFluxo,
               linhaHistorico: linhaHistorico, juntarHistorico: juntarHistorico };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
