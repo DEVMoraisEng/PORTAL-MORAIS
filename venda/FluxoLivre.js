@@ -10,7 +10,7 @@
 var FluxoLivre = (function () {
   var TIPOS = {
     /* 31/10/2026 (dono): a pré-reserva paga é a 1ª parcela do sinal, já recebida — fixa no Alterar fluxo */
-    prereserva: { nome: "Pré-reserva (paga)", inciso: 1, reajuste: "",           terceiro: false, fixo: true },
+    prereserva: { nome: "Reserva (paga)", inciso: 1, reajuste: "",           terceiro: false, fixo: true },
     sinal:    { nome: "Sinal",          inciso: 1, reajuste: "",               terceiro: false },
     entrada:  { nome: "Entrada à vista", inciso: 2, reajuste: "",              terceiro: false },
     pre:      { nome: "Pré-chaves",     inciso: 2, reajuste: "INCC-M",         terceiro: false },
@@ -358,14 +358,14 @@ var FluxoLivre = (function () {
       padrao = normalizar(padrao);
       /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca pode ser maior que o valor da carta de
          aprovação)" — o financiamento pode BAIXAR (> 0 e até o da proposta = VALOR DO CRÉDITO, a carta), na mesma
-         quantidade de linhas; pré-reserva, FGTS e subsídio continuam iguais aos da proposta */
+         quantidade de linhas; reserva, FGTS e subsídio continuam iguais aos da proposta */
       var fixos = function (ls) {
         return ls.filter(function (l) { return TIPOS[l.t] && TIPOS[l.t].fixo && l.t !== "fin"; })
           .map(function (l) { return l.t + ":" + totalLinhaC(l); }).sort().join("|");
       };
       var nFin = function (ls) { return ls.filter(function (l) { return l.t === "fin"; }).length; };
       if (fixos(f.linhas) !== fixos(padrao.linhas) || nFin(f.linhas.slice(0, MAX_LINHAS)) !== nFin(padrao.linhas))
-        erros.push("Pré-reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta" +
+        erros.push("Reserva paga, financiamento, FGTS e subsídio não mudam — ficam como na proposta" +
           (nFin(padrao.linhas) ? " (o financiamento só pode baixar o valor)" : ""));
       else {
         var carta = tetoFinanciamento(padrao), finF = 0, kFin = -1;
@@ -392,7 +392,7 @@ var FluxoLivre = (function () {
         });
         if (nSinal > 4) erros.push("O restante do sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
         if (totSinal(f.linhas) < totSinal(padrao.linhas))
-          erros.push("O sinal (com a pré-reserva e a permuta) não pode ficar abaixo do da proposta: " + moeda(totSinal(padrao.linhas) / 100));
+          erros.push("O sinal (com a reserva e a permuta) não pode ficar abaixo do da proposta: " + moeda(totSinal(padrao.linhas) / 100));
       }
       var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
       /* 31/10/2026 (dono): o prazo pode mudar no Alterar fluxo (cliente de 24x para 36x) — pós-chaves só 0, 12 ou 24
@@ -698,7 +698,7 @@ var FluxoLivre = (function () {
   }
 
   /* 31/10 (dono): a pré-reserva paga abate o sinal — sai do ato, depois do 30, 60 e 90 dias (parcela zerada some).
-     valores = [ato, 30, 60, 90] → { valores, abatido }; abatido < pr = a pré-reserva passou do sinal. */
+     valores = [ato, 30, 60, 90] → { valores, abatido }; abatido < pr = a reserva passou do sinal. */
   function abaterSinal(valores, pr) {
     var falta = c(pr), out = (valores || []).map(function (v) {
       var x = positivo(v) ? c(v) : 0, s = Math.min(falta, x);
@@ -710,7 +710,7 @@ var FluxoLivre = (function () {
 
   /* Gavetas do simulador (fluxo como o GerarContrato lê) → lista. excedente = parte do VALOR PARA ENTRADA da
      proposta que passa do sinal (paga na assinatura, sem correção — ContratoVenda.parcelasPreChaves).
-     pr = { valor, data } da pré-reserva paga (ContratoVenda.preReservaPaga) ou null. */
+     pr = { valor, data } da reserva paga (ContratoVenda.preReservaPaga) ou null. */
   function doPadrao(fl, excedente, pr) {
     fl = fl || {};
     var L = [], ass = isoValida(fl.assinatura) ? fl.assinatura : "";

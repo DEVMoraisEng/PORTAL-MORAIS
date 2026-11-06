@@ -1205,7 +1205,7 @@ test("plano 23 A: com o contrato ainda em assinatura, a trava CONTRATO_ASSINADO 
   assert.notEqual(c.acao("escolherTestemunhas").erro, "CONTRATO_ASSINADO");
 });
 
-test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônjuge e assinatura do termo (TERMO_ASSINADO); o contrato não é afetado", () => {
+test("plano 23 A: termo de reserva ASSINADO — recusa gerar, conta, cônjuge e assinatura do termo (TERMO_ASSINADO); o contrato não é afetado", () => {
   const PR = { "PRÉ-RESERVA - ENVELOPE ID": "rich_text", "PRÉ-RESERVA - SITUAÇÃO": "rich_text", "PRÉ-RESERVA - TERMO ASSINADO": "files" };
   const c = cenario({ colunas: Object.assign(colunasVenda(), PR),
                       venda: { "PRÉ-RESERVA - ENVELOPE ID": rt("env-pr"), "PRÉ-RESERVA - SITUAÇÃO": rt("ASSINADO") } });
@@ -1315,7 +1315,7 @@ test("correção 1 (I-1): Enviar relê a casa DENTRO da trava — outro envio qu
   assert.equal(c.c.chamadas.length, 0, "nenhum envelope novo na Clicksign");
 });
 
-test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde da pré-reserva; o pagamento da pré-reserva segue aberto", () => {
+test("correção 1 (M-7): contrato ASSINADO também trava o que a tela esconde da reserva; o pagamento da reserva segue aberto", () => {
   const c = assinadoPorTodos();
   for (const a of ["salvarContaPreReserva", "salvarConjugePreReserva", "gerarTermoPreReserva"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
@@ -1360,7 +1360,7 @@ test("correção 3 (3): Atualizar situação grava ASS_AGUARDANDO_<pageId> enqua
 });
 
 /* ---- 03/11/2026 (dono): vigia a cada 15 min com os eventos — progresso, recusa/cancelamento por e-mail, termo de
-   pré-reserva; e pré-reserva DISPENSADA quando o contrato é gerado direto ---- */
+   reserva; e reserva DISPENSADA quando o contrato é gerado direto ---- */
 const COL_PROG = { "ASSINATURA - PROGRESSO": "rich_text" };
 const COL_PR = { "PRÉ-RESERVA - ENVELOPE ID": "rich_text", "PRÉ-RESERVA - SITUAÇÃO": "rich_text", "PRÉ-RESERVA - TERMO ASSINADO": "files",
                  "PRÉ-RESERVA - PROGRESSO": "rich_text" };
@@ -1467,7 +1467,7 @@ test("vigia 03/11: Atualizar situação pelo botão grava a recusa mas não mand
   assert.equal(c.emails.length, 0);
 });
 
-test("vigia 03/11: termo de pré-reserva ENVIADO — a vigia consulta a coluna do termo e relê o termo (recusa grava e avisa)", () => {
+test("vigia 03/11: termo de reserva ENVIADO — a vigia consulta a coluna do termo e relê o termo (recusa grava e avisa)", () => {
   const corpos = [];
   const q = vigiaCom({});
   q.g.ctx.notion_ = (m, cam, corpo) => {
@@ -1492,11 +1492,11 @@ test("vigia 03/11: termo de pré-reserva ENVIADO — a vigia consulta a coluna d
   assert.equal(c.txt("PRÉ-RESERVA - SITUAÇÃO"), "RECUSADO");
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "", "o contrato não é tocado");
   assert.equal(c.emails.length, 1);
-  assert.match(c.emails[0].subject, /pré-reserva/i);
+  assert.match(c.emails[0].subject, /reserva/i);
 });
 
-const MSG_DISPENSADA = "O contrato desta unidade foi gerado sem a pré-reserva: a pré-reserva foi dispensada.";
-test("03/11: contrato gerado e termo nunca enviado — pré-reserva DISPENSADA: gerar termo, conta, cônjuge e Enviar do termo recusam", () => {
+const MSG_DISPENSADA = "O contrato desta unidade foi gerado sem a reserva: a reserva foi dispensada.";
+test("03/11: contrato gerado e termo nunca enviado — reserva DISPENSADA: gerar termo, conta, cônjuge e Enviar do termo recusam", () => {
   const c = cenario({ colunas: Object.assign(colunasVenda(), COL_PR) });   /* VENDA já tem CONTRATO GERADO */
   for (const a of ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "PRE_RESERVA_DISPENSADA", mensagem: MSG_DISPENSADA }, a);

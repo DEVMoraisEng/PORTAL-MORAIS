@@ -309,14 +309,14 @@ test("conferência ainda não feita mostra só 'Ainda não conferido.'", () => {
 });
 
 /* htmlPreReserva usa listas que só existem no navegador (não roda no node): confere no código */
-test("pré-reserva com termo gerado mostra só 'Termo gerado', sem o nome do arquivo", async () => {
+test("reserva com termo gerado mostra só 'Termo gerado', sem o nome do arquivo", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
   assert.match(src, /if \(e\.gerado\) h \+= '<div class="dz-linha">Termo gerado<\/div>';/);
   assert.doesNotMatch(src, /Termo gerado: /);
 });
 
-test("01/11: pré-reserva — mensagens de data futura e valor acima do sinal; campo da data com max = hoje (conveniência)", async () => {
+test("01/11: reserva — mensagens de data futura e valor acima do sinal; campo da data com max = hoje (conveniência)", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
   assert.match(src, /PR_DATA_FUTURA: "[^"]*depois de hoje[^"]*"/);
@@ -325,10 +325,10 @@ test("01/11: pré-reserva — mensagens de data futura e valor acima do sinal; c
   assert.match(src, /America\/Sao_Paulo/);
 });
 
-test("01/11 (dono): pré-reserva — a conta para devolução aparece como opcional na tela", async () => {
+test("01/11 (dono): reserva — a conta para devolução aparece como opcional na tela", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
-  assert.match(src, /Conta do pré-reservante para devolução \(opcional/);
+  assert.match(src, /Conta do reservante para devolução \(opcional/);
 });
 
 test("01/11 (H2): conferência — documento não anexado aparece como '✗ não anexado', e ilegível continua '? ilegível'", () => {
@@ -352,18 +352,18 @@ test("01/11 (H5): testemunhas sem escolha mostram 'padrão: <nome 1> e <nome 2>'
 });
 
 /* 01/11/2026 (dono): pré-reserva rápida e simples — a opção de incluir o cônjuge só aparece quando há cônjuge */
-test("pré-reserva: caixa 'Incluir o cônjuge' só com cônjuge, desmarcada por padrão, com a dica; desabilita no perfil TESTES", () => {
+test("reserva: caixa 'Incluir o cônjuge' só com cônjuge, desmarcada por padrão, com a dica; desabilita no perfil TESTES", () => {
   assert.equal(D.htmlConjugePR({ temConjuge: false, incluirConjuge: false }, ""), "");
   assert.equal(D.htmlConjugePR({}, ""), "");
   const h = D.htmlConjugePR({ temConjuge: true, incluirConjuge: false }, "");
   assert.match(h, /<input type="checkbox" data-pr-conj="1"(?![^>]*checked)[^>]*>/);
-  assert.match(h, /Incluir o cônjuge na pré-reserva \(opcional\)/);
+  assert.match(h, /Incluir o cônjuge na reserva \(opcional\)/);
   assert.match(h, /Por padrão só o comprador assina\./);
   assert.match(D.htmlConjugePR({ temConjuge: true, incluirConjuge: true }, ""), /data-pr-conj="1" checked/);
   assert.match(D.htmlConjugePR({ temConjuge: true, incluirConjuge: false }, " disabled"), /disabled/);
 });
 
-test("pré-reserva: a caixa do cônjuge está no bloco, o clique chama a ação e cabe em 375 px (sem largura fixa)", async () => {
+test("reserva: a caixa do cônjuge está no bloco, o clique chama a ação e cabe em 375 px (sem largura fixa)", async () => {
   const fs = await import("node:fs");
   const src = fs.readFileSync(new URL("../../venda-dossie.js", import.meta.url), "utf8");
   assert.match(src, /h \+= htmlConjugePR\(e, dis\);/);

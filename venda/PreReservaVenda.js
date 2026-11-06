@@ -143,23 +143,23 @@ var PreReservaVenda = (function () {
   function faltas(t) {
     var f = [], p = t.preReservante;
     function exige(ok, item) { if (!ok) f.push(item); }
-    exige(!vazio(p.nome), "Pré-reservante: nome");
-    if (vazio(p.cpf)) f.push("Pré-reservante: CPF");
-    else if (!R().cpfValido(p.cpf)) f.push("Pré-reservante: CPF inválido");
-    exige(!vazio(p.nacionalidade), "Pré-reservante: nacionalidade");
-    exige(!vazio(p.documento), "Pré-reservante: RG");
-    exige(!vazio(p.endereco), "Pré-reservante: endereço");
-    exige(!vazio(p.email), "Pré-reservante: e-mail (coluna Email)");
+    exige(!vazio(p.nome), "Reservante: nome");
+    if (vazio(p.cpf)) f.push("Reservante: CPF");
+    else if (!R().cpfValido(p.cpf)) f.push("Reservante: CPF inválido");
+    exige(!vazio(p.nacionalidade), "Reservante: nacionalidade");
+    exige(!vazio(p.documento), "Reservante: RG");
+    exige(!vazio(p.endereco), "Reservante: endereço");
+    exige(!vazio(p.email), "Reservante: e-mail (coluna Email)");
     exige(!vazio(t.unidade), "Unidade");
     if (!vazio(t.unidade)) exige(!!t.tabela, "Unidade: fora da tabela do condomínio (tipo da casa)");
     /* 01/11/2026 (dono): a conta para devolução é OPCIONAL — o pré-contrato é provisório; em branco o termo sai com o marcador vazio.
        Só avisa o texto antigo (preenchido fora do formato) para ninguém assinar uma frase solta. */
     if (!vazio(t.conta) && !lerConta(t.conta).forma) f.push("Conta para devolução: escolha PIX ou dados bancários e salve de novo");
-    exige(t.valor !== null, "Valor da pré-reserva (preencha no cartão)");
-    exige(!vazio(t.dataPagamento), "Data do pagamento da pré-reserva (preencha no cartão)");
+    exige(t.valor !== null, "Valor da reserva (preencha no cartão)");
+    exige(!vazio(t.dataPagamento), "Data do pagamento da reserva (preencha no cartão)");
     /* 01/11/2026: o mesmo que o cartão barra ao salvar (hoje = o do servidor; sinal 0 = desconhecido) */
-    if (!vazio(t.dataPagamento) && !vazio(t.hojeISO) && t.dataPagamento > t.hojeISO) f.push("Data do pagamento da pré-reserva: não pode ser depois de hoje");
-    if (t.valor !== null && t.sinal > 0 && t.valor > t.sinal) f.push("Valor da pré-reserva: maior que o sinal da venda (R$ " + C().moedaBR(t.sinal) + ")");
+    if (!vazio(t.dataPagamento) && !vazio(t.hojeISO) && t.dataPagamento > t.hojeISO) f.push("Data do pagamento da reserva: não pode ser depois de hoje");
+    if (t.valor !== null && t.sinal > 0 && t.valor > t.sinal) f.push("Valor da reserva: maior que o sinal da venda (R$ " + C().moedaBR(t.sinal) + ")");
     return f;
   }
 

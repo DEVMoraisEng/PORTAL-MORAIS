@@ -23,7 +23,7 @@
     SEM_PERMISSAO_TESTES: "O perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura.",
     ASSINATURA_OCUPADA: "Há outro envio para assinatura em andamento — espere um minuto e tente de novo.",
     CONTRATO_DESATUALIZADO: "Os dados mudaram depois de gerar o contrato — gere de novo e depois envie.",
-    TERMO_DESATUALIZADO: "Os dados mudaram depois de gerar o termo de pré-reserva — gere o termo de novo e depois envie.",
+    TERMO_DESATUALIZADO: "Os dados mudaram depois de gerar o termo de reserva — gere o termo de novo e depois envie.",
     CONFISSAO_DESATUALIZADA: "Os termos de confissão não são deste contrato — gere o contrato de novo (os termos saem junto) e envie.",
     SEM_RESPOSTA: "O servidor não respondeu — confira a internet e tente de novo.",
     ASSINADO_AGUARDANDO_ARQUIVO: "O arquivo assinado ainda está sendo preparado pela Clicksign — espere um instante e clique em Atualizar situação.",
@@ -61,7 +61,7 @@
     NAO_ASSINADO: "Ainda não foi assinado por todos — use Atualizar situação.",
     DOCUMENTO_NAO_ENCONTRADO: "Esse documento não está mais no envelope — recarregue a página.",
     CONTRATO_ASSINADO: "O contrato já foi assinado por todos — nada mais muda nele. Recarregue a página.",
-    TERMO_ASSINADO: "O termo de pré-reserva já foi assinado por todos — nada mais muda nele. Recarregue a página.",
+    TERMO_ASSINADO: "O termo de reserva já foi assinado por todos — nada mais muda nele. Recarregue a página.",
     /* 03/11: Trocar e-mail (sem cancelar o envelope) */
     EMAIL_INVALIDO: "Esse e-mail não parece válido — confira e tente de novo.",
     EMAIL_IGUAL: "Esse já é o e-mail desta pessoa na Clicksign.",
@@ -174,7 +174,7 @@
    * "<nome do documento> - ASSINADO.pdf". */
   function nomeArquivoAssinado(nome) {
     var n = String(nome || "").trim().replace(/\.pdf$/i, "").replace(/\s*\[#[0-9a-f]{8}\]\s*$/i, "").trim();
-    n = n.replace(/^(CONTRATO|TERMO DE PRÉ-RESERVA) ASSINADO - /, "$1 - ").replace(/^ASSINADO - /, "").replace(/\s*-\s*ASSINADO$/i, "").trim();
+    n = n.replace(/^(CONTRATO|TERMO DE (?:PRÉ-)?RESERVA) ASSINADO - /, "$1 - ").replace(/^ASSINADO - /, "").replace(/\s*-\s*ASSINADO$/i, "").trim();
     return (n || "documento") + " - ASSINADO.pdf";
   }
   var ROTULO_DOC = { contrato: "Contrato", termo: "Termo de confissão de dívida", memorial: "Memorial descritivo", projeto: "Projeto aprovado" };
@@ -191,7 +191,7 @@
     if (!Array.isArray(c.assinados)) h += '<div class="vazio">carregando os documentos assinados…</div>';
     else if (!c.assinados.length && !c.msg) h += '<div class="vazio">Nenhum documento no envelope.</div>';
     else if (c.assinados.length) h += '<ul class="ass-lista ass-docs">' + c.assinados.map(function (d) {
-      var rot = ehTermo(c) && d.tipo === "contrato" ? "Termo de pré-reserva" : (ROTULO_DOC[d.tipo] || "Documento");
+      var rot = ehTermo(c) && d.tipo === "contrato" ? "Termo de reserva" : (ROTULO_DOC[d.tipo] || "Documento");
       var dis = c.ocupado ? " disabled" : "";
       return '<li><span><b>' + esc(rot) + '</b> <span class="ass-data">' + esc(d.nome) + "</span></span> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="' + x + 'doc-ver" data-doc="' + esc(d.id) + '"' + dis + ">Ver</button> " +
@@ -232,7 +232,7 @@
   function pre(c) { return ehTermo(c) ? "p-" : "a-"; }
   function montarBlocoAssinatura(c) {
     var termo = ehTermo(c), x = pre(c);
-    var h = '<div class="grp">' + (termo ? "Enviar termo de pré-reserva via Clicksign" : "Enviar contrato via Clicksign") + "</div>";
+    var h = '<div class="grp">' + (termo ? "Enviar termo de reserva via Clicksign" : "Enviar contrato via Clicksign") + "</div>";
     if (c.testes) h += '<div class="dz-aviso">Perfil TESTES não envia, não reenvia, não cancela nem atualiza a assinatura.</div>';
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     if (assinado(c)) return montarDocumentosAssinados(c);   /* 01/11 (plano 23 A): só visualizar */
@@ -356,7 +356,7 @@
     if (acao === "a-descartar") return descartarRascunho(c, deps);
     var enviar = acao === "a-enviar";
     if (enviar ? !podeEnviar(c) : (acao !== "a-atualizar" || !podeAtualizar(c))) return c;
-    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
+    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de reserva" : "contrato") + " para assinatura? Cada signatário recebe um e-mail da Clicksign para assinar.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null, corrigir: null }));
     var r, pedido = comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId });
     if (enviar && !ehTermo(c)) {
@@ -475,7 +475,7 @@
   /* 29/10: cancela o envelope na Clicksign (ação assinaturaCancelar) e mostra a situação nova (CANCELADO). */
   async function cancelarEnvelope(c, deps) {
     if (!podeCancelar(c)) return c;
-    var oque = ehTermo(c) ? "termo de pré-reserva" : "contrato";
+    var oque = ehTermo(c) ? "termo de reserva" : "contrato";
     if (!deps.confirmar("Cancelar o envelope do " + oque + " na Clicksign? Ninguém mais consegue assinar este envelope " +
                         "e as assinaturas já feitas nele deixam de valer. Depois dá para enviar de novo.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "cancelar", msg: "" }));
@@ -493,7 +493,7 @@
    * Se a Clicksign não respondeu, nada foi apagado: pede para tentar de novo. */
   async function descartarRascunho(c, deps) {
     if (!podeDescartar(c)) return c;
-    if (!deps.confirmar("Descartar o rascunho do " + (ehTermo(c) ? "termo de pré-reserva" : "contrato") + " na Clicksign? Nada foi enviado aos signatários; depois é só enviar de novo.")) return c;
+    if (!deps.confirmar("Descartar o rascunho do " + (ehTermo(c) ? "termo de reserva" : "contrato") + " na Clicksign? Nada foi enviado aos signatários; depois é só enviar de novo.")) return c;
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "cancelar", msg: "" }));
     var r;
     try { r = await deps.chamar(comDoc(c, { action: "assinaturaCancelar", pageId: deps.pageId, descartar: true })); }

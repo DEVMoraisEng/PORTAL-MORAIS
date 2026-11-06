@@ -158,8 +158,8 @@ const TERMO = (n) => ({ nome: "MODELO CONFISSAO " + n + " TESTE", filhos: [
      [P("____________________________________________"), P("FIADOR 2"), P("{{FIADOR2_NOME}}"), P("CPF nº {{FIADOR2_CPF}}")]]),
   P(""), P("Testemunhas:"), P("1. Nome:                                                 2. Nome:"), P("    CPF:                                                         CPF:"), P(""), P("")] });
 const PRE_RESERVA = { nome: "MODELO PRE-RESERVA TESTE", filhos: [
-  P("TERMO DE PRÉ-RESERVA"), P("Por estarem de acordo, firmam este Termo na presença de 2 (duas) testemunhas."), P(""), P("{{CIDADE_DATA}}."), P(""),
-  T([[P("______________________________"), P("SPE TESTE LTDA."), P("VENDEDORA")], [P("______________________________"), P("PRÉ-RESERVANTE"), P("{{PRE_RESERVANTE_NOME}} – CPF {{PRE_RESERVANTE_CPF}}")]],
+  P("TERMO DE RESERVA"), P("Por estarem de acordo, firmam este Termo na presença de 2 (duas) testemunhas."), P(""), P("{{CIDADE_DATA}}."), P(""),
+  T([[P("______________________________"), P("SPE TESTE LTDA."), P("VENDEDORA")], [P("______________________________"), P("RESERVANTE"), P("{{PRE_RESERVANTE_NOME}} – CPF {{PRE_RESERVANTE_CPF}}")]],
     [[P("______________________________"), P("TESTEMUNHA 1"), P("Nome: ______________________"), P("CPF: ______________________")],
      [P("______________________________"), P("TESTEMUNHA 2"), P("Nome: ______________________"), P("CPF: ______________________")]]),
   P("")] };
@@ -295,7 +295,7 @@ test("bloco que termina no último parágrafo do documento (o Docs não deixa ap
   assert.deepEqual(textos(g.docs["copia-2"].salvo).slice(-2), ["{{ASSINATURAS_TERMO}}", ""]);
 });
 
-test("pré-reserva: o papel vale com qualquer grafia do É (PRÉ-RESERVANTE / PRE-RESERVANTE)", () => {
+test("reserva: o papel vale com qualquer grafia do É (RESERVANTE / PRE-RESERVANTE)", () => {
   const pr = clonar(PRE_RESERVA);
   pr.filhos[5].linhas[0][1][1].texto = "PRE-RESERVANTE";
   const g = carregar({ MODELO_PRE_RESERVA_ID: "m-pr" }, { "m-pr": pr });
