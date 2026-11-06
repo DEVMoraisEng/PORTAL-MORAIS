@@ -194,7 +194,8 @@ test("condomínio (contrato de 21/10): sem cadastro em LOTEAMENTOS e sem conta d
   assert.deepEqual(C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null })), []);
   /* fora do condomínio continua exigido */
   const rua = C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null, condominio: null }));
-  assert.ok(rua.includes("Loteamento: cadastro em LOTEAMENTOS – CONTRATO") && rua.includes("Vendedor: banco"), rua.join(" | "));
+  /* 05/11/2026: casa de rua sem cadastro de loteamento — pede a matrícula da casa lida pela IA */
+  assert.ok(rua.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler") && rua.includes("Vendedor: banco"), rua.join(" | "));
 });
 
 /* ---------------- GerarContrato.gs com Notion/Docs/Drive falsos ---------------- */

@@ -27,6 +27,7 @@ function colunasVenda(sem = []) {
     " VALOR NA MÃO ": "number", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", " COMISSÃO ": "number",
     "DATA DA VENDA": "date", CORRETOR: { tipo: "select", opcoes: ["Corretor Teste"] },
     SETOR: { tipo: "select", opcoes: ["Setor Teste"] }, "OBRA-AUTO": "relation", CASA: "rich_text",
+    "CONTRATO - MATRÍCULA DO LOTEAMENTO": "rich_text", "CONTRATO - CARTÓRIO DO LOTEAMENTO": "rich_text", "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": "rich_text",
   });
   for (const [nome, tipo] of Object.entries(CV.TIPOS))
     c[nome] = tipo === "select" ? { tipo, opcoes: ["PIX", "TRANSFERÊNCIA", "DEPÓSITO", "COMPRADOR", "VENDEDOR"] } : tipo;
@@ -66,6 +67,9 @@ const VENDA = {
   "CONTRATO - FORMA DE PAGAMENTO": sel("PIX"), "CONTRATO - COMISSÃO FORMA": sel("PIX"),
   "CONTRATO - COMISSÃO VENCIMENTO": rt("na assinatura do financiamento"), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR"),
   "DATA DA ENTREGA": dat("2027-06-30"),
+  /* 05/11/2026: casa de rua — loteamento lido da matrícula da casa (antes vinha do cadastro do setor) */
+  "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": rt("Residencial Teste"), "CONTRATO - MATRÍCULA DO LOTEAMENTO": rt("M-100"),
+  "CONTRATO - CARTÓRIO DO LOTEAMENTO": rt("Cartório Teste"),
 };
 const OBRA_PG = {
   "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"),

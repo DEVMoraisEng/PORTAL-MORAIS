@@ -1,8 +1,9 @@
 # Robôs do portal no servidor — instalação (fila de TESTE primeiro)
 
 Para o Claude do servidor (desktop-siitjjp). Regras de sempre: nada de senha nem login (o dono faz);
-token o dono cola direto no arquivo; **nada grava no Mais Controle** nesta etapa (a fila de teste nunca
-grava); antes de instalar ou criar tarefa, dizer o que vai fazer e pedir o ok.
+token o dono cola direto no arquivo; **nada grava no Mais Controle** nesta etapa (a fila de teste não
+grava — a exceção explícita de 05/11, `_central\TESTE_PODE_GRAVAR.txt`, está no fim deste arquivo); antes de
+instalar ou criar tarefa, dizer o que vai fazer e pedir o ok.
 
 O que já foi provado aqui (27/10): o catálogo rodou pela aba do porteiro e a sessão continuou aberta.
 
@@ -303,3 +304,136 @@ schtasks /Create /TN "MoraisEng - Anexos da auditoria (tarde)" /SC DAILY /ST 12:
 Ajustes opcionais em `"vars"`: `ANEXOS_DIAS` (90), `ANEXOS_ESCOPO` (`alertas` ou `todos`),
 `ANEXOS_MAX_ITENS` (700 por rodada), `ANEXOS_MAX_MB` (250 MB copiados por rodada — só quando o link do MC
 for curto e o arquivo precisar ser copiado para o Supabase).
+
+---
+
+# FILA DE TESTE GRAVANDO DE VERDADE (05/11/2026) — 1º teste da casa de rua assinada
+
+O dono aprovou: o primeiro processo inteiro da casa de rua (assinou → contrato no Orçamento → prévia → venda
+lançada sozinha) roda pelo portal de TESTE gravando de verdade no Mais Controle; ele exclui depois. Deu certo, sobe
+para produção. Detalhe do processo: `venda/COMO-IMPLANTAR.md`, "Casa de rua: contrato assinado vai ao Orçamento".
+
+## A terceira chave: `_central\TESTE_PODE_GRAVAR.txt`
+A fila "teste" grava no ERP **só** com as três ao mesmo tempo:
+1. `"pode_gravar": true` na fila "teste" do `_central\robos-portal.json`;
+2. o arquivo `C:\AUTOMAÇÕES MAIS CONTROLE\_central\VENDA_APLICAR.txt` (o mesmo da produção);
+3. o arquivo `C:\AUTOMAÇÕES MAIS CONTROLE\_central\TESTE_PODE_GRAVAR.txt` (pode ser vazio) — só o dono cria e apaga.
+Sem o 3º, nada muda: a fila de teste faz prévia e o lançamento volta "BLOQUEADO". A produção não depende dele. O
+"Rodar de novo" do Escritório continua recusado na fila de teste. O `--verificar` mostra "pode gravar: SIM" e um
+"ATENÇÃO" enquanto o arquivo existir.
+
+## Passo a passo do 1º teste ao vivo
+1. (servidor) `git pull` no clone `_portal` e `python -m pytest -q venda/mc/testes tests` (as falhas antigas de
+   `test_robo_mc_obras.py` e o `test_na_vez_espera…`, que pede `fcntl`, já falhavam antes).
+2. (servidor) fila "teste" no `robos-portal.json`: `"pode_gravar": true` e, em `"vars"`, `DB_CORRETORES` da BRAIN
+   TESTE (e `DB_VENDAS_COND` do teste, como já está).
+3. (dono, no servidor) criar `_central\VENDA_APLICAR.txt` (se ainda não existe) e `_central\TESTE_PODE_GRAVAR.txt`.
+4. (servidor) `python servidor\robo_fila.py --verificar` → fila teste "pode gravar: SIM" + "ATENÇÃO".
+5. (dono, no Mais Controle) a obra da casa de teste com o nome IGUAL ao ENDEREÇO da casa, com conta padrão, e no
+   Orçamento dela, Arquivos, a pasta **Contratos Venda**.
+6. (dono, PORTAL-VENDA de teste) colar os 4 arquivos .gs do COMO-IMPLANTAR, Propriedades `MC_LANCAR_AO_ASSINAR` = SIM,
+   `DB_FILA_ROBO` (fila de teste), `DB_VENDAS`, `ASSINATURA_AVISO_EMAILS`; publicar a mesma implantação.
+7. Enviar o contrato de uma casa de rua de teste para a Clicksign (sandbox) e assinar com todos.
+8. Esperar a vigia (15 min, 7h–21h) ou clicar Atualizar situação: a situação mostra `PROCESSANDO (prévia)` e
+   `Contrato no Orçamento: pedido ao robô`; em ~1 min a prévia e `Contrato no Orçamento: enviado …`; na volta seguinte
+   da vigia, `PROCESSANDO (lançamento)` e depois `CRIADA | venda …` com `Contrato: anexado no recebimento`.
+9. Conferir no Mais Controle: venda da casa, contrato no recebimento e na pasta Contratos Venda do Orçamento.
+10. (dono) **apagar `_central\TESTE_PODE_GRAVAR.txt`** e excluir no ERP a venda e o cliente de teste.
+Parou no meio? A situação tem a linha `Lançamento automático: parou …` e chega um e-mail; nada é repetido sozinho.
+
+## Depois, produção
+PORTAL-VENDA de produção: os mesmos 4 .gs e `MC_LANCAR_AO_ASSINAR` = SIM (atenção: a mesma Propriedade já liga o
+lançamento do condomínio com prévia OK). Servidor: nada a mais (a fila "producao" já tem `pode_gravar` e o
+VENDA_APLICAR.txt).
+# DOCUMENTOS DO ORÇAMENTO (05/11/2026) — matrícula, certidão mãe, alvará e habite-se no dossiê do imóvel
+
+Pedido do dono (05/11/2026): em Obras › Orçamento do Mais Controle há matrículas, certidões etc. anexadas; um vigia
+no servidor, todo dia cedo, busca lá e anexa sozinho no dossiê do imóvel da casa de rua quando aparecer.
+Robô `documentos` = `robo_mc_documentos.py` (lógica em `venda/mc/documentos_obra.py`). Só LÊ o ERP, só pelo porteiro.
+
+O que faz, para cada casa de rua da VENDAS com `CLIENTES` preenchido, sem `ASSINATURA - SITUAÇÃO` = ASSINADO e fora
+do condomínio: acha a obra do MC pelo nome = ENDEREÇO; lê as pastas do Orçamento (`GET /folder?id=<obra>&origin=PLANNING`);
+classifica cada arquivo pelo nome do arquivo (sem pista nele, pelo da pasta); baixa pelo link do MC
+(`GET /file/{id}/get-url`) e sobe ao Notion no espaço do imóvel; marca "novo, não lido" e escreve na observação.
+Nome que aponta para dois documentos ("alvará e habite-se") fica **pendente** no relatório (ninguém anexa no chute).
+Na **primeira** olhada de cada casa, espaço que já tem documento não recebe (só anota o arquivo como visto); dali em
+diante todo arquivo novo do MC entra. Nunca apaga nem troca arquivo. PDF até 10 MB e imagem até 5 MB (o que a IA lê).
+
+## 1. (dono) Colunas novas na VENDAS (teste e produção) — todas **texto**
+- `DOSSIÊ IMÓVEL - NOVOS DO MAIS CONTROLE` — o robô escreve os espaços anexados; o portal passa para os "novos" e limpa;
+- `MC - DOCUMENTOS DO ORÇAMENTO` — ids dos arquivos do MC já vistos (JSON). **Sem ela o robô não anexa** (anexaria de
+  novo todo dia) — o relatório mostra `sem_coluna_vistos`;
+- `VENDEDOR MC - NOME`, `VENDEDOR MC - CPF/CNPJ`, `VENDEDOR MC - ENDEREÇO`, `VENDEDOR MC - E-MAIL` — o proprietário da
+  obra no MC (o contrato usa só para completar o vendedor; ver venda/COMO-IMPLANTAR.md "Vendedor automático");
+- as colunas de arquivo do imóvel já existem (`IMÓVEL - MATRÍCULA`, `IMÓVEL - CERTIDÃO MÃE`, `IMÓVEL - ALVARÁ`,
+  `IMÓVEL - HABITE-SE`, `DOSSIÊ IMÓVEL - OBSERVAÇÃO`).
+E colar o `PortalVenda`/`RegrasVenda` novos no PORTAL-VENDA (é ele que transforma a coluna de novos em "novo, não lido").
+
+## 2. (servidor) Atualizar o clone e testar
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"; git pull
+python -m pytest venda\mc\testes\test_documentos_obra.py -q
+```
+
+## 3. (servidor) Configuração — chave `robos` do `_central\robos-portal.json`
+Em `"vars"`: `"DB_VENDAS": "<id da BANCO DE DADOS VENDAS>"` (o da produção; para provar no teste, o da VENDAS TESTE
+com o token do teste). O token do Notion é o `notion_token_arquivo` que os outros robôs já usam.
+
+## 4. (servidor) Rodada de prova, SEM gravar
+Sem `_central\ROBOS_APLICAR.txt` o robô só simula:
+```powershell
+python servidor\robo_fila.py --robo documentos
+Get-Content "C:\AUTOMAÇÕES MAIS CONTROLE\_central\logs\saida-documentos.txt"
+```
+Esperado: `casas de rua com venda aberta: N · obra achada no MC: M`, `arquivos a anexar: …` e a última linha
+`OK: documentos do orçamento — … (SIMULAÇÃO: …)`. `pendência: <8 letras> sem_obra` = casa sem obra com o mesmo nome no
+MC; `obra_ambigua` = duas obras com o mesmo nome; `… nome ambíguo` = conferir o nome do arquivo no Orçamento.
+
+## 5. (dono) Ligar a gravação
+O mesmo `_central\ROBOS_APLICAR.txt` dos outros robôs (se já existe, a próxima rodada já grava).
+
+## 6. (servidor, com o ok do dono) Tarefa agendada — todo dia 05:50
+Mesma conta e "só com o usuário conectado" (o porteiro precisa do Chrome aberto). Um robô de cada vez no MC: se outro
+estiver lá, este espera a vez (`robo-mc-vez.trava`).
+```powershell
+schtasks /Create /TN "MoraisEng - Documentos do Orçamento" /SC DAILY /ST 05:50 /F `
+  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo documentos"
+```
+O Escritório de Robôs mostra a mesa "Documentos do Orçamento"; o Coordenador o põe por último na fila (`ORDEM`).
+
+# RECEBIMENTOS DA CASA DE RUA (05/11/2026) — baixa do sinal e parcelas de financiamento/FGTS
+
+Pedido "mc-recebimento" (aba Recebimentos do painel da casa) → `venda/mc/recebimentos.py`. Dá baixa de cada pagamento
+do sinal/entrada registrado no portal (com o comprovante na pasta de arquivos da venda) e acerta as parcelas de sinal,
+financiamento e FGTS quando o valor mudou (guarda a venda inteira antes em `_central\backups-vendas\`, relê e confere;
+se não bater, grava de volta e avisa). Rotas que gravam e o que conferir ao vivo: comentário em `venda/mc/erp.py`.
+
+Trava PRÓPRIA (vale também na fila "teste" — o dono pediu o 1º processo inteiro no teste gravando de verdade):
+`"pode_gravar_recebimento": true` na fila do `_central\robos-portal.json` **e** o arquivo
+`C:\AUTOMAÇÕES MAIS CONTROLE\_central\RECEBIMENTO_APLICAR.txt` (só o dono cria). Sem os dois, só prévia (o texto
+diz o que faria). O `VENDA_APLICAR.txt` não entra nesta conta.
+
+## 1. (dono) Colunas no Notion de TESTE
+`py -3.14 venda/ferramentas/criar_colunas_recebimentos.py <id da VENDAS de teste> <arquivo do token>` (só mostra) e depois
+com `--criar`. Publicar o PORTAL-VENDA de teste com RecebimentoVenda.gs, RegrasVenda.js, OpenAILeitor.js, ClaudeLeitor.js,
+PortalVenda.gs e LogContratoVenda.js.
+
+## 2. (servidor) Prévia
+Atualizar o clone e rodar `python -m pytest -q venda/mc/testes tests/test_robo_fila.py`. Numa casa de TESTE já lançada
+(MC - VENDA ID), registrar no portal o sinal em dois pagamentos (ex.: 3 mil + 2 mil, um com comprovante em PDF).
+Sem a trava, a coluna MC - RECEBIMENTOS mostra "prévia: baixaria …" e qual conta usaria.
+
+## 3. (dono) Ligar a gravação só no teste
+`"pode_gravar_recebimento": true` na fila "teste" + criar o `RECEBIMENTO_APLICAR.txt`. Clicar "Conferir no Mais Controle".
+
+## 4. Conferir na venda de teste do Mais Controle (centavo por centavo)
+- duas baixas parciais na parcela do sinal (valor e data do portal), parcela "em aberto" depois da 1ª e quitada depois da 2ª;
+- conta: a do comprovante quando o PDF tem agência e conta de uma conta do Mais Controle; senão a padrão da venda;
+- comprovante na pasta "Arquivos" da venda com o nome `COMPROVANTE SINAL <data> <id>.pdf`;
+- mudar o valor do FGTS na aba (ou ler um contrato de financiamento de teste): parcela de FGTS criada/alterada, total da
+  venda igual à soma das parcelas, backup em `_central\backups-vendas\`;
+- pedir "Conferir" de novo: nada é baixado duas vezes.
+Se algo divergir, anotar o CORPO da resposta do ERP (log do servidor) e corrigir a rota em `erp.py` antes da produção.
+
+## 5. (dono) Produção
+Só depois do teste certo: colunas na VENDAS de produção, publicar o PORTAL-VENDA de produção e ligar a trava na fila "producao".

@@ -10,7 +10,7 @@
  * OPENAI_API_KEY (provedor openai), MODELO_IA (opcional, só openai),
  * ANTHROPIC_API_KEY (provedor anthropic, plano B).
  * Nenhum log com nome, CPF, endereço ou conteúdo de documento. */
-var VERSAO_VENDA = "venda-v24";   // v24: financiamento pode baixar no Alterar fluxo até a carta de aprovação (FluxoLivre.validar, recusa acima com "O financiamento não pode passar do valor aprovado na carta"), Gerar venda copia o VALOR FINANCIADO da linha do fluxo alterado (CondominioVenda) (05/11/2026); v23: contrato do condomínio revisto pelo advogado (04/11/2026) — entrada = parte do imóvel + comissão (ENTRADA_IMOVEL, ENTRADA_COMISSAO), percentuais sobre o preço do imóvel fechando 100%, nacionalidade BRASILEIRO/BRASILEIRA, permuta identificada no 4.2.1 c) com as obrigações no bloco COM_PERMUTA; v22: Trocar e-mail de quem ainda não assinou sem cancelar o envelope (assinaturaTrocarEmail; o envio guarda os requisitos de cada signatário em ASSINATURA_REQS_<envelope>_<signatário>) e mensagem do envelope "Segue o contrato da unidade…" (default_message; CLICKSIGN_MENSAGEM_CONTRATO/_TERMO trocam o texto) (03/11/2026); v21: vigia a cada 15 min com os eventos (progresso, termo de pré-reserva, e-mail na recusa/cancelamento/expiração) e pré-reserva dispensada quando o contrato é gerado direto (PRE_RESERVA_DISPENSADA) (03/11/2026); v20: AnexosMC.gs — contrato assinado numa venda já lançada e ZIP de todos os assinados vão ao Mais Controle pelo robô do servidor (mc-anexos), ação mcAnexar (03/11/2026); v19: envelope do contrato aberto trava as ações do contrato (ENVELOPE_ABERTO com mensagem, trava central em assTravaAssinado_) e o envio recusa CONTRATO_DESATUALIZADO com fluxo/condições gravados depois do contrato final (03/11/2026); v18: CRLV — observações do veículo (sem reserva de domínio = quitado), CPF/CNPJ e RENAVAM sem perder zero, permuta conta no sinal mínimo (03/11/2026); v17: lerCrlv — CRLV da permuta lido pela IA no formulário do bem, arquivo na coluna PERMUTA - CRLV (03/11/2026); v16: plano 23 — contrato/termo assinado só para ver (documentosAssinados, verDocumentoAssinado, trava CONTRATO_ASSINADO/TERMO_ASSINADO), assinatura na linha (ASSINATURA_LINHAS=1) e selfie (CLICKSIGN_SELFIE=1) (01/11/2026); v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
+var VERSAO_VENDA = "venda-v29";   // v29: casa de rua pós-venda — rubricas no contrato de rua, lançamento automático ao assinar e contrato no Orçamento, vendedor automático, Recebimentos com pagamentos/FGTS/contrato de financiamento e fila mc-recebimento (05/11/2026); v28: contrato final sem o amarelo do texto fixo do modelo (05/11/2026); v27: casa de rua com comissão vazia não dá mais "valor de aquisição inválido" (05/11/2026); v26: comprovante sem conferir o titular, área do lote só da matrícula do imóvel (05/11/2026); v25: casa de rua — Ver/Excluir arquivo do dossiê (verArquivoEspaco, excluirArquivoEspaco), pagamento da comissão pelo cadastro do corretor, contrato gerado reserva 48 h (CONTRATO - GERADO EM) (05/11/2026); v24: financiamento pode baixar no Alterar fluxo até a carta de aprovação (05/11/2026); v23: contrato do condomínio revisto pelo advogado (04/11/2026) — entrada = parte do imóvel + comissão (ENTRADA_IMOVEL, ENTRADA_COMISSAO), percentuais sobre o preço do imóvel fechando 100%, nacionalidade BRASILEIRO/BRASILEIRA, permuta identificada no 4.2.1 c) com as obrigações no bloco COM_PERMUTA; v22: Trocar e-mail de quem ainda não assinou sem cancelar o envelope (assinaturaTrocarEmail; o envio guarda os requisitos de cada signatário em ASSINATURA_REQS_<envelope>_<signatário>) e mensagem do envelope "Segue o contrato da unidade…" (default_message; CLICKSIGN_MENSAGEM_CONTRATO/_TERMO trocam o texto) (03/11/2026); v21: vigia a cada 15 min com os eventos (progresso, termo de pré-reserva, e-mail na recusa/cancelamento/expiração) e pré-reserva dispensada quando o contrato é gerado direto (PRE_RESERVA_DISPENSADA) (03/11/2026); v20: AnexosMC.gs — contrato assinado numa venda já lançada e ZIP de todos os assinados vão ao Mais Controle pelo robô do servidor (mc-anexos), ação mcAnexar (03/11/2026); v19: envelope do contrato aberto trava as ações do contrato (ENVELOPE_ABERTO com mensagem, trava central em assTravaAssinado_) e o envio recusa CONTRATO_DESATUALIZADO com fluxo/condições gravados depois do contrato final (03/11/2026); v18: CRLV — observações do veículo (sem reserva de domínio = quitado), CPF/CNPJ e RENAVAM sem perder zero, permuta conta no sinal mínimo (03/11/2026); v17: lerCrlv — CRLV da permuta lido pela IA no formulário do bem, arquivo na coluna PERMUTA - CRLV (03/11/2026); v16: plano 23 — contrato/termo assinado só para ver (documentosAssinados, verDocumentoAssinado, trava CONTRATO_ASSINADO/TERMO_ASSINADO), assinatura na linha (ASSINATURA_LINHAS=1) e selfie (CLICKSIGN_SELFIE=1) (01/11/2026); v15: antecipacaoTexto, a antecipação copia a mensagem em vez de gerar PDF (31/10/2026); v14: FGTS e Financiamento separados na aba Financeiro (31/10/2026); v13: faltasCliente no contratoEstado (31/10/2026); v12: aba Financeiro, financeiroEstado (31/10/2026); v11: vigia de assinaturas (AssinaturaVigia.gs, 31/10/2026); v10: Corrigir aqui na conferência (31/10/2026); v9: contrato final do condomínio, termo de pré-reserva e etapas da venda (27/10/2026); v8: leitura em lote, certidão mãe e data do habite-se (entrega 13); v7: campos abertos e conta de recebimento no contrato (entrega 12); v6: documentos do imóvel lidos pela IA (entrega 11); v5: pré-contrato grifado (entrega 9)
 var NOTION_VERSION = "2022-06-28";
 var ERROS_CONHECIDOS = /^(COLUNA_FALTANDO|TIPO_DE_COLUNA_ERRADO|BACKEND_SEM_CONFIG|PAGINA_DE_OUTRA_BASE|PRECONTRATO_REFAZER|NOTION_OCUPADO|CONTRATO_EM_ASSINATURA)/;
 var REGEX_PAGE_ID = /^[0-9a-f]{32}$|^[0-9a-f-]{36}$/i;
@@ -40,7 +40,8 @@ function tratar_(p) {
                  "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "assinaturaTrocarEmail" /* 03/11 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
-                 "recebimentoConfirmar" /* entrega 14 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */].indexOf(p.action) >= 0;
+                 "recebimentoConfirmar" /* entrega 14 */, "recebimentoRemover", "recebimentoValor", "recebimentoLerContratoFin", "recebimentoMC" /* 05/11 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
+                 "excluirArquivoEspaco" /* 05/11: Excluir um anexo do dossiê */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
@@ -64,6 +65,8 @@ function executar_(col, sess, p) {
       case "lerDocumento": return lerDocumento_(col, sess, p);
       case "anexarDocumento": return anexarDocumento_(col, p);
       case "soltarDocumento": return soltarDocumento_(col, p);
+      case "verArquivoEspaco": return verArquivoEspaco_(col, p);              /* 05/11: Ver um anexo do dossiê (só leitura) */
+      case "excluirArquivoEspaco": return excluirArquivoEspaco_(col, sess, p); /* 05/11: Excluir um anexo do dossiê */
       case "lerDocumentos": return lerDocumentos_(col, sess, p);
       case "copiarComprovante": return copiarComprovante_(col, sess, p);
       case "conferir":     return mudarDossie_(col, sess, p, RegrasVenda.ESTADOS.CONFERIDO, "Conferido");
@@ -125,6 +128,11 @@ function executar_(col, sess, p) {
       case "antecipacaoPdf":    return antecipacaoPdf_(col, sess, p);
       case "recebimentoEstado": return recebimentoEstado_(col, p);
       case "recebimentoConfirmar": return recebimentoConfirmar_(col, sess, p);
+      /* 05/11/2026: vários pagamentos por item, valor esperado editável, outros, contrato de financiamento e Mais Controle */
+      case "recebimentoRemover": return recebimentoRemover_(col, sess, p);
+      case "recebimentoValor": return recebimentoValor_(col, sess, p);
+      case "recebimentoLerContratoFin": return recebimentoLerContratoFin_(col, sess, p);
+      case "recebimentoMC": return recebimentoMC_(col, sess, p);
       default: return { ok: false, erro: "ACAO_DESCONHECIDA" };
     }
 }
@@ -169,7 +177,7 @@ function colunas_() {
      muitas colunas pode passar do limite de ~100 KB do CacheService e
      lançar, derrubando toda ação. Falha ao gravar no cache não é grave:
      só custa buscar o schema de novo na próxima chamada. */
-  var cache = CacheService.getScriptCache(), k = "venda_schema_v3", txt = cache.get(k), schema;
+  var cache = CacheService.getScriptCache(), k = "venda_schema_v4", txt = cache.get(k), schema;
   var R = RegrasVenda;
   if (txt) {
     schema = JSON.parse(txt);
@@ -182,8 +190,10 @@ function colunas_() {
     }
     var pre = R.resolverColunas(completo), preI = R.resolverColunas(completo, R.COL_IMOVEL, R.TIPOS_IMOVEL);
     var preO = R.resolverColunas(completo, R.COL_IMOVEL_OPC, R.TIPOS_IMOVEL_OPC);
+    /* 05/11/2026: qualificação do proprietário lida da matrícula — opcionais; faltar não impede o cache */
+    var preV = R.resolverColunas(completo, R.COL_VENDEDOR_MAT, R.TIPOS_VENDEDOR_MAT);
     schema = {};
-    [pre, preI, preO].forEach(function (x) { for (var canon in x.mapa) { var real = x.mapa[canon]; schema[real] = completo[real]; } });
+    [pre, preI, preO, preV].forEach(function (x) { for (var canon in x.mapa) { var real = x.mapa[canon]; schema[real] = completo[real]; } });
     /* sem as colunas do imóvel completas não guarda no cache: criadas no Notion, a próxima chamada já vê */
     if (!preI.faltando.length && !preI.tipoErrado.length && !preO.faltando.length && !preO.tipoErrado.length) {
       try { cache.put(k, JSON.stringify(schema), 1800); } catch (e) { console.error("PORTAL-VENDA cache do schema falhou: " + String(e.message || e).slice(0, 120)); }
@@ -200,6 +210,8 @@ function colunas_() {
   /* entrega 13: certidão mãe, data do habite-se e denominação do loteamento — opcionais uma a uma */
   var ro = R.resolverColunas(schema, R.COL_IMOVEL_OPC, R.TIPOS_IMOVEL_OPC), opcFaltando = ro.faltando.concat(ro.tipoErrado);
   if (!imovelErro) for (var co in ro.mapa) if (ro.tipoErrado.indexOf(co) < 0) mapa[co] = ro.mapa[co];
+  var rv = R.resolverColunas(schema, R.COL_VENDEDOR_MAT, R.TIPOS_VENDEDOR_MAT);
+  if (!imovelErro) for (var cv in rv.mapa) if (rv.tipoErrado.indexOf(cv) < 0) mapa[cv] = rv.mapa[cv];
   return { mapa: mapa, schema: schema, imovelErro: imovelErro, opcFaltando: opcFaltando };
 }
 
@@ -230,6 +242,10 @@ function lerPagina_(col, pageId, ctx) {
       var pr = pg.properties[n] || {};
       if (pr.type === "title") ctx.endereco = String(valorProp_(pr) || "");
       else if (RegrasVenda.chave(n) === "OBRA-AUTO" && pr.type === "relation") ctx.obraRel = (pr.relation || []).map(function (x) { return x.id; });
+      /* 05/11/2026: espaços que o robô diário dos documentos do Orçamento do MC anexou (estado_ passa para os pendentes) */
+      else if (RegrasVenda.chave(n) === RegrasVenda.chave(RegrasVenda.COL_MC_DOCS.NOVOS) && pr.type === "rich_text") {
+        ctx.novosMC = String(valorProp_(pr) || ""); ctx.novosMCcol = n;
+      }
       else if (RegrasVenda.chave(n) === "CASA") {
         var v = pr.type === "formula" ? (pr.formula || {})[(pr.formula || {}).type] : valorProp_(pr);
         ctx.casa = v === null || v === undefined || typeof v === "object" ? "" : String(v);
@@ -289,13 +305,45 @@ function estado_(col, p, sess) {
     }
   }
   var imovel = estadoImovel_(col, a);
+  var pendAgora = lerPendentes_(p.pageId);
+  /* 05/11/2026 (dono): o que o robô do servidor anexou do Mais Controle (Obras > Orçamento) entra como "novo, não lido" */
+  var novosMC = ctx.novosMCcol ? RegrasVenda.espacosDoTexto(ctx.novosMC) : [];
+  if (ctx.novosMCcol && String(ctx.novosMC || "").trim()) {
+    novosMC.forEach(function (id) { RegrasVenda.marcarPendente(pendAgora, id, false); });
+    if (String((sess && sess.t) || "").toUpperCase() !== "TESTES") importarNovosMC_(p.pageId, ctx.novosMCcol, novosMC);
+  }
   var arqs = RegrasVenda.contarArquivos(a);
   if (!imovel.erro) for (var k in imovel.arquivos) arqs[k] = imovel.arquivos[k];
+  /* 05/11: nomes dos arquivos de cada espaço (comprador e imóvel), na ordem da coluna — a tela lista e oferece Ver/Excluir.
+     arquivos (só a contagem) segue igual para a tela antiga. */
+  var nomes = nomesArquivos_(a, RegrasVenda.ESPACOS);
+  if (!imovel.erro) { var ni = nomesArquivos_(a, RegrasVenda.ESPACOS_IMOVEL); for (var kn in ni) nomes[kn] = ni[kn]; }
   return { ok: true, tipoCasa: a[C.TIPO_CASA] || "", tipoCasaPelaObra: tipoAuto, arquivos: RegrasVenda.contarArquivos(a),
+           arquivosNomes: nomes, comprador2ComDados: comprador2ComDados_(a),
            dossie: a[C.DOSSIE] || "", observacao: a[C.OBS] || "", doisCompradores: RegrasVenda.temDoisCompradores(a),
            imovel: imovel,
            /* entrega 13: espaços com arquivo anexado e ainda não lido (os dois grupos), na ordem de leitura */
-           pendentes: RegrasVenda.pendentesValidos(lerPendentes_(p.pageId), arqs) };
+           pendentes: RegrasVenda.pendentesValidos(pendAgora, arqs) };
+}
+/* Passa os espaços da coluna DOSSIÊ IMÓVEL - NOVOS DO MAIS CONTROLE para os pendentes (Propriedade venda_pend_) e
+   esvazia a coluna. Só limpa depois de gravar os pendentes; falha aqui nunca derruba o estado (fica para a próxima). */
+function importarNovosMC_(pageId, colReal, ids) {
+  var pend = ids.length ? mudarPendentes_(pageId, function (x) { ids.forEach(function (id) { RegrasVenda.marcarPendente(x, id, false); }); }) : {};
+  if (!pend) return;
+  try { var pr = {}; pr[colReal] = { rich_text: [] }; notion_("PATCH", "/pages/" + pageId, { properties: pr }); }
+  catch (e) { console.error("PORTAL-VENDA novos do MC não limpou: " + String(e.message || e).slice(0, 120)); }
+}
+function nomesArquivos_(a, espacos) {
+  var r = {};
+  Object.keys(espacos).forEach(function (id) {
+    r[id] = (a[espacos[id].coluna] || []).map(function (f) { return String((f && f.name) || "arquivo"); });
+  });
+  return r;
+}
+/* 05/11: algum campo COMPRADOR 2 - * preenchido (texto ou arquivo) — com o seletor do dossiê em 1, a tela avisa que ele
+   ainda sai no contrato. Nada é apagado sozinho. */
+function comprador2ComDados_(a) {
+  return Object.keys(a).some(function (k) { return /^COMPRADOR 2 - /.test(RegrasVenda.chave(k)) && !RegrasVenda.vazio(a[k]); });
 }
 /* seção "Documentos do imóvel": arquivos por espaço, estado, observação e os dados do contrato já gravados */
 function estadoImovel_(col, a) {
@@ -497,15 +545,17 @@ function lerEspacos_(col, sess, pageId, pedidos) {
   itens.forEach(function (it) {
     if (it.erro) return;
     var plano = R.planejarGravacao(it.espaco, it.leitura, depois, hoje, it.modo), grupo = it.esp.grupo === "imovel" ? "imovel" : "comprador";
-    var obs = plano.observacoes.slice(), preenchidos = [];
+    var obs = plano.observacoes.slice(), preenchidos = [], semVend = [];
     for (var c in plano.props) {
       if (!col.mapa[c]) {   // coluna opcional que a base não tem: não grava, avisa
+        if (R.TIPOS_VENDEDOR_MAT[c]) { semVend.push(c); continue; }   // 05/11: um aviso só para a qualificação do proprietário
         obs.push(it.esp.rotulo + ": a coluna " + c + " não existe na base — o valor lido não foi gravado");
         continue;
       }
       g[c] = plano.props[c]; depois[c] = plano.props[c];
       if (plano.preenchidos.indexOf(c) >= 0) preenchidos.push(c);
     }
+    if (semVend.length) obs.push(it.esp.rotulo + ": a qualificação do proprietário não foi gravada — faltam na base as colunas " + semVend.join(", "));
     obsPor[grupo] = obsPor[grupo].concat(obs);
     grupos[grupo] = true;
     if (plano.loteamento) extra.loteamento = plano.loteamento;
@@ -562,6 +612,72 @@ function anexarDocumento_(col, p) {
   catch (e) { console.error("PORTAL-VENDA upload falhou: " + String(e.message || e).slice(0, 120)); return { ok: false, erro: "UPLOAD_FALHOU" }; }
   var pend = mudarPendentes_(p.pageId, function (x) { RegrasVenda.marcarPendente(x, p.espaco, !!p.trocar); });
   return { ok: true, pageId: p.pageId, espaco: p.espaco, pendentes: pend ? RegrasVenda.ordenarEspacos(Object.keys(pend)) : null };
+}
+
+/* 05/11/2026: Ver e Excluir um anexo do dossiê (lista "N arquivos" da linha do documento).
+ * p.n = posição do arquivo na coluna (0 = o primeiro), como veio em arquivosNomes do estado.
+ * Ver só lê (o link do Notion não vai para a tela: o arquivo volta em base64, como o verDocumentoConferencia). */
+function arquivoDoEspaco_(col, p) {
+  var esp = RegrasVenda.espaco(p.espaco);
+  if (!esp) return { erro: "ESPACO_DESCONHECIDO" };
+  if (esp.grupo === "imovel" && col.imovelErro) return { erro: col.imovelErro };
+  if (!col.mapa[esp.coluna]) return { erro: "COLUNA_FALTANDO: " + esp.coluna };
+  var a = lerPagina_(col, p.pageId), lista = a[esp.coluna] || [];
+  if (!lista.length) return { erro: "SEM_ARQUIVO" };
+  var n = Number(p.n);
+  if (!(n >= 0 && n < lista.length && Math.floor(n) === n)) return { erro: "ARQUIVO_MUDOU" };
+  return { esp: esp, a: a, lista: lista, n: n };
+}
+function verArquivoEspaco_(col, p) {
+  var x = arquivoDoEspaco_(col, p);
+  if (x.erro) return { ok: false, erro: x.erro };
+  if (p.nome !== undefined && p.nome !== null && String(p.nome) !== String(x.lista[x.n].name || "")) return { ok: false, erro: "ARQUIVO_MUDOU" };
+  var b = null;
+  try { b = baixarArquivo_(x.lista[x.n]); } catch (e) { b = null; }
+  if (!b) return { ok: false, erro: "ARQUIVO_NAO_LEGIVEL" };
+  return { ok: true, nome: String(x.lista[x.n].name || "arquivo"), mime: b.mime, base64: b.base64, n: x.n, total: x.lista.length };
+}
+/* Tira só o arquivo n da coluna do espaço (a API do Notion troca a lista inteira: os outros são reenviados como
+ * {type:"file"}). p.nome tem de bater com o nome do arquivo n — se a lista mudou (outra pessoa anexou ou excluiu),
+ * ARQUIVO_MUDOU e nada é apagado. Espaço vazio depois: sai dos "novos para ler" e o dossiê conferido (ou lido)
+ * volta a ser conferido — a FALTA DOCUMENTO se faltar um obrigatório, senão LIDO PELA IA – CONFERIR.
+ * Os dados que a IA já leu desse documento ficam (decisão do dono). Uma escrita só no Notion. */
+function excluirArquivoEspaco_(col, sess, p) {
+  var R = RegrasVenda, x = arquivoDoEspaco_(col, p);
+  if (x.erro) return { ok: false, erro: x.erro };
+  var alvo = x.lista[x.n];
+  if (!String(p.nome || "") || String(p.nome) !== String(alvo.name || "")) return { ok: false, erro: "ARQUIVO_MUDOU" };
+  var resto = x.lista.filter(function (_, i) { return i !== x.n; });
+  var props = {};
+  props[col.mapa[x.esp.coluna]] = { files: resto.map(R.manterArquivo) };
+  var grupo = x.esp.grupo === "imovel" ? "imovel" : "comprador", D = colunasDossie_(grupo), depois = {}, g = {};
+  for (var k in x.a) depois[k] = x.a[k];
+  depois[x.esp.coluna] = resto;
+  var est = null, atual = String(x.a[D.estado] || "");
+  if (!resto.length && (atual === R.ESTADOS.CONFERIDO || atual === R.ESTADOS.LIDO)) {
+    est = grupo === "imovel" ? R.estadoImovelAposLeitura(R.contarArquivos(depois, R.ESPACOS_IMOVEL))
+                             : R.estadoAposLeitura(R.contarArquivos(depois), R.temDoisCompradores(depois));
+    if (est.estado !== atual) g[D.estado] = est.estado;
+  }
+  g[D.obs] = R.juntarObservacoes(x.a[D.obs], [x.esp.rotulo + ": arquivo " + String(alvo.name || "") + " excluído pelo portal" +
+    (g[D.estado] ? " — dossiê voltou a " + g[D.estado] : "")], hoje_("dd/MM"), sess.u);
+  for (var canon in g) {
+    var real = col.mapa[canon], tipo = col.schema[real].tipo, v = g[canon];
+    if (tipo === "select") v = R.resolverOpcao(col.schema[real].opcoes, v);
+    props[real] = propNotion_(tipo, v);
+  }
+  try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); }
+  catch (e) {
+    if (/^NOTION_OCUPADO/.test(String(e.message || e))) throw e;
+    console.error("PORTAL-VENDA exclusão de arquivo falhou: " + String(e.message || e).slice(0, 120));
+    return { ok: false, erro: "GRAVACAO_FALHOU" };
+  }
+  var pend = null;
+  if (!resto.length) pend = mudarPendentes_(p.pageId, function (o) { delete o[p.espaco]; });
+  var r = { ok: true, pageId: p.pageId, espaco: p.espaco, total: resto.length, grupo: grupo };
+  if (g[D.estado]) r.dossie = g[D.estado];
+  if (pend) r.pendentes = R.ordenarEspacos(Object.keys(pend));
+  return r;
 }
 
 /* "Ler documentos": lê numa chamada todos os espaços anexados e ainda não lidos (os dois grupos).

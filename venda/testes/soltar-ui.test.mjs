@@ -26,7 +26,7 @@ test("anexar sem ler: cada espaço tem Anexar/Trocar/Ler de novo e marca o que �
   const h = D.html(base, ui());
   assert.match(h, /data-acao="anexar" data-espaco="C1_IDENTIDADE"/);
   assert.doesNotMatch(h, /data-acao="enviar"/, "o Enviar e ler saiu da tela");
-  assert.match(h, /identidade \(CNH ou RG\) <small>1 arquivo<\/small> <small class="dz-novo">novo, não lido/);
+  assert.match(h, /identidade \(CNH ou RG\) <small class="dz-st-txt dz-novo">1 arquivo · novo, não lido/);   /* 04/11: situação numa etiqueta só */
   assert.equal((h.match(/data-acao="ler-todos"/g) || []).length, 2, "no topo e no fim do imóvel");
   assert.match(botao(h, "ler-todos"), /data-onde="topo"/);
   assert.match(h, />Ler documentos \(2 novos\)</);
@@ -79,16 +79,17 @@ test("soltar todos: área com o botão; travada sem tipo de casa e no perfil TES
 test("soltar todos: pergunta quem é quem (pré-selecionado pela venda) e não confirma com escolha faltando", () => {
   const s = envio();
   const pessoas = D.pessoasDoEnvio(s);
-  assert.deepEqual(pessoas.map((p) => [p.nome, p.escolha]), [["ANA TESTE", "C1"], ["BRUNO TESTE", "C2"], ["MARIA PARENTE", ""]]);
+  assert.deepEqual(pessoas.map((p) => [p.nome, p.escolha]), [["ANA TESTE", "C1"], ["BRUNO TESTE", "C2"], ["Comprovante de endereço (luz.pdf)", "C1"]]);
   const h = D.htmlSoltar(base, ui({ soltar: s }));
-  assert.match(h, /Encontrei documentos de: ANA TESTE, BRUNO TESTE, MARIA PARENTE/);
+  assert.match(h, /Encontrei documentos de: ANA TESTE, BRUNO TESTE, Comprovante de endereço \(luz\.pdf\)/);
   assert.match(h, /<select data-pessoa="kA"><option value="">— escolha —<\/option><option value="C1" selected>Comprador 1/);
   assert.match(h, /alvara\.pdf → alvará → guardado em Alvará/);
   assert.match(h, /<select data-arquivo="s5">/);
   assert.match(h, /Não é comprador/);
-  assert.match(D.conferirEscolhas(s), /MARIA PARENTE/);
+  /* 05/11 (dono): comprovante vale pelo endereço, não pelo nome — já vem como Comprador 1 */
+  assert.doesNotMatch(D.conferirEscolhas(s), /MARIA PARENTE/);
   assert.match(botao(h, "soltar-confirmar"), /disabled/);
-  s.pessoas.kM = "C1";            // comprovante da mãe da Ana: vale como comprovante do comprador 1
+  s.pessoas["comp:s3"] = "C1";            // comprovante da mãe da Ana: vale como comprovante do comprador 1
   assert.match(D.conferirEscolhas(s), /foto\.jpg/);
   s.arquivos[4].escolha = "IGNORAR";
   assert.equal(D.conferirEscolhas(s), "");

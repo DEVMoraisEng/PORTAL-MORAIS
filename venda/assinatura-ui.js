@@ -301,9 +301,10 @@
 
   /* 30/10: antes de enviar o CONTRATO, a tela lê o PDF gerado (ação assinaturaPdf) e acha onde o comprador
    * rubrica (RubricasVenda + pdf.js). Devolve { ok, rubricas? } ou { ok: false, erro }. Sem PDF na resposta
-   * (casa de rua, rubricas desligadas, erro, servidor antigo) volta { ok: true } sem nada: o envio segue e quem
+   * (rubricas desligadas, erro, servidor antigo) volta { ok: true } sem nada: o envio segue e quem
    * decide é o servidor, que exige as rubricas no contrato do condomínio. Só barra aqui o que só a tela sabe:
-   * leitor de PDF que não abriu ou PDF sem os campos. deps.rubricas: troca o leitor (testes). */
+   * leitor de PDF que não abriu ou PDF sem os campos (05/11: na casa de rua — r.rua — PDF sem campo não barra).
+   * deps.rubricas: troca o leitor (testes). */
   async function prepararRubricas(deps) {
     var r;
     try { r = await deps.chamar({ action: "assinaturaPdf", pageId: deps.pageId }); }
@@ -313,7 +314,8 @@
     if (!R) return { ok: false, erro: "RUBRICAS_SEM_LEITOR" };
     try { pags = await R.paginasDoPdf(r.base64); ach = R.acharNoContrato(pags, r.ajuste); }
     catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
-    if (!ach.campos.length) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
+    /* 05/11/2026 (casa de rua, r.rua): sem campo de ciência não barra — vai a leitura com o aviso e o servidor aceita */
+    if (!ach.campos.length && r.rua !== true) return { ok: false, erro: "RUBRICAS_NAO_ACHADAS" };
     var pdfs = [{ doc: "contrato", base64: r.base64 }];   /* 01/11 (dono): a prévia desenha as marcas nestes PDFs */
     /* 01/11 (plano 23 B): linhas de assinatura do contrato e dos termos (o servidor casa cada uma com a pessoa) */
     var rubricas = { nome: r.nome, campos: ach.campos, valores: ach.valores };
@@ -404,7 +406,7 @@
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "previa", msg: "" }));
     var rb = await prepararRubricas(deps);
     if (!rb.ok) return copia(c, { ocupado: null, msg: mensagemAssinatura(rb) });
-    if (!rb.rubricas) return copia(c, { ocupado: null, msg: "Este contrato não tem assinatura posicionada (casa de rua ou rubricas desligadas)." });
+    if (!rb.rubricas) return copia(c, { ocupado: null, msg: "Este contrato não tem assinatura posicionada (rubricas desligadas ou PDF não lido)." });
     var r;
     try { r = await deps.chamar({ action: "assinaturaPrevia", pageId: deps.pageId, rubricas: rb.rubricas }); }
     catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }

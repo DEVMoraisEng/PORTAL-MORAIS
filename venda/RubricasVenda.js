@@ -4,6 +4,8 @@
  * saem as posições, em proporção da página (0–1, x da esquerda, y do topo), como pede o requisito "rubricate":
  *  - campos: cada linha "ASSINATURA: ____" (quadros de CIÊNCIA EXPRESSA) → assinatura no começo dos traços;
  *  - valores: um visto na coluna cinza da esquerda do quadro-resumo, na altura do item "4.2.1.".
+ * 05/11/2026 (dono, casa de rua): também o traço sozinho logo abaixo de "CIÊNCIA EXPRESSA" (campo) e, sem 4.2.1, o
+ * "6.1. Valor total" do quadro da rua (visto na coluna da esquerda, na primeira linha livre do título "6. …").
  * O servidor (ClicksignVenda.validarRubricas) confere tudo de novo antes de mandar.
  * Repositório público: nenhum dado real aqui nem nos testes. */
 var RubricasVenda = (function () {
@@ -28,6 +30,11 @@ var RubricasVenda = (function () {
   var MANUSCRITO_ACIMA = 27, VISTO_CAMPO_ACIMA = 25, VISTO_VALORES_ACIMA = 22;
   function topoAcima(l, H, acima) { return (l.y + l.h - (acima === undefined ? MANUSCRITO_ACIMA : acima)) / H; }
   var ITEM_421 = /^\s*4\.2\.1\.?(\s|$)/;
+  /* 05/11/2026 (dono, casa de rua): o quadro-resumo da rua não tem 4.2.1 — os valores ficam no "6.1. Valor total" (coluna
+     da direita; a da esquerda traz o título "6. DO VALOR PAGO…" na mesma altura). Só vale quando não há 4.2.1. */
+  var ITEM_61 = /(^|\s)6\.1\.?\s*Valor\s+total/i;
+  /* ciência da rua: "CIÊNCIA EXPRESSA DO COMPRADOR:" e, logo abaixo, só o traço (sem "ASSINATURA:") */
+  var CIENCIA = /CI[ÊE]NCIA\s+EXPRESSA/i, SO_TRACO = /^\s*_{10,}\s*$/, CIENCIA_VAO = 80;
 
   function limitar(v) { return Math.max(0, Math.min(1, Math.round(v * 10000) / 10000)); }
 
@@ -96,24 +103,66 @@ var RubricasVenda = (function () {
       porPagina.push({ pg: pg, ls: ls });
       pg.itens.forEach(function (i) { if (/\S/.test(i.str)) margem = Math.min(margem, i.x); });
     });
+    var item61 = null;
     porPagina.forEach(function (x) {
       var pg = x.pg, W = pg.largura, H = pg.altura;
-      x.ls.forEach(function (l) {
+      x.ls.forEach(function (l, i) {
         CAMPO.lastIndex = 0;
-        var m;
+        var m, achouCampo = false;
         while ((m = CAMPO.exec(l.texto))) {
           var iTraco = l.texto.indexOf("_", m.index);
+          achouCampo = true;
           campos.push({ page: String(pg.numero), position: [limitar(l.xs[iTraco] / W + aC.dx), limitar(topoAcima(l, H, VISTO_CAMPO_ACIMA) + aC.dy)] });
         }
+        /* 05/11 (casa de rua): traço sozinho logo abaixo de "CIÊNCIA EXPRESSA" também é campo de visto dos compradores */
+        var ic = achouCampo ? -1 : cienciaPorTraco(x.ls, i);
+        if (ic >= 0) campos.push({ page: String(pg.numero), position: [limitar(l.xs[ic] / W + aC.dx), limitar(topoAcima(l, H, VISTO_CAMPO_ACIMA) + aC.dy)] });
         /* o primeiro "4.2.1." que está numa tabela (texto bem à direita da margem): é o quadro-resumo */
         if (!valores && ITEM_421.test(l.texto) && l.x - margem > W * 0.08) {
           valores = { page: String(pg.numero), position: [limitar((margem + 4) / W + aV.dx), limitar(topoAcima(l, H, VISTO_VALORES_ACIMA) + aV.dy)] };
         }
+        /* casa de rua: o primeiro "6.1. Valor total" numa tabela, procurado em cada trecho da linha — o título da coluna da
+           esquerda ("6. DO VALOR PAGO…") vem na mesma altura e o pdf.js junta os dois no texto da linha, sem espaço */
+        if (!item61) trechos(l).forEach(function (t) {
+          var m61 = item61 ? null : ITEM_61.exec(l.texto.slice(t[0], t[1]));
+          if (!m61) return;
+          var p61 = t[0] + m61.index + m61[1].length;
+          if (l.xs[p61] - margem > W * 0.08) item61 = { x: x, i: i, x0: l.xs[p61] };
+        });
       });
     });
+    var semLugar61 = false;
+    if (!valores && item61) {
+      var lv = linhaLivreAEsquerda(item61.x.ls, item61.i, item61.x0), pg61 = item61.x.pg;
+      if (lv) valores = { page: String(pg61.numero), position: [limitar((margem + 4) / pg61.largura + aV.dx), limitar(topoAcima(lv, pg61.altura, VISTO_VALORES_ACIMA) + aV.dy)] };
+      else semLugar61 = true;
+    }
     if (!campos.length) avisos.push("nenhum campo \"ASSINATURA: ____\" achado no contrato");
-    if (!valores) avisos.push("item 4.2.1 do quadro-resumo não achado");
+    if (!valores) avisos.push(semLugar61 ? "item 6.1 do quadro-resumo sem espaço livre na coluna da esquerda" : "item 4.2.1 do quadro-resumo não achado");
     return { campos: campos, valores: valores, avisos: avisos };
+  }
+  /* 05/11 (casa de rua): índice do começo do traço da linha i quando ela é um campo de ciência sem "ASSINATURA:" — um trecho
+     só de traços e, na linha de texto logo acima (até 80 pt), "CIÊNCIA EXPRESSA". -1 = não é. */
+  function cienciaPorTraco(ls, i) {
+    var l = ls[i], tr = trechos(l), ini = -1;
+    for (var k = 0; k < tr.length && ini < 0; k++) if (SO_TRACO.test(l.texto.slice(tr[k][0], tr[k][1]))) ini = l.texto.indexOf("_", tr[k][0]);
+    if (ini < 0) return -1;
+    for (var j = i - 1; j >= 0; j--) {
+      if (!/\S/.test(ls[j].texto)) continue;
+      return CIENCIA.test(ls[j].texto) && l.y - (ls[j].y + ls[j].h) <= CIENCIA_VAO ? ini : -1;
+    }
+    return -1;
+  }
+  /* 05/11 (casa de rua): a partir da linha do "6.1." (i), a primeira linha cuja coluna da esquerda (antes de x0) está vazia —
+     o título "6. DO VALOR PAGO…" ocupa as primeiras; para no título do item seguinte ("7. …") ou depois de 15 linhas. */
+  function linhaLivreAEsquerda(ls, i, x0) {
+    for (var k = i; k < ls.length && k < i + 15; k++) {
+      var m = ls[k], esq = "";
+      for (var c = 0; c < m.texto.length; c++) if (m.xs[c] < x0 - 6) esq += m.texto[c];
+      if (!/\S/.test(esq)) return m;
+      if (k > i && /^\s*\d+\.\s/.test(esq)) return null;
+    }
+    return null;
   }
 
   /* 01/11/2026 (plano 23 B, dono: "a assinatura ficou embaixo da linha de assinatura, não em cima"): cada linha de
@@ -125,14 +174,15 @@ var RubricasVenda = (function () {
      ou a do quadro-resumo, com os rótulos VENDEDORA e COMPRADOR sozinhos num trecho. Traço solto em outra página não conta. */
   /* 01/11 (plano 23 B, uma linha por pessoa): papel sozinho num trecho — a página logo depois de uma página de
      assinatura que só traz estes rótulos é a continuação do bloco (o quadro-resumo com 11 pessoas vira a página) */
-  var PAPEL_SOZINHO = /^((CREDORA\/)?VENDEDORA?|(DEVEDOR\/)?COMPRADOR|PRÉ-RESERVANTE|CÔNJUGE DO .+|FIADOR [12]|INTERMEDIADOR\/CORRETOR|TESTEMUNHA [12])$/;
+  /* 05/11 (casa de rua): o modelo da rua escreve VENDEDOR (sem o A) e, no bloco antigo, INTERMEDIADOR sozinho */
+  var PAPEL_SOZINHO = /^((CREDORA\/)?VENDEDORA?|(DEVEDOR\/)?COMPRADOR|PRÉ-RESERVANTE|CÔNJUGE DO .+|FIADOR [12]|INTERMEDIADOR(\/CORRETOR)?|TESTEMUNHA [12])$/;
   function paginaDeAssinatura(ls) {
     var r = { titulo: false, vend: false, comp: false, papel: false };
     ls.forEach(function (l) {
       if (/^\s*ASSINATURAS\s*$/i.test(l.texto)) r.titulo = true;
       trechos(l).forEach(function (t) {
         var s = l.texto.slice(t[0], t[1]).trim().toUpperCase();
-        if (/^(CREDORA\/)?VENDEDORA$/.test(s)) r.vend = true;
+        if (/^(CREDORA\/)?VENDEDORA?$/.test(s)) r.vend = true;
         if (/^(DEVEDOR\/)?COMPRADOR$/.test(s)) r.comp = true;
         if (PAPEL_SOZINHO.test(s)) r.papel = true;
       });
@@ -159,6 +209,8 @@ var RubricasVenda = (function () {
       if (!vale[ip]) return;
       var pg = x.pg, ls = x.ls, W = pg.largura, H = pg.altura;
       ls.forEach(function (l, i) {
+        /* 05/11 (casa de rua): o traço sozinho logo abaixo de "CIÊNCIA EXPRESSA" é campo de visto (acharNoContrato), não linha */
+        if (cienciaPorTraco(ls, i) >= 0) return;
         /* cada trecho de traços da linha é uma linha de assinatura. 01/11 (sandbox): dois traços lado a lado (TESTEMUNHA 1 |
            TESTEMUNHA 2) chegam colados no texto da linha — o vão entre eles (trechos) separa as colunas. Traço com texto
            antes ("ASSINATURA: ____") é campo de ciência, não conta */

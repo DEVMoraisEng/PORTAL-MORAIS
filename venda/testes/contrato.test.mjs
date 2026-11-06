@@ -94,7 +94,7 @@ test("comprador 2 incompleto é falta", () => {
   assert.ok(!faltas.includes("Comprador 2: estado civil"));
 });
 
-test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
+test("vendedor PF e intermediária; VENDEDOR na coluna PAGA POR é ignorado (05/11/2026: sempre o comprador)", () => {
   const f = fontes();
   f.vendedor = Object.assign({}, f.vendedor, { tipo: "PF", nome: "INVESTIDOR TESTE", cpfCnpj: "111.444.777-35", nacionalidade: "brasileiro", estadoCivil: "casado", profissao: "empresário", rg: "5555 SSP/GO", representanteNome: "" });
   f.venda.COMISSAO_PAGA_POR = "VENDEDOR";
@@ -102,12 +102,12 @@ test("vendedor PF, comissão paga pelo vendedor e intermediária", () => {
   const d = C.montarDadosContrato(f);
   assert.deepEqual(C.faltasContrato(d), []);
   const m = C.marcadores(d), b = C.blocos(d);
-  assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: true,
+  assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: false,
     TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
-  assert.equal(m.VALOR_IMOVEL, "300.000,00");
-  assert.equal(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
+  assert.equal(d.comissao.pagaPor, "COMPRADOR");
+  assert.notEqual(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
   assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
-  assert.equal(m.COMISSAO_RESPONSAVEL, "INVESTIDOR TESTE");
+  assert.notEqual(m.COMISSAO_RESPONSAVEL, "INVESTIDOR TESTE");
   assert.equal(m.INTERMEDIARIA_VALOR, "250.000,00");
 });
 
@@ -116,7 +116,8 @@ test("faltas agrupadas e legíveis; cadastros ausentes", () => {
   f.venda.SINAL_VALOR = null; f.venda.ENDERECO = "SEM QUADRA";
   const faltas = C.faltasContrato(C.montarDadosContrato(f));
   assert.ok(faltas.includes("Vendedor: cadastro em VENDEDORES – CONTRATO"));
-  assert.ok(faltas.includes("Loteamento: cadastro em LOTEAMENTOS – CONTRATO"));
+  assert.ok(faltas.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler"));   /* 05/11: sem cadastro de loteamento */
+  assert.ok(!faltas.some(x => /LOTEAMENTOS/.test(x)));
   assert.ok(faltas.includes("Corretor: cadastro em CORRETORES – CONTRATO"));
   assert.ok(faltas.includes("Negociação: sinal (valor)"));
   assert.ok(faltas.includes("Imóvel: lote e quadra no endereço"));
@@ -136,13 +137,14 @@ test("alvará é exigido nos dois modelos", () => {
   assert.ok(faltas.includes("Imóvel: alvará (data)"));
 });
 
-test("prazos do loteamento só no modelo PRONTO", () => {
+test("casa de rua: prazos de posse e chaves fixos do modelo (05/11/2026), nunca pedidos", () => {
   const f = fontes(); f.loteamento.prazoPosseDias = ""; f.loteamento.prazoChavesDias = "";
-  const faltas = C.faltasContrato(C.montarDadosContrato(f));
-  assert.ok(faltas.includes("Loteamento: prazo de posse (dias)"));
-  assert.ok(faltas.includes("Loteamento: prazo de entrega das chaves (dias)"));
-  f.obra.obraFinalizada = "NÃO";
-  assert.deepEqual(C.faltasContrato(C.montarDadosContrato(f)), []);
+  const d = C.montarDadosContrato(f);
+  assert.ok(!C.faltasContrato(d).some(x => /prazo/i.test(x)));
+  assert.equal(C.marcadores(d).PRAZO_POSSE_DIAS, "20 (vinte)");
+  assert.equal(C.marcadores(d).PRAZO_CHAVES_DIAS, "02 (dois)");
+  f.loteamento.prazoPosseDias = "30";   /* o que estiver no cadastro do setor não vale mais */
+  assert.equal(C.marcadores(C.montarDadosContrato(f)).PRAZO_POSSE_DIAS, "20 (vinte)");
 });
 
 test("nome do comprador 1 com separadores variados", () => {
@@ -227,11 +229,11 @@ test("valor de aquisição inválido (negativo) vira falta", () => {
   assert.ok(C.faltasContrato(C.montarDadosContrato(g)).includes("Negociação: valor de aquisição inválido"));
 });
 
-test("comissão paga pelo vendedor: a soma não é exigida (na mão não entra no contrato)", () => {
+test("05/11/2026: VENDEDOR na coluna PAGA POR não livra a soma (a comissão é sempre do comprador na casa de rua)", () => {
   const f = fontes();
   f.venda.COMISSAO_PAGA_POR = "VENDEDOR";
   f.venda.VALOR_NA_MAO = 1;
-  assert.ok(!C.faltasContrato(C.montarDadosContrato(f)).some((x) => x.includes("na mão")));
+  assert.ok(C.faltasContrato(C.montarDadosContrato(f)).some((x) => x.includes("na mão")));
 });
 
 test("comprador 1 vindo de CLIENTES: primeira fronteira ' E ', mesmo com E dentro do nome", () => {
@@ -274,4 +276,11 @@ test("RG do comprador é opcional (31/10/2026: identidade nova sem RG) e '0'/'S/
     assert.doesNotMatch(C.qualificacao({ nome: "ANA", documento: doc, cpf: "529.982.247-25" }), /RG|nº 0|S\/N|-,/, doc);
   assert.equal(C.qualificacao({ nome: "ANA", documento: "RG 0", cpf: "529.982.247-25" }), "ANA, CPF nº 529.982.247-25");
   assert.equal(C.qualificacao({ documento: "RG 1023456" }), "RG nº 1023456");
+});
+
+test("casa de rua: comissão do corretor opcional (05/11/2026) — sem valor, forma e quem paga não trava", () => {
+  const f = fontes(); f.venda.COMISSAO = null; f.venda.COMISSAO_FORMA = ""; f.venda.COMISSAO_PAGA_POR = "";
+  f.venda.VALOR_NA_MAO = f.venda.VALOR_CONTRATO;
+  const faltas = C.faltasContrato(C.montarDadosContrato(f));
+  assert.ok(!faltas.some((x) => /comiss/i.test(x)), faltas.join(" | "));
 });

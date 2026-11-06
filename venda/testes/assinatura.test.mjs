@@ -32,6 +32,7 @@ const PROPS = {
 
 function colunasVenda(sem = []) {
   const c = Object.assign({}, COLUNAS_REAIS, {
+    "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": "rich_text", "CONTRATO - MATRÍCULA DO LOTEAMENTO": "rich_text", "CONTRATO - CARTÓRIO DO LOTEAMENTO": "rich_text",
     " VALOR NA MÃO ": "number", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", " COMISSÃO ": "number",
     CORRETOR: { tipo: "select", opcoes: ["Corretor Teste"] }, SETOR: { tipo: "select", opcoes: ["Setor Teste"] },
     "OBRA-AUTO": "relation", CASA: "rich_text", "Email": "email",
@@ -62,9 +63,11 @@ const VENDA = {
   "CONTRATO - FORMA DE PAGAMENTO": sel("PIX"), "CONTRATO - COMISSÃO FORMA": sel("PIX"),
   "CONTRATO - COMISSÃO VENCIMENTO": rt("na assinatura do financiamento"), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR"),
   "DATA DA ENTREGA": dat("2027-06-30"),
+  /* 05/11/2026: loteamento da casa (lido da matrícula pela IA) */
+  "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": rt("Residencial Teste"), "CONTRATO - MATRÍCULA DO LOTEAMENTO": rt("M-100"), "CONTRATO - CARTÓRIO DO LOTEAMENTO": rt("Cartório Teste"),
   "CONTRATO GERADO": GERADO,
 };
-const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO") };
+const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO"), "CIDADE ": rt("Cidade Teste") };
 const VENDEDOR = {
   NOME: tit("Construtora Teste Ltda"), TIPO: sel("PJ"), "CPF/CNPJ": rt("00.000.000/0001-00"), "ENDEREÇO / SEDE": rt("Av. Teste, 100"),
   "REPRESENTANTE NOME": rt("Beltrano Representante"), "REPRESENTANTE CPF": rt("000.000.002-72"), "REPRESENTANTE E-MAIL": rt("beltrano@teste.example"),
@@ -1189,7 +1192,7 @@ test("plano 23 A: contrato ASSINADO — o servidor recusa as ações de gravar d
   const c = assinadoPorTodos();
   for (const a of ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                    "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
-                   "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
+                   "excluirArquivoEspaco" /* 05/11 */, "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
   assert.equal(c.estado().ok, true);
   assert.equal(c.acao("contratoEstado").erro, undefined, "leitura segue");
@@ -1219,7 +1222,7 @@ test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônju
 const MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
 const TRAVADAS_ABERTO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                          "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
-                         "salvarFluxo", "lerCrlv", "corrigirConferencia"];
+                         "salvarFluxo", "lerCrlv", "corrigirConferencia", "excluirArquivoEspaco" /* 05/11 */];
 test("03/11: envelope do contrato ENVIADO — toda ação que muda o contrato responde ENVELOPE_ABERTO com a mensagem; leituras e o envelope seguem", () => {
   const c = cenario();
   assert.equal(c.enviar().ok, true);
@@ -1642,4 +1645,56 @@ test("trocar e-mail: perfil TESTES não pode; envelope não ativo não troca; es
   assert.equal(trocar(c, vend.id, "b@teste.example").erro, "ENVELOPE_NAO_ATIVO");
   assert.equal(c.estado().situacao, "CANCELADO");
   assert.ok(!Object.keys(c.p).some((k) => /^ASSINATURA_(REQS|PAPEIS)_env-1/.test(k)), Object.keys(c.p).join(","));
+});
+
+/* ---- 05/11/2026 (dono): casa de rua também posiciona assinaturas e vistos ("ter todas as assinaturas e vistos necessários") ---- */
+const rubricatesDe = (c) => c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements" &&
+                                                    x.corpo.data.attributes.action === "rubricate").map((x) => x.corpo.data);
+test("05/11 casa de rua: assinaturaPdf entrega o PDF (rua: true, sem termos nem memorial) em vez de semRubricas", () => {
+  const c = cenario({ props: { ASSINATURA_LINHAS: "1", MODELO_MEMORIAL_ID: "modelo-memorial" } });
+  const r = c.acao("assinaturaPdf");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.semRubricas, undefined);
+  assert.equal(r.rua, true);
+  assert.match(r.nome, /\[#[0-9a-f]{8}\]\.pdf$/);
+  assert.equal(Buffer.from(r.base64, "base64").toString("utf8"), PDF_GERADO);
+  assert.equal(r.linhas, true);
+  assert.deepEqual(r.termos, undefined, "termos de confissão são só do condomínio");
+  assert.equal(r.memorial, undefined, "memorial é só do condomínio");
+  assert.ok(!JSON.stringify(r).includes("https://"), "sem link do arquivo");
+  /* ASSINATURA_SEM_RUBRICAS continua desligando tudo */
+  assert.deepEqual(cenario({ props: { ASSINATURA_SEM_RUBRICAS: "SIM" } }).acao("assinaturaPdf"), { ok: true, semRubricas: true });
+});
+
+test("05/11 casa de rua: com a leitura da tela, o comprador visto nas ciências e no 6.1 e cada um assina na sua linha", () => {
+  const c = cenario({ props: { ASSINATURA_LINHAS: "1" } });
+  const nome = c.acao("assinaturaPdf").nome;
+  const rubricas = { nome, campos: [{ page: "2", position: [0.3076, 0.5059] }, { page: "3", position: [0.4, 0.2541] }],
+                     valores: { page: "2", position: [0.1025, 0.1556] },
+                     linhas: [{ page: "9", position: [0.37, 0.05], texto: "Nome: Construtora Teste Ltda\nCNPJ: 00.000.000/0001-00\nRepresentante: Beltrano Representante – CPF: 000.000.002-72\nVENDEDOR" },
+                              { page: "9", position: [0.37, 0.15], texto: "Nome: Fulano de Teste\nCPF: 000.000.001-91\nCOMPRADOR" },
+                              { page: "9", position: [0.37, 0.25], texto: "Nome: Testemunha Um Spe\nCPF: 000.000.005-15\nTESTEMUNHA 1" }] };
+  const r = chamarCom(c, "assinaturaEnviar", { rubricas });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const sig = (email) => c.c.estado.signers.find((s) => s.attributes.email === email).id;
+  const de = (email) => rubricatesDe(c).filter((q) => q.relationships.signer.data.id === sig(email)).map((q) => [q.attributes.kind, q.attributes.positions.length]);
+  assert.deepEqual(de("fulano@teste.example"), [["manuscript", 1], ["initials", 3]]);
+  assert.deepEqual(de("beltrano@teste.example"), [["manuscript", 1]]);
+  assert.deepEqual(de("t1.spe@teste.example"), [["manuscript", 1]]);
+  assert.deepEqual(de("t2.spe@teste.example"), [], "sem linha lida: assina só na página da Clicksign");
+});
+
+test("05/11 casa de rua: sem a leitura envia como antes; leitura sem campo vale; leitura de outro PDF barra", () => {
+  const a = cenario();
+  assert.equal(a.enviar().ok, true);
+  assert.equal(rubricatesDe(a).length, 0);
+  const b = cenario();
+  const nome = b.acao("assinaturaPdf").nome;
+  const r = chamarCom(b, "assinaturaEnviar", { rubricas: { nome, campos: [], valores: { page: "2", position: [0.1, 0.15] }, avisos: ["nenhum campo de ciência"] } });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(rubricatesDe(b).map((q) => [q.attributes.kind, q.attributes.positions]), [["initials", [{ page: "2", position: [0.1, 0.15] }]]]);
+  assert.ok((r.avisos || []).includes("tela: nenhum campo de ciência"), JSON.stringify(r.avisos));
+  const o = cenario();
+  assert.equal(chamarCom(o, "assinaturaEnviar", { rubricas: { nome: "OUTRO [#00000000].pdf", campos: [] } }).erro, "RUBRICAS_DE_OUTRO_PDF");
+  assert.equal(o.c.chamadas.length, 0, "nada na Clicksign");
 });

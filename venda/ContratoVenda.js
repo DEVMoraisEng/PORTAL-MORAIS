@@ -213,6 +213,49 @@ var ContratoVenda = (function () {
     return txt(v);
   }
 
+  /* 05/11/2026 (dono): casa de rua — dados de pagamento da comissão vêm do cadastro do CORRETOR (CORRETORES – CONTRATO),
+     não mais da coluna CONTRATO - COMISSÃO FORMA da venda. Colunas texto do cadastro, todas opcionais. */
+  var CAMPOS_PAGAMENTO_CORRETOR = [
+    { coluna: "CHAVE PIX", rotulo: "Chave PIX", tipo: "texto", chave: "pix" },
+    { coluna: "BANCO", rotulo: "Banco", tipo: "texto", chave: "banco" },
+    { coluna: "AGÊNCIA", rotulo: "Agência", tipo: "texto", chave: "agencia" },
+    { coluna: "CONTA", rotulo: "Conta", tipo: "texto", chave: "conta" },
+    { coluna: "TITULAR DA CONTA", rotulo: "Titular da conta", tipo: "texto", chave: "titular" }
+  ];
+  /* {{COMISSAO_FORMA}} montado dos dados do corretor: "PIX, chave X", "transferência para B, agência A, conta C" ou os dois
+     ("…, ou transferência…"), + ", em nome de <titular ou nome do corretor>". Sem chave nem banco/agência/conta: "". */
+  function formaComissaoCorretor(k) {
+    k = k || {};
+    var pix = txt(k.pix), banco = txt(k.banco), ag = txt(k.agencia), conta = txt(k.conta);
+    var partes = [];
+    if (pix) partes.push("PIX, chave " + pix);
+    if (banco || ag || conta) {
+      var t = banco ? "transferência para " + banco : "transferência";
+      if (ag) t += ", agência " + ag;
+      if (conta) t += ", conta " + conta;
+      partes.push(t);
+    }
+    if (!partes.length) return "";
+    var titular = txt(k.titular) || txt(k.nome);
+    return partes.join(", ou ") + (titular ? ", em nome de " + titular : "");
+  }
+  /* Bloco "Pagamento da comissão" da aba Contrato (casa de rua). linha = { COLUNA: valor } do cadastro do corretor ou null
+     (sem cadastro); colunas = nomes das colunas que a base tem (null = não se sabe). formaAntiga = CONTRATO - COMISSÃO FORMA. */
+  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga) {
+    var nome = txt(nomeCorretor), k = { nome: nome }, faltando = [];
+    var campos = CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
+      var v = linha ? txt(linha[c.coluna]) : "";
+      k[c.chave] = v;
+      var existe = colunas ? colunas.map(function (x) { return R().chave(x); }).indexOf(R().chave(c.coluna)) >= 0 : true;
+      if (!existe) faltando.push(c.coluna);
+      return { coluna: c.coluna, rotulo: c.rotulo, valor: v, existe: existe };
+    });
+    var forma = formaComissaoCorretor(k), legado = false;
+    if (!forma && txt(formaAntiga)) { forma = formaPorExtenso(formaAntiga); legado = true; }
+    return { pagaPor: "COMPRADOR", corretor: nome, temCadastro: !!linha, campos: campos, colunasFaltando: faltando,
+             forma: forma, formaLegada: legado };
+  }
+
   /* ---- condomínio ---- */
   function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
   function so2(n) { return Math.round(n * 100) / 100; }
@@ -755,6 +798,9 @@ var ContratoVenda = (function () {
     return out;
   }
 
+  /* 05/11/2026 (dono): itens 9.8/9.9 do contrato da casa pronta — "posse em até 20 (vinte) dias" e "chaves em até 02 (dois)
+     dias úteis", iguais em todos os contratos assinados; não aparecem na tela nem vêm de cadastro */
+  var PRAZO_POSSE_RUA = "20 (vinte)", PRAZO_CHAVES_RUA = "02 (dois)";
   function montarDadosContrato(f) {
     f = f || {};
     var v = f.venda || {}, o = f.obra || {};
@@ -763,7 +809,9 @@ var ContratoVenda = (function () {
     var cond = f.condominio ? montarCondominio(f.condominio) : null;
     /* condomínio (contrato do advogado, 21/10/2026): a comissão é paga pelo COMPRADOR, por fora do preço
        do imóvel (valor da operação = VALOR DE VENDA + comissão). Antes (07/10) era paga pela incorporadora. */
-    var pagaPor = cond ? "COMPRADOR" : up(v.COMISSAO_PAGA_POR);
+    /* 05/11/2026 (dono): na CASA DE RUA também é SEMPRE o comprador — a coluna CONTRATO - COMISSÃO PAGA POR não manda mais
+       (saiu da tela). O ERP (venda/mc/regras.py) trata a coluna vazia como COMPRADOR; o condomínio no ERP segue VENDEDOR. */
+    var pagaPor = "COMPRADOR";
     var total = cond && cond.fluxo.valorVenda !== null ? cond.fluxo.valorVenda : num(v.VALOR_CONTRATO);
     var comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
     var aquisicao, intermediacao;
@@ -775,8 +823,9 @@ var ContratoVenda = (function () {
       aquisicao = total;
       intermediacao = "paga pelo VENDEDOR";
     } else {
+      /* 05/11/2026: a comissão é opcional na casa de rua — vazia conta como zero (antes dava "valor de aquisição inválido") */
       aquisicao = naMao !== null && naMao > 0 ? naMao
-        : (total !== null && comissao !== null ? total - comissao : null);
+        : (total !== null ? so2(total - (comissao || 0)) : null);
       intermediacao = comissao;
     }
     var vend = f.vendedor || null;
@@ -810,7 +859,9 @@ var ContratoVenda = (function () {
       loteamento: f.loteamento ? {
         denominacao: txt(v.DENOMINACAO_LOTEAMENTO) || txt(f.loteamento.denominacao), municipioUf: txt(f.loteamento.municipioUf),
         matricula: txt(f.loteamento.matricula), cartorio: txt(f.loteamento.cartorio),
-        prazoPosseDias: txt(f.loteamento.prazoPosseDias), prazoChavesDias: txt(f.loteamento.prazoChavesDias)
+        /* 05/11/2026 (dono): casa de rua — prazos fixos do modelo, iguais aos 41 contratos assinados que trazem a cláusula */
+        prazoPosseDias: cond ? txt(f.loteamento.prazoPosseDias) : PRAZO_POSSE_RUA,
+        prazoChavesDias: cond ? txt(f.loteamento.prazoChavesDias) : PRAZO_CHAVES_RUA
       } : null,
       imovel: {
         endereco: txt(v.ENDERECO), lote: lq ? lq.lote : "", quadra: lq ? lq.quadra : "",
@@ -828,7 +879,9 @@ var ContratoVenda = (function () {
         formaPagamento: txt(v.FORMA_PAGAMENTO)
       },
       comissao: {
-        valor: comissao, forma: txt(v.COMISSAO_FORMA), vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
+        /* 05/11/2026: casa de rua — a forma sai do cadastro do corretor (chave PIX / conta); sem dados lá, a coluna antiga */
+        valor: comissao, forma: (!cond && formaComissaoCorretor(f.corretor)) || txt(v.COMISSAO_FORMA),
+        vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
       },
       corretor: f.corretor ? {
         nome: txt(f.corretor.nome), creci: txt(f.corretor.creci), cpfCnpj: txt(f.corretor.cpfCnpj),
@@ -912,16 +965,14 @@ var ContratoVenda = (function () {
        o cadastro em LOTEAMENTOS não é mais exigido */
     var l = d.loteamento;
     if (d.condominio) { /* nada a exigir */ }
-    else if (!l) faltas.push("Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
     else {
-      exige(!vazio(l.denominacao), "Loteamento", "denominação");
-      exige(!vazio(l.municipioUf), "Loteamento", "município/UF");
-      exige(!vazio(l.matricula), "Loteamento", "matrícula do loteamento");
-      exige(!vazio(l.cartorio), "Loteamento", "cartório");
-      if (pronto) {
-        exige(!vazio(l.prazoPosseDias), "Loteamento", "prazo de posse (dias)");
-        exige(!vazio(l.prazoChavesDias), "Loteamento", "prazo de entrega das chaves (dias)");
-      }
+      /* 05/11/2026 (dono): casa de rua — sem cadastro de loteamento; o que falta sai da matrícula da casa (IA) ou da obra */
+      var LER = " — anexe a matrícula da casa e clique em Ler";
+      l = l || {};
+      exige(!vazio(l.denominacao), "Imóvel", "denominação do loteamento" + LER);
+      exige(!vazio(l.matricula), "Imóvel", "matrícula-mãe do loteamento" + LER);
+      exige(!vazio(l.cartorio), "Imóvel", "cartório do loteamento" + LER);
+      exige(!vazio(l.municipioUf), "Imóvel", "município (CIDADE na ficha da obra)");
     }
 
     if (d.condominio) faltasCondominio(d, faltas);
@@ -1078,11 +1129,10 @@ var ContratoVenda = (function () {
       exige(!vazio(n.intermediariaVencimento), "Negociação", "intermediária (vencimento)");
     }
     exige(!vazio(n.formaPagamento), "Negociação", "forma de pagamento");
-    exige(c.valor !== null && c.valor > 0, "Negociação", "comissão (valor)");
-    exige(!vazio(c.forma), "Negociação", "comissão (forma)");
-    /* comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
+    /* 05/11/2026 (dono): comissão do corretor OPCIONAL na casa de rua por enquanto (ele vai acertar com a Juliana).
+       Nos 47 contratos assinados ela sempre existe (R$ 8 a 27 mil), paga pelo comprador, quase sempre fora do preço.
+       comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
        contrato e as letras seguintes sobem (PARAGRAFOS_SE_VAZIO) */
-    exige(c.pagaPor === "COMPRADOR" || c.pagaPor === "VENDEDOR", "Negociação", "comissão paga por");
   }
 
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
@@ -1314,7 +1364,10 @@ var ContratoVenda = (function () {
       { coluna: "NACIONALIDADE", rotulo: "Nacionalidade", tipo: "texto" },
       { coluna: "ENDEREÇO PROFISSIONAL", rotulo: "Endereço profissional", tipo: "texto" },
       { coluna: "E-MAIL", rotulo: "E-mail", tipo: "email" }
-    ],
+    ].concat(CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
+      /* 05/11/2026: pagamento da comissão — opcionais; nunca viram falta (não estão no FALTA_CORRETOR) */
+      return { coluna: c.coluna, rotulo: c.rotulo, tipo: c.tipo };
+    })),
     loteamento: [
       { coluna: "DENOMINAÇÃO", rotulo: "Denominação", tipo: "texto" },
       { coluna: "MUNICÍPIO/UF", rotulo: "Município/UF", tipo: "texto" },
@@ -1393,6 +1446,88 @@ var ContratoVenda = (function () {
       }) });
     });
     return { grupos: grupos, conta: conta, outras: outras };
+  }
+
+  /* ---- 05/11/2026 (dono): o vendedor da casa de rua vem preenchido sozinho ----
+   * "O cadastro do vendedor SEMPRE tem que vir preenchido automático, o único dado manual é os dados bancários."
+   * Campo a campo, vale o primeiro preenchido nesta ordem:
+   *   1. a linha do cadastro (VENDEDORES – CONTRATO; na produção PROPRIETARIOS_PAI);
+   *   2. a qualificação do proprietário ATUAL lida pela IA na matrícula da casa (colunas VENDEDOR - … da VENDAS);
+   *   3. a obra em DOCUMENTOS (PROPRIETARIO DOCUMENTO e CPF/CNPJ);
+   *   4. o cliente da obra no Mais Controle (colunas VENDEDOR MC - …, gravadas pelo robô diário do servidor);
+   *   5. só para PJ sem representante: a Propriedade REPRESENTANTE_PJ_PADRAO (as SPEs têm o mesmo representante).
+   * A matrícula e o MC só entram se forem da MESMA pessoa da obra: CPF/CNPJ igual; sem documento dos dois lados para
+   * comparar, o nome. O banco não sai daqui (vem da conta da obra ou da "Conta de recebimento").
+   * e = { cadastro: {campos do ctrFontes_, nome = título} | null, matricula: {nome, cpfCnpj, nacionalidade, estadoCivil,
+   *       profissao, rg, endereco} | null, obra: {proprietario, cpfCnpj}, mc: {nome, cpfCnpj, endereco, email} | null,
+   *       representantePadrao: {nome, cpf, rg, nacionalidade, estadoCivil, email} | null }
+   * Devolve { vendedor | null (sem nome nem documento em lugar nenhum), origem: {campo: fonte}, descartadas: [fonte],
+   *           completar: {COLUNA do cadastro: valor} } — completar = o que a linha não tem e veio da própria pessoa
+   *           (matrícula, obra, MC); o representante padrão NUNCA vai para o cadastro (a Propriedade continua valendo). */
+  var CAMPOS_VENDEDOR = ["nome", "cpfCnpj", "endereco", "nacionalidade", "estadoCivil", "profissao", "rg",
+    "representanteNome", "representanteCpf", "representanteRg", "representanteNacionalidade", "representanteEstadoCivil",
+    "banco", "agencia", "operacao", "conta", "pix", "email", "representanteEmail"];
+  var COLUNA_DO_VENDEDOR = { cpfCnpj: "CPF/CNPJ", endereco: "ENDEREÇO / SEDE", nacionalidade: "NACIONALIDADE",
+    estadoCivil: "ESTADO CIVIL", profissao: "PROFISSÃO", rg: "RG", email: "E-MAIL" };
+  function digitos(v) { return txt(v).replace(/\D/g, ""); }
+  function mesmoNome(a, b) {
+    if (vazio(a) || vazio(b)) return false;
+    return semAcentoTxt(a) === semAcentoTxt(b) || R().mesmaPessoa(a, b);
+  }
+  function semAcentoTxt(v) { return up(v).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " "); }
+  function tipoPeloDoc(doc) { var n = digitos(doc).length; return n === 14 ? "PJ" : n === 11 ? "PF" : ""; }
+  /* JSON da Propriedade REPRESENTANTE_PJ_PADRAO -> {nome, cpf, rg, nacionalidade, estadoCivil, email} ou null */
+  function representantePadrao(json) {
+    var o = null;
+    try { o = JSON.parse(txt(json) || "null"); } catch (e) { o = null; }
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    var r = { nome: txt(o.nome), cpf: txt(o.cpf), rg: txt(o.rg), nacionalidade: txt(o.nacionalidade),
+              estadoCivil: txt(o.estadoCivil || o.estado_civil), email: txt(o.email) };
+    return r.nome ? r : null;
+  }
+  function comporVendedor(e) {
+    e = e || {};
+    var cad = e.cadastro || null, obra = e.obra || {}, origem = {}, descartadas = [], completar = {};
+    var idDoc = digitos((cad && cad.cpfCnpj) || obra.cpfCnpj), idNome = txt((cad && cad.nome) || obra.proprietario);
+    function daPessoa(f) {
+      if (!f) return false;
+      var d = digitos(f.cpfCnpj);
+      if (idDoc && d) return d === idDoc;
+      if (idNome && !vazio(f.nome)) return mesmoNome(f.nome, idNome);
+      return !idDoc && !idNome;                                     /* nada para comparar: a única fonte que há */
+    }
+    var mat = e.matricula && (txt(e.matricula.nome) || txt(e.matricula.cpfCnpj)) ? e.matricula : null;
+    var mc = e.mc && (txt(e.mc.nome) || txt(e.mc.cpfCnpj)) ? e.mc : null;
+    if (mat && !daPessoa(mat)) { descartadas.push("matricula"); mat = null; }
+    if (mc && !daPessoa(mc)) { descartadas.push("mc"); mc = null; }
+    var fontes = [["cadastro", cad], ["matricula", mat], ["documentos", { nome: obra.proprietario, cpfCnpj: obra.cpfCnpj }], ["mc", mc]];
+    var v = {};
+    CAMPOS_VENDEDOR.forEach(function (campo) {
+      v[campo] = "";
+      for (var i = 0; i < fontes.length; i++) {
+        var f = fontes[i][1];
+        if (f && !vazio(f[campo])) { v[campo] = txt(f[campo]); origem[campo] = fontes[i][0]; break; }
+      }
+    });
+    if (!v.nome && !v.cpfCnpj) return { vendedor: null, origem: {}, descartadas: descartadas, completar: {} };
+    v.tipo = up(cad && cad.tipo) || tipoPeloDoc(v.cpfCnpj);
+    var rp = e.representantePadrao;
+    if (v.tipo === "PJ" && rp && rp.nome) {
+      /* o padrão só completa o representante que falta — ou o MESMO representante (pelo nome) com campo vazio */
+      if (vazio(v.representanteNome) || mesmoNome(v.representanteNome, rp.nome)) {
+        if (vazio(v.representanteNome)) origem.representanteNome = "padrao";
+        v.representanteNome = v.representanteNome || rp.nome; v.representanteCpf = v.representanteCpf || rp.cpf;
+        v.representanteRg = v.representanteRg || rp.rg;
+        v.representanteNacionalidade = v.representanteNacionalidade || rp.nacionalidade;
+        v.representanteEstadoCivil = v.representanteEstadoCivil || rp.estadoCivil;
+        v.representanteEmail = v.representanteEmail || rp.email;
+      }
+    }
+    Object.keys(COLUNA_DO_VENDEDOR).forEach(function (campo) {
+      if (v[campo] && origem[campo] && origem[campo] !== "cadastro") completar[COLUNA_DO_VENDEDOR[campo]] = v[campo];
+    });
+    if (v.tipo && !(cad && up(cad.tipo))) completar.TIPO = v.tipo;
+    return { vendedor: v, origem: origem, descartadas: descartadas, completar: completar };
   }
 
   function cnpjValido(v) {
@@ -1516,6 +1651,9 @@ var ContratoVenda = (function () {
   var api = {
     PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
+    comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
+    CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
+    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,

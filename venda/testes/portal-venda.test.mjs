@@ -24,7 +24,7 @@ const CNH = { tipo_documento: "CNH", nome: "ANA TESTE", cpf: "52998224725", nume
 
 test("ping responde sem token", () => {
   const { g } = montar();
-  assert.deepEqual(g.chamar({ action: "ping" }), { ok: true, versao: "venda-v24", papel: "VENDA" });
+  assert.deepEqual(g.chamar({ action: "ping" }), { ok: true, versao: "venda-v29", papel: "VENDA" });
 });
 
 test("token inválido, sem VENDAS, e TESTES tentando gravar", () => {
@@ -226,9 +226,7 @@ test("com todos os documentos, marca LIDO PELA IA e anota observações com data
   const r = g.chamar({ action: "lerDocumento", token: tokenDe(), pageId: PAGE, espaco: "C1_COMPROVANTE",
                        arquivo: { nome: "conta.pdf", mime: "application/pdf", base64: JPG } });
   assert.equal(r.dossie, "LIDO PELA IA – CONFERIR");
-  assert.equal(r.observacoes.length, 1);
-  const obs = n.pagina.properties["DOSSIÊ - OBSERVAÇÃO DO COMPRADOR"].rich_text[0].text.content;
-  assert.match(obs, /ana\.teste\] Comprovante do comprador 1: o comprovante está em nome de outra pessoa/);
+  assert.equal(r.observacoes.length, 0, "05/11 (dono): comprovante vale pelo endereço, titular não é conferido");
 });
 
 test("download falha depois do upload: LEITURA_FALHOU, arquivo fica, DOSSIÊ inalterado", () => {

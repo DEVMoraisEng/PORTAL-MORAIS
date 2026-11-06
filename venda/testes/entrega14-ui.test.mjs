@@ -72,9 +72,10 @@ test("conta digitada: caixa 'Operação (opcional)' entre agência e conta; só 
 test("painel da casa: colunas técnicas ocultas (com acento/caixa/espaço diferentes); o resto aparece", () => {
   for (const n of ["ASSINATURA - ENVELOPE ID", "assinatura - situacao", "CONDOMÍNIO - VENDA ID", "MC - DISTRATO", "MC - SITUAÇÃO ",
                    "MC - VENDA ID", "DOSSIÊ IMÓVEL - OBSERVAÇÃO", "CONTRATO GERADO", "CONTRATO ASSINADO", "CONTRATO - COMISSÃO VENCIMENTO",
+                   /* 05/11/2026: viraram o bloco Pagamento da comissão */ "CONTRATO - COMISSÃO FORMA", "contrato - comissao paga por",
                    "RECEBIMENTO - SINAL COMPROVANTE", "RECEBIMENTO - FINANCIAMENTO POR"])
     assert.equal(P.ocultoNoPainel(n), true, n);
-  for (const n of ["CONTRATO - COMISSÃO FORMA", "DOSSIÊ IMÓVEL", "COMPRADOR 1 - DOCUMENTO", "RECEBEU?", "CONTRATO - SINAL VALOR"])
+  for (const n of ["COMISSÃO", "COMPRADOR 1 - DOCUMENTO", "RECEBEU?", "CONTRATO - SINAL VALOR"])
     assert.equal(P.ocultoNoPainel(n), false, n);
 });
 
@@ -86,10 +87,10 @@ test("painel da casa: comprador 1, comprador 2, pagamento/comissão e imóvel na
   assert.deepEqual(P.ordenar(embaralhado), [
     "COMPRADOR 1 - DOCUMENTO", "COMPRADOR 1 - NACIONALIDADE", "COMPRADOR 1 - ESTADO CIVIL", "COMPRADOR 1 - E-MAIL",
     "COMPRADOR 2 - NOME", "COMPRADOR 2 - CPF", "COMPRADOR 2 - ENDEREÇO",
-    "CONTRATO - SINAL VALOR", "CONTRATO - SINAL DATA", "CONTRATO - ENTRADA VALOR", "CONTRATO - FORMA DE PAGAMENTO", "CONTRATO - COMISSÃO PAGA POR",
+    "CONTRATO - SINAL VALOR", "CONTRATO - SINAL DATA", "CONTRATO - ENTRADA VALOR", "CONTRATO - FORMA DE PAGAMENTO",
     "CONTRATO - MATRÍCULA INDIVIDUAL", "CONTRATO - ALVARÁ Nº", "CONTRATO - ALVARÁ DATA", "CONTRATO - HABITE-SE DATA",
     "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO", "CONTRATO - CONDIÇÕES ESPECIAIS",
-    "AVALIAÇÃO", "TIPO"]);
+    "AVALIAÇÃO", "CONTRATO - COMISSÃO PAGA POR", "TIPO"]);   /* 05/11/2026: fora dos grupos (e oculta no painel) */
   assert.equal(P.grupoDoCampo("comprador 2 - profissao"), "Comprador 2");
   assert.equal(P.grupoDoCampo("CONTRATO - CRI DA MATRÍCULA"), "Contrato — imóvel");
   assert.equal(P.grupoDoCampo("AVALIAÇÃO"), "");
@@ -102,7 +103,7 @@ test("vendas.html: carrega painel-casa.js antes do venda-dossie.js, esconde no p
   assert.ok(iP > 0 && iD > iP);
   assert.match(vendas, /if\(ondeEstou==="painel" && ocultoNoPainelCasa\(nome\)\) return true;/);
   assert.match(vendas, /window\.PainelCasa\.ordenar\(ord\)/);
-  assert.match(vendas, /const grupo=grupoNoPainelCasa\(nome\)\|\|"Preenchimento";/);
+  assert.match(vendas, /const g=grupoNoPainelCasa\(n\)\|\|padrao;/);   /* 04/11: painel em abas — título por grupo dentro da aba */
   assert.match(vendas, /window\.addEventListener\("venda:dados-gravados", ev=>\{/);
   const rec = vendas.slice(vendas.indexOf("async function recarregarCamposCasa(pageId){"), vendas.indexOf("function cabecalhoObra(V){"));
   assert.match(rec, /ler\(\{action:"obra",pageId:pageId\}\)/, "busca a casa sem chave de cache");

@@ -101,6 +101,29 @@ def test_fila_teste_nunca_pode_gravar(tmp_path, monkeypatch):
     assert R.Fila(dict(cfg, nome="producao")).pode_gravar is False, "sem o arquivo do dono, não grava"
 
 
+def test_fila_teste_grava_so_com_a_chave_explicita_separada(tmp_path, monkeypatch):
+    """05/11/2026: _central\\TESTE_PODE_GRAVAR.txt deixa a fila "teste" gravar — e só junto das outras duas chaves
+    ("pode_gravar": true da fila e VENDA_APLICAR.txt). Não muda nada na produção."""
+    tok = tmp_path / "t.txt"
+    tok.write_text("tok", encoding="utf-8")
+    monkeypatch.setattr(R, "APLICAR", tmp_path / "VENDA_APLICAR.txt")
+    monkeypatch.setattr(R, "TESTE_PODE_GRAVAR", tmp_path / "TESTE_PODE_GRAVAR.txt")
+    cfg = {"db_fila": "f" * 32, "notion_token_arquivo": str(tok), "pode_gravar": True}
+    (tmp_path / "VENDA_APLICAR.txt").write_text("", encoding="utf-8")
+    assert R.Fila(dict(cfg, nome="teste")).pode_gravar is False, "sem a chave do teste, nada muda"
+    (tmp_path / "TESTE_PODE_GRAVAR.txt").write_text("", encoding="utf-8")
+    assert R.Fila(dict(cfg, nome="teste")).pode_gravar is True
+    assert R.Fila(dict(cfg, nome="teste", pode_gravar=False)).pode_gravar is False, "a fila ainda precisa pode_gravar"
+    (tmp_path / "VENDA_APLICAR.txt").unlink()
+    assert R.Fila(dict(cfg, nome="teste")).pode_gravar is False, "nunca sozinha: sem VENDA_APLICAR não grava"
+    (tmp_path / "VENDA_APLICAR.txt").write_text("", encoding="utf-8")
+    assert R.Fila(dict(cfg, nome="producao")).pode_gravar is True
+    (tmp_path / "TESTE_PODE_GRAVAR.txt").unlink()
+    assert R.Fila(dict(cfg, nome="producao")).pode_gravar is True, "a produção não depende da chave do teste"
+    # o "Rodar de novo" continua recusado na fila de teste, com ou sem a chave
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Contas"}, "teste")[0] is None
+
+
 # ---- 30/10/2026: robôs que rodavam no GitHub, agora no servidor pela aba do porteiro ----
 def _cfg_robos(tmp_path, monkeypatch, **extra):
     tok = tmp_path / "notion.txt"
@@ -318,3 +341,45 @@ def test_atualizar_codigo_so_com_clone_limpo_e_sem_robo(tmp_path, monkeypatch):
     R.marcar_rodando("anexos", None)
     (tmp_path / "pull.txt").unlink()
     assert R.atualizar_codigo(rodar=lambda cmd, **k: Res(" M x.py") if cmd[1] == "status" else Res()) == "clone sujo"
+
+
+# ---- 05/11/2026: recebimentos da casa de rua (venda/mc/recebimentos.py) ----
+def test_mc_recebimento_trava_propria_e_marcar_erro_sem_retratos():
+    assert R.argumentos("mc-recebimento", {"pageId": PG, "aplicar": True}, True) == \
+        (["-m", "venda.mc.recebimentos", "--page", PG, "--aplicar"], {})
+    assert R.argumentos("mc-recebimento", {"pageId": PG, "aplicar": True}, False)[0][-1] == "--bloqueado"
+    assert R.argumentos("mc-recebimento", {"pageId": PG}, True) == (["-m", "venda.mc.recebimentos", "--page", PG], {})
+    assert R.argumentos("mc-recebimento", {"pageId": "x; rm -rf", "aplicar": True}, True) is None
+    argv = R.argumentos("mc-recebimento", {"pageId": PG, "aplicar": True}, True)[0]
+    assert R.marcar_erro_argv(argv)[-2] == "--marcar-erro"
+    assert R.apos_gravar(argv) is None
+
+
+def test_recebimento_grava_so_com_a_chave_da_fila_e_o_arquivo_do_dono_mesmo_na_fila_teste(tmp_path, monkeypatch):
+    tok = tmp_path / "t.txt"
+    tok.write_text("tok", encoding="utf-8")
+    monkeypatch.setattr(R, "APLICAR", tmp_path / "VENDA_APLICAR.txt")
+    monkeypatch.setattr(R, "APLICAR_RECEBIMENTO", tmp_path / "RECEBIMENTO_APLICAR.txt")
+    cfg = {"db_fila": "f" * 32, "notion_token_arquivo": str(tok), "pode_gravar": True}
+    assert R.Fila(dict(cfg, nome="teste", pode_gravar_recebimento=True)).pode_gravar_recebimento is False, "sem o arquivo"
+    (tmp_path / "RECEBIMENTO_APLICAR.txt").write_text("", encoding="utf-8")
+    f = R.Fila(dict(cfg, nome="teste", pode_gravar_recebimento=True))
+    assert f.pode_gravar_recebimento is True and f.pode_gravar is False, "a fila teste continua sem gravar venda"
+    assert R.Fila(dict(cfg, nome="producao")).pode_gravar_recebimento is False, "sem a chave na fila"
+
+
+def test_atender_recebimento_usa_a_trava_dos_recebimentos(tmp_path, monkeypatch):
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+    chamadas = []
+
+    class Res:
+        returncode, stdout, stderr = 0, '{"situacao": "OK"}\n', ""
+
+    monkeypatch.setattr(R.subprocess, "run", lambda argv, **k: chamadas.append(argv) or Res())
+    f = fila([], nome="teste")
+    f.pode_gravar, f.pode_gravar_recebimento = False, True
+    monkeypatch.setattr(f, "marcar", lambda *a, **k: None)
+    ln = linha("PENDENTE", tipo="mc-recebimento")
+    ln["properties"]["PAYLOAD"]["rich_text"][0]["plain_text"] = json.dumps({"pageId": PG, "aplicar": True})
+    assert f.atender(ln) == "FEITO"
+    assert chamadas[0][1:] == ["-m", "venda.mc.recebimentos", "--page", PG, "--aplicar"] and len(chamadas) == 1
