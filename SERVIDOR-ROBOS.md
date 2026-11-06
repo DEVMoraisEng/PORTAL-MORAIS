@@ -450,10 +450,14 @@ Comando (à mão, na pasta do clone):
 ```powershell
 python servidor\robo_fila.py --robo boletos
 ```
-Por baixo ele roda `robo_mc_boletos.py --emitir`. Para só ver a lista, sem tarefa nem fila: `python robo_mc_boletos.py --previa`.
+Por baixo ele roda `robo_mc_boletos.py --emitir`, e só emite com o interruptor do item 3 e só no mês de hoje.
+**Prévia (só ver a lista):** rode o mesmo comando enquanto `_central\BOLETOS_APLICAR.txt` NÃO existe; o robô então só
+monta o relatório, esperando a vez no Mais Controle como os outros. Não rode `robo_mc_boletos.py` direto.
 
 ## 1. (servidor) Atualizar o clone e testar
-Como na seção dos robôs que rodavam no GitHub: `git pull` no clone e `py -3.14 -m pytest tests venda/mc/testes -q`.
+Como na seção dos robôs que rodavam no GitHub: `git pull` no clone e `python -m pytest -q tests venda/mc/testes`.
+No servidor (Windows) a suíte já mostra 7 falhas antigas que não são dos boletos (1 em `tests/test_robo_fila.py`, 6 em
+`tests/test_robo_mc_obras.py`); "7 failed" com o resto passando está certo.
 Não precisa de chave nova em `robos-portal.json`; o porteiro (Chrome logado no Mais Controle) é o mesmo dos outros robôs.
 
 ## 2. (servidor, com o ok do dono) Tarefa agendada — dias úteis às 10:00
@@ -466,7 +470,9 @@ schtasks /Query /TN "MoraisEng - Boletos do mes" /V /FO LIST | findstr /i "Last 
 O Escritório dos Robôs mostra a mesa "Boletos do mes" como as outras (pelo relatório de rodada), e o botão "Rodar de novo"
 (ADM e MASTER) dispara a mesma tarefa fora do horário, por exemplo depois de corrigir um cadastro. Se a rodada agendada e a
 manual coincidirem, a segunda espera a primeira (`robo-mc-vez.trava`) e, ao rodar, relê as parcelas: as que já têm boleto
-são puladas.
+são puladas. Boleto que ficou SEM_CONFIRMACAO numa rodada não é pedido de novo nas rodadas seguintes do mês: o robô o
+segura em "decidir" ("emissão sem confirmação em <data>: conferir no Mais Controle antes de emitir"). Confira no Mais
+Controle; se o boleto não existir mesmo, emita pela tela.
 
 ## 3. Ligar e desligar a emissão (o dono)
 - **Ligar:** criar o arquivo `_central\BOLETOS_APLICAR.txt` (vazio). Pelo Bloco de Notas, salvar com o tipo
@@ -484,14 +490,19 @@ python servidor\robo_fila.py --robo boletos
 Remove-Item Env:BOLETOS_SO
 ```
   Conferir no relatório e no Mais Controle (boleto "Em processamento" e depois "Boleto emitido") antes de deixar a tarefa rodar solta.
-- Códigos de saída: 0 tudo certo · 1 houve recusado ou sem confirmação · 2 trava (saldo, teto ou índice) · 3 ERP fora.
+- Códigos de saída: 0 tudo certo · 1 houve recusado ou sem confirmação · 2 trava (saldo, teto, interruptor desligado no
+  meio ou mês que não é o de hoje) · 3 ERP fora. Na saída do robô vem, antes das contagens, `trava: <motivo>` quando uma
+  trava parou a emissão e `índice faltando: <lista>` quando faltou índice (sem nome nem valor).
 
 ## 5. Regras (resumo)
 - Só o CONDOMÍNIO RESERVA DOS IPÊS e só o mês vigente (o INCC do mês só está corrigido para ele).
-- Emite: sinal de 30/60/90 dias, entrada, pré-chaves, pós-chaves e balões.
+- Emite: sinal de 30/60/90 dias, entrada, pré-chaves, pós-chaves e balões (intermediárias).
+- Chaves → decidir (parcela de chaves: confirmar com o dono).
 - Nunca emite: ato (1º sinal, sempre por Pix), financiamento, FGTS e permuta. Tipo desconhecido vai para "decidir".
 - Novembro/2026: o boleto só sai a partir de 5 dias corridos antes do vencimento. De dezembro/2026 em diante, o mês inteiro.
 - Parcela do mês já vencida e sem boleto não emite: vai para "decidir".
-- Antes de emitir qualquer um, confere as tabelas INCC-M e IPCA do mês e se o saldo de créditos cobre a lista toda.
-  Se faltar, não emite nada e o Escritório mostra o aviso.
+- Confere as tabelas INCC-M e IPCA do mês. Se faltar índice, só pré-chaves, pós-chaves e balões vão para "decidir"
+  (o motivo diz qual índice falta); sinal e entrada saem normalmente e o código continua 0. Ver o relatório.
+- Antes de emitir qualquer um, confere se o saldo de créditos cobre a lista toda. Se não cobrir, não emite nada
+  (código 2, `trava: saldo ...`); o motivo completo fica no relatório.
 - Teto de 40 boletos por rodada; acima disso não emite nada e pede para olhar.

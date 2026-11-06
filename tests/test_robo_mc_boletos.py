@@ -243,3 +243,69 @@ def test_nome_do_relatorio_nao_sobrescreve_outro(tmp_path, monkeypatch):
     for _ in range(2):
         roda(ErpDeMentira(vendas=[venda_com_uma_entrada_do_mes()]), tmp_path, emitir=False)
     assert len(list(tmp_path.glob("*.json"))) == 2 and len(list(tmp_path.glob("*.html"))) == 2
+
+
+def _novo_relatorio(tmp_path, antes):
+    return json.loads([p for p in tmp_path.glob("*.json") if p.name not in antes][0].read_text(encoding="utf-8"))
+
+
+def test_trava_e_indice_faltando_aparecem_no_stdout_sem_dado_pessoal(tmp_path, capsys, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    v = venda(description="VENDA UNIDADE 1 - FULANO TESTE")
+    parcela(v, R.TIPO_SINAL, "2026-10-31", received=True)
+    parcela(v, R.TIPO_SINAL, "2026-11-08", valor=1234.56)
+    parcela(v, R.TIPO_SINAL, "2026-11-09", valor=1234.56)
+    parcela(v, R.TIPO_PARCELA, "2026-11-09", valor=1234.56, tabela="INCC-M")
+    erp = ErpDeMentira(vendas=[v], indices_ok=False, saldo=1)
+    assert roda(erp, tmp_path) == 2 and erp.posts == 0
+    linhas = capsys.readouterr().out.strip().splitlines()
+    assert linhas[-1].startswith("boletos: ")
+    assert "trava: saldo de 1 créditos não cobre 2 boletos" in linhas
+    assert "índice faltando: INCC-M 2026-09, IPCA + 1% a.m. 2026-09" in linhas
+    texto = "\n".join(linhas)
+    assert "FULANO" not in texto and "1234" not in texto and "1.234" not in texto
+
+
+def test_emitir_fora_do_mes_vigente_vira_previa_com_trava(tmp_path, capsys, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    v = venda(description="VENDA UNIDADE 1 - FULANO TESTE")
+    parcela(v, R.TIPO_SINAL, "2026-10-31", received=True)
+    parcela(v, R.TIPO_ENTRADA, "2026-12-08")
+    erp = ErpDeMentira(vendas=[v])
+    assert RB.rodar(erp, "2026-12", True, None, tmp_path, hoje="2026-11-06", esperar=lambda s: None) == 2
+    assert erp.posts == 0
+    rel = relatorio(tmp_path)
+    assert rel["modo"] == "previa" and rel["trava"] == "emissão só no mês vigente"
+    assert "trava: emissão só no mês vigente" in capsys.readouterr().out.splitlines()
+
+
+def test_sem_confirmacao_em_rodada_anterior_nao_pede_de_novo(tmp_path, capsys, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira(vendas=[venda_com_duas_entradas_do_mes()])
+    x, y = erp.parcelas()
+    venda_id = list(erp.vendas)[0]
+    (tmp_path / "2026-11-05_100000.json").write_text(json.dumps({
+        "modo": "emissao", "mes": "2026-11", "hoje": "2026-11-05", "linhas": [], "trava": None,
+        "resultados": [{"situacao": "SEM_CONFIRMACAO", "status": "", "motivo": "", "venda": venda_id, "parcela": x},
+                       {"situacao": "EMITIDO", "status": "DRAFT", "motivo": "", "venda": venda_id, "parcela": "outra"}]}),
+        encoding="utf-8")
+    (tmp_path / "2026-10-30_100000.json").write_text(json.dumps({   # outro mês: não conta
+        "mes": "2026-10", "hoje": "2026-10-30", "resultados": [{"situacao": "SEM_CONFIRMACAO", "parcela": y}]}),
+        encoding="utf-8")
+    (tmp_path / "2026-11-05_110000.json").write_text("{quebrado", encoding="utf-8")
+    antes = {p.name for p in tmp_path.glob("*.json")}
+    postados = []
+    antigo = erp.pedir_core
+
+    def espia(metodo, caminho, corpo=None, params=None):
+        if metodo == "POST":
+            postados.append(caminho.split("/")[3])
+        return antigo(metodo, caminho, corpo, params)
+    erp.pedir_core = espia
+    assert roda(erp, tmp_path) == 0
+    assert postados == [y]
+    linhas = {l["parcela"]: l for l in _novo_relatorio(tmp_path, antes)["linhas"]}
+    assert linhas[x]["acao"] == "decidir"
+    assert linhas[x]["motivo"] == ("emissão sem confirmação em 2026-11-05: conferir no Mais Controle antes de emitir")
+    err = capsys.readouterr().err
+    assert err.count("relatório anterior ilegível") == 1 and "2026-11-05_110000.json" in err

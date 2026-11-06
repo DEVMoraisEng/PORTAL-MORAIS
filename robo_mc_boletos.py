@@ -7,12 +7,18 @@ Lista as parcelas do mês vigente, decide emitir / aguardar / decidir / pular (v
 SÓ com o arquivo _central\\BOLETOS_APLICAR.txt (interruptor do dono), emite os boletos um a um.
 Grava AAAA-MM-DD_HHMM.json e .html em _central\\boletos (fora do repositório; o relatório leva nome e valor).
 
-  python robo_mc_boletos.py --previa     só monta o relatório
-  python robo_mc_boletos.py --emitir     emite o que estiver "emitir" (sem o arquivo vira prévia)
+No servidor rode pela fila (passa pela vez no Mais Controle): python servidor\\robo_fila.py --robo boletos
+(chama este script com --emitir; sem o arquivo do interruptor vira prévia).
+  --previa     só monta o relatório
+  --emitir     emite o que estiver "emitir" (sem o arquivo vira prévia; só no mês de hoje)
 
+Sem o índice do mês (INCC-M/IPCA), só pré-chaves, pós-chaves e balão vão para "decidir" (motivo com o
+índice que falta); sinal e entrada continuam saindo e isso não muda o código de saída.
+Parcela que ficou SEM_CONFIRMACAO num relatório anterior do mesmo mês e continua sem boleto vai para
+"decidir": nunca um 2º pedido sem alguém conferir no Mais Controle.
 Variáveis: MC_CENTRAL (pasta central), BOLETOS_SO (ids de parcela separados por vírgula: só essas).
-Saída: 0 tudo certo · 1 houve RECUSADO ou SEM_CONFIRMACAO · 2 trava (saldo, teto, índice) · 3 ERP fora.
-O stdout só leva contagens.
+Saída: 0 tudo certo · 1 houve RECUSADO ou SEM_CONFIRMACAO · 2 trava (saldo, teto, interruptor, mês) · 3 ERP fora.
+O stdout só leva contagens e, antes delas, "trava: <motivo>" e "índice faltando: <lista>" (sem dado pessoal).
 """
 import argparse
 import datetime as dt
@@ -42,16 +48,46 @@ def _montar_linhas(erp, mes, hoje):
     return linhas
 
 
-def _aplicar_indices(erp, mes, linhas):
-    """Sem o índice do mês, pré, pós e balão não emitem (sinal e entrada seguem)."""
+def _aplicar_indices(erp, mes, linhas) -> list[str]:
+    """Sem o índice do mês, pré, pós e balão não emitem (sinal e entrada seguem). Devolve o que falta."""
     if not any(l["acao"] == "emitir" and l["tipo"] in SEM_INDICE for l in linhas):
-        return
+        return []
     falta = B.indices_faltando(B.ler_tabelas(erp), mes)
     if not falta:
-        return
+        return []
     for l in linhas:
         if l["acao"] == "emitir" and l["tipo"] in SEM_INDICE:
             l.update(acao="decidir", motivo="índice do mês ainda não lançado: " + ", ".join(falta))
+    return falta
+
+
+def _sem_confirmacao_antes(pasta, mes) -> dict:
+    """{parcela: data do relatório} das parcelas que ficaram SEM_CONFIRMACAO em relatório anterior do mês."""
+    vistas = {}
+    try:
+        arquivos = sorted(Path(pasta).glob("*.json"))
+    except OSError:
+        return vistas
+    for arq in arquivos:
+        try:
+            rel = json.loads(arq.read_text(encoding="utf-8"))
+            if rel.get("mes") != mes:
+                continue
+            for r in rel.get("resultados") or []:
+                if r.get("situacao") == "SEM_CONFIRMACAO" and r.get("parcela"):
+                    vistas[r["parcela"]] = str(rel.get("hoje") or arq.stem[:10])
+        except Exception:
+            print("boletos: relatório anterior ilegível, pulado (%s)" % arq.name, file=sys.stderr)
+    return vistas
+
+
+def _segurar_sem_confirmacao(pasta, mes, linhas):
+    """Um pedido sem confirmação pode ter nascido depois: não pede de novo, manda conferir."""
+    antes = _sem_confirmacao_antes(pasta, mes)
+    for l in linhas:
+        if l["acao"] == "emitir" and l["parcela"] in antes:
+            l.update(acao="decidir", motivo="emissão sem confirmação em %s: conferir no Mais Controle antes de emitir"
+                     % antes[l["parcela"]])
 
 
 def _contagem(linhas, resultados):
@@ -112,8 +148,11 @@ def _gravar(pasta, nome, rel):
 def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje: str | None = None,
           esperar=time.sleep) -> int:
     hoje = hoje or dt.date.today().isoformat()
-    modo = "emissao" if emitir and APLICAR.exists() else "previa"
-    linhas, resultados, trava, fora = [], [], None, False
+    fora_do_mes = emitir and mes != hoje[:7]
+    modo = "emissao" if emitir and APLICAR.exists() and not fora_do_mes else "previa"
+    linhas, resultados, trava, fora, falta = [], [], None, False, []
+    if fora_do_mes:
+        trava = "emissão só no mês vigente"
     nome = _nome_unico(pasta, hoje)
 
     def salvar():
@@ -125,7 +164,8 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
             print("boletos: não consegui gravar o relatório (%s)" % type(ex).__name__, file=sys.stderr)
     try:
         linhas = _montar_linhas(erp, mes, hoje)
-        _aplicar_indices(erp, mes, linhas)
+        falta = _aplicar_indices(erp, mes, linhas)
+        _segurar_sem_confirmacao(pasta, mes, linhas)
     except Exception as ex:
         fora, trava = True, "ERP fora ao montar a lista: " + (str(ex) or type(ex).__name__)[:200]
     alvo = [l for l in linhas if l["acao"] == "emitir" and (aprovadas is None or l["parcela"] in aprovadas)]
@@ -156,6 +196,10 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
         c["emitidos"], c["aguardar"], c["decidir"], c["pular"])
     if c["recusados"] or c["sem_confirmacao"]:
         fim += ", %d recusados, %d sem confirmação" % (c["recusados"], c["sem_confirmacao"])
+    if trava and not fora:   # saldo, teto, interruptor ou mês: rótulo sem dado pessoal
+        print("trava: " + trava)
+    if falta:
+        print("índice faltando: " + ", ".join(falta))
     print(fim)
     if fora:
         return 3

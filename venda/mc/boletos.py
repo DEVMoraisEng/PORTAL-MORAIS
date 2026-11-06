@@ -6,6 +6,7 @@ import re
 import time
 
 from . import distrato as D
+from . import regras as R
 from . import retrato as RT
 from .erp import ErpErro
 
@@ -58,6 +59,9 @@ def selecionar(venda: dict, mes: str, hoje: str | None = None) -> list[dict]:
             linha.update(acao="pular", motivo="ato (sempre por Pix, nunca boleto)")
         elif tipo not in EMITE:
             linha.update(acao="pular" if tipo == "terceiros" else "decidir", motivo="tipo %s não emite" % tipo)
+        elif ((p.get("readjustmentDetail") or {}).get("type") or {}).get("id") == R.TIPO_CHAVES:
+            # retrato._tipo chama chaves de "balao" (serve à antecipação); aqui o dono ainda não confirmou
+            linha.update(acao="decidir", motivo="parcela de chaves: confirmar com o dono")
         elif any(s in BLOQUEIA for s in st):
             linha.update(acao="pular", motivo="já tem boleto (%s)" % ",".join(st))
         elif st:

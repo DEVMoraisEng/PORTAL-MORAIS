@@ -83,6 +83,16 @@ def test_cadastro_incompleto_decide():
     e = parcela(v, R.TIPO_ENTRADA, "2026-11-10")
     assert acao(B.selecionar(v, "2026-11", hoje="2026-11-01"), e["id"]) == "decidir"
 
+def test_parcela_de_chaves_vai_para_decidir_e_intermediaria_emite():
+    v = venda(); v["tradeReceivable"]["installments"] = []
+    parcela(v, R.TIPO_SINAL, "2026-10-01", received=True)
+    ch = parcela(v, R.TIPO_CHAVES, "2026-11-10")
+    bi = parcela(v, R.TIPO_INTERMEDIARIA, "2026-11-10")
+    l = {x["parcela"]: x for x in B.selecionar(v, "2026-11", hoje="2026-11-06")}
+    assert l[ch["id"]]["acao"] == "decidir" and l[ch["id"]]["motivo"] == "parcela de chaves: confirmar com o dono"
+    assert l[ch["id"]]["tipo"] == "balao"          # o retrato continua chamando de balão
+    assert l[bi["id"]]["acao"] == "emitir"
+
 def test_outra_obra_nao_entra():
     v = venda(work={"name": "OUTRA OBRA"})
     assert B.selecionar(v, "2026-11", hoje="2026-11-01") == []
