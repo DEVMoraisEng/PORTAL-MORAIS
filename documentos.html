@@ -1080,7 +1080,7 @@ th.th-ord .seta{font-size:10px;opacity:.9}
 
 <script src="app.js?v=46"></script>
 <script src="alertas-docs.js?v=1"></script>
-<script src="painel-abas.js?v=1"></script>
+<script src="painel-abas.js?v=2"></script>
 <script>
 /* claro/escuro — mesma chave (morais_tema) das outras páginas do portal. */
 const TEMA_KEY="morais_tema";
@@ -2252,7 +2252,7 @@ function abasDocumentos(){
   const regra=ABAS_DOCUMENTOS.slice(1,5).concat([ABAS_DOCUMENTOS[0],ABAS_DOCUMENTOS[5]]);   // resumo = o que sobra
   const body=document.getElementById("pn-body");
   /* anexos vão para a aba Anexos pelo tipo (files), não pelo nome */
-  PainelAbas.aplicar(body,{chave:"documentos",item:OBRA_ABERTA,padrao:"resumo",ordem:ABAS_DOCUMENTOS.map(a=>a[0]),abas:regra,
+  PainelAbas.aplicar(body,{chave:"documentos",item:OBRA_ABERTA,lado:"22px",gap:"0px",padrao:"resumo",ordem:ABAS_DOCUMENTOS.map(a=>a[0]),abas:regra,
     aba:c=>c.classList.contains("campo-arq")?"anexos":null});
 }
 async function enviarArquivo(pageId,prop,input){

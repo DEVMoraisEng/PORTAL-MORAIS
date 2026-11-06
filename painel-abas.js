@@ -26,7 +26,7 @@
     if (document.getElementById("pa-css")) return;
     var st = document.createElement("style"); st.id = "pa-css";
     st.textContent =
-      ".pa-barra{position:sticky;top:0;z-index:5;margin:-4px -2px 12px;padding:8px 2px 10px;background:var(--sup,var(--bg2,#fff));border-bottom:1px solid var(--border2,rgba(0,0,0,.08))}" +
+      ".pa-barra{position:sticky;top:0;z-index:5;margin:0 0 12px;padding:8px 10px 10px;background:var(--sup,var(--bg2,#fff));border-bottom:1px solid var(--border2,rgba(0,0,0,.08))}" +
       ".pa-tabs{display:flex;flex-wrap:wrap;justify-content:center;gap:4px;padding:4px;border:2px solid var(--verde-btn,#4CD964);border-radius:12px;background:rgba(76,217,100,.06)}" +
       ".pa-tab{padding:7px 12px;font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text3,#5a7080);" +
       "cursor:pointer;border-radius:8px;border:2px solid transparent;background:none;transition:all .15s;white-space:nowrap}" +
@@ -34,6 +34,13 @@
       ".pa-tab.on{background:var(--verde-btn,#4CD964);color:#1a3347;border-color:var(--verde-btn,#4CD964);box-shadow:0 3px 10px rgba(76,217,100,.35)}" +
       ".pa-tab .n{font-weight:700;opacity:.65;margin-left:3px}" +
       ".pa-sec[hidden]{display:none!important}" +
+      /* como o painel da casa de Vendas: título da parte com a linha verde e as caixas em 2 colunas
+         (1 coluna quando o painel é estreito); texto longo ocupa a linha toda */
+      ":where(.pa-tit){font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--verde-txt,var(--verde,#2e9e57))}" +
+      ".pa-tit{margin:4px var(--pa-lado,0px) 12px;padding:0 0 8px;border-bottom:2px solid var(--verde-btn,#4CD964)}" +
+      ".pa-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(max(230px,calc(50% - 20px)),1fr));column-gap:var(--pa-gap,16px);align-items:end}" +
+      ".pa-grade>.campo{min-width:0}" +
+      ".pa-grade>.campo:has(textarea),.pa-grade>.campo:has(.msgrid),.pa-grade>.campo:has(.hist),.pa-grade>.campo:has(table),.pa-grade>.campo.largo{grid-column:1/-1}" +
       "@media (max-width:600px){.pa-tab{padding:7px 8px;font-size:11.5px;letter-spacing:.03em}}";
     document.head.appendChild(st);
   }
@@ -63,7 +70,11 @@
       tabs.appendChild(b);
       var s = document.createElement("div"); s.className = "pa-sec"; s.setAttribute("data-pa", g.id);
       if (g.id !== atual) s.hidden = true;
-      g.els.forEach(function (e) { s.appendChild(e); });
+      if (g.grade) {
+        var t = document.createElement("div"); t.className = "ptit pa-tit"; t.textContent = g.titulo; s.appendChild(t);
+        var gr = document.createElement("div"); gr.className = "pa-grade"; s.appendChild(gr);
+        g.els.forEach(function (e) { gr.appendChild(e); });
+      } else g.els.forEach(function (e) { s.appendChild(e); });
       secs.push(s);
     });
     tabs.addEventListener("click", function (ev) {
@@ -82,6 +93,8 @@
     if (!corpo || !op) return false;
     if (corpo.querySelector(":scope>.pa-barra")) return false;
     var chave = op.chave || "painel", item = op.item == null ? "" : String(op.item);
+    if (op.lado) corpo.style.setProperty("--pa-lado", op.lado);      // a página já recua as caixas (ex.: Documentos 22 px)
+    if (op.gap != null) corpo.style.setProperty("--pa-gap", op.gap);
     try {
       if (op.secoes) {
         var sel = op.secoes.seletor, filhos = Array.prototype.slice.call(corpo.children);
@@ -93,7 +106,7 @@
         });
         return montar(corpo, chave, gs, ref0, item);
       }
-      var abas = (op.abas || []).map(function (a) { return { id: a[0], titulo: a[1], re: a[2], els: [] }; });
+      var abas = (op.abas || []).map(function (a) { return { id: a[0], titulo: a[1], re: a[2], els: [], grade: op.grade !== false }; });
       var padrao = abas.filter(function (a) { return a.id === op.padrao; })[0] || abas[abas.length - 1];
       var campos = Array.prototype.slice.call(corpo.querySelectorAll(".campo"));
       var ultima = null;
