@@ -866,6 +866,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="painel-abas.js?v=1"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
  * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
@@ -3880,6 +3881,11 @@ function renderPainelChamado(){
             esc(rotuloRetorno(nivel+1))+'</b>.</div></div>';
   }
   body.innerHTML = html;
+  /* 06/11/26 — painel do serviço em ABAS, igual ao painel da casa da Gestão de Vendas, com a
+     lógica do Pós Obra: o serviço (dados e o 1º atendimento) e uma aba por remarcação.
+     painel-abas.js só muda os blocos de lugar; nada muda no salvar. */
+  try{ if(window.PainelAbas) PainelAbas.aplicar(body,{chave:"pos-obra",item:CHAMADO&&CHAMADO.id,secoes:{seletor:".grupo-rm",primeira:"Serviço",
+    titulo:el=>{ const g=el.querySelector(".gt"); const t=g&&g.firstChild&&g.firstChild.nodeType===3?g.firstChild.textContent:(g?g.textContent:""); return String(t||"").trim(); }}}); }catch(e){}
 }
 
 /* MELHORIAS item 7 — chamado finalizado fica congelado.
