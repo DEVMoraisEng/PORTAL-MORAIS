@@ -538,6 +538,9 @@ ROBOS = {
     # 05/11: documentos do Orçamento (matrícula, certidão mãe, alvará, habite-se) -> dossiê do imóvel das casas de rua
     # com venda. Só lê o ERP; grava no Notion só com ROBOS_APLICAR.txt. Precisa de "vars": {"DB_VENDAS": ...}.
     "documentos": ["robo_mc_documentos.py"],
+    # 06/11: boletos do mês do Reserva dos Ipês pela Cobrança Fácil (venda/mc/boletos.py).
+    # Dias úteis 10:00; já emite, mas só com _central\BOLETOS_APLICAR.txt (o dono cria). Sem ele, só a lista.
+    "boletos": [["robo_mc_boletos.py", "--emitir"]],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"
@@ -615,9 +618,11 @@ def robo_antigo(nome: str) -> int:
         log("[%s] sem a chave \"robos\" em %s" % (nome, CONFIG.name))
         return 2
     env, pior = env_robos(cfg), 0
-    for script in ROBOS[nome]:
+    for item in ROBOS[nome]:
+        script = item if isinstance(item, str) else item[0]       # 06/11: item = texto ou [script, argumento...]
+        argv = [sys.executable] + ([item] if isinstance(item, str) else list(item))
         try:
-            r = subprocess.run([sys.executable, script], cwd=RAIZ, env=env, capture_output=True, text=True,
+            r = subprocess.run(argv, cwd=RAIZ, env=env, capture_output=True, text=True,
                                encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_ANTIGO_S)
             codigo, fim = r.returncode, ((r.stdout or "").strip().splitlines() or [""])[-1]
             if codigo:
