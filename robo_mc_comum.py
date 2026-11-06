@@ -122,14 +122,35 @@ APP_MC = "https://acessar.maiscontroleerp.com.br"
 class _AbaDoPorteiro:
     """O que abrir() devolve no lugar do navegador: close() fecha SÓ a aba do robô (o Chrome do porteiro fica)."""
 
-    def __init__(self, page):
+    def __init__(self, page, registro=None):
         self._page = page
+        self._registro = registro     # 06/11/26: arquivo que diz à faxina do porteiro de quem é a aba
 
     def close(self):
         try:
             self._page.close()
         except Exception:
             pass
+        _desregistrar_aba(self._registro)
+        self._registro = None
+
+
+def _registrar_aba(page, porta):
+    # 06/11/26 — robô morto (prazo da fila, "Finalizar tarefa") deixava a aba no Chrome central para
+    # sempre; anotada, a faxina do porteiro a fecha. Falhar aqui nunca impede o robô.
+    try:
+        from venda.mc import registro_aba
+        return registro_aba.registrar(page, porta)
+    except Exception:
+        return None
+
+
+def _desregistrar_aba(arq):
+    try:
+        from venda.mc import registro_aba
+        registro_aba.desregistrar(arq)
+    except Exception:
+        pass
 
 
 def _ligar_registro(page):
@@ -160,9 +181,10 @@ def abrir_no_porteiro(p, porta=None):
                          % (porta, type(e).__name__))
     ctx = nav.contexts[0] if nav.contexts else nav.new_context()
     page = ctx.new_page()
+    registro = _registrar_aba(page, porta)
     page.set_default_timeout(20000)
     _ligar_registro(page)
-    return _AbaDoPorteiro(page), page
+    return _AbaDoPorteiro(page, registro), page
 
 
 def login_no_porteiro(page):
