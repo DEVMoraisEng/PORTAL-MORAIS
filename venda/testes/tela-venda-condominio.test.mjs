@@ -285,7 +285,7 @@ const cenarioPR = (o = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS",
 
 test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na coluna própria", () => {
   const c = cenarioPR();
-  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", historico: "", temConjuge: false, incluirConjuge: false });
+  assert.deepEqual(c.acao("preReservaEstado"), { ok: true, conta: "", contaCampos: { forma: "", livre: "" }, gerado: false, nome: "", valor: 3000, dataPagamento: "2026-10-24", dataLimite: "2026-10-31", dataLimiteDigitada: "", historico: "", temConjuge: false, incluirConjuge: false });
   /* 01/11 (dono): a conta é opcional — o termo sai com ela em branco */
   const sem = c.acao("gerarTermoPreReserva");
   assert.equal(sem.ok, true, JSON.stringify(sem));
@@ -2026,4 +2026,32 @@ test("03/11: botão Anexar contrato / Enviar ZIP (mcAnexar) — exige venda; ZIP
   assert.equal(zipDe(z).length, 1);
   assert.equal(z.pendente(), undefined);
   assert.match(z.txt("MC - SITUAÇÃO"), /Contratos \(ZIP\): guardado no Notion \(1 documentos\), pedido ao robô em /);
+});
+
+/* 06/11/2026 (dono): a DATA LIMITE é digitada (pergunta do Reservar) e vale no termo e no prazo da reserva */
+test("06/11: data limite — grava na coluna, entra no histórico e no termo; sem a coluna só a gravação avisa", () => {
+  const sem = cenarioPR();
+  assert.equal(sem.acao("preReservaEstado").dataLimiteDigitada, "", "coluna ainda não criada: lê sem ela");
+  assert.equal(sem.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26" }).ok, true, "chamada antiga continua");
+  const semCol = sem.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26", limite: "2099-12-31" });
+  assert.equal(semCol.ok, false);
+  assert.match(String(semCol.erro || semCol.mensagem), /COLUNA_FALTANDO/);
+
+  const c = cenarioPR({ linha: { "PRÉ-RESERVA - DATA LIMITE": { date: null } } });
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26", limite: "2026-01-02" }).erro, "PR_LIMITE_PASSADA");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26", limite: "amanhã" }).erro, "PR_LIMITE_INVALIDA");
+  const r = c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26", limite: "2099-12-31" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.dataLimite, "2099-12-31");
+  assert.equal(r.dataLimiteDigitada, "2099-12-31");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA LIMITE"].date.start, "2099-12-31");
+  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /data limite — → 31\/12\/2099$/);
+  const e = c.acao("preReservaEstado");
+  assert.equal(e.dataLimite, "2099-12-31"); assert.equal(e.dataLimiteDigitada, "2099-12-31");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "2026-10-26", limite: "" }).erro, "PR_LIMITE_INVALIDA", "gravada não apaga");
+  assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2600, data: "2026-10-26" }).ok, true, "sem o campo não mexe na data limite");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA LIMITE"].date.start, "2099-12-31");
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
+  assert.match(pars[1], /até 31\/12\/2099 por/);
 });
