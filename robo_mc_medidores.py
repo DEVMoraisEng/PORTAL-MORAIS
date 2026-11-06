@@ -7,8 +7,9 @@ Quantos MEDIDORES cada obra (centro de custo) já comprou no Mais Controle — a
 COMPRADO" da aba Ligações (ligacoes.html), que lê dist/medidores_mc.json (contrato abaixo, não mudar).
 
     Medidor de ENERGIA = insumo cuja descrição começa com "PADRÃO DE ENERGIA" (659, 658, 1510…)
-    Medidor de ÁGUA    = insumo cuja descrição começa com "HIDROMETRO" (656). NÃO contam "CAIXA DE HIDROMETRO"
-                         (654/655) nem "KIT CAVALETE P/ HIDROMETRO" (657): não começam com HIDROMETRO.
+    Medidor de ÁGUA    = insumo cuja descrição começa com "HIDROMETRO" (656) ou, em Goiânia (SANEAGO), o 654
+                         "CAIXA DE HIDROMETRO - Padrão SANEAGO" (06/11). NÃO contam as outras "CAIXA DE HIDROMETRO"
+                         (655) nem "KIT CAVALETE P/ HIDROMETRO" (657).
     "Comprado" = quantidade em SOLICITAÇÃO DE COMPRA já ATENDIDA ou em ORDEM DE COMPRA para o centro de custo da
                  obra, somando todas (a obra pode comprar uma casa agora e a outra depois). Cancelada não conta.
                  A mesma compra na solicitação atendida e na OC dela conta UMA vez (vale a OC).
@@ -92,6 +93,10 @@ def tipo_do_insumo(desc) -> str | None:
     if d.startswith("PADRAO DE ENERGIA"):
         return "energia"
     if d.startswith("HIDROMETRO"):
+        return "agua"
+    # 06/11 (dono): em Goiânia a SANEAGO não compra HIDROMETRO — o medidor de água é o 654 "CAIXA DE HIDROMETRO -
+    # Padrão SANEAGO". Ele conta como água; as outras caixas (655) e o KIT CAVALETE (657) continuam fora.
+    if d.startswith("CAIXA DE HIDROMETRO") and "SANEAGO" in d:
         return "agua"
     return None
 

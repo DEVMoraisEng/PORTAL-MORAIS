@@ -77,3 +77,12 @@ def test_guarda_a_solicitacao_para_o_link_do_mc():
     o = rm.somar(rm.compras_da_solicitacao(sol))["TB 21 QD 50 LT 34"]
     assert o["agua"]["solicitacoes"] == [{"id": "6486e261-b336-4263-99e5-a27de4efb5ca", "n": 8192}]
     assert o["energia"]["solicitacoes"][0]["n"] == 8192
+
+
+def test_caixa_de_hidrometro_saneago_conta_como_agua():
+    assert rm.tipo_do_insumo("CAIXA DE HIDROMETRO - Padrão SANEAGO") == "agua"
+    assert rm.tipo_do_insumo("CAIXA DE HIDROMETRO - padrao saneago") == "agua"
+    assert rm.tipo_do_insumo("CAIXA DE HIDROMETRO") is None
+    assert rm.tipo_do_insumo("KIT CAVALETE P/ HIDROMETRO") is None
+    o = rm.somar([("XX 01 QD 01 LT 01", "654", "CAIXA DE HIDROMETRO - Padrão SANEAGO", 2)])["XX 01 QD 01 LT 01"]
+    assert o["agua"]["comprado"] == 2 and o["agua"]["insumos"] == ["654 - CAIXA DE HIDROMETRO - Padrão SANEAGO"]
