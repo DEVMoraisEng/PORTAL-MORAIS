@@ -98,3 +98,30 @@ def travas(linhas: list[dict], saldo: int, teto: int = TETO) -> str | None:
     if n > saldo:
         return "saldo de %d créditos não cobre %d boletos" % (saldo, n)
     return None
+
+def vendas_do_mes(erp, mes: str) -> list[str]:
+    """Ids das vendas do condomínio com parcela vencendo no mês (lista de recebimentos da API legada)."""
+    a, m = int(mes[:4]), int(mes[5:7])
+    fim = "%s-%02d" % (mes, calendar.monthrange(a, m)[1])
+    ids, pg = set(), 0
+    while True:
+        c = erp.pedir("GET", "/receipt-installments", params={
+            "startDate": mes + "-01", "endDate": fim, "dateField": "PLANNED", "type": "ALL",
+            "page": str(pg), "size": "500"}) or {}
+        for x in c.get("content") or []:
+            if (x.get("workName") or "").strip() == RT.OBRA and x.get("saleId"):
+                ids.add(x["saleId"])
+        if c.get("last") or not c.get("content"):
+            return sorted(ids)
+        pg += 1
+
+def ler_venda(erp, venda_id: str) -> dict:
+    return erp.pedir("GET", "/sales/%s" % venda_id) or {}
+
+def ler_tabelas(erp) -> list[dict]:
+    todas = erp.pedir("GET", "/readjustment-tables/all") or []
+    return [erp.pedir("GET", "/readjustment-tables/%s" % t["id"]) or {} for t in todas
+            if (t.get("name") or "").strip().upper() in {n.upper() for n in TABELAS}]
+
+def ler_saldo(erp) -> int:
+    return int((erp.pedir_core("GET", "/billings/balances") or {}).get("balance") or 0)

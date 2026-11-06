@@ -97,3 +97,17 @@ def test_travas_saldo_e_teto():
     assert B.travas(linhas, saldo=2) == "saldo de 2 créditos não cobre 3 boletos"
     assert B.travas([{"acao": "emitir"}] * 41, saldo=100) == "41 boletos passam do teto de 40 por rodada"
     assert B.travas(linhas, saldo=100) is None
+
+def test_vendas_do_mes_pagina_e_filtra_a_obra():
+    class Falso:
+        def __init__(s): s.urls = []
+        def pedir(s, metodo, caminho, corpo=None, params=None):
+            s.urls.append((caminho, dict(params)))
+            pg = int(params["page"])
+            itens = [{"saleId": "v1", "workName": "CONDOMÍNIO RESERVA DOS IPÊS"},
+                     {"saleId": "v2", "workName": "OUTRA"}] if pg == 0 else [{"saleId": "v1", "workName": "CONDOMÍNIO RESERVA DOS IPÊS"}]
+            return {"content": itens, "last": pg == 1}
+    f = Falso()
+    assert B.vendas_do_mes(f, "2026-11") == ["v1"]
+    assert f.urls[0][1]["startDate"] == "2026-11-01" and f.urls[0][1]["endDate"] == "2026-11-30"
+    assert len(f.urls) == 2
