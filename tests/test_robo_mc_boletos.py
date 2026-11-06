@@ -197,3 +197,49 @@ def test_html_tem_comprador_e_valor_mas_sem_link_externo(tmp_path, monkeypatch):
          tmp_path, emitir=False)
     h = next(tmp_path.glob("*.html")).read_text(encoding="utf-8")
     assert "FULANO &lt;TESTE&gt;" in h and "1.234,56" in h and "http" not in h
+
+
+def test_interruptor_desligado_no_meio_para_a_rodada(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira(vendas=[venda_com_duas_entradas_do_mes()])
+    antigo = erp.pedir_core
+
+    def apaga_depois(metodo, caminho, corpo=None, params=None):
+        r = antigo(metodo, caminho, corpo, params)
+        if metodo == "POST":
+            RB.APLICAR.unlink()
+        return r
+    erp.pedir_core = apaga_depois
+    assert roda(erp, tmp_path) == 2 and erp.posts == 1
+    rel = relatorio(tmp_path)
+    assert rel["trava"] == "interruptor desligado no meio da rodada" and rel["contagem"]["emitidos"] == 1
+
+
+def test_relatorio_e_gravado_a_cada_emissao(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira(vendas=[venda_com_duas_entradas_do_mes()])
+    antigo = erp.pedir_core
+    vistos = []
+
+    def espia(metodo, caminho, corpo=None, params=None):
+        if metodo == "POST":   # antes do 2o POST o relatório já deve ter o 1o boleto
+            vistos.append(len(list(tmp_path.glob("*.json"))) and relatorio(tmp_path)["contagem"]["emitidos"])
+        return antigo(metodo, caminho, corpo, params)
+    erp.pedir_core = espia
+    roda(erp, tmp_path)
+    assert vistos == [0, 1]
+
+
+def test_falha_ao_gravar_relatorio_nao_muda_o_codigo(tmp_path, monkeypatch, capsys):
+    liga(tmp_path, monkeypatch)
+    monkeypatch.setattr(RB, "_gravar", lambda *a: (_ for _ in ()).throw(OSError("disco cheio")))
+    erp = ErpDeMentira(vendas=[venda_com_uma_entrada_do_mes()])
+    assert roda(erp, tmp_path) == 0 and erp.posts == 1
+    assert "não consegui gravar" in capsys.readouterr().err
+
+
+def test_nome_do_relatorio_nao_sobrescreve_outro(tmp_path, monkeypatch):
+    monkeypatch.setattr(RB, "APLICAR", tmp_path / "nao")
+    for _ in range(2):
+        roda(ErpDeMentira(vendas=[venda_com_uma_entrada_do_mes()]), tmp_path, emitir=False)
+    assert len(list(tmp_path.glob("*.json"))) == 2 and len(list(tmp_path.glob("*.html"))) == 2

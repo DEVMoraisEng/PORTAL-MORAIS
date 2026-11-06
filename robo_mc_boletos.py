@@ -92,10 +92,19 @@ def _html(rel):
     return "".join(p)
 
 
-def _gravar(pasta, hoje, rel):
+def _nome_unico(pasta, hoje):
+    pasta = Path(pasta)
+    base = "%s_%s" % (hoje, dt.datetime.now().strftime("%H%M%S"))
+    nome, n = base, 1
+    while (pasta / (nome + ".json")).exists() or (pasta / (nome + ".html")).exists():
+        n += 1
+        nome = "%s_%d" % (base, n)
+    return nome
+
+
+def _gravar(pasta, nome, rel):
     pasta = Path(pasta)
     pasta.mkdir(parents=True, exist_ok=True)
-    nome = "%s_%s" % (hoje, dt.datetime.now().strftime("%H%M"))
     (pasta / (nome + ".json")).write_text(json.dumps(rel, ensure_ascii=False, indent=1), encoding="utf-8")
     (pasta / (nome + ".html")).write_text(_html(rel), encoding="utf-8")
 
@@ -105,6 +114,15 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
     hoje = hoje or dt.date.today().isoformat()
     modo = "emissao" if emitir and APLICAR.exists() else "previa"
     linhas, resultados, trava, fora = [], [], None, False
+    nome = _nome_unico(pasta, hoje)
+
+    def salvar():
+        rel = {"modo": modo, "mes": mes, "hoje": hoje, "contagem": _contagem(linhas, resultados),
+               "linhas": linhas, "resultados": resultados, "trava": trava}
+        try:
+            _gravar(pasta, nome, rel)
+        except Exception as ex:
+            print("boletos: não consegui gravar o relatório (%s)" % type(ex).__name__, file=sys.stderr)
     try:
         linhas = _montar_linhas(erp, mes, hoje)
         _aplicar_indices(erp, mes, linhas)
@@ -121,6 +139,9 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
             for l in alvo:
                 if l["parcela"] in feitas:
                     continue
+                if not APLICAR.exists():
+                    trava = "interruptor desligado no meio da rodada"
+                    break
                 feitas.add(l["parcela"])
                 try:
                     r = B.emitir_uma(erp, l["venda"], l["parcela"], esperar=esperar)
@@ -128,10 +149,9 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
                     fora, trava = True, "ERP fora antes de emitir: " + (str(ex) or type(ex).__name__)[:200]
                     break
                 resultados.append(dict(r, venda=l["venda"], parcela=l["parcela"]))
+                salvar()
     c = _contagem(linhas, resultados)
-    rel = {"modo": modo, "mes": mes, "hoje": hoje, "contagem": c, "linhas": linhas,
-           "resultados": resultados, "trava": trava}
-    _gravar(pasta, hoje, rel)
+    salvar()
     fim = "boletos: %d emitidos, %d aguardando, %d decidir, %d pulados" % (
         c["emitidos"], c["aguardar"], c["decidir"], c["pular"])
     if c["recusados"] or c["sem_confirmacao"]:
