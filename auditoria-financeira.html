@@ -340,8 +340,10 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
         <span class="tit">Filtros</span>
         <div class="fcampo"><label for="g-base">Período por</label>
           <select id="g-base"><option value="dp">Data de pagamento</option><option value="dc">Competência</option></select></div>
-        <div class="fcampo"><label for="g-de">De</label><input type="month" id="g-de"></div>
-        <div class="fcampo"><label for="g-ate">Até</label><input type="month" id="g-ate"></div>
+        <!-- 06/11/26: De/Até com o DIA (antes só mês); "Mês" preenche o mês inteiro -->
+        <div class="fcampo"><label for="g-mes">Mês</label><input type="month" id="g-mes" title="Escolhe o mês inteiro (preenche De e Até)"></div>
+        <div class="fcampo"><label for="g-de">De</label><input type="date" id="g-de"></div>
+        <div class="fcampo"><label for="g-ate">Até</label><input type="date" id="g-ate"></div>
         <div class="fcampo w2"><label for="g-cc">Centro de custo / obra</label><input id="g-cc" list="dl-cc" placeholder="Digite o endereço ou CC" autocomplete="off"></div>
         <div class="fcampo"><label for="g-cb">Conta bancária</label><select id="g-cb"></select></div>
         <div class="fcampo"><label for="g-ro">Responsável da obra</label><select id="g-ro"></select></div>
@@ -611,8 +613,11 @@ async function afMarcarCorrigido(chaves){
 const AF_G={base:"dp",de:"",ate:"",cc:"",cb:"",ro:"",pl:""};
 function afGlobalOk(i){
   const g=AF_G;
-  if(g.de||g.ate){ const d=(g.base==="dc"?AF_C.dc[i]:AF_C.dp[i])||""; const m=d.slice(0,7);
-    if(!m) return false; if(g.de&&m<g.de) return false; if(g.ate&&m>g.ate) return false; }
+  if(g.de||g.ate){ const d=String((g.base==="dc"?AF_C.dc[i]:AF_C.dp[i])||"").slice(0,10);
+    if(!d) return false;
+    if(d.length<10){   // data só com o mês (competência): compara pelo mês
+      if(g.de&&d<g.de.slice(0,7)) return false; if(g.ate&&d>g.ate.slice(0,7)) return false; }
+    else { if(g.de&&d<g.de) return false; if(g.ate&&d>g.ate) return false; } }
   if(g.cc){ const c=afNz(ccv(i)); if(g._ccExato ? c!==g._ccN : c.indexOf(g._ccN)<0) return false; }
   if(g.cb && cbv(i)!==g.cb) return false;
   if(g.ro && rov(i)!==g.ro) return false;
@@ -622,24 +627,35 @@ function afGlobalOk(i){
 function afAplicarGlobais(){
   AF_G.base=document.getElementById("g-base").value;
   AF_G.de=document.getElementById("g-de").value; AF_G.ate=document.getElementById("g-ate").value;
+  const gm=document.getElementById("g-mes"), mi=afMesInteiro(AF_G.de,AF_G.ate); if(gm.value!==mi) gm.value=mi;
   AF_G.cc=document.getElementById("g-cc").value.trim(); AF_G._ccN=afNz(AF_G.cc);
   AF_G._ccExato=AF_DIC.cc.some(c=>afNz(c)===AF_G._ccN);
   AF_G.cb=document.getElementById("g-cb").value; AF_G.ro=document.getElementById("g-ro").value; AF_G.pl=document.getElementById("g-pl").value;
   AF_BASE=[]; for(let i=0;i<AF_N;i++) if(afGlobalOk(i)) AF_BASE.push(i);
   const at=[];
   const add=(rot,val,campo)=>at.push(`<span class="ativo">${esc(rot)}: <b>${esc(val)}</b><button title="Tirar" onclick="afTirarGlobal('${campo}')">×</button></span>`);
-  if(AF_G.de||AF_G.ate) add(AF_G.base==="dc"?"Competência":"Pagamento",(AF_G.de?fMl(AF_G.de):"…")+" a "+(AF_G.ate?fMl(AF_G.ate):"…"),"per");
+  if(AF_G.de||AF_G.ate) add(AF_G.base==="dc"?"Competência":"Pagamento",afPerTxt(),"per");
   if(AF_G.cc) add("CC",AF_G.cc,"cc"); if(AF_G.cb) add("Conta",AF_G.cb,"cb");
   if(AF_G.ro) add("Responsável",AF_G.ro,"ro"); if(AF_G.pl) add("Plano",AF_G.pl,"pl");
   document.getElementById("g-ativos").innerHTML=at.length?at.join("")+`<span class="small" style="align-self:center">${fN(AF_BASE.length)} de ${fN(AF_N)} pagamentos</span>`:"";
   afSalvarHash(); afSel.clear(); afLancPg=0; afRender();
 }
+/* 06/11/26: período por dia. Mês inteiro (1º ao último dia) aparece como "out/2026" */
+const afUltDia=m=>{ const [a,b]=m.split("-").map(Number); return m+"-"+String(new Date(a,b,0).getDate()).padStart(2,"0"); };
+function afMesInteiro(de,ate){ return de&&ate&&de.slice(0,7)===ate.slice(0,7)&&de.slice(8)==="01"&&ate===afUltDia(de.slice(0,7))?de.slice(0,7):""; }
+function afPerTxt(){ const de=AF_G.de, ate=AF_G.ate, mi=afMesInteiro(de,ate);
+  if(mi) return fMl(mi); if(de&&ate&&de===ate) return fD(de);
+  return (de?fD(de):"…")+" a "+(ate?fD(ate):"…"); }
+function afEscolherMes(){ const m=document.getElementById("g-mes").value;
+  if(m){ document.getElementById("g-de").value=m+"-01"; document.getElementById("g-ate").value=afUltDia(m); }
+  else { document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; }
+  afAplicarGlobais(); }
 function afTirarGlobal(c){
-  if(c==="per"){ document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; }
+  if(c==="per"){ document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; document.getElementById("g-mes").value=""; }
   else document.getElementById("g-"+c).value="";
   afAplicarGlobais();
 }
-function afLimparGlobais(){ ["g-de","g-ate","g-cc","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).value=""); afAplicarGlobais(); }
+function afLimparGlobais(){ ["g-mes","g-de","g-ate","g-cc","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).value=""); afAplicarGlobais(); }
 function afSalvarHash(){
   const p=new URLSearchParams(); p.set("aba",AF_TAB);
   Object.entries(AF_G).forEach(([k,v])=>{ if(!k.startsWith("_")&&v&&!(k==="base"&&v==="dp")) p.set(k,v); });
@@ -648,7 +664,9 @@ function afSalvarHash(){
 function afLerHash(){
   const p=new URLSearchParams(location.hash.slice(1));
   const map={base:"g-base",de:"g-de",ate:"g-ate",cc:"g-cc",cb:"g-cb",ro:"g-ro",pl:"g-pl"};
-  Object.entries(map).forEach(([k,id])=>{ if(p.get(k)) document.getElementById(id).value=p.get(k); });
+  Object.entries(map).forEach(([k,id])=>{ let v=p.get(k); if(!v) return;
+    if(/^\d{4}-\d{2}$/.test(v)&&(k==="de"||k==="ate")) v=k==="de"?v+"-01":afUltDia(v);   // link antigo, só com o mês
+    document.getElementById(id).value=v; });
   return p.get("aba");
 }
 function afOpcoes(id, valores, todos){
@@ -1577,7 +1595,7 @@ function afJanelaPdf(titulo, corpo, paisagem){
   w.document.close();
 }
 function afFiltrosTexto(){
-  const t=[]; if(AF_G.de||AF_G.ate) t.push((AF_G.base==="dc"?"Competência ":"Pagamento ")+(AF_G.de?fMl(AF_G.de):"…")+" a "+(AF_G.ate?fMl(AF_G.ate):"…"));
+  const t=[]; if(AF_G.de||AF_G.ate) t.push((AF_G.base==="dc"?"Competência ":"Pagamento ")+afPerTxt());
   if(AF_G.cc) t.push("CC: "+AF_G.cc); if(AF_G.cb) t.push("Conta: "+AF_G.cb); if(AF_G.ro) t.push("Responsável: "+AF_G.ro); if(AF_G.pl) t.push("Plano: "+AF_G.pl);
   return t.length?"Filtros: "+t.join(" · "):"Sem filtros (todos os pagamentos)";
 }
@@ -1719,6 +1737,7 @@ function afIniciar(){
   document.querySelectorAll("#conteudo > section").forEach(s=>s.classList.toggle("hide",s.id!=="tab-"+AF_TAB));
   document.getElementById("gfil").classList.toggle("hide",AF_TAB==="man");
   ["g-base","g-de","g-ate","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).addEventListener("change",afAplicarGlobais));
+  document.getElementById("g-mes").addEventListener("change",afEscolherMes);
   const gcc=document.getElementById("g-cc");
   gcc.addEventListener("change",afAplicarGlobais);
   gcc.addEventListener("keydown",e=>{ if(e.key==="Enter") afAplicarGlobais(); });
