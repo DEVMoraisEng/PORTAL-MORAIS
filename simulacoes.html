@@ -681,6 +681,9 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="filtros">
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="prop-busca" placeholder="Cliente, CPF, unidade ou corretor…" oninput="propRender()"></div>
+            <!-- 06/11/26 — filtro do correspondente -->
+            <div class="fcampo"><label>Correspondente</label>
+              <select id="prop-corr-f" onchange="propRender()"><option value="">Todos</option></select></div>
             <button class="bt ghost" onclick="propCarregar(true,this)">↻ Atualizar agora</button>
             <div class="fcampo"><label>Ordem</label>
               <div class="seg" id="seg-ordem">
@@ -2796,8 +2799,30 @@ function propSeloInterno(unidade, p){
   }
   return ' <span title="status interno da unidade'+(p&&!dono?' — marque na proposta certa pelo Status interno':'')+'" style="font-size:10px;font-weight:800;color:'+est[1]+';background:'+est[2]+';border:1px solid '+est[3]+';border-radius:8px;padding:1px 6px">'+est[0]+' (interno)</span>';
 }
+/* 06/11/26 — CORRESPONDENTE da proposta, na ordem: quem está na coluna
+   CORRESPONDENTE do Notion (aprovou / definido) → a quem a proposta foi enviada
+   (ENVIO CORRESPONDENTE) → a preferência do corretor. */
+function propCorrNomeBonito(n){ return String(n||"").trim().replace(/\s+/g," ").toUpperCase(); }
+function propCorrDe(p){
+  const c=propCorrNomeBonito(p.correspondente);
+  if(c) return {nomes:[c], tipo:p.comCredito?"aprovou o crédito":"definido na proposta"};
+  const e=propCorrEnvio(Object.assign({},p,{comCredito:false}));
+  if(e && e.enviado && e.nomes.length) return {nomes:e.nomes.map(propCorrNomeBonito), tipo:"enviada"};
+  const pr=propCorrNomeBonito(p.correspondentePref||((p.dados||{}).correspondentePreferido)||"");
+  if(pr) return {nomes:[pr], tipo:"preferência do corretor"};
+  return {nomes:[], tipo:""};
+}
+function propCorrOpcoes(){
+  const el=document.getElementById("prop-corr-f"); if(!el) return;
+  const atual=el.value, set=new Set(); let sem=0;
+  (PROPS||[]).forEach(p=>{ const c=propCorrDe(p); if(c.nomes.length) c.nomes.forEach(n=>set.add(n)); else sem++; });
+  const lista=[...set].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  el.innerHTML='<option value="">Todos</option>'+lista.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")+(sem?'<option value="__SEM__">(sem correspondente)</option>':"");
+  if(atual && [...el.options].some(o=>o.value===atual)) el.value=atual;
+}
 function propRender(){
   try{ propCortes(); }catch(e){}   // 30/10 — cortes acima da tabela
+  try{ propCorrOpcoes(); }catch(e){}   // 06/11 — filtro do correspondente
   try{ propRankAba(); }catch(e){}  // 30/10 — rankings abaixo da tabela
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
   const vis=PROPS.filter(p=>{
@@ -2805,6 +2830,8 @@ function propRender(){
     if(!alvo.includes(termo)) return false;
     if(propFiltroCredito==="SIM" && !p.comCredito) return false;
     if(propFiltroCredito==="NAO" && p.comCredito) return false;
+    const fc=(document.getElementById("prop-corr-f")||{}).value||"";
+    if(fc){ const c=propCorrDe(p).nomes; if(fc==="__SEM__" ? c.length : !c.includes(fc)) return false; }
     return !propFiltro || propNoCorte(p, propFiltro);
   });
   /* r47 (item 4) — ordem pela data de chegada; padrão: mais antiga no topo */
@@ -2812,16 +2839,17 @@ function propRender(){
   vis.sort((a,b)=> propOrdem==="desc" ? tempo(b)-tempo(a) : tempo(a)-tempo(b));
   /* estilo do editor injetado uma vez */
   propEstiloEditor();
-  /* 28/10 — ordem: proposta · unidade · crédito · sinal · cliente · corretor · valor · entrada · resto */
+  /* 28/10 — ordem: proposta · unidade · crédito · sinal · cliente · corretor · valor · entrada · resto
+     06/11 — correspondente, cliente e CPF do cliente juntos, depois o corretor */
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Crédito Caixa</th><th>Sinal</th>'+
-            '<th>Cliente</th><th>Corretor</th>'+
+            '<th>Correspondente</th><th>Cliente</th><th>CPF</th><th>Corretor</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>CPF</th><th>Imobiliária</th><th>Observações</th>'+
+            '<th class="col-num">Renda</th><th>Imobiliária</th><th>Observações</th>'+
             '<th style="cursor:pointer" title="Clique para inverter a ordem" onclick="propOrdenar(propOrdem===\'asc\'?\'desc\':\'asc\')">'+
             'Criada <span class="arr">'+(propOrdem==="desc"?"▼":"▲")+'</span></th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
-      '<tbody><tr><td colspan="14" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+      '<tbody><tr><td colspan="15" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
     return;
   }
   const corpo=vis.map(p=>{
@@ -2836,11 +2864,12 @@ function propRender(){
             ? '<span class="pill bom">APROVADO</span>'
             : '<span class="pill ruim">SEM CARTA</span>'+propCorrCelula(p)}</td>
       <td>${propPillSinais(p)}</td>
-      <td>${esc(p.cliente||"—")}</td><td>${esc(p.vendedor||"—")}</td>
+      <td>${(c=>c.nomes.length?'<b>'+esc(c.nomes.join(" / "))+'</b><div style="font-size:10.5px;color:var(--text3);white-space:nowrap">'+esc(c.tipo)+'</div>':'<span style="color:var(--text3)">—</span>')(propCorrDe(p))}</td>
+      <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.vendedor||"—")}</td>
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
-      <td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
+      <td>${esc(p.imobiliaria||"—")}</td>
       <td class="prop-obs-td" onclick="event.stopPropagation();propObsAbrir('${p.id}')" title="Clique para ver o histórico e escrever">${propObsCelula(p)}</td>
       <td>${simData(p.criadoEm)}</td>
       <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">vence &lt;24h</span>':''}</td></tr>`;
