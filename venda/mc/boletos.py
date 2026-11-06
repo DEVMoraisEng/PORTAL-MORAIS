@@ -2,6 +2,7 @@
 """Boletos do mês do Reserva dos Ipês pela Cobrança Fácil (regra do dono, 06/11/2026).
 As funções de regra são PURAS; as de ERP recebem o cliente (ErpPeloPorteiro no servidor)."""
 import calendar
+import re
 import time
 
 from . import distrato as D
@@ -134,10 +135,24 @@ def _parcela(venda: dict, parcela_id: str) -> dict | None:
             return p
     return None
 
+FALHOU = {"FAILED", "REJECTED"}
+
+def _http(erro: str) -> int | None:
+    """Status HTTP da mensagem do ErpErro ("<M> <caminho> -> HTTP <status>: <corpo>", erp.py) ou None."""
+    m = re.search(r" -> HTTP (\d{3})\b", erro or "")
+    return int(m.group(1)) if m else None
+
+def _recusa_clara(erro: str) -> bool:
+    """Só 4xx (fora 408 e 429) é recusa: o ERP leu o pedido e disse não. 5xx/408/429 podem ter concluído."""
+    st = _http(erro)
+    return st is not None and 400 <= st < 500 and st not in (408, 429)
+
 def emitir_uma(erp, venda_id: str, parcela_id: str, esperar=time.sleep, tentativas: int = 3) -> dict:
     """Relê, emite UMA vez e relê. Nunca repete o POST: um pedido que estourou o prazo pode concluir depois.
     A emissão demora (o boleto nasce DRAFT, "Em processamento", e vira REGISTERED depois): relê até
-    `tentativas` vezes, 10 s entre elas; DRAFT já conta como emitido."""
+    `tentativas` vezes, 10 s entre elas; DRAFT já conta como emitido. Decide pelo boleto mais novo:
+    status de BLOQUEIA = EMITIDO; FAILED/REJECTED = RECUSADO; outro = SEM_CONFIRMACAO.
+    A leitura ANTES do POST pode levantar (nada foi pedido); depois do POST nada levanta."""
     antes = _parcela(ler_venda(erp, venda_id), parcela_id)
     if antes is None:
         return {"situacao": "RECUSADO", "status": "", "motivo": "parcela sumiu da venda"}
@@ -146,17 +161,31 @@ def emitir_uma(erp, venda_id: str, parcela_id: str, esperar=time.sleep, tentativ
     erro = ""
     try:
         erp.pedir_core("POST", "/billings/installments/%s/generation" % parcela_id)
-    except ErpErro as e:
-        erro = str(e)[:300]
-    depois = {}
+    except Exception as e:   # qualquer falha: o pedido pode ter chegado; nunca repetir
+        erro = (str(e) or type(e).__name__)[:300]
+    recusa = _recusa_clara(erro)
+    depois, leu, erro_leitura = {}, False, ""
     for i in range(tentativas):
-        depois = _parcela(ler_venda(erp, venda_id), parcela_id) or {}
-        if depois.get("billings") or (erro and " -> HTTP " in erro):
+        try:
+            depois = _parcela(ler_venda(erp, venda_id), parcela_id) or {}
+            leu = True
+        except Exception as e:
+            depois, erro_leitura = {}, (str(e) or type(e).__name__)[:300]
+        if depois.get("billings") or recusa:
             break
         if i + 1 < tentativas:
             esperar(10)
     if depois.get("billings"):
-        return {"situacao": "EMITIDO", "status": str(depois["billings"][-1].get("status") or ""), "motivo": erro}
-    if erro and " -> HTTP " in erro:
+        b = depois["billings"][-1]
+        st = str(b.get("status") or "")
+        if st.upper() in BLOQUEIA:
+            return {"situacao": "EMITIDO", "status": st, "motivo": erro}
+        if st.upper() in FALHOU:
+            return {"situacao": "RECUSADO", "status": st, "motivo": str(b.get("failureReason") or "") or st}
+        return {"situacao": "SEM_CONFIRMACAO", "status": st, "motivo": "boleto com status %s" % (st or "vazio")}
+    if recusa:
         return {"situacao": "RECUSADO", "status": "", "motivo": erro}
+    if not leu:
+        return {"situacao": "SEM_CONFIRMACAO", "status": "",
+                "motivo": "; ".join(x for x in (erro, "releitura falhou: " + erro_leitura) if x)}
     return {"situacao": "SEM_CONFIRMACAO", "status": "", "motivo": erro or "o ERP aceitou mas o boleto não apareceu"}

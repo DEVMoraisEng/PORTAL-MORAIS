@@ -113,16 +113,23 @@ def test_vendas_do_mes_pagina_e_filtra_a_obra():
     assert len(f.urls) == 2
 
 class ErpFalso:
-    def __init__(s, venda, ao_emitir="cria", erro=None):
+    def __init__(s, venda, ao_emitir="cria", erro=None, boleto=None, leituras_ruins=0, excecao=None):
         s.venda, s.ao_emitir, s.erro, s.posts = venda, ao_emitir, erro, 0
+        s.boleto = boleto or {"status": "DRAFT"}
+        s.leituras, s.leituras_ruins, s.excecao = 0, leituras_ruins, excecao
     def pedir(s, metodo, caminho, corpo=None, params=None):
+        s.leituras += 1
+        if s.leituras > 1 and s.leituras - 1 <= s.leituras_ruins:   # a 1ª leitura (antes do POST) sempre funciona
+            raise RuntimeError("a releitura caiu")
         return copy.deepcopy(s.venda)
     def pedir_core(s, metodo, caminho, corpo=None, params=None):
         assert metodo == "POST" and caminho.endswith("/generation")
         s.posts += 1
         if s.ao_emitir == "cria":
             p = [q for q in s.venda["tradeReceivable"]["installments"] if caminho.split("/")[3] == q["id"]][0]
-            p["billings"] = [{"status": "DRAFT"}]
+            p["billings"] = [dict(s.boleto)]
+        if s.excecao:
+            raise s.excecao
         if s.erro:
             raise B.ErpErro(s.erro)
 
@@ -160,3 +167,52 @@ def test_recusa_do_erp_guarda_o_motivo():
     v = venda(); p = _uma(v); f = ErpFalso(v, "nada", erro="POST /billings -> HTTP 400: billing.data.invalid")
     r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
     assert r["situacao"] == "RECUSADO" and "billing.data.invalid" in r["motivo"]
+
+# I1 — o status do boleto que apareceu decide
+def test_boleto_que_nasce_falho_vira_recusa_com_o_motivo():
+    v = venda(); p = _uma(v); f = ErpFalso(v, boleto={"status": "FAILED", "failureReason": "cpf.invalido"})
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "RECUSADO" and r["motivo"] == "cpf.invalido" and f.posts == 1
+
+def test_boleto_rejeitado_sem_motivo_usa_o_status():
+    v = venda(); p = _uma(v); f = ErpFalso(v, boleto={"status": "REJECTED"})
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "RECUSADO" and r["motivo"] == "REJECTED"
+
+def test_boleto_com_status_estranho_fica_sem_confirmacao():
+    v = venda(); p = _uma(v); f = ErpFalso(v, boleto={"status": "WRITTEN_OFF"})
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "SEM_CONFIRMACAO" and "WRITTEN_OFF" in r["motivo"] and f.posts == 1
+
+def test_vale_o_boleto_mais_novo():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "nada")
+    def esperar(s):
+        p["billings"] = [{"status": "FAILED"}, {"status": "REGISTERED"}]
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=esperar)
+    assert r["situacao"] == "EMITIDO" and r["status"] == "REGISTERED"
+
+# I2 — 5xx, 408 e 429 são como prazo estourado: relê com espera, nunca repete
+def test_erro_5xx_e_boleto_aparece_depois_conta_como_emitido():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "nada", erro="POST /billings -> HTTP 504: gateway"); esperas = []
+    def esperar(s):
+        esperas.append(s); p["billings"] = [{"status": "DRAFT"}]
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=esperar)
+    assert r["situacao"] == "EMITIDO" and esperas == [10] and f.posts == 1
+
+def test_erro_5xx_408_429_sem_boleto_fica_sem_confirmacao():
+    for st in (500, 408, 429):
+        v = venda(); p = _uma(v); f = ErpFalso(v, "nada", erro="POST /billings -> HTTP %d: x" % st); esperas = []
+        r = B.emitir_uma(f, v["id"], p["id"], esperar=esperas.append)
+        assert r["situacao"] == "SEM_CONFIRMACAO" and esperas == [10, 10] and f.posts == 1, st
+        assert "HTTP %d" % st in r["motivo"]
+
+# I3 — qualquer exceção no POST ou na releitura depois dele não sobe nem repete o POST
+def test_excecao_qualquer_no_post_e_releitura_que_cai_nao_repetem():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "cria", excecao=RuntimeError("chrome fechou"), leituras_ruins=2)
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "EMITIDO" and f.posts == 1 and f.leituras == 4
+
+def test_todas_as_releituras_caem_fica_sem_confirmacao():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "cria", leituras_ruins=99)
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "SEM_CONFIRMACAO" and "a releitura caiu" in r["motivo"] and f.posts == 1
