@@ -3637,12 +3637,15 @@
       if (raiz && raiz !== el) { guardarRascunho(); guardarRascunhoR(); if (comPR) guardarContaPR(); }
       raiz = el;
       if (el.classList) el.classList.add("vb-blocos");
-      if (!el.__vbLigado) {
-        el.__vbLigado = true;
-        el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); });
+      /* 06/11/2026: o mesmo elemento pode receber outro conjunto de blocos (a janela do termo nas Propostas, reaberta
+         para outra venda ou pela pergunta do Reservar). Os ouvintes são de cada conjunto: o novo liga os seus e os do antigo
+         ficam mudos (el.__vbLigado aponta o dono). Antes o antigo continuava ligado, o novo não, e o clique não fazia nada. */
+      if (el.__vbLigado !== eu) {
+        el.__vbLigado = eu;
+        el.addEventListener("click", function (ev) { if (raiz === el && el.__vbLigado === eu) aoClicar(ev); });
         /* 29/10: o que se digita nas condições especiais sobrevive a um redesenho do bloco */
         el.addEventListener("input", function (ev) {
-          if (raiz !== el || !ev.target.classList) return;
+          if (raiz !== el || el.__vbLigado !== eu || !ev.target.classList) return;
           if (ev.target.hasAttribute("data-an")) { aoDigitarAnt(ev.target); return; }
           if (ev.target.hasAttribute("data-fxb")) { aoDigitarBem(ev.target); return; }   /* 03/11: formulário do bem */
           if (ev.target.hasAttribute("data-fx")) { aoDigitarFluxo(ev.target); return; }
@@ -3651,12 +3654,12 @@
         });
         /* revisão 04/11: o simulador não mexe no campo com foco (o cursor); ao sair dele, mostra o valor da conta */
         el.addEventListener("focusout", function (ev) {
-          if (raiz !== el || !uiC.fluxoEd || !ev.target.getAttribute || ev.target.getAttribute("data-fx") !== "v") return;
+          if (raiz !== el || el.__vbLigado !== eu || !uiC.fluxoEd || !ev.target.getAttribute || ev.target.getAttribute("data-fx") !== "v") return;
           var lf = uiC.fluxoEd.linhas[Number(ev.target.getAttribute("data-k"))];
           if (lf && ajustavelFx(lf)) ev.target.value = numBR(lf.v);
         });
         el.addEventListener("change", function (ev) {
-          if (raiz !== el) return;
+          if (raiz !== el || el.__vbLigado !== eu) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
           var fxb = ev.target.getAttribute("data-fxb");

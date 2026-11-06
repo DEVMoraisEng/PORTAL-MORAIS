@@ -311,13 +311,13 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   assert.equal(v.ok, true);
 });
 
-test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante, vendedora, testemunhas), colunas do termo; contrato intocado", () => {
+test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante e vendedora — 06/11: sem testemunhas), colunas do termo; contrato intocado", () => {
   const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "SEM_TERMO_GERADO");
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)"]);
   assert.equal(c.txt("PRÉ-RESERVA - ENVELOPE ID"), "env-1");
   assert.equal(c.txt("PRÉ-RESERVA - SITUAÇÃO"), "ENVIADO");
   assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "", "o envelope do contrato não muda");
@@ -339,7 +339,7 @@ test("termo casado, opção desligada (padrão): cônjuge fora do envelope e sem
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)"]);
   assert.ok(!c.c.estado.signers.some((s) => s.attributes.email === "conjuge@teste.example"), "o cônjuge não recebe o termo");
   const sem = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
   assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
@@ -359,7 +359,7 @@ test("termo casado, opção ligada: o cônjuge assina logo depois do comprador; 
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Cônjuge do comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Cônjuge do comprador 1", "Vendedor (representante)"]);
   const sem = cenarioPR({ linha: { ...CONTA_PR, ...CASADO_PR, "EMAIL CONJUGE": eml(null) } });
   sem.acao("salvarConjugePreReserva", { incluir: true });
   assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
@@ -1439,11 +1439,11 @@ test("plano 23 B: termo de pré-reserva migrado — sem o cônjuge por padrão, 
   const c = cenarioPR({ modelosExtra: modelo, linha: { ...CONTA_PR, ...CASADO_PR } });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const p1 = salvoUltimo(c).pars;
-  assert.deepEqual(papeisDo(p1, MODELO_PR.length, p1.length), ["VENDEDORA", "PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.deepEqual(papeisDo(p1, MODELO_PR.length, p1.length), ["VENDEDORA", "PRÉ-RESERVANTE"]);
   c.acao("salvarConjugePreReserva", { incluir: true });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const p2 = salvoUltimo(c).pars;
-  assert.deepEqual(papeisDo(p2, MODELO_PR.length, p2.length), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE", "TESTEMUNHA 1", "TESTEMUNHA 2"]);
+  assert.deepEqual(papeisDo(p2, MODELO_PR.length, p2.length), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE"]);
   assert.ok(p2.includes("Nome: Conjuge Teste da Silva"));
 });
 
@@ -2054,4 +2054,26 @@ test("06/11: data limite — grava na coluna, entra no histórico e no termo; se
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.match(pars[1], /até 31\/12\/2099 por/);
+});
+
+/* 06/11/2026 (dono): "tirar as testemunhas da pré-reserva — não precisa de tanta coisa na pré-reserva". O termo não
+   cobra nem lista testemunhas; trocar as testemunhas da venda não deixa o termo desatualizado. O contrato continua com elas. */
+test("06/11: termo sem testemunhas — envia sem o par configurado e trocar as testemunhas não desatualiza o termo", () => {
+  const modelo = { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] };
+  const c = cenarioPR({ modelosExtra: modelo, linha: CONTA_PR });
+  assert.equal(c.acao("gerarTermoPreReserva").ok, true);
+  const p = salvoUltimo(c).pars;
+  assert.ok(!p.some((l) => /TESTEMUNHA/.test(l)), "o bloco do termo não tem testemunha");
+  outrasTestemunhas(c);
+  const r = c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
+  assert.ok(!r.signatarios.some((x) => /Testemunha/.test(x.papel)));
+  const sem = cenarioPR({ linha: CONTA_PR, props: { ASSINATURA_TESTEMUNHAS_SPE: "", ASSINATURA_TESTEMUNHAS_PF: "" } });
+  assert.equal(sem.acao("gerarTermoPreReserva").ok, true);
+  const r2 = sem.acao("assinaturaEnviar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.ok, true, JSON.stringify(r2.faltas || r2));
+  const k = cenario();
+  assert.equal(k.gerarFinal().ok, true);
+  const e = k.acao("assinaturaEnviar", rub(k));
+  assert.ok(e.signatarios.some((x) => x.papel === "Testemunha 1"), "o contrato continua com as testemunhas");
 });
