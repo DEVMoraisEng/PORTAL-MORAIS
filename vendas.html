@@ -3082,17 +3082,18 @@ function renderAtrasados(){
   const linhas=dados.map(v=>({v, prazo:corSituacao(v.valores)})).filter(x=>ORDEM[x.prazo]!==undefined);
   linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo]);
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo com pendência de prazo. 🎉</div>'; return; }
-  /* 06/11/26: além do status, o tempo corrido do processo — dias desde a DATA DA
-     VENDA (a mesma base da fórmula SITUAÇÃO DO PROCESSO do Notion: >20 e >45 dias) */
-  const hj=new Date(hojeISO()+"T12:00:00");
-  const tempo=v=>{ const d=String(getV(v.valores,"DATA DA VENDA")||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
-    return {dias:Math.round((hj-new Date(d+"T12:00:00"))/86400000), data:d.split("-").reverse().join("/")}; };
+  /* 06/11/26: além do status, o tempo corrido do processo — o mesmo contador da
+     fórmula SITUAÇÃO DO PROCESSO do Notion: dateBetween(now(), DATA DE ENVIO DOS
+     DOCUMENTOS, "days") (dias inteiros; >=20 ⏳, >=45 ⚠️/🚨) */
+  const agora=Date.now();
+  const tempo=v=>{ const d=String(getV(v.valores,"DATA DE ENVIO DOS DOCUMENTOS")||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    return {dias:Math.floor((agora-new Date(d+"T00:00:00"))/86400000), data:d.split("-").reverse().join("/")}; };
   linhas.forEach(x=>{ x.t=tempo(x.v); });
   linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo] || ((b.t?b.t.dias:-1)-(a.t?a.t.dias:-1)));
   box.innerHTML=linhas.map(({v,prazo,t})=>{
     const casa=getV(v.valores,"CASA");
     return `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${jsArg(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}${casa?` <small class="at-casa">Casa ${esc(casa)}</small>`:""}</span>`+
-      `<span class="txt">${TXT[prazo]}${t?` <b class="at-dias" style="background:${COR[prazo]}${prazo==="sit1"?";color:#4a3b00":""}" title="Venda em ${t.data}">${t.dias} dias</b>`:""}</span></div>`;
+      `<span class="txt">${TXT[prazo]}${t?` <b class="at-dias" style="background:${COR[prazo]}${prazo==="sit1"?";color:#4a3b00":""}" title="Documentos enviados em ${t.data}">${t.dias} dias</b>`:""}</span></div>`;
   }).join("");
 }
 
