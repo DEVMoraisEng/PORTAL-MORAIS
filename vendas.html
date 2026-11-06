@@ -2113,8 +2113,16 @@ function condUsaPreReserva(l){
   return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")) ||
                 !!String(cdVal(l,"PRÉ-RESERVA - DATA LIMITE")||"").trim());
 }
+/* 06/11/2026 (dono): a ABA Pré-reserva fica disponível enquanto o contrato não foi gerado (reservas de antes da
+   pergunta do Reservar também geram o termo pelo cartão); com contrato gerado e sem pré-reserva, oculta. A faixa de
+   etapas continua com condUsaPreReserva: o termo é opcional e não vira "próximo passo" de toda venda. */
+function condMostraAbaPR(l){
+  if(!l) return false;
+  const contrato=cdTemArq(cdVal(l,"CONTRATO GERADO"))||!!cdSit(l,"ASSINATURA - SITUAÇÃO");
+  return !contrato || condUsaPreReserva(l);
+}
 function condAbasHtml(l){
-  const pr=condUsaPreReserva(l);
+  const pr=condMostraAbaPR(l);
   if(!pr && COND_ABA==="prereserva") COND_ABA="resumo";
   return '<div class="cd-abas"><div class="tabs" role="tablist">'+CD_ABAS.filter(a=>pr||a[0]!=="prereserva").map(a=>'<button type="button" role="tab" class="tab'+(a[0]===COND_ABA?" on":"")+'" aria-selected="'+(a[0]===COND_ABA)+'" data-aba="'+a[0]+'" onclick="condTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div></div>';
 }
