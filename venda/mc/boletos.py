@@ -2,9 +2,11 @@
 """Boletos do mês do Reserva dos Ipês pela Cobrança Fácil (regra do dono, 06/11/2026).
 As funções de regra são PURAS; as de ERP recebem o cliente (ErpPeloPorteiro no servidor)."""
 import calendar
+import time
 
 from . import distrato as D
 from . import retrato as RT
+from .erp import ErpErro
 
 EMITE = {"sinal", "entrada", "pre", "pos", "balao"}
 # status que o ERP mostra como boleto vivo, agendado, pago ou em cancelamento: nunca emitir de novo
@@ -125,3 +127,36 @@ def ler_tabelas(erp) -> list[dict]:
 
 def ler_saldo(erp) -> int:
     return int((erp.pedir_core("GET", "/billings/balances") or {}).get("balance") or 0)
+
+def _parcela(venda: dict, parcela_id: str) -> dict | None:
+    for p in (venda.get("tradeReceivable") or {}).get("installments") or []:
+        if p.get("id") == parcela_id:
+            return p
+    return None
+
+def emitir_uma(erp, venda_id: str, parcela_id: str, esperar=time.sleep, tentativas: int = 3) -> dict:
+    """Relê, emite UMA vez e relê. Nunca repete o POST: um pedido que estourou o prazo pode concluir depois.
+    A emissão demora (o boleto nasce DRAFT, "Em processamento", e vira REGISTERED depois): relê até
+    `tentativas` vezes, 10 s entre elas; DRAFT já conta como emitido."""
+    antes = _parcela(ler_venda(erp, venda_id), parcela_id)
+    if antes is None:
+        return {"situacao": "RECUSADO", "status": "", "motivo": "parcela sumiu da venda"}
+    if antes.get("billings"):
+        return {"situacao": "JA_TINHA", "status": ",".join(str(b.get("status")) for b in antes["billings"]), "motivo": ""}
+    erro = ""
+    try:
+        erp.pedir_core("POST", "/billings/installments/%s/generation" % parcela_id)
+    except ErpErro as e:
+        erro = str(e)[:300]
+    depois = {}
+    for i in range(tentativas):
+        depois = _parcela(ler_venda(erp, venda_id), parcela_id) or {}
+        if depois.get("billings") or (erro and " -> HTTP " in erro):
+            break
+        if i + 1 < tentativas:
+            esperar(10)
+    if depois.get("billings"):
+        return {"situacao": "EMITIDO", "status": str(depois["billings"][-1].get("status") or ""), "motivo": erro}
+    if erro and " -> HTTP " in erro:
+        return {"situacao": "RECUSADO", "status": "", "motivo": erro}
+    return {"situacao": "SEM_CONFIRMACAO", "status": "", "motivo": erro or "o ERP aceitou mas o boleto não apareceu"}

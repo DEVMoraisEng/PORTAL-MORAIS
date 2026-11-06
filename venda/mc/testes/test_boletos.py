@@ -111,3 +111,52 @@ def test_vendas_do_mes_pagina_e_filtra_a_obra():
     assert B.vendas_do_mes(f, "2026-11") == ["v1"]
     assert f.urls[0][1]["startDate"] == "2026-11-01" and f.urls[0][1]["endDate"] == "2026-11-30"
     assert len(f.urls) == 2
+
+class ErpFalso:
+    def __init__(s, venda, ao_emitir="cria", erro=None):
+        s.venda, s.ao_emitir, s.erro, s.posts = venda, ao_emitir, erro, 0
+    def pedir(s, metodo, caminho, corpo=None, params=None):
+        return copy.deepcopy(s.venda)
+    def pedir_core(s, metodo, caminho, corpo=None, params=None):
+        assert metodo == "POST" and caminho.endswith("/generation")
+        s.posts += 1
+        if s.ao_emitir == "cria":
+            p = [q for q in s.venda["tradeReceivable"]["installments"] if caminho.split("/")[3] == q["id"]][0]
+            p["billings"] = [{"status": "DRAFT"}]
+        if s.erro:
+            raise B.ErpErro(s.erro)
+
+def _uma(v):
+    v["tradeReceivable"]["installments"] = []
+    return parcela(v, R.TIPO_ENTRADA, "2026-11-10")
+
+def test_emite_e_confirma():
+    v = venda(); p = _uma(v); f = ErpFalso(v)
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "EMITIDO" and r["status"] == "DRAFT" and f.posts == 1
+
+def test_nao_emite_se_ja_tem():
+    v = venda(); p = _uma(v); p["billings"] = [{"status": "REGISTERED"}]; f = ErpFalso(v)
+    assert B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)["situacao"] == "JA_TINHA" and f.posts == 0
+
+def test_erro_mas_boleto_nasceu_conta_como_emitido_sem_repetir():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "cria", erro="a tela parou de responder")
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "EMITIDO" and f.posts == 1
+
+def test_erro_e_nada_nasceu_fica_sem_confirmacao_e_nunca_repete():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "nada", erro="a tela parou de responder")
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "SEM_CONFIRMACAO" and f.posts == 1
+
+def test_boleto_que_demora_aparece_na_segunda_leitura():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "nada"); esperas = []
+    def esperar(s):
+        esperas.append(s); p["billings"] = [{"status": "DRAFT"}]   # nasceu enquanto o robô esperava
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=esperar)
+    assert r["situacao"] == "EMITIDO" and esperas == [10] and f.posts == 1
+
+def test_recusa_do_erp_guarda_o_motivo():
+    v = venda(); p = _uma(v); f = ErpFalso(v, "nada", erro="POST /billings -> HTTP 400: billing.data.invalid")
+    r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
+    assert r["situacao"] == "RECUSADO" and "billing.data.invalid" in r["motivo"]
