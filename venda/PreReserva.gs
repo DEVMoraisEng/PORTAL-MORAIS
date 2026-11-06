@@ -68,9 +68,8 @@ function prDados_(col, p, pid, rot) {
 var PR_CONJUGE = "PR_CONJUGE_";
 /* 01/11 (plano 23 B, correção 1): com o modelo migrado o termo escreve as testemunhas e o cônjuge — entram no carimbo */
 function prAssinCarimbo_(d, pageId) {
-  var a = ctrAssinCarimbo_(d, pageId);
-  a.conjuge = prConjugeIncluido_(pageId);
-  return a;
+  /* 06/11/2026 (dono): o termo não leva testemunhas — trocá-las não deixa o termo desatualizado */
+  return { conjuge: prConjugeIncluido_(pageId), semTestemunhas: true };
 }
 function prConjugeIncluido_(pageId) { return prop_(PR_CONJUGE + pageId) === "1"; }
 /* comprador 1 casado ou em união estável com o cônjuge nomeado (as colunas ESTADO CIVIL e CONJUGE da venda) */

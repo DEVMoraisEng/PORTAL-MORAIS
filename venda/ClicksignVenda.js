@@ -207,6 +207,7 @@ var ClicksignVenda = (function () {
     return [sig("Vendedor", PAPEIS.VENDEDOR, { nome: v.nome, email: v.email, cpf: v.cpfCnpj }, "vendedor")];
   }
   function sigTestemunhas(dados, config) {
+    if (config && config.semTestemunhas) return [];   /* 06/11/2026 (dono): o termo de pré-reserva não leva testemunhas */
     var t = testemunhas(dados, config);
     return t ? [sig("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"), sig("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha")] : [];
   }
@@ -238,7 +239,8 @@ var ClicksignVenda = (function () {
    * tipo: "CONTRATO" | "TERMO" (confissão PRÉ/PÓS) | "PRE_RESERVA". Só entra quem assina aquele documento, pelas mesmas
    * regras do envio: no contrato, sem fiadores (assinam só os termos) e com o corretor quando há comissão (como o antigo
    * {{#COM_COMISSAO}}); nos termos de confissão, com os fiadores e os cônjuges deles e sem corretor (não é parte do termo);
-   * na pré-reserva, só o comprador 1 e o cônjuge apenas com opc.incluirConjuge (PR_CONJUGE_<pageId>).
+   * na pré-reserva, só o comprador 1 e o cônjuge apenas com opc.incluirConjuge (PR_CONJUGE_<pageId>) — e, desde 06/11/2026,
+   * sem testemunhas (só vendedora e pré-reservante).
    * Ordem: vendedora, comprador 1, cônjuge do comprador 1, comprador 2, fiador 1, cônjuge do fiador 1, fiador 2, cônjuge do
    * fiador 2, corretor, testemunha 1, testemunha 2. Cada pessoa: traço, "Nome: …", "CPF: …" (CNPJ de empresa) e o papel —
    * o nome logo abaixo do traço é o que RubricasVenda.acharLinhas lê e atribuirLinhas casa com o signatário. */
@@ -275,6 +277,7 @@ var ClicksignVenda = (function () {
     });
     if (tipo === "CONTRATO" && dados.corretor && txt(dados.corretor.nome) && !vendaDireta(dados))
       add("INTERMEDIADOR/CORRETOR", dados.corretor.nome, dados.corretor.cpfCnpj);
+    if (pre) return out;   /* 06/11/2026 (dono): "não precisa de tanta coisa na pré-reserva" — sem testemunhas */
     var t = testemunhas(dados, config) || [null, null];
     [0, 1].forEach(function (i) { add("TESTEMUNHA " + (i + 1), t[i] && t[i].nome, t[i] && t[i].cpf); });
     return out;
@@ -306,7 +309,7 @@ var ClicksignVenda = (function () {
     var faltas = [];
     config = config || montarConfig({});
     if (!dados.vendedor) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
-    if (!testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
+    if (!config.semTestemunhas && !testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
     if (config.incluirCorretor && !dados.corretor && !vendaDireta(dados)) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
     var vistos = {}, porPessoa = [];
     signatarios(dados, config).forEach(function (s) {
