@@ -383,3 +383,33 @@ def test_atender_recebimento_usa_a_trava_dos_recebimentos(tmp_path, monkeypatch)
     ln["properties"]["PAYLOAD"]["rich_text"][0]["plain_text"] = json.dumps({"pageId": PG, "aplicar": True})
     assert f.atender(ln) == "FEITO"
     assert chamadas[0][1:] == ["-m", "venda.mc.recebimentos", "--page", PG, "--aplicar"] and len(chamadas) == 1
+
+
+def test_boletos_na_fila_com_emitir_e_robo_antigo_aceita_texto_ou_lista(tmp_path, monkeypatch):
+    """06/11: item de ROBOS pode ser texto (script sem argumentos) ou [script, arg...]; o env continua sem senha."""
+    assert "boletos" in R.ROBOS and R.ROBOS["boletos"] == [["robo_mc_boletos.py", "--emitir"]]
+    _cfg_robos(tmp_path, monkeypatch)
+    monkeypatch.setenv("MC_SENHA", "nao-pode")
+    chamadas = []
+
+    class Res:
+        returncode, stdout, stderr = 0, "ok\n", ""
+
+    def falso(argv, **k):
+        chamadas.append((argv[1:], k["env"]))
+        return Res()
+
+    monkeypatch.setattr(R.subprocess, "run", falso)
+    assert R.robo_antigo("boletos") == 0
+    assert chamadas[0][0] == ["robo_mc_boletos.py", "--emitir"]
+    assert "MC_SENHA" not in chamadas[0][1] and "MC_ROBO_SENHA" not in chamadas[0][1]
+    chamadas.clear()
+    assert R.robo_antigo("bases") == 0
+    assert chamadas[0][0] == ["robo_mc_bases.py"]
+
+
+def test_main_robo_boletos_passa_pela_vez_no_mc(monkeypatch):
+    vistos = []
+    monkeypatch.setattr(R, "na_vez", lambda nome, f: vistos.append(nome) or 0)
+    assert R.main(["--robo", "boletos"]) == 0
+    assert vistos == ["boletos"]
