@@ -73,8 +73,12 @@ Guia passo a passo da própria Clicksign (mesma sequência):
   (`closed`) finaliza o documento com as assinaturas parciais quando vence o prazo;
   um contrato de compra e venda só vale com todas. Com `canceled`, envelope
   `closed` quer dizer "todos assinaram".
-- Prazo (`deadline_at`) não é mandado: padrão da Clicksign = criação + 30 dias
-  (máximo 90).
+- Prazo (`deadline_at`, 03/11/2026, pedido do dono): quem envia escolhe a data
+  limite ao lado do botão Enviar (contrato e termo de pré-reserva); a tela manda
+  `prazo: "AAAA-MM-DD"` e o servidor manda `"AAAA-MM-DDT23:59:59.000-03:00"`.
+  Faixa: de amanhã até 89 dias (a Clicksign aceita no máximo 90 a partir da
+  criação). Sem `prazo` (chamada antiga), nada é mandado e vale o padrão da
+  Clicksign (criação + 30 dias). Data fora da faixa: `PRAZO_INVALIDO`.
 
 Páginas:
 - https://developers.clicksign.com/reference/api-criar-envelope
