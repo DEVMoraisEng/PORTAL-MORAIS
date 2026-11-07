@@ -188,7 +188,8 @@ def test_log_nao_leva_nome_nem_valor(tmp_path, capsys, monkeypatch):
          tmp_path, emitir=False)
     saida = capsys.readouterr().out
     assert "FULANO" not in saida and "1234" not in saida and "1.234" not in saida
-    assert saida.strip().splitlines()[-1].startswith("boletos: 0 emitidos, 0 aguardando, 0 decidir,")
+    # 07/11: na prévia a linha mostra o que VAI sair ("a emitir"), não só o que já saiu
+    assert saida.strip().splitlines()[-1].startswith("boletos: 1 a emitir, 0 emitidos, 0 aguardando, 0 decidir,")
 
 
 def test_html_tem_comprador_e_valor_mas_sem_link_externo(tmp_path, monkeypatch):
