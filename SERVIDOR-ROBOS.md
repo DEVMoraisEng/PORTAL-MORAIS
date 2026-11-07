@@ -461,11 +461,13 @@ No servidor (Windows) a suíte já mostra 7 falhas antigas que não são dos bol
 Não precisa de chave nova em `robos-portal.json`; o porteiro (Chrome logado no Mais Controle) é o mesmo dos outros robôs.
 
 ## 2. (servidor, com o ok do dono) Tarefa agendada — dias úteis às 10:00
-Mesmo Python, mesma conta e "só com o usuário conectado" das outras tarefas.
+Mesmo Python, mesma conta e "só com o usuário conectado" das outras tarefas. No Windows PowerShell 5.1 o `schtasks /TR`
+com aspas internas (`\"`) quebra ("Argumento/opção inválido"); use os comandos do próprio PowerShell (assim foi criada em 07/11/2026):
 ```powershell
-schtasks /Create /TN "MoraisEng - Boletos do mes" /SC WEEKLY /D MON,TUE,WED,THU,FRI /ST 10:00 /F `
-  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo boletos"
-schtasks /Query /TN "MoraisEng - Boletos do mes" /V /FO LIST | findstr /i "Last Result Status"
+$a = New-ScheduledTaskAction -Execute "C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe" -Argument '"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py" --robo boletos' -WorkingDirectory "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"
+$t = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday,Tuesday,Wednesday,Thursday,Friday -At 10:00
+Register-ScheduledTask -TaskName "MoraisEng - Boletos do mes" -Action $a -Trigger $t -Force
+(Get-ScheduledTask -TaskName "MoraisEng - Boletos do mes").Actions | Format-List Execute, Arguments, WorkingDirectory
 ```
 O Escritório dos Robôs mostra a mesa "Boletos do mes" como as outras (pelo relatório de rodada), e o botão "Rodar de novo"
 (ADM e MASTER) dispara a mesma tarefa fora do horário, por exemplo depois de corrigir um cadastro. Se a rodada agendada e a
