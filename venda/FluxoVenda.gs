@@ -114,6 +114,7 @@ function salvarFluxo_(col, sess, p) {
   if (!p.voltar) {
     var f = FluxoLivre.normalizar(p.fluxo);
     f.entrega = padrao.entrega;                       /* a entrega das chaves é a da linha, não a da tela */
+    f.hoje = (typeof HOJE_VENDA_TESTE_ === "string" ? HOJE_VENDA_TESTE_ : Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd"));   /* 07/11 (dono): nada vence no passado */
     var r = FluxoLivre.validar(f, padrao, antes);   /* 03/11: permuta antiga (só descrição) já gravada continua valendo */
     if (!r.ok) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: r.erros.slice(0, 6) };
     var mudouPreco = Math.round(f.valor * 100) !== Math.round(padrao.valor * 100);

@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
+globalThis.HOJE_VENDA_TESTE_ = "2026-01-01";   /* 07/11: "hoje" da tela fixo, antes das datas inventadas (trava de vencimento no passado) */
 const D = require("../../venda-dossie.js");
 const F = require("../FluxoLivre.js");
 
@@ -376,4 +377,17 @@ test("guiado: cores por classe (tema claro/escuro), sem cor fixa no HTML da linh
   assert.doesNotMatch(h, /#1d6b43|rgba\(255,200,0/);
   assert.match(h, /<tr data-fx-linha="2" data-fx-ajustada="1">/);
   assert.match(h, /class="dz-nota vb-fx-ok"/);
+});
+
+/* 07/11/2026 (dono): vencimento no passado trava o Salvar e a tela oferece Corrigir datas */
+test("editor: pré-chaves vencendo antes de hoje trava o Salvar e mostra Corrigir datas; sem isso, o botão não aparece", () => {
+  const sem = D.htmlFluxoVivo(editor({ motivo: "teste" }), "");
+  assert.equal(botao(sem, "c-fluxo-datas"), "");
+  globalThis.HOJE_VENDA_TESTE_ = "2026-12-15";
+  try {
+    const h = D.htmlFluxoVivo(editor({ motivo: "teste" }), "");
+    assert.match(botao(h, "c-fluxo-datas"), />Corrigir datas/);
+    assert.match(botao(h, "c-fluxo-salvar"), /disabled/);
+    assert.match(h, /pré-chaves vence em 10\/12\/2026: tem de vencer depois de hoje \(15\/12\/2026\)/);
+  } finally { globalThis.HOJE_VENDA_TESTE_ = "2026-01-01"; }
 });

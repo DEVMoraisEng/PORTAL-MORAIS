@@ -1017,7 +1017,7 @@ var ContratoVenda = (function () {
     }
     if (co.livre) {
       /* 29/10: fluxo alterado no portal — as regras da lista (a soma fecha com o valor da casa da própria lista) */
-      FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, assinatura: fl.assinatura, linhas: co.livre.linhas })   /* 07/11: nada vence antes da assinatura */.erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
+      FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, assinatura: fl.assinatura, hoje: d.hoje, linhas: co.livre.linhas })   /* 07/11: nada vence antes da assinatura nem de hoje */.erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
     } else {
     if (co.preReserva && FLV().abaterSinal([fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90], co.preReserva.valor).abatido < co.preReserva.valor)
       faltas.push(g + ": a pré-reserva paga (R$ " + moedaBR(co.preReserva.valor) + ") passa do sinal — confira o valor da pré-reserva");
@@ -1035,6 +1035,19 @@ var ContratoVenda = (function () {
       var ult = FLV().maisMeses(l.d, (Math.max(1, l.n) - 1) * (l.i || 1));
       if (ult > FLV().LIMITE_PRE_CHAVES)
         faltas.push(g + ": " + FLV().TIPOS[l.t].nome.toLowerCase() + " vence em " + FLV().dataBR(ult) + " — pré-chaves e balões terminam até 30/11/2028 (refaça o fluxo na Planilha Casas)");
+    });
+    /* 07/11/2026 (dono): "sempre que a data do vencimento for anterior à data atual, trava" — sinais a partir de hoje;
+       pré-chaves, balões e pós-chaves depois da assinatura e de hoje. O fluxo certo sai do recálculo da venda
+       (SIMULADOR r97n) quando a DATA DE ASSINATURA é atualizada. d.hoje vem de quem gera (GerarContrato.gs). */
+    var refV = FLV().refVencimento({ assinatura: fl.assinatura, hoje: d.hoje });
+    if (d.hoje && !semAss && fl.assinatura < d.hoje)
+      faltas.push(g + ": a data de assinatura (" + FLV().dataBR(fl.assinatura) + ") já passou — atualize na Planilha Casas e o fluxo é refeito");
+    else if (refV.d) FLV().doPadrao(fl, 0).linhas.forEach(function (l) {
+      if (!l.d) return;
+      if ((l.t === "pre" || l.t === "balao" || l.t === "pos") && l.d <= refV.d)
+        faltas.push(g + ": " + FLV().TIPOS[l.t].nome.toLowerCase() + " vence em " + FLV().dataBR(l.d) + " — tem de vencer depois " + refV.de + " (" + FLV().dataBR(refV.d) + "); atualize a data de assinatura ou o dia de pagamento na Planilha Casas e o fluxo é refeito");
+      else if (d.hoje && l.t === "sinal" && l.d < d.hoje)
+        faltas.push(g + ": sinal vence em " + FLV().dataBR(l.d) + ", antes de hoje — atualize a data de assinatura");
     });
     }
     if (positivo(fl.valorVenda) && !co.livre) {

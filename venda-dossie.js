@@ -1217,9 +1217,18 @@
              ["onus", "Ônus (hipoteca, penhora…)", { max: 300, ph: "nenhum" }]],
     outro: []
   };
+  /* 07/11/2026 (dono): "sempre que a data do vencimento for anterior à data atual, trava e calcula o fluxo certo" —
+     a conferência da tela recebe hoje (São Paulo); Corrigir datas leva as linhas para o 1º mês que pode */
+  function hojeFluxo() {
+    if (typeof HOJE_VENDA_TESTE_ === "string") return HOJE_VENDA_TESTE_;   /* testes: hoje fixo (fluxo-ui.test.mjs) */
+    try {
+      var p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      return /^\d{4}-\d{2}-\d{2}$/.test(p) ? p : "";
+    } catch (e) { return ""; }
+  }
   /* primeira linha de permuta sem os dados do bem completos (o que o Salvar pede), ou -1 */
   function permutaSemBem(ed) {
-    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao, ed.anterior || null);
+    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null);
     var ks = Object.keys(r.porBem || {}).map(Number).sort(function (a, b) { return a - b; });
     return ks.length ? ks[0] : -1;
   }
@@ -1357,7 +1366,7 @@
   }
   /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
   function htmlFluxoVivo(ed, dis) {
-    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
+    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
     /* 03/11: o que falta no bem da permuta não trava o botão — o Salvar abre o formulário do bem */
     var errosBem = r.errosBem || [];
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
@@ -1382,6 +1391,10 @@
     if (!bate) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-dist"' + dis +
       ' title="Espalha a diferença nas pré-chaves e balões, proporcional ao total de cada">Distribuir ' + esc(F.moeda(Math.abs(dif))) +
       " nas pré-chaves e balões</button></div>";
+    /* 07/11: vencimento no passado — um clique leva as linhas para o 1º mês que pode (mesmo dia; o total não muda) */
+    if (r.erros.some(function (x) { return /use Corrigir datas/.test(x); }))
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-datas"' + dis +
+        ' title="Leva cada parcela que venceria no passado para o 1º mês que pode, no mesmo dia; o total da linha não muda">Corrigir datas</button></div>';
     var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x) && errosBem.indexOf(x) < 0; });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
@@ -3888,6 +3901,13 @@
           if (!String(ed.motivo || "").trim()) ed.motivo = "Cliente mudou o prazo da entrada para " + pz + "x";
           uiC.msg = "Fluxo refeito para " + pz + "x — confira as datas e salve.";
         }
+        pintar();
+        return;
+      }
+      if (acao === "c-fluxo-datas") {
+        var cd = FL().corrigirDatas({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao);
+        if (cd.erro) uiC.msg = cd.erro;
+        else { ed.linhas = cd.linhas; uiC.msg = cd.mudou.length ? "Datas corrigidas em " + cd.mudou.length + " linha(s) — confira e salve." : "Nenhuma data para corrigir."; }
         pintar();
         return;
       }
