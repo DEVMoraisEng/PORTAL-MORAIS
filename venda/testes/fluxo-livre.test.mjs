@@ -342,3 +342,36 @@ test("permuta conta no sinal mínimo junto com o sinal e a pré-reserva; permuta
   const menor = troca([...fixos.map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l), permuta(10280.41)]);
   assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a pré-reserva e a permuta\) não pode ficar abaixo do da proposta: R\$ 12\.280,41/);
 });
+
+/* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" — pré-chaves, balão e pós-chaves vencem
+   depois da assinatura, no Alterar fluxo (FluxoVenda.gs) e na geração do contrato (ContratoVenda) */
+test("pré-chaves com a 1ª parcela antes da assinatura não salva", () => {
+  const f = F.doPadrao(Object.assign({}, gavetas, { assinatura: "2026-11-25" }));
+  const k = f.linhas.findIndex((l) => l.t === "pre");
+  f.linhas[k].d = "2026-11-10";
+  const r = F.validar(f);
+  assert.equal(r.ok, false);
+  assert.ok(r.porLinha[k].some((m) => /tem de vencer depois da assinatura \(25\/11\/2026\)/.test(m)), JSON.stringify(r.porLinha));
+});
+
+test("vencer no próprio dia da assinatura também não pode; um dia depois pode", () => {
+  const f = F.doPadrao(Object.assign({}, gavetas, { assinatura: "2026-11-10" }));
+  const k = f.linhas.findIndex((l) => l.t === "pre");
+  f.linhas[k].d = "2026-11-10";
+  assert.equal(F.validar(f).ok, false);
+  f.linhas[k].d = "2026-11-11";
+  assert.ok(!(F.validar(f).porLinha[k] || []).some((m) => /depois da assinatura/.test(m)));
+});
+
+test("a assinatura da proposta (padrão) vale quando a tela não manda a dela", () => {
+  const padrao = F.doPadrao(Object.assign({}, gavetas, { assinatura: "2026-11-25" }));
+  const f = F.normalizar({ valor: padrao.valor, entrega: padrao.entrega, linhas: padrao.linhas.map((l) => Object.assign({}, l)) });
+  const k = f.linhas.findIndex((l) => l.t === "balao");
+  f.linhas[k].d = "2026-11-20";
+  assert.ok(F.validar(f, padrao).erros.some((e) => /balão vence em 20\/11\/2026: tem de vencer depois da assinatura/.test(e)));
+});
+
+test("o fluxo padrão de quem assina em novembro continua salvando", () => {
+  const f = F.doPadrao(Object.assign({}, gavetas, { assinatura: "2026-11-07", pre1Data: "2026-11-10", pre2Data: "2027-11-10" }));
+  assert.deepEqual(F.validar(f).erros, []);
+});

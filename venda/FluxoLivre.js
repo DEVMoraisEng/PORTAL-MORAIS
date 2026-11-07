@@ -328,6 +328,9 @@ var FluxoLivre = (function () {
     if (!f.linhas.length) erros.push("O fluxo não tem nenhuma linha");
     if (f.linhas.length > MAX_LINHAS) erros.push("No máximo " + MAX_LINHAS + " linhas");
     var entrega = isoValida(f.entrega) ? f.entrega : "";
+    /* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" — pré-chaves, balão e pós-chaves
+       vencem DEPOIS da assinatura (o sinal tem a regra própria do ato/30/60/90) */
+    var assV = isoValida(f.assinatura) ? f.assinatura : (padrao && isoValida(padrao.assinatura) ? padrao.assinatura : "");
     f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
       var tp = TIPOS[l.t];
       if (!tp) { erroLinha(k, "tipo inválido"); return; }
@@ -345,6 +348,8 @@ var FluxoLivre = (function () {
       }
       if (!isoValida(l.d)) { if (!tp.terceiro) erroLinha(k, "falta a 1ª data"); return; }
       var ultima = maisMeses(l.d, (Math.max(1, l.n) - 1) * l.i);
+      if (assV && (l.t === "pre" || l.t === "balao" || l.t === "pos") && l.d <= assV)
+        erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(l.d) + ": tem de vencer depois da assinatura (" + dataBR(assV) + ")");
       /* 31/10/2026 (dono): pré-chaves e balões terminam SEMPRE até 30/11/2028 — passar disso trava */
       if ((l.t === "pre" || l.t === "balao") && ultima > LIMITE_PRE_CHAVES)
         erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(ultima) + ": pré-chaves e balões terminam até " + dataBR(LIMITE_PRE_CHAVES));

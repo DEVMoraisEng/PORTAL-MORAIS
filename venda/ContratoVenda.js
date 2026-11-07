@@ -1017,7 +1017,7 @@ var ContratoVenda = (function () {
     }
     if (co.livre) {
       /* 29/10: fluxo alterado no portal — as regras da lista (a soma fecha com o valor da casa da própria lista) */
-      FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, linhas: co.livre.linhas }).erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
+      FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, assinatura: fl.assinatura, linhas: co.livre.linhas })   /* 07/11: nada vence antes da assinatura */.erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
     } else {
     if (co.preReserva && FLV().abaterSinal([fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90], co.preReserva.valor).abatido < co.preReserva.valor)
       faltas.push(g + ": a pré-reserva paga (R$ " + moedaBR(co.preReserva.valor) + ") passa do sinal — confira o valor da pré-reserva");
