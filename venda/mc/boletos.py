@@ -6,14 +6,13 @@ import re
 import time
 
 from . import distrato as D
-from . import regras as R
 from . import retrato as RT
 from .erp import ErpErro
 
 EMITE = {"sinal", "entrada", "pre", "pos", "balao"}
 # status que o ERP mostra como boleto vivo, agendado, pago ou em cancelamento: nunca emitir de novo
 BLOQUEIA = {"AWAITING", "DRAFT", "ISSUED", "REGISTERED", "SETTLED", "RECEIVED", "PENDING_WRITE_OFF"}
-TETO = 40
+TETO = 62   # dono, 07/11/2026
 TABELAS = ("INCC-M", "IPCA + 1% a.m.")
 # Regra do dono (06/11/2026): em novembro/2026 o boleto sai só 5 dias corridos antes do vencimento.
 # Mês fora daqui = emite o mês inteiro assim que a parcela aparece (a partir de dezembro/2026).
@@ -59,9 +58,6 @@ def selecionar(venda: dict, mes: str, hoje: str | None = None) -> list[dict]:
             linha.update(acao="pular", motivo="ato (sempre por Pix, nunca boleto)")
         elif tipo not in EMITE:
             linha.update(acao="pular" if tipo == "terceiros" else "decidir", motivo="tipo %s não emite" % tipo)
-        elif ((p.get("readjustmentDetail") or {}).get("type") or {}).get("id") == R.TIPO_CHAVES:
-            # retrato._tipo chama chaves de "balao" (serve à antecipação); aqui o dono ainda não confirmou
-            linha.update(acao="decidir", motivo="parcela de chaves: confirmar com o dono")
         elif any(s in BLOQUEIA for s in st):
             linha.update(acao="pular", motivo="já tem boleto (%s)" % ",".join(st))
         elif st:
@@ -71,7 +67,7 @@ def selecionar(venda: dict, mes: str, hoje: str | None = None) -> list[dict]:
         elif not cadastro:
             linha.update(acao="decidir", motivo="cadastro do comprador incompleto (CPF, CEP, endereço, número, bairro ou cidade)")
         elif data < hoje:
-            linha.update(acao="decidir", motivo="venceu em %s sem boleto" % data)
+            linha.update(acao="decidir", motivo="venceu em %s sem boleto: não emite, só aviso" % data)
         elif antecedencia is not None and _dias(hoje, data) > antecedencia:
             import datetime as dt
             quando = (dt.date.fromisoformat(data) - dt.timedelta(days=antecedencia)).isoformat()

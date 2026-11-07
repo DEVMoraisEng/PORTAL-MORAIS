@@ -83,13 +83,13 @@ def test_cadastro_incompleto_decide():
     e = parcela(v, R.TIPO_ENTRADA, "2026-11-10")
     assert acao(B.selecionar(v, "2026-11", hoje="2026-11-01"), e["id"]) == "decidir"
 
-def test_parcela_de_chaves_vai_para_decidir_e_intermediaria_emite():
+def test_balao_de_entrega_de_chaves_e_intermediaria_emitem():
     v = venda(); v["tradeReceivable"]["installments"] = []
     parcela(v, R.TIPO_SINAL, "2026-10-01", received=True)
     ch = parcela(v, R.TIPO_CHAVES, "2026-11-10")
     bi = parcela(v, R.TIPO_INTERMEDIARIA, "2026-11-10")
     l = {x["parcela"]: x for x in B.selecionar(v, "2026-11", hoje="2026-11-06")}
-    assert l[ch["id"]]["acao"] == "decidir" and l[ch["id"]]["motivo"] == "parcela de chaves: confirmar com o dono"
+    assert l[ch["id"]]["acao"] == "emitir"            # dono, 07/11: chaves é balão, gera
     assert l[ch["id"]]["tipo"] == "balao"          # o retrato continua chamando de balão
     assert l[bi["id"]]["acao"] == "emitir"
 
@@ -105,7 +105,8 @@ def test_indices_faltando_pede_o_mes_de_referencia():
 def test_travas_saldo_e_teto():
     linhas = [{"acao": "emitir"}] * 3
     assert B.travas(linhas, saldo=2) == "saldo de 2 créditos não cobre 3 boletos"
-    assert B.travas([{"acao": "emitir"}] * 41, saldo=100) == "41 boletos passam do teto de 40 por rodada"
+    assert B.travas([{"acao": "emitir"}] * 63, saldo=100) == "63 boletos passam do teto de 62 por rodada"
+    assert B.travas([{"acao": "emitir"}] * 62, saldo=100) is None
     assert B.travas(linhas, saldo=100) is None
 
 def test_vendas_do_mes_pagina_e_filtra_a_obra():

@@ -481,7 +481,7 @@ Controle; se o boleto não existir mesmo, emita pela tela.
 - Sem o arquivo a rodada só monta o relatório (prévia), mesmo agendada.
 
 ## 4. Relatório e primeiro boleto
-- Relatório de cada rodada: `_central\boletos\AAAA-MM-DD_HHMM.json` e `.html`, fora do repositório (leva nome e valor).
+- Relatório de cada rodada: `_central\boletos\AAAA-MM-DD_HHMMSS.json` e `.html`, fora do repositório (leva nome e valor).
   O log público só tem contagens e 8 letras de id.
 - Primeiro boleto, com cuidado: criar o arquivo do item 3 e rodar uma vez com só uma parcela, pelo id dela:
 ```powershell
@@ -496,13 +496,12 @@ Remove-Item Env:BOLETOS_SO
 
 ## 5. Regras (resumo)
 - Só o CONDOMÍNIO RESERVA DOS IPÊS e só o mês vigente (o INCC do mês só está corrigido para ele).
-- Emite: sinal de 30/60/90 dias, entrada, pré-chaves, pós-chaves e balões (intermediárias).
-- Chaves → decidir (parcela de chaves: confirmar com o dono).
+- Emite: sinal de 30/60/90 dias, entrada, pré-chaves, pós-chaves e balões (intermediária e balão de entrega de chaves).
 - Nunca emite: ato (1º sinal, sempre por Pix), financiamento, FGTS e permuta. Tipo desconhecido vai para "decidir".
 - Novembro/2026: o boleto só sai a partir de 5 dias corridos antes do vencimento. De dezembro/2026 em diante, o mês inteiro.
-- Parcela do mês já vencida e sem boleto não emite: vai para "decidir".
+- Parcela do mês já vencida e sem boleto não emite: só avisa no relatório ("decidir").
 - Confere as tabelas INCC-M e IPCA do mês. Se faltar índice, só pré-chaves, pós-chaves e balões vão para "decidir"
   (o motivo diz qual índice falta); sinal e entrada saem normalmente e o código continua 0. Ver o relatório.
 - Antes de emitir qualquer um, confere se o saldo de créditos cobre a lista toda. Se não cobrir, não emite nada
   (código 2, `trava: saldo ...`); o motivo completo fica no relatório.
-- Teto de 40 boletos por rodada; acima disso não emite nada e pede para olhar.
+- Teto de 62 boletos por rodada; acima disso não emite nada e pede para olhar.
