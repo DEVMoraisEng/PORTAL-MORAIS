@@ -72,3 +72,10 @@ test("Corrigir aqui: cônjuge, RG vazio, nacionalidade e nascimento têm coluna"
   assert.deepEqual(K.camposParaCorrigir("c1-id", "nacionalidade", true), [{ coluna: "NACIONALIDADE PROPONENTE", rotulo: "Nacionalidade" }]);
   assert.deepEqual(K.camposParaCorrigir("c2-id", "nascimento", true), [{ coluna: "DATA NASCIMENTO COMPRADOR 1", rotulo: "Nascimento" }]);
 });
+
+test("nascimento do cadastro aparece como 05/01/1972 na tela (era 1972-01-05)", () => {
+  const cj = K.plano(D, v).find((x) => x.id === "cj-id");
+  assert.equal(cj.campos.find((c) => c.campo === "nascimento").esperado, "05/04/1971");
+  assert.equal(K.comparar("nascimento", "05/04/1971", "05/04/1971").situacao, "ok");
+  assert.equal(K.comparar("nascimento", "05/04/1971", "05/04/1975").situacao, "diverge");
+});
