@@ -468,6 +468,11 @@ test("plano 23 C: autenticações — token por e-mail sempre; selfie + document
   /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores só com o token, mesmo com a vendedora empresa */
   for (const origem of ["vendedor", "representante", "testemunha", "corretor", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"])
     assert.deepEqual(CS.autenticacoes({ origem }, liga, PJ), ["email"], origem);
+  /* 07/11/2026 (dono): termo de reserva sem selfie, contrato com — o termo manda dados.semSelfie */
+  for (const origem of ["comprador1", "comprador2", "conjugeComprador1"]) {
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, { ...COND, semSelfie: true }), ["email"], origem + " (termo de reserva)");
+    assert.deepEqual(CS.autenticacoes({ origem }, liga, { ...PJ, semSelfie: true }), ["email"], origem + " (termo, rua PJ)");
+  }
   assert.deepEqual(CS.corpoAutenticacao("d", "s").data.attributes, { action: "provide_evidence", auth: "email" });
   assert.deepEqual(CS.corpoAutenticacao("d", "s", "selfie").data.attributes, { action: "provide_evidence", auth: "selfie" });
 });

@@ -425,8 +425,8 @@ test("plano 23 A: carregarAssinados e baixarAssinado falam com o servidor (doc d
   const chamar = async (x) => { chamadas.push(x); return x.action === "documentosAssinados" ? { ok: true, documentos: DOCS } : { ok: true, nome: DOCS[1].nome, base64: "QUJD" }; };
   const c1 = await A.carregarAssinados(ctx({ doc: "PRE_RESERVA", estado: ASSINADO }), { pageId: "p", chamar });
   assert.deepEqual(c1.assinados, DOCS);
-  const r = await A.baixarAssinado(ctx({ estado: ASSINADO, assinados: DOCS }), "doc-2", { pageId: "p", chamar });
-  assert.deepEqual(chamadas, [{ action: "documentosAssinados", pageId: "p", doc: "PRE_RESERVA" }, { action: "verDocumentoAssinado", pageId: "p", docId: "doc-2" }]);
+  const r = await A.baixarAssinado(ctx({ doc: "PRE_RESERVA", estado: ASSINADO, assinados: DOCS }), "doc-2", { pageId: "p", chamar });
+  assert.deepEqual(chamadas, [{ action: "documentosAssinados", pageId: "p", doc: "PRE_RESERVA" }, { action: "verDocumentoAssinado", pageId: "p", docId: "doc-2", doc: "PRE_RESERVA" }]);
   assert.deepEqual(r.arquivo, { nome: "MEMORIAL DESCRITIVO - CONDOMINIO TESTE CASA 1 - Maria - ASSINADO.pdf", base64: "QUJD" });
   const ruim = await A.baixarAssinado(ctx({ estado: ASSINADO, assinados: DOCS }), "doc-2", { pageId: "p", chamar: async () => ({ ok: false, erro: "DOWNLOAD_ASSINADO_FALHOU" }) });
   assert.equal(ruim.arquivo, null);
@@ -434,6 +434,15 @@ test("plano 23 A: carregarAssinados e baixarAssinado falam com o servidor (doc d
   const sem = await A.carregarAssinados(ctx({ estado: ASSINADO }), { pageId: "p", chamar: async () => { throw new Error("x"); } });
   assert.deepEqual(sem.assinados, []);
   assert.match(sem.msg, /não respondeu/);
+});
+
+test("07/11: Ver/Baixar do termo de reserva assinado manda doc PRE_RESERVA; o do contrato não manda", async () => {
+  const chamadas = [];
+  const chamar = async (x) => { chamadas.push(x); return { ok: true, nome: DOCS[0].nome, base64: "QUJD" }; };
+  await A.baixarAssinado(ctx({ doc: "PRE_RESERVA", estado: ASSINADO, assinados: DOCS }), "doc-1", { pageId: "p", chamar });
+  await A.baixarAssinado(ctx({ estado: ASSINADO, assinados: DOCS }), "doc-1", { pageId: "p", chamar });
+  assert.equal(chamadas[0].doc, "PRE_RESERVA");
+  assert.equal("doc" in chamadas[1], false);
 });
 
 test("01/11 (sandbox): assinado por todos com o arquivo ainda não pronto — a tela diz para clicar em Atualizar situação", async () => {

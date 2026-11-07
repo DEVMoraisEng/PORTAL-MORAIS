@@ -42,7 +42,13 @@ function conferirDocumentos_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8), t0 = Date.now();
   var x = confDados_(col, p);
   if (x.resp) return x.resp;
-  var itens = ConferenciaDocs.plano(x.d), pg = ctrLerPaginaVenda_(p.pageId), leituras = {};
+  var pg = ctrLerPaginaVenda_(p.pageId), leituras = {}, real = {};
+  /* 07/11/2026: nascimento e dados do cônjuge vêm da linha (o contrato não os carrega) */
+  Object.keys(pg.properties || {}).forEach(function (n) { real[RegrasVenda.chave(n)] = n; });
+  var itens = ConferenciaDocs.plano(x.d, function (nome) {
+    var n = real[RegrasVenda.chave(nome)];
+    return n ? ctrTxt_(ctrValor_(pg.properties[n])).trim() : "";
+  });
   /* 1) arquivos de cada documento (até 4: frente e verso) */
   var todos = [];
   itens.forEach(function (it) {
@@ -75,9 +81,9 @@ function conferirDocumentos_(col, sess, p) {
   var o = { carimbo: ctrCarimbo_(x.d), em: new Date().toISOString(), por: ctrTxt_(sess && sess.u), linhas: linhas, confirmados: {},
            arquivos: confContagem_(pg) };
   try { confGravar_(p.pageId, o); } catch (e) { ctrErro_("conferirDocumentos " + pid + " registro", e); return { ok: false, erro: "GRAVACAO_FALHOU" }; }
-  var n = { ok: 0, diverge: 0, ilegivel: 0 };
+  var n = { ok: 0, diverge: 0, ilegivel: 0, falta: 0 };
   linhas.forEach(function (l) { n[l.situacao] = (n[l.situacao] || 0) + 1; });
-  ctrLog_("conferirDocumentos " + pid + " ok " + (Date.now() - t0) + "ms; confere " + n.ok + ", diverge " + n.diverge + ", ilegivel " + n.ilegivel);
+  ctrLog_("conferirDocumentos " + pid + " ok " + (Date.now() - t0) + "ms; confere " + n.ok + ", diverge " + n.diverge + ", ilegivel " + n.ilegivel + ", falta " + n.falta);
   return { ok: true, linhas: linhas, confirmados: {}, em: o.em, atual: true };
 }
 
@@ -165,6 +171,12 @@ function corrigirConferencia_(col, sess, p) {
     var x = a.alvos[i];
     if (!Object.prototype.hasOwnProperty.call(valores, x.coluna)) continue;
     var nv = ctrTxt_(valores[x.coluna]).trim().slice(0, 300);
+    /* 07/11/2026: nascimento lido como 05/01/1976 vai para a coluna de data como 1976-01-05 */
+    if (x.tipo === "date" && nv) {
+      var iso = ConferenciaDocs.dataISO(nv);
+      if (!iso) return { ok: false, erro: "DATA_INVALIDA" };
+      nv = iso.slice(0, 4) + "-" + iso.slice(4, 6) + "-" + iso.slice(6, 8);
+    }
     if (p.campo === "cpf" && nv) {
       if (!RegrasVenda.cpfValido(nv)) return { ok: false, erro: "CPF_INVALIDO" };
       nv = RegrasVenda.formatarCpf(nv);

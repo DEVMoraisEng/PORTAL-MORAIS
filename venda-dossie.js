@@ -2557,7 +2557,8 @@
   }
   function htmlConferencia(e, u) {
     /* dentro da função: o node (testes) não roda as atribuições desta parte do arquivo */
-    var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"] };
+    var SIT_CONF = { ok: ["ass-ok", "✓ confere"], diverge: ["ass-recusou", "⚠ diverge"], ilegivel: ["ass-pend", "? ilegível"],
+                     falta: ["ass-recusou", "✗ falta no cadastro"] };   /* 07/11/2026: vazio no cadastro, lido no documento */
     var SIT_SEM_ARQUIVO = ["ass-pend", "✗ não anexado"];   /* 01/11/2026 (H2): sem documento não é ilegível */
     u = u || {};
     var h = '<div class="grp">Conferência dos documentos</div>';
@@ -2586,7 +2587,7 @@
           }
           /* data-rot: no celular (vendas.html, < 600 px) cada linha vira um bloco com o nome de cada campo */
           return '<tr><td data-rot="Pessoa · documento">' + esc(l.pessoa) + " · " + esc(l.documento) + '</td><td data-rot="Campo">' + esc(l.rotulo) +
-            '</td><td data-rot="No contrato">' + esc(l.esperado) +
+            '</td><td data-rot="No contrato">' + (l.esperado ? esc(l.esperado) : '<span class="ass-data">vazio</span>') +
             '</td><td data-rot="No documento">' + (l.lido ? esc(l.lido) : '<span class="ass-data">' + esc(l.motivo || "não lido") + "</span>") +
             '</td><td data-rot="Situação"><b class="' + s[0] + '">' + s[1] + "</b>" + acao + "</td></tr>" +
             (u.corr && u.corr.i === i ? '<tr class="dz-corr"><td colspan="5">' + htmlCorrigir(l, u.corr, dis) + "</td></tr>" : "");
@@ -4346,7 +4347,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=9"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=30";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=31";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

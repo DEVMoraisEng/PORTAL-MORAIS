@@ -715,6 +715,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
           <div class="novo-bar">
             <button class="bt mp-sim" onclick="novoEscolherUn('sim')">＋ Fazer simulação</button>
             <button class="bt mp-prop" onclick="novoEscolherUn('prop')">＋ SUBIR PASTA</button>
+            <button class="bt az" id="bt-planilhaFluxo" onclick="planilhaFluxoPortal()" title="Valor, avaliação, financiamento (80% da avaliação) e o fluxo padrão de cada unidade à venda">⬇ Planilha do fluxo padrão</button>
           </div>
         </div>
         <div class="kpis k5" id="prop-cortes"></div>
@@ -817,7 +818,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 
 <script src="app.js?v=46"></script>
 <script src="venda/FluxoLivre.js?v=17" defer></script><!-- 29/10: Alterar fluxo -->
-<script src="venda-dossie.js?v=82" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda-dossie.js?v=83" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=4" defer></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV da Análise de vendas (período, tipo, rua) --><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
@@ -2260,6 +2261,24 @@ async function altPropSalvar(){
   UNS=[];
   try{ await propCarregar(true); simCarregarUnidades(true); }catch(e){}
   setTimeout(()=>{ try{ propVer(p.id); }catch(e){} }, 400);
+}
+
+/* 07/11/2026 (dono) — PLANILHA DO FLUXO PADRÃO (o mesmo gerador do mapa: planilha-fluxo.js do simulador) */
+async function planilhaFluxoPortal(){
+  const b=document.getElementById("bt-planilhaFluxo"); if(!b) return;
+  const txt=b.textContent; b.disabled=true; b.textContent="Gerando a planilha…";
+  try{
+    await altGarantirUnidades();
+    if(!UNS.length) throw new Error("não consegui carregar as unidades");
+    if(typeof planilhaFluxoPadrao!=="function"){
+      await new Promise((ok,falha)=>{ const sc=document.createElement("script"); sc.src=SIMULADOR_URL+"planilha-fluxo.js?v="+Date.now();
+        sc.onload=ok; sc.onerror=()=>falha(new Error("não carregou o gerador")); document.head.appendChild(sc); });
+    }
+    const n=await planilhaFluxoPadrao(UNS);
+    b.textContent="✓ Planilha baixada ("+n+" unidades)";
+    setTimeout(()=>{ b.textContent=txt; }, 4000);
+  }catch(e){ alert("Não consegui gerar a planilha: "+((e&&e.message)||e)); b.textContent=txt; }
+  finally{ b.disabled=false; }
 }
 
 /* ---------- SIMULAÇÃO ---------- */

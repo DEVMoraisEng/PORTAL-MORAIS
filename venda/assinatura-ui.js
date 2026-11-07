@@ -227,7 +227,7 @@
   /* PDF assinado de um documento (ação verDocumentoAssinado): { ctx, arquivo: { nome, base64 } | null } */
   async function baixarAssinado(c, docId, deps) {
     var r;
-    try { r = await deps.chamar({ action: "verDocumentoAssinado", pageId: deps.pageId, docId: String(docId || "") }); }
+    try { r = await deps.chamar(comDoc(c, { action: "verDocumentoAssinado", pageId: deps.pageId, docId: String(docId || "") }));   /* 07/11: sem o doc do termo o servidor conferia o contrato e dava NAO_ASSINADO */ }
     catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     if (!r.ok || typeof r.base64 !== "string" || !r.base64)

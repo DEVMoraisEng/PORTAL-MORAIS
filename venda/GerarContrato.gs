@@ -261,6 +261,18 @@ function ctrDadosCondominio_(c) {
              estadoCivil: t("ESTADO CIVIL FIADOR " + i), conjugeNome: t("CONJUGE FIADOR " + i),
              conjugeCpf: RegrasVenda.cpfDoNotion(t("CPF CONJUGE FIADOR " + i)), conjugeEmail: t("EMAIL CONJUGE FIADOR " + i) };
   }
+  /* 07/11/2026: o formulário do corretor põe o cônjuge do comprador casado como OUTRO comprador (bloco "… COMPRADOR 2",
+     e-mail em EMAIL COMPRADOR 2) e não preenche EMAIL CONJUGE DO COMPRADOR 1. Sendo a mesma pessoa (CPF ou nome), vale
+     o e-mail dela; a coluna própria, quando preenchida, vale primeiro. */
+  function emailConjuge2() {
+    var direto = t("EMAIL CONJUGE DO COMPRADOR 1");
+    if (direto) return direto;
+    var so = function (s) { return String(s || "").replace(/\D/g, ""); };
+    var cpfCj = so(t("CPF CONJUGE DO COMPRADOR 1")), cpf3 = so(t("CPF COMPRADOR 2"));
+    var nomeCj = RegrasVenda.chave(t("CONJUGE DO COMPRADOR 1")), nome3 = RegrasVenda.chave(t("COMPRADOR 2"));
+    var mesma = (cpfCj && cpfCj === cpf3) || (!!nomeCj && nomeCj === nome3);
+    return mesma ? t("EMAIL COMPRADOR 2") : "";
+  }
   return {
     condominio: {
       nome: t("CONDOMÍNIO"), unidade: t("UNIDADE"), areaPrivativa: n("CONTRATO - ÁREA PRIVATIVA (M²)"), fracaoIdeal: t("CONTRATO - FRAÇÃO IDEAL"),
@@ -281,6 +293,10 @@ function ctrDadosCondominio_(c) {
       fiadores: [fiador(1), fiador(2)],
       /* 31/10/2026 (dono): cônjuge do comprador assina (colunas da proposta) — ContratoVenda.conjugeDoComprador */
       conjugeComprador: { estadoCivil: t("ESTADO CIVIL"), nome: t("CONJUGE"), cpf: RegrasVenda.cpfDoNotion(t("CPF CONJUGE")), email: t("EMAIL CONJUGE"), regime: t("REGIME") || t("REGIME DE BENS") },
+      /* 07/11/2026 (dono): cônjuge do 2º comprador = bloco "… COMPRADOR 1" do condomínio; só vale com 2º comprador */
+      conjugeComprador2: { estadoCivil: t("ESTADO CIVIL COMPRADOR 1"), nome: t("CONJUGE DO COMPRADOR 1"),
+                           cpf: RegrasVenda.cpfDoNotion(t("CPF CONJUGE DO COMPRADOR 1")), email: emailConjuge2(),
+                           regime: t("REGIME DE BENS COMPRADOR 1") },
       /* 29/10: "Alterar fluxo" (FluxoVenda.gs) — a lista livre; vazia = fluxo do simulador */
       fluxoPersonalizado: t("FLUXO PERSONALIZADO"),
       /* quadro-resumo (21/10): a comissão gravada pelo simulador; vazia, o contrato calcula pela regra */
