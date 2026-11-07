@@ -453,8 +453,10 @@ var ClicksignVenda = (function () {
   }
   /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores NÃO pedem selfie — só compradores e o cônjuge do comprador. */
   var COM_SELFIE = /^(comprador[12]|conjugeComprador1)$/;
+  /* 07/11/2026 (dono): "a reserva tá pedindo selfie, pode tirar, deixar somente no contrato" — o termo de reserva manda
+   * dados.semSelfie (assEnviarTermo_) e fica só com o token por e-mail; o contrato segue com a selfie. */
   function autenticacoes(s, config, dados) {
-    return config && config.selfie && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
+    return config && config.selfie && !(dados && dados.semSelfie) && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
   /* 30/10: rubrica posicionada — kind "initials" (visto) ou "manuscript" (assinatura); positions [{ page: "n", position: [x, y] }]
    * em proporção da página (0–1, x da esquerda, y do topo). positions, pages e rubric_field são exclusivos. */
