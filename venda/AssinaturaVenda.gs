@@ -254,6 +254,8 @@ function assEnviarTravado_(col, p, pid) {
     assLog_("enviar " + pid + " recusado: envelope aberto" + (pendente ? " (pendente " + pendente + ")" : ""));
     return { ok: false, erro: "ENVELOPE_ABERTO", situacao: sitAtual };
   }
+  /* 03/11 (dono): data limite escolhida no envio — conferida antes de baixar qualquer PDF */
+  if (!ClicksignVenda.prazoAssinatura(p.prazo, new Date()).ok) return { ok: false, erro: "PRAZO_INVALIDO" };
   var gerado = doc.gerado(pg);
   if (!gerado || !gerado.url) return { ok: false, erro: doc.semGerado };
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
@@ -570,7 +572,8 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
   var envId = "", base = "", papeis = {};
   /* entrega 14: envelope e documento com o nome padrão "OBRA - COMPRADOR" (termo: "PRÉ-RESERVA - OBRA - COMPRADOR") */
   try {
-    envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(nomeCs, mensagem), true).id;
+    envId = csPasso_("envelope", "post", "/envelopes", ClicksignVenda.corpoEnvelope(nomeCs, mensagem,
+                     ClicksignVenda.prazoAssinatura(p.prazo, new Date()).deadline), true).id;
     base = "/envelopes/" + encodeURIComponent(envId);
     /* anota já: qualquer leitura seguinte vê envelope aberto (RASCUNHO conta como aberto) */
     try { assGravarTextos_(p.pageId, assColunasEnvelope_(cols, envId, S.RASCUNHO)); }

@@ -3416,6 +3416,11 @@
         if (!rg.ok && rg.erro === "SEM_RESPOSTA") carregarPR();
       }
     }
+    /* 03/11 (dono): a data limite escolhida ao lado do botão Enviar (mesma linha do botão clicado) */
+    function prazoDaTela(b) {
+      var i = b && b.parentNode && b.parentNode.querySelector ? b.parentNode.querySelector("input[data-prazo]") : null;
+      return i ? String(i.value || "") : "";
+    }
     async function aoClicarAssPR(acao, b) {
       if (!window.VendaAssinatura || ctxP.ocupado) return;
       ctxP.contratoGerado = !!(estadoP && estadoP.gerado);
@@ -3424,6 +3429,7 @@
         alvo: b ? b.getAttribute("data-sig") : "",   /* 03/11: Trocar e-mail */
         perguntar: function (t, v) { return window.prompt(t, v); },
         confirmar: function (t) { return window.confirm(t); },
+        lerPrazo: function () { return prazoDaTela(b); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxP = c; pintarP(); },
         linkCorrigir: linkCorrigir
@@ -3495,6 +3501,7 @@
         perguntar: function (t, v) { return window.prompt(t, v); },
         mostrarPrevia: function (prev) { return window.RubricasVenda ? window.RubricasVenda.mostrarPrevia(prev, janelaPrevia) : null; },
         confirmar: function (t) { return window.confirm(t); },
+        lerPrazo: function () { return prazoDaTela(b); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxA = c; pintarA(); },
         linkCorrigir: linkCorrigir
@@ -4177,6 +4184,10 @@
           if (raiz !== el || el.__vbLigado !== eu) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
+          /* 03/11 (dono): data limite para assinar sobrevive a um redesenho do bloco */
+          var dp = ev.target.getAttribute("data-prazo");
+          if (dp === "p-") { ctxP.prazo = ev.target.value; return; }
+          if (dp === "a-") { ctxA.prazo = ev.target.value; return; }
           var fxb = ev.target.getAttribute("data-fxb");
           if (fxb === "tipo" || fxb === "situacao") { aoDigitarBem(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* 03/11: muda os campos do formulário */
           var fx = ev.target.getAttribute("data-fx");
@@ -4335,7 +4346,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=9"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=29";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=30";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

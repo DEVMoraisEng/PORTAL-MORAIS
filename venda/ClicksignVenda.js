@@ -405,11 +405,31 @@ var ClicksignVenda = (function () {
     /* sem unidade conhecida: "da unidade  para" vira "para" */
     return m.replace(/ da unidade (?=para |\.)/, " ").replace(/\s+([.,])/g, "$1").trim().slice(0, 1000);
   }
-  function corpoEnvelope(nome, mensagem) {
+  /* 03/11/2026 (dono): data limite para assinar, escolhida no envio (contrato e pré-reserva). "AAAA-MM-DD" vira o fim
+   * do dia em Brasília; vazio = sem prazo (a Clicksign põe 30 dias). Vale de amanhã até 89 dias (a Clicksign aceita no
+   * máximo 90 a partir da criação, e o fim do dia 90 passaria disso). */
+  var PRAZO_MAX_DIAS = 89;
+  function diaBrasilia(agora) {
+    var d = new Date((agora instanceof Date ? agora.getTime() : Number(agora)) - 3 * 3600000);
+    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+  }
+  function prazoAssinatura(valor, agora) {
+    var v = txt(valor);
+    if (!v) return { ok: true, deadline: "" };
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+    if (!m) return { ok: false };
+    var dia = Date.UTC(+m[1], +m[2] - 1, +m[3]), d = new Date(dia);
+    if (d.getUTCMonth() !== +m[2] - 1 || d.getUTCDate() !== +m[3]) return { ok: false };
+    var dias = Math.round((dia - diaBrasilia(agora)) / 86400000);
+    if (dias < 1 || dias > PRAZO_MAX_DIAS) return { ok: false };
+    return { ok: true, deadline: v + "T23:59:59.000-03:00" };
+  }
+  function corpoEnvelope(nome, mensagem, deadline) {
     var a = { name: nome, locale: "pt-BR", auto_close: true, block_after_refusal: true,
       /* prazo vencido com assinatura faltando cancela (o padrão "closed" finalizaria um contrato incompleto) */
       deadline_partial_signature_action: "canceled" };
     if (txt(mensagem)) a.default_message = txt(mensagem);
+    if (txt(deadline)) a.deadline_at = txt(deadline);
     return { data: { type: "envelopes", attributes: a } };
   }
   function corpoDocumento(filename, base64) {
@@ -1023,7 +1043,7 @@ var ClicksignVenda = (function () {
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, autenticacoes: autenticacoes, AUTH_SELFIE: AUTH_SELFIE, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
-    MENSAGEM: MENSAGEM, mensagemEnvelope: mensagemEnvelope, corpoSignatarioTrocado: corpoSignatarioTrocado, requisitoGuardado: requisitoGuardado,
+    MENSAGEM: MENSAGEM, mensagemEnvelope: mensagemEnvelope, prazoAssinatura: prazoAssinatura, PRAZO_MAX_DIAS: PRAZO_MAX_DIAS, corpoSignatarioTrocado: corpoSignatarioTrocado, requisitoGuardado: requisitoGuardado,
     requisitosParaRecriar: requisitosParaRecriar, corpoRequisitoTrocado: corpoRequisitoTrocado, corpoRemoverRequisitos: corpoRemoverRequisitos,
     corpoAdicionarRequisitos: corpoAdicionarRequisitos, idsDoLote: idsDoLote,
     conferirEmailNovo: conferirEmailNovo,
