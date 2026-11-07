@@ -494,6 +494,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var dAss = {}, k;
   for (k in x.d) dAss[k] = x.d[k];
   dAss.comprador2 = null; dAss.corretor = null;
+  dAss.semSelfie = true;   /* 07/11/2026 (dono): selfie só no contrato; o termo de reserva fica só com o token por e-mail */
   if (dAss.condominio && dAss.condominio.conjugeComprador && !prConjugeIncluido_(p.pageId)) {
     var cond = {};
     for (k in dAss.condominio) if (k !== "conjugeComprador") cond[k] = dAss.condominio[k];
