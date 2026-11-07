@@ -258,6 +258,27 @@ html[data-tema="escuro"] td.num.abaixo{color:#8ce0a5}
 .bt{font:inherit;font-weight:700;font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid transparent}
 .bt.az{background:var(--azul);color:#fff}.bt.az:hover{background:var(--azul-esc)}
 .bt.ghost{background:var(--sup);border-color:var(--border);color:var(--text3)}.bt.ghost:hover{background:var(--bg3)}
+/* 07/11/2026 — Nova simulação / SUBIR PASTA pelo portal: mesmos botões do mapa de vendas
+   (Fazer simulação em amarelo, SUBIR PASTA em verde) */
+.bt.mp-sim{background:#EFB700;color:#7A4A16;border-color:#D8A818}.bt.mp-sim:hover{background:#D8A818}
+.bt.mp-prop{background:#27AE60;color:#fff;border-color:#1E8449;font-weight:800}.bt.mp-prop:hover{background:#1E8449}
+.novo-bar{display:flex;gap:8px;flex-wrap:wrap;margin-left:8px}
+.un-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.un-op{display:flex;flex-direction:column;gap:2px;text-align:left;font:inherit;padding:10px 12px;border-radius:10px;
+  border:1px solid var(--border);background:var(--sup);color:var(--text);cursor:pointer}
+.un-op b{font-size:15px}.un-op small{font-size:12px;color:var(--text3)}
+.un-op:hover{border-color:#27AE60;box-shadow:0 0 0 3px rgba(39,174,96,.18)}
+.un-op.res{border-color:#9CC3E4;background:#EEF4FB}
+html[data-tema="escuro"] .un-op.res{background:rgba(31,111,178,.18)}
+.un-op .st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#1a6b40}
+.un-op.res .st{color:#1F6FB2}
+.form-ov{position:fixed;inset:0;background:rgba(15,26,34,.6);z-index:70;display:flex;flex-direction:column;padding:12px}
+.form-cx{flex:1;display:flex;flex-direction:column;background:var(--sup);border-radius:14px;overflow:hidden;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);max-width:1100px;width:100%;margin:0 auto}
+.form-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border)}
+.form-topo .modal-tit{flex:1;min-width:180px}
+.form-cx iframe{flex:1;width:100%;border:0;background:#FBF7EE}
+@media(max-width:600px){.form-ov{padding:0}.form-cx{border-radius:0}}
 
 /* seletor de obras (grupo) */
 .obras-box{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;max-height:280px;overflow-y:auto;
@@ -594,6 +615,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-st="CONCLUIDO" onclick="simSegSt('CONCLUIDO')">Concluídas</button>
             <button class="seg-bt" data-st="ERRO" onclick="simSegSt('ERRO')">Com erro</button>
           </div>
+          <!-- 07/11/2026 — preencher nova simulação/proposta pelo portal, como no mapa -->
+          <div class="novo-bar">
+            <button class="bt mp-sim" onclick="novoEscolherUn('sim')">＋ Fazer simulação</button>
+            <button class="bt mp-prop" onclick="novoEscolherUn('prop')">＋ SUBIR PASTA</button>
+          </div>
         </div>
         <div class="card">
           <div class="filtros">
@@ -675,6 +701,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-pc="SIM" onclick="propSegCredito('SIM')">Com carta</button>
             <button class="seg-bt" data-pc="NAO" onclick="propSegCredito('NAO')">Sem carta</button>
           </div>
+          <!-- 07/11/2026 — preencher nova simulação/proposta pelo portal, como no mapa -->
+          <div class="novo-bar">
+            <button class="bt mp-sim" onclick="novoEscolherUn('sim')">＋ Fazer simulação</button>
+            <button class="bt mp-prop" onclick="novoEscolherUn('prop')">＋ SUBIR PASTA</button>
+          </div>
         </div>
         <div class="kpis k5" id="prop-cortes"></div>
         <div class="card">
@@ -746,6 +777,32 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 
   <div class="modal-ov hide" id="sim-modal" onclick="if(event.target===this)simFecharDet()">
     <div class="modal-cx" id="sim-modalCx"></div>
+  </div>
+
+  <!-- 07/11/2026 — escolha da unidade e o formulário do simulador dentro do portal -->
+  <div class="modal-ov hide" id="novo-un" onclick="if(event.target===this)novoFecharUn()">
+    <div class="modal-cx">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="modal-tit" id="novo-unTit" style="flex:1"></div>
+        <button class="bt ghost" onclick="novoFecharUn()">✕</button>
+      </div>
+      <div class="modal-sub" id="novo-unSub"></div>
+      <div class="filtros" style="margin:0">
+        <div class="fcampo"><label>Buscar</label>
+          <input type="search" id="novo-unBusca" placeholder="Unidade ou tipo…" oninput="novoRenderUn()"></div>
+      </div>
+      <div id="novo-unLista" class="un-grade"></div>
+    </div>
+  </div>
+  <div class="form-ov hide" id="novo-form">
+    <div class="form-cx">
+      <div class="form-topo">
+        <div class="modal-tit" id="novo-formTit"></div>
+        <button class="bt ghost" onclick="novoNovaAba()" title="Abre o mesmo formulário numa aba separada do navegador">↗ Abrir em nova aba</button>
+        <button class="bt az" onclick="novoFecharForm()">✕ Fechar</button>
+      </div>
+      <iframe id="novo-formFr" title="Formulário do simulador" allow="camera; clipboard-write"></iframe>
+    </div>
   </div>
 
 <script src="app.js?v=46"></script>
@@ -1947,6 +2004,91 @@ function simParaProposta(id){
     "&unidade="+encodeURIComponent(d.unidade)+"&daSimulacao=1", "_blank");
 }
 function simFecharDet(){ document.getElementById("sim-modal").classList.add("hide"); }
+
+/* =====================================================================
+ * 07/11/2026 (dono) — NOVA SIMULAÇÃO / SUBIR PASTA PELO PORTAL
+ * ---------------------------------------------------------------------
+ * Os mesmos dois botões do mapa de vendas (Fazer simulação · SUBIR PASTA),
+ * agora nas abas Simulações Recebidas e Propostas. Primeiro escolhe a
+ * unidade (igual a clicar no lote do mapa: só disponível ou reservada —
+ * reservada entra, mas a proposta só é analisada se houver desistência);
+ * depois o formulário do simulador abre aqui dentro, numa janela por cima
+ * do portal. É a mesma página do mapa (mesmo domínio), então grava nas
+ * mesmas bases, manda os mesmos e-mails e passa pelas mesmas regras.
+ * Ao fechar, a lista da aba é recarregada para a nova já aparecer.
+ * ------------------------------------------------------------------ */
+const SIMULADOR_URL = "https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/";
+let NOVO_MODO = "sim", NOVO_URL = "";
+function novoEstadoUn(u){
+  const e = anEstadoBase(u);
+  return e==="preferencia" ? "reservada" : e;   // pagou preferência = reservada no mapa do corretor
+}
+async function novoEscolherUn(modo){
+  NOVO_MODO = modo;
+  document.getElementById("novo-unTit").textContent = modo==="sim" ? "Fazer simulação · escolha a unidade" : "SUBIR PASTA · escolha a unidade";
+  document.getElementById("novo-unSub").innerHTML = modo==="sim"
+    ? "Abre o simulador com a unidade já escolhida, como pelo mapa de vendas."
+    : "Abre a proposta com a unidade já escolhida, como pelo mapa de vendas. Unidade <b style=\"color:#1F6FB2\">reservada</b>: a proposta entra, mas só é analisada se houver desistência.";
+  document.getElementById("novo-unBusca").value = "";
+  document.getElementById("novo-un").classList.remove("hide");
+  if(!UNS.length){
+    document.getElementById("novo-unLista").innerHTML = '<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando as unidades…</div>';
+    try{ await simCarregarUnidades(); }catch(e){}
+  }
+  novoRenderUn();
+  setTimeout(()=>{ try{ document.getElementById("novo-unBusca").focus(); }catch(e){} }, 50);
+}
+function novoRenderUn(){
+  const box = document.getElementById("novo-unLista"); if(!box) return;
+  if(!UNS.length){
+    box.innerHTML = '<div class="vazio" style="grid-column:1/-1">Não consegui carregar as unidades agora. ' +
+      'Tente de novo ou <a href="#" onclick="novoAbrir(\'\',\'\');return false">abra o formulário sem unidade</a> e escolha por lá.</div>';
+    return;
+  }
+  const q = PROP_NORM(document.getElementById("novo-unBusca").value||"");
+  const lista = UNS.filter(u=>{
+    const e = novoEstadoUn(u);
+    if(e!=="disponivel" && e!=="reservada") return false;   // vendida e "em breve" ficam de fora, como no mapa
+    if(!q) return true;
+    return PROP_NORM("un "+u.unidade+" unidade "+u.unidade+" tipo "+(u.tipo||"")+" t"+(u.tipo||"")).indexOf(q)>=0;
+  }).sort((a,b)=>(parseInt(a.unidade,10)||0)-(parseInt(b.unidade,10)||0));
+  box.innerHTML = lista.length ? lista.map(u=>{
+    const res = novoEstadoUn(u)==="reservada";
+    const un = esc(String(u.unidade||"").replace(/['\\]/g,"")), tp = esc(String(u.tipo||"").replace(/['\\]/g,""));
+    return `<button class="un-op${res?" res":""}" onclick="novoAbrir('${tp}','${un}')">
+      <b>Un. ${un}</b><small>Tipo ${tp||"—"} · ${simBRL(Number(u.valorVenda)||0)}</small>
+      <span class="st">${res?"Reservada":"Disponível"}</span></button>`;
+  }).join("") : '<div class="vazio" style="grid-column:1/-1">Nenhuma unidade disponível'+(q?" com essa busca":"")+'.</div>';
+}
+function novoFecharUn(){ document.getElementById("novo-un").classList.add("hide"); }
+function novoAbrir(tipo, unidade){
+  novoFecharUn();
+  const pag = NOVO_MODO==="sim" ? "simulador.html" : "proposta.html";
+  NOVO_URL = SIMULADOR_URL + pag + (unidade ? "?tipo="+encodeURIComponent(tipo)+"&unidade="+encodeURIComponent(unidade) : "");
+  document.getElementById("novo-formTit").textContent =
+    (NOVO_MODO==="sim" ? "Fazer simulação" : "SUBIR PASTA") + (unidade ? " · Unidade "+unidade+(tipo?" · Tipo "+tipo:"") : "");
+  document.getElementById("novo-formFr").src = NOVO_URL;
+  document.getElementById("novo-form").classList.remove("hide");
+  document.body.style.overflow = "hidden";
+}
+function novoNovaAba(){
+  let url = NOVO_URL;
+  try{ const l = document.getElementById("novo-formFr").contentWindow.location.href; if(l && l!=="about:blank") url = l; }catch(e){}
+  window.open(url, "_blank");
+}
+function novoFecharForm(){
+  const fr = document.getElementById("novo-formFr");
+  let enviado = false;
+  try{ enviado = /enviado\.html/i.test(fr.contentWindow.location.pathname); }catch(e){}
+  if(!enviado && !confirm("Fechar o formulário? O que ainda não foi enviado se perde.")) return;
+  document.getElementById("novo-form").classList.add("hide");
+  document.body.style.overflow = "";
+  fr.src = "about:blank";
+  /* a nova simulação/proposta já aparece na lista */
+  try{ storeInvalidar("sims_lista","sims_propostas"); }catch(e){}
+  try{ simCarregar(true); }catch(e){}
+  try{ propCarregar(true); }catch(e){}
+}
 
 /* Devolve uma simulação com erro para a fila. O worker já tenta três vezes
    sozinho; isto é para o caso de você ter corrigido algo (um dado da unidade,
