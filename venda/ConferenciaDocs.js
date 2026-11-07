@@ -10,7 +10,8 @@ var ConferenciaDocs = (function () {
   /* colunas da linha da BANCO DE DADOS VENDAS CONDOMÍNIO (documentos anexados) */
   var COL = {
     C1_ID: "DOC. PROPONENTE", C1_END: "COMPROVANTE DE ENDEREÇO", C1_CIVIL: "CERTIDÕES",
-    C2_ID: "DOC. COMPRADOR 1", F1_ID: "DOC. FIADOR 1", F2_ID: "DOC. FIADOR 2"
+    C2_ID: "DOC. COMPRADOR 1", F1_ID: "DOC. FIADOR 1", F2_ID: "DOC. FIADOR 2",
+    CJ_ID: "DOC. CONJUGE"   /* 07/11/2026 (dono): o cônjuge do comprador 1 também é conferido */
   };
   var COLUNAS = Object.keys(COL).map(function (k) { return COL[k]; });
 
@@ -19,23 +20,43 @@ var ConferenciaDocs = (function () {
   function so(v) { return txt(v).replace(/\D/g, ""); }
   function chave(v) { return R().chave(txt(v)); }
 
-  /* O que conferir: [{ id, pessoa, coluna, tipo (esquema do leitor), campos: [{ campo, rotulo, esperado }] }].
-     Só entra o que tem valor esperado; quem não existe na venda (2º comprador, fiador vazio) não entra. */
-  function plano(d) {
+  /* O que conferir: [{ id, pessoa, coluna, tipo (esquema do leitor), campos: [{ campo, rotulo, esperado, opcional? }] }].
+     Quem não existe na venda (2º comprador, fiador vazio) não entra. 07/11/2026 (dono, unidade 14): campo VAZIO no
+     cadastro também entra (opcional) — lido no documento, vira "falta no cadastro"; vazio nos dois, não aparece.
+     v(nome) = valor da coluna da linha do condomínio (nascimento e dados do cônjuge, que o contrato não carrega). */
+  function plano(d, v) {
+    v = v || function () { return ""; };
     var out = [], c1 = d.comprador1 || {}, c2 = d.comprador2, fis = (d.condominio && d.condominio.fiadores) || [];
-    function pessoa(id, rotulo, coluna, p, comRg) {
+    /* extra: nacionalidade e nascimento só se conferem quando o documento traz o valor (sem linha "ilegível") */
+    function campo(campos, id, rotulo, esperado, extra) {
+      var e = txt(esperado), c = e ? { campo: id, rotulo: rotulo, esperado: e } : { campo: id, rotulo: rotulo, esperado: "", opcional: true };
+      if (extra) c.extra = true;
+      campos.push(c);
+    }
+    function pessoa(id, rotulo, coluna, p, extra) {
       if (!p || !txt(p.nome)) return;
       var campos = [{ campo: "nome", rotulo: "Nome", esperado: txt(p.nome) }];
-      if (txt(p.cpf)) campos.push({ campo: "cpf", rotulo: "CPF", esperado: txt(p.cpf) });
-      if (comRg && so(p.documento)) campos.push({ campo: "rg", rotulo: "RG", esperado: txt(p.documento) });
+      campo(campos, "cpf", "CPF", p.cpf);
+      if (extra) {
+        campo(campos, "rg", "RG", so(p.documento) ? p.documento : "");
+        campo(campos, "nacionalidade", "Nacionalidade", p.nacionalidade, true);
+        campo(campos, "nascimento", "Nascimento", extra.nascimento, true);
+      }
       out.push({ id: id, pessoa: rotulo, coluna: coluna, tipo: "identidade", documento: "RG/CNH", campos: campos });
     }
-    pessoa("c1-id", "Comprador 1", COL.C1_ID, c1, true);
+    pessoa("c1-id", "Comprador 1", COL.C1_ID, c1, { nascimento: v("DATA NASCIMENTO PROPONENTE") });
     if (txt(c1.endereco)) out.push({ id: "c1-end", pessoa: "Comprador 1", coluna: COL.C1_END, tipo: "comprovante", documento: "comprovante de endereço",
                                      campos: [{ campo: "endereco", rotulo: "Endereço", esperado: txt(c1.endereco) }] });
     if (txt(c1.estadoCivil)) out.push({ id: "c1-civil", pessoa: "Comprador 1", coluna: COL.C1_CIVIL, tipo: "certidao_civil", documento: "certidão",
                                         campos: [{ campo: "estado_civil", rotulo: "Estado civil", esperado: txt(c1.estadoCivil) }] });
-    pessoa("c2-id", "Comprador 2", COL.C2_ID, c2, true);
+    pessoa("c2-id", "Comprador 2", COL.C2_ID, c2, { nascimento: v("DATA NASCIMENTO COMPRADOR 1") });
+    /* 07/11/2026 (dono): cônjuge do comprador 1 — salvo quando ele já é o comprador 2 (mesmo CPF ou nome) */
+    var cj = d.condominio && d.condominio.conjugeComprador;
+    var ehC2 = cj && c2 && ((so(cj.cpf) && so(cj.cpf) === so(c2.cpf)) || chave(cj.nome) === chave(c2.nome));
+    if (cj && txt(cj.nome) && !ehC2)
+      pessoa("cj-id", "Cônjuge do comprador 1", COL.CJ_ID,
+             { nome: cj.nome, cpf: cj.cpf, documento: v("RG CONJUGE"), nacionalidade: v("NACIONALIDADE CONJUGE") },
+             { nascimento: v("DATA NASCIMENTO CONJUGE") });
     pessoa("f1-id", "Fiador 1", COL.F1_ID, fis[0], false);
     pessoa("f2-id", "Fiador 2", COL.F2_ID, fis[1], false);
     return out;
@@ -63,6 +84,14 @@ var ConferenciaDocs = (function () {
       if (campo === "nome") return doC1("PROPONENTE", "COMPRADOR 1", "Nome");
       if (campo === "cpf") return doC1("CPF PROPONENTE", "CPF COMPRADOR 1", "CPF");
       if (campo === "rg") return doC1("RG PROPONENTE", "RG COMPRADOR 1", "RG");
+      if (campo === "nacionalidade") return doC1("NACIONALIDADE PROPONENTE", "NACIONALIDADE COMPRADOR 1", "Nacionalidade");
+      if (campo === "nascimento") return doC1("DATA NASCIMENTO PROPONENTE", "DATA NASCIMENTO COMPRADOR 1", "Nascimento");
+    } else if (item === "cj-id") {
+      if (campo === "nome") return um("CONJUGE", "Nome");
+      if (campo === "cpf") return um("CPF CONJUGE", "CPF");
+      if (campo === "rg") return um("RG CONJUGE", "RG");
+      if (campo === "nacionalidade") return um("NACIONALIDADE CONJUGE", "Nacionalidade");
+      if (campo === "nascimento") return um("DATA NASCIMENTO CONJUGE", "Nascimento");
     } else if (item === "c1-end" && campo === "endereco") {
       var temProp = END_PROPONENTE.some(function (x) { return txt(v(x[0])); });
       var lista = seg || temProp || !END_BLOCO1.some(function (x) { return txt(v(x[0])); }) ? END_PROPONENTE : END_BLOCO1;
@@ -74,6 +103,8 @@ var ConferenciaDocs = (function () {
       if (campo === "nome") return um("COMPRADOR 1", "Nome");
       if (campo === "cpf") return um("CPF COMPRADOR 1", "CPF");
       if (campo === "rg") return um("RG COMPRADOR 1", "RG");
+      if (campo === "nacionalidade") return um("NACIONALIDADE COMPRADOR 1", "Nacionalidade");
+      if (campo === "nascimento") return um("DATA NASCIMENTO COMPRADOR 1", "Nascimento");
     } else if (f) {
       if (campo === "nome") return um("FIADOR " + f[1], "Nome");
       if (campo === "cpf") return um("CPF FIADOR " + f[1], "CPF");
@@ -120,13 +151,30 @@ var ConferenciaDocs = (function () {
       if (campo === "nome") return txt(leitura.nome);
       if (campo === "cpf") return txt(leitura.cpf);
       if (campo === "rg") return txt(leitura.rg_numero) || (leitura.tipo_documento === "RG" ? txt(leitura.numero_documento) : "");
+      if (campo === "nacionalidade") return txt(leitura.nacionalidade);
+      if (campo === "nascimento") return txt(leitura.data_nascimento);
     }
     if (tipo === "comprovante" && campo === "endereco") return txt(leitura.endereco_completo);
     if (tipo === "certidao_civil" && campo === "estado_civil") return civilDoDocumento(leitura);
     return "";
   }
 
-  /* Uma linha do resultado: { situacao: "ok" | "diverge" | "ilegivel", esperado, lido } */
+  /* 07/11/2026: a CNH escreve "BRASILEIRO" para todos — BR/Brasil/brasileiro(a) conferem entre si (o gênero não se
+     confere pelo documento); outra nacionalidade, pela palavra. */
+  function nacionalidadeConfere(esp, lido) {
+    var a = chave(esp), b = chave(lido), br = function (x) { return /^(BR|BRASIL)/.test(x); };
+    return br(a) || br(b) ? br(a) && br(b) : a === b;
+  }
+  /* "1970-02-03", "03/02/1970" ou "03021970" → "19700203"; outra coisa → "" */
+  function dataISO(s) {
+    var t = txt(s), m;
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})/.exec(t))) return m[1] + m[2] + m[3];
+    if ((m = /^(\d{2})[\/.-](\d{2})[\/.-](\d{4})$/.exec(t))) return m[3] + m[2] + m[1];
+    if ((m = /^(\d{2})(\d{2})(\d{4})$/.exec(t))) return m[3] + m[2] + m[1];
+    return "";
+  }
+  /* Uma linha do resultado: { situacao: "ok" | "diverge" | "ilegivel" | "falta", esperado, lido }
+     "falta" (07/11/2026): vazio no cadastro e lido no documento — o "Corrigir aqui" oferece o valor do documento. */
   function comparar(campo, esperado, lido) {
     if (!txt(lido)) return { situacao: "ilegivel", esperado: esperado, lido: "" };
     var ok;
@@ -135,6 +183,8 @@ var ConferenciaDocs = (function () {
     else if (campo === "nome") ok = nomeConfere(esperado, lido);
     else if (campo === "endereco") ok = enderecoConfere(esperado, lido);
     else if (campo === "estado_civil") ok = civilConfere(esperado, lido);
+    else if (campo === "nacionalidade") ok = nacionalidadeConfere(esperado, lido);
+    else if (campo === "nascimento") ok = !!dataISO(esperado) && dataISO(esperado) === dataISO(lido);
     else ok = chave(esperado) === chave(lido);
     return { situacao: ok ? "ok" : "diverge", esperado: esperado, lido: lido };
   }
@@ -148,11 +198,20 @@ var ConferenciaDocs = (function () {
       it.campos.forEach(function (c) {
         var base = { item: it.id, pessoa: it.pessoa, documento: it.documento, coluna: it.coluna, campo: c.campo, rotulo: c.rotulo };
         var cmp;
+        if (c.opcional) {   /* vazio no cadastro: só aparece se o documento trouxer o valor */
+          var lidoOp = l.ok && !docErrado ? txt(lidoDe(it.tipo, c.campo, l.leitura)) : "";
+          if (!lidoOp) return;
+          base.situacao = "falta"; base.esperado = ""; base.lido = lidoOp;
+          linhas.push(base);
+          return;
+        }
+        if (!l.ok && c.extra) return;   /* sem documento: a linha do nome já diz "não anexado" */
         if (!l.ok) {
           /* 01/11/2026 (H2): sem arquivo não é "ilegível" — semArquivo deixa a tela e o resumo dizerem "não anexado" */
           cmp = { situacao: "ilegivel", esperado: c.esperado, lido: "", motivo: l.erro === "SEM_ARQUIVO" ? "documento não anexado" : "não deu para ler" };
           if (l.erro === "SEM_ARQUIVO") cmp.semArquivo = true;
         }
+        else if (c.extra && !txt(lidoDe(it.tipo, c.campo, l.leitura))) return;   /* o documento não traz: não confere */
         else if (docErrado) cmp = { situacao: "ilegivel", esperado: c.esperado, lido: "", motivo: "o arquivo não parece ser " + it.documento };
         else cmp = comparar(c.campo, c.esperado, lidoDe(it.tipo, c.campo, l.leitura));
         for (var k in cmp) base[k] = cmp[k];
@@ -183,20 +242,22 @@ var ConferenciaDocs = (function () {
   /* Resumo para o aviso do pré-contrato: "" quando está tudo conferido. */
   function resumo(linhas, confirmados) {
     confirmados = confirmados || {};
-    var div = 0, pend = 0, sem = 0;
+    var div = 0, pend = 0, sem = 0, falta = 0;
     (linhas || []).forEach(function (l, i) {
       if (l.situacao === "diverge" && !confirmados[i]) div++;
+      if (l.situacao === "falta" && !confirmados[i]) falta++;
       if (l.situacao === "ilegivel" && !confirmados[i]) { if (naoAnexado(l)) sem++; else pend++; }
     });
     var p = [];
     if (div) p.push(div + " divergência" + (div > 1 ? "s" : ""));
     if (pend) p.push(pend + (pend > 1 ? " itens ilegíveis" : " item ilegível"));
     if (sem) p.push(sem + (sem > 1 ? " itens não anexados" : " item não anexado"));
+    if (falta) p.push(falta + " faltando no cadastro");
     return p.length > 1 ? p.slice(0, -1).join(", ") + " e " + p[p.length - 1] : p.join("");
   }
 
   var api = { COL: COL, COLUNAS: COLUNAS, plano: plano, comparar: comparar, lidoDe: lidoDe, resultado: resultado, resumo: resumo,
-              nomeConfere: nomeConfere, enderecoConfere: enderecoConfere, civilConfere: civilConfere,
+              nomeConfere: nomeConfere, enderecoConfere: enderecoConfere, civilConfere: civilConfere, dataISO: dataISO,
               camposParaCorrigir: camposParaCorrigir, contagemArquivos: contagemArquivos, anexosMudaram: anexosMudaram };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
