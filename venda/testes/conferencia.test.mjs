@@ -14,7 +14,7 @@ const D = {
 test("plano: comprador 1 (identidade, endereço, certidão) e só os fiadores que existem", () => {
   const p = K.plano(D);
   assert.deepEqual(p.map((x) => x.id), ["c1-id", "c1-end", "c1-civil", "f1-id"]);
-  assert.deepEqual(p[0].campos.map((c) => c.campo), ["nome", "cpf", "rg"]);
+  assert.deepEqual(p[0].campos.map((c) => c.campo), ["nome", "cpf", "rg", "nacionalidade", "nascimento"], "07/11: nacionalidade e nascimento também");
   assert.deepEqual(p[3].campos.map((c) => c.campo), ["nome", "cpf"], "fiador: só nome e CPF");
   assert.equal(p[0].coluna, "DOC. PROPONENTE");
 });
