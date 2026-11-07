@@ -15,8 +15,8 @@ import { P, SCHEMA_VENDAS, linhaCondominio } from "./condominio-dados.mjs";
 /* casa de 220.000 aprovada em 160.000 na carta */
 const padrao = { valor: 220000, entrega: "2028-11-30", linhas: [
   { t: "sinal", v: 10000, n: 1, d: "2026-11-05", i: 1, x: "" },
-  { t: "pre", v: 860, n: 12, d: "2026-12-10", i: 1, x: "" },
-  { t: "pre", v: 330, n: 12, d: "2027-12-10", i: 1, x: "" },
+  { t: "pre", v: 860, n: 12, d: "2026-11-10", i: 1, x: "" },
+  { t: "pre", v: 330, n: 12, d: "2027-11-10", i: 1, x: "" },
   { t: "balao", v: 10000, n: 1, d: "2027-12-10", i: 1, x: "" },
   { t: "balao", v: 25720, n: 1, d: "2028-11-10", i: 1, x: "" },
   { t: "fin", v: 160000, n: 1, d: "", i: 1, x: "" }

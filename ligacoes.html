@@ -733,6 +733,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="painel-abas.js?v=2"></script>
 <script>
 /* =====================================================================
  * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
@@ -4777,7 +4778,7 @@ function linhaPorId(id){ return LIG.find(l => l.id === id) || null; }
 /* Busca a lista de pessoas e redesenha o painel já com o seletor. */
 function prepararResponsaveis(){
   carregarResponsaveis().then(() => {
-    if (LINHA_ABERTA) document.getElementById("pn-body").innerHTML = corpoPainel(LINHA_ABERTA);
+    if (LINHA_ABERTA){ document.getElementById("pn-body").innerHTML = corpoPainel(LINHA_ABERTA); abasLigacoes(); }
     else toast("Lista de responsáveis carregada.");
   });
 }
@@ -4791,6 +4792,7 @@ function abrirLinha(id){
   document.getElementById("pn-sub").textContent =
     [sel(l,C.CONC), sel(l,C.STATUS)].filter(Boolean).join(" · ");
   document.getElementById("pn-body").innerHTML = corpoPainel(l);
+  abasLigacoes();
   document.getElementById("overlay").classList.add("on");
   document.getElementById("painel").classList.add("on");
 }
@@ -5147,6 +5149,7 @@ function abrirObraVenda(id){
   document.getElementById("pn-obra").textContent = v.obra || "(sem endereço)";
   document.getElementById("pn-sub").textContent = "Venda · contrato de " + fmtData(dataReal(v, V.DT_ASSIN));
   document.getElementById("pn-body").innerHTML = corpoPainelVenda(v);
+  abasLigacoes();
   document.getElementById("overlay").classList.add("on");
   document.getElementById("painel").classList.add("on");
 }
@@ -5388,7 +5391,26 @@ function repintarPainel(html){
   if (foco && body.contains(foco)) return;    // editando outra coisa: não atropela
   const y = body.scrollTop;
   body.innerHTML = html;
+  abasLigacoes();
   body.scrollTop = y;
+}
+/* 06/11/26 — painel em ABAS, igual ao painel da casa da Gestão de Vendas, com as etapas da
+   LIGAÇÃO (painel-abas.js só muda as caixas de lugar; o salvar é o mesmo). A 1ª regra que
+   casa com o nome da coluna leva a caixa; o resto fica no Resumo. A casa vendida (aba Casas
+   vendidas) tem o painel dela: dados da venda e as ligações da casa. */
+const ABAS_LIGACAO=[
+  ["conf","Conferências",/CONFERI|CONFERENCIA/],
+  ["uc","UC e contas",/\bUC\b|VENCIMENTO|CONTAS/],
+  ["solic","Solicitação e ligação",/LIBERA|SOLICITA|SANESC|LINK DE ACOMPANHAMENTO|DATA DE LIGACAO|NF MEDIDOR|MEDIDOR/],
+  ["resumo","Resumo",null]
+];
+const ABAS_LIG_VENDA=[["lig","Ligações da casa",/^LIGACOES DESTA CASA/],["venda","Venda",null]];
+function abasLigacoes(){
+  if(!window.PainelAbas) return;
+  const body=document.getElementById("pn-body"); if(!body) return;
+  const venda = LINHA_ABERTA && typeof VEN!=="undefined" && VEN.indexOf(LINHA_ABERTA)>=0;
+  if(venda) PainelAbas.aplicar(body,{chave:"lig-venda",item:LINHA_ABERTA&&LINHA_ABERTA.id,padrao:"venda",ordem:["venda","lig"],abas:ABAS_LIG_VENDA});
+  else PainelAbas.aplicar(body,{chave:"ligacao",item:LINHA_ABERTA&&LINHA_ABERTA.id,padrao:"resumo",ordem:["resumo","solic","uc","conf"],abas:ABAS_LIGACAO});
 }
 
 /* Chamado pelos campos do painel lateral. */

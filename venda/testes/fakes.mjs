@@ -28,6 +28,9 @@ function blob(buf, mime, nome) {
 export function criarGas({ props, rotas, extras = {} }) {
   const cache = new Map(), chamadas = [], logs = [], sleeps = [];
   const ctx = {
+    /* 07/11/2026: "hoje" do servidor nos testes (trava de vencimento no passado) — fixo e antes de todas as datas
+       inventadas, para os testes não vencerem com o calendário; o teste da trava passa o próprio em extras */
+    HOJE_VENDA_TESTE_: "2026-01-01",
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null), getKeys: () => Object.keys(props),
                                                        setProperty: (n, v) => { props[n] = String(v); },
