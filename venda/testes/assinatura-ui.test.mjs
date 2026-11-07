@@ -148,7 +148,7 @@ test("mensagens amigáveis por código", () => {
   assert.match(m({ erro: "GRAVACAO_FALHOU", rascunhoApagado: true }), /Nada foi enviado.*tente de novo/);
   assert.match(m({ erro: "ASSINATURA_OCUPADA" }), /outro envio.*em andamento/);
   assert.match(m({ erro: "CONTRATO_DESATUALIZADO" }), /Os dados mudaram depois de gerar o contrato — gere de novo/);
-  assert.equal(m({ erro: "TERMO_DESATUALIZADO" }), "Os dados mudaram depois de gerar o termo de pré-reserva — gere o termo de novo e depois envie.");
+  assert.equal(m({ erro: "TERMO_DESATUALIZADO" }), "Os dados mudaram depois de gerar o termo de reserva — gere o termo de novo e depois envie.");
   assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "documento", http: 422, rascunhoApagado: true }), /Nada foi enviado aos signatários/);
   assert.match(m({ erro: "CLICKSIGN_FALHOU", passo: "documento", http: 422, envelopeId: "env-1", rascunhoApagado: false }),
                /Clique em Descartar rascunho e envie de novo/);
@@ -241,9 +241,9 @@ test("botão desabilitado não age (ex.: Enviar com envelope aberto)", async () 
   assert.equal(novo.estado, ENVIADO);
 });
 
-test("termo de pré-reserva (27/10): botões com prefixo p-, textos do termo e doc PRE_RESERVA nas chamadas", async () => {
+test("termo de reserva (27/10): botões com prefixo p-, textos do termo e doc PRE_RESERVA nas chamadas", async () => {
   const h = A.montarBlocoAssinatura(ctx({ doc: "PRE_RESERVA", contratoGerado: false }));
-  assert.match(h, /Enviar termo de pré-reserva via Clicksign/);
+  assert.match(h, /Enviar termo de reserva via Clicksign/);
   assert.match(h, /Gere o termo antes/);
   assert.equal(botao(h, "a-enviar").length, 0);
   assert.match(botao(h, "p-enviar")[0], /disabled/);
@@ -251,7 +251,7 @@ test("termo de pré-reserva (27/10): botões com prefixo p-, textos do termo e d
   assert.equal(botao(h2, "p-atualizar").length, 1);
   assert.equal(botao(h2, "p-reenviar").length, 1);
   const chamadas = [];
-  const novo = await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), { pageId: "p", confirmar: (t) => /termo de pré-reserva/.test(t),
+  const novo = await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), { pageId: "p", confirmar: (t) => /termo de reserva/.test(t),
     chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [] }; } });
   assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA" }]);
   assert.equal(novo.estado.situacao, "ENVIADO");
@@ -514,7 +514,7 @@ test("03/11: com o envelope aberto o bloco da Clicksign segue com Atualizar, Ree
   assert.doesNotMatch(botao(h, "a-cancelar")[0], /disabled/);
 });
 
-test("03/11 (dono): pré-reserva dispensada = contrato gerado (ou envelope do contrato) e termo nunca enviado; termo ENVIADO/ASSINADO vale", () => {
+test("03/11 (dono): reserva dispensada = contrato gerado (ou envelope do contrato) e termo nunca enviado; termo ENVIADO/ASSINADO vale", () => {
   const termo = (situacao, envelope = !!situacao) => ({ estado: { situacao, envelope, signatarios: [] } });
   assert.equal(A.preReservaDispensada(ctx(), termo("")), true, "contrato gerado, termo sem envelope");
   for (const s of ["RASCUNHO", "CANCELADO", "RECUSADO", "EXPIRADO"]) assert.equal(A.preReservaDispensada(ctx(), termo(s)), true, s);

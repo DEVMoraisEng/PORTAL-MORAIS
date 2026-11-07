@@ -1073,7 +1073,7 @@
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
       /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca maior que a carta de aprovação)" — o
-         financiamento ganha o campo de valor (só o valor; até o da proposta); FGTS, subsídio e pré-reserva seguem fixos */
+         financiamento ganha o campo de valor (só o valor; até o da proposta); FGTS, subsídio e reserva seguem fixos */
       var carta = l.t === "fin" ? F.tetoFinanciamento(ed.padrao) : 0;
       if (tp.fixo && carta > 0) {
         h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">até ' + esc(F.moeda(carta)) + " (carta de aprovação)</div></td><td></td>" +
@@ -2615,7 +2615,7 @@
   }
   /* 06/11: os três campos do termo (valor, data do pagamento e data limite) — no cartão e na pergunta do Reservar */
   function camposPagPR(pg, dis) {
-    return '<label><span>Valor da pré-reserva (R$)</span>' +
+    return '<label><span>Valor da reserva (R$)</span>' +
       '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
       '<label><span>Data do pagamento</span>' +
       '<input type="date" data-pr-p="data"' + maxHojePR() + ' value="' + esc(pg.data || "") + '"' + dis + "></label>" +
@@ -2626,7 +2626,7 @@
   function htmlPreReservaRapida(e, u) {
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
     var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || hojePR(), limite: e.dataLimiteDigitada || sugestaoLimitePR() };
-    var h = '<div class="grp">Termo de pré-reserva</div>' +
+    var h = '<div class="grp">Termo de reserva</div>' +
       '<div class="dz-linha dz-rot">Sem contrato gerado até a data limite, a reserva cai sozinha no fim desse dia.</div>' +
       '<div class="dz-linha dz-pr-pag">' + camposPagPR(pg, dis) + "</div>";
     if (u.ocupado === "rapido") h += '<div class="dz-linha"><b>salvando e gerando o termo… (até 1 minuto)</b></div>';
@@ -2641,18 +2641,18 @@
     if (!e || !e.temConjuge) return "";
     return '<div class="dz-linha"><label class="dz-pr-conj" style="display:flex;align-items:flex-start;gap:8px;margin:0;font-weight:600">' +
       '<input type="checkbox" data-pr-conj="1"' + (e.incluirConjuge ? " checked" : "") + (dis || "") + ' style="margin:3px 0 0;flex:0 0 auto">' +
-      '<span>Incluir o cônjuge na pré-reserva (opcional)<br><span class="dz-rot" style="font-weight:400">Por padrão só o comprador assina.</span></span></label></div>';
+      '<span>Incluir o cônjuge na reserva (opcional)<br><span class="dz-rot" style="font-weight:400">Por padrão só o comprador assina.</span></span></label></div>';
   }
   function htmlPreReserva(e, u) {
     u = u || {};
-    var h = '<div class="grp">Termo de pré-reserva</div>';
+    var h = '<div class="grp">Termo de reserva</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
     /* 31/10 (dono): valor e data do pagamento de cada venda; prazo para decidir = pagamento + 7 dias corridos */
     /* 06/11: a data limite gravada; sem ela e sem termo gerado, a sugestão (hoje + 5); termo antigo sem ela fica em branco */
     var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || "", limite: e.dataLimiteDigitada || (e.gerado ? "" : sugestaoLimitePR()) };
     /* 31/10/2026 (dono): valor, data e botão numa linha só, campos na mesma altura e o botão pela base (.dz-pr-pag, CSS
-       abaixo — vale no cartão do condomínio e na janela da pré-reserva das Propostas); no celular empilha */
+       abaixo — vale no cartão do condomínio e na janela da reserva das Propostas); no celular empilha */
     h += '<div class="dz-linha dz-pr-pag">' + camposPagPR(pg, dis) +
       '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e datas</button></div>";
     h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimiteDigitada
@@ -2670,7 +2670,7 @@
       return caixa(rot, '<input type="text" data-pr-c="' + k + '" value="' + esc(c[k] || "") + '" placeholder="' + ph + '"' + (extra || "") + dis + ">");
     };
     var banco = campo("Banco", "banco", "digite para buscar", ' list="pr-bancos" maxlength="120" style="min-width:260px"');
-    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do pré-reservante para devolução (opcional — em branco, o termo sai sem a conta)</label>' +
+    h += '<div class="dz-linha"><label class="dz-rot" style="display:block">Conta do reservante para devolução (opcional — em branco, o termo sai sem a conta)</label>' +
       '<select data-pr-c="forma"' + dis + '><option value="">Escolha…</option><option value="PIX"' + sel("PIX") + ">PIX</option>" +
       '<option value="BANCO"' + sel("BANCO") + ">Dados bancários</option></select></div>";
     if (c.livre) h += '<div class="dz-aviso">Conta salva no formato antigo ("' + esc(c.livre) + '"): escolha PIX ou dados bancários e salve de novo.</div>';
@@ -2693,7 +2693,7 @@
     if (u.faltas && u.faltas.length)
       h += '<div class="dz-aviso">Para gerar o termo, falta:</div><ul>' + u.faltas.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="pr-gerar"' + (trava ? " disabled" : "") + ">" +
-      (e.gerado ? "Gerar termo de novo" : "Gerar termo de pré-reserva") + "</button>";
+      (e.gerado ? "Gerar termo de novo" : "Gerar termo de reserva") + "</button>";
     if (e.gerado) h += ' <button type="button" class="bt ghost bt-mini" data-acao="pr-ver"' + (u.ocupado ? " disabled" : "") + ">Visualizar termo</button>";
     h += "</div>";
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
@@ -2705,10 +2705,10 @@
               AGENCIA_INVALIDA: "Agência: só números (e hífen, se tiver dígito).", CONTA_INVALIDA: "Conta: números com o dígito (ex.: 12345-6).",
               TIPO_CONTA_INVALIDO: "Escolha o tipo de conta.", CONTA_LONGA: "A chave ou o banco ficou longo demais.",
               MODELO_NAO_CONFIGURADO: "O modelo do termo (MODELO_PRE_RESERVA_ID) não está configurado — avise o desenvolvedor.",
-              SEM_TERMO_GERADO: "Ainda não há termo gerado.", SO_CONDOMINIO: "O termo de pré-reserva é só do condomínio.",
-              PR_VALOR_INVALIDO: "Valor da pré-reserva inválido.", PR_DATA_INVALIDA: "Informe a data do pagamento.",
+              SEM_TERMO_GERADO: "Ainda não há termo gerado.", SO_CONDOMINIO: "O termo de reserva é só do condomínio.",
+              PR_VALOR_INVALIDO: "Valor da reserva inválido.", PR_DATA_INVALIDA: "Informe a data do pagamento.",
               PR_DATA_FUTURA: "A data do pagamento não pode ser depois de hoje. Informe o dia em que o cliente pagou.",
-              PR_VALOR_MAIOR_QUE_SINAL: "O valor da pré-reserva não pode passar do sinal da venda. Confira o valor.",
+              PR_VALOR_MAIOR_QUE_SINAL: "O valor da reserva não pode passar do sinal da venda. Confira o valor.",
               PR_LIMITE_INVALIDA: "Informe a data limite do termo.", PR_LIMITE_PASSADA: "A data limite não pode ser antes de hoje.",
               PR_LIMITE_ANTES_DO_PAGAMENTO: "A data limite não pode ser antes da data do pagamento.",
               SEM_PERMISSAO_TESTES: "Perfil TESTES não gera nem grava.", SEM_RESPOSTA: "O servidor não respondeu — tente de novo." };
@@ -2794,8 +2794,8 @@
     function htmlPR() {
       if (assinadoP()) return "";
       if (uiP.rapido && estadoP && !estadoP.gerado && !assinadoA() && !dispensadaP()) return htmlPreReservaRapida(estadoP, uiP);   /* 06/11 */
-      if (assinadoA()) return '<div class="grp">Pré-reserva</div><div class="vazio">O contrato já foi assinado por todos — a pré-reserva não muda mais.</div>';
-      if (dispensadaP()) return '<div class="grp">Pré-reserva</div><div class="vazio">Dispensada — o contrato desta unidade foi gerado direto, sem a pré-reserva.</div>';
+      if (assinadoA()) return '<div class="grp">Reserva</div><div class="vazio">O contrato já foi assinado por todos — a reserva não muda mais.</div>';
+      if (dispensadaP()) return '<div class="grp">Reserva</div><div class="vazio">Dispensada — o contrato desta unidade foi gerado direto, sem a reserva.</div>';
       return htmlPreReserva(estadoP, uiP);
     }
     function htmlAssPRVisivel() { return (assinadoA() && !assinadoP()) || dispensadaP() ? "" : htmlAssPR(); }
@@ -3177,7 +3177,7 @@
     }
     /* termo de pré-reserva */
     function htmlAssPR() {
-      if (!window.VendaAssinatura) return '<div class="grp">Enviar termo de pré-reserva via Clicksign</div><div class="vazio">carregando…</div>';
+      if (!window.VendaAssinatura) return '<div class="grp">Enviar termo de reserva via Clicksign</div><div class="vazio">carregando…</div>';
       ctxP.contratoGerado = !!(estadoP && estadoP.gerado);
       return window.VendaAssinatura.montarBlocoAssinatura(ctxP);
     }
@@ -3381,7 +3381,7 @@
         if (!vivo()) return;
         uiP.ocupado = null; uiP.rapido = false;   /* daqui em diante, a tela inteira do termo (ver, conta, cônjuge, Clicksign) */
         if (rq.ok) { estadoP.gerado = true; estadoP.nome = rq.nome || ""; uiP.msg = "Termo gerado — confira em Visualizar termo e envie para assinatura."; }
-        else if (rq.erro === "FALTAM_DADOS") { uiP.faltas = rq.faltas || []; uiP.msg = "Valor e datas salvos. O termo sai quando o cadastro estiver completo — use Gerar termo de pré-reserva."; }
+        else if (rq.erro === "FALTAM_DADOS") { uiP.faltas = rq.faltas || []; uiP.msg = "Valor e datas salvos. O termo sai quando o cadastro estiver completo — use Gerar termo de reserva."; }
         else uiP.msg = "Valor e datas salvos, mas o termo não foi gerado: " + mensagemPR(rq);
         pintarP();
         if (!rq.ok && rq.erro === "SEM_RESPOSTA") carregarPR();
@@ -4271,7 +4271,7 @@
       blocosCond = criarBlocosVenda(pageId, function (b) {
         var r = b.raiz();
         return blocosCond === b && !!r && r.isConnected !== false;
-      }, { preReserva: true });   /* 27/10/2026: o termo de pré-reserva vem antes do contrato */
+      }, { preReserva: true });   /* 27/10/2026: o termo de reserva vem antes do contrato */
     }
     blocosCond.anexar(el);
   }
@@ -4335,7 +4335,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=9"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=28";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=29";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

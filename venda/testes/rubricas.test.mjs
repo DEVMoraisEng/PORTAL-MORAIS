@@ -184,7 +184,7 @@ test("tela: antes de enviar o contrato lê o PDF e manda as rubricas junto", asy
   assert.equal(c.estado.situacao, "ENVIADO");
 });
 
-test("tela: termo de pré-reserva e rubricas desligadas não mandam rubricas", async () => {
+test("tela: termo de reserva e rubricas desligadas não mandam rubricas", async () => {
   const d1 = deps({ assinaturaEnviar: { ok: true, situacao: "ENVIADO" } }, LEITOR);
   await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), d1);
   assert.deepEqual(d1.chamadas.map((x) => [x.action, x.doc, x.rubricas]), [["assinaturaEnviar", "PRE_RESERVA", undefined]]);

@@ -425,7 +425,7 @@ test("01/11 (H5): testemunhasParaTela diz o par padrão (ids) — SPE para vende
 /* ---- 01/11/2026 (plano 23, tarefa A): nome final dos documentos e lista dos assinados ---- */
 test("plano 23 A: tituloDocumento = prefixo + nome padrão (OBRA CASA n - COMPRADOR), sem 'provisório'", () => {
   assert.equal(CS.tituloDocumento("CONTRATO - ", "CONDOMINIO TESTE", "17", "Fulano de Teste"), "CONTRATO - CONDOMINIO TESTE CASA 17 - Fulano de Teste");
-  assert.equal(CS.tituloDocumento("TERMO DE PRÉ-RESERVA - ", "CONDOMINIO TESTE", "", "Fulano de Teste"), "TERMO DE PRÉ-RESERVA - CONDOMINIO TESTE - Fulano de Teste");
+  assert.equal(CS.tituloDocumento("TERMO DE RESERVA - ", "CONDOMINIO TESTE", "", "Fulano de Teste"), "TERMO DE RESERVA - CONDOMINIO TESTE - Fulano de Teste");
   assert.equal(CS.tituloDocumento("CONFISSÃO PRÉ-CHAVES - ", "RUA/TESTE", "3", ""), "CONFISSÃO PRÉ-CHAVES - RUA-TESTE CASA 3");
   assert.doesNotMatch(CS.tituloDocumento("CONTRATO - ", "", "", ""), /provis/i);
 });

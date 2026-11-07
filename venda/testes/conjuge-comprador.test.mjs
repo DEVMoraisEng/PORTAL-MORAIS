@@ -61,7 +61,7 @@ test("cônjuge que já é o comprador 2 não assina duas vezes", () => {
 
 /* 01/11/2026 (dono): quem decide se o cônjuge entra no TERMO é AssinaturaVenda.assEnviarTermo_ (opção PR_CONJUGE_<pageId>, testes
    em tela-venda-condominio.test.mjs); aqui, com o conjugeComprador presente, a lista de signatários o traz. */
-test("com conjugeComprador presente (termo com a opção ligada): o cônjuge assina junto com o pré-reservante", () => {
+test("com conjugeComprador presente (termo com a opção ligada): o cônjuge assina junto com o reservante", () => {
   const d = dados(CONJ);
   d.comprador2 = null; d.corretor = null;
   const papeis = CS.signatarios(d, CS.montarConfig({})).map((s) => s.papel);

@@ -24,23 +24,23 @@ vm.runInContext([
 ].join("\n"), ctx);
 const linha = (v) => ({ id: "x", v: Object.assign({ "CONDOMÍNIO": "RESERVA DOS IPÊS", "UNIDADE": "13" }, v) });
 
-test("sem contrato gerado: aba disponível, mesmo sem nada da pré-reserva", () => {
+test("sem contrato gerado: aba disponível, mesmo sem nada da reserva", () => {
   assert.equal(ctx.condMostraAbaPR(linha({})), true);
   assert.equal(ctx.condMostraAbaPR(linha({ "CONTRATO GERADO": [] })), true);
 });
-test("contrato gerado (PDF ou envelope) e sem pré-reserva: oculta", () => {
+test("contrato gerado (PDF ou envelope) e sem reserva: oculta", () => {
   assert.equal(ctx.condMostraAbaPR(linha({ "CONTRATO GERADO": [{ name: "c.pdf" }] })), false);
   assert.equal(ctx.condMostraAbaPR(linha({ "ASSINATURA - SITUAÇÃO": "ENVIADO" })), false);
 });
-test("contrato gerado com pré-reserva (termo, situação ou data limite): continua aparecendo", () => {
+test("contrato gerado com reserva (termo, situação ou data limite): continua aparecendo", () => {
   const c = { "CONTRATO GERADO": [{ name: "c.pdf" }] };
   assert.equal(ctx.condMostraAbaPR(linha({ ...c, "PRÉ-RESERVA - TERMO GERADO": [{ name: "t.pdf" }] })), true);
   assert.equal(ctx.condMostraAbaPR(linha({ ...c, "PRÉ-RESERVA - SITUAÇÃO": "ASSINADO" })), true);
   assert.equal(ctx.condMostraAbaPR(linha({ ...c, "PRÉ-RESERVA - DATA LIMITE": "2026-11-11" })), true);
 });
-test("a faixa de etapas não ganha a Pré-reserva só por estar sem contrato (o termo é opcional)", () => {
+test("a faixa de etapas não ganha a Reserva só por estar sem contrato (o termo é opcional)", () => {
   const e = ctx.condEtapas(linha({}));
-  assert.ok(!e.itens.some(x => x.nome === "Pré-reserva"));
+  assert.ok(!e.itens.some(x => x.nome === "Reserva"));
   assert.equal(e.itens[e.atual].nome, "Datas do fluxo");
 });
 test("as abas usam a regra nova", () => {
