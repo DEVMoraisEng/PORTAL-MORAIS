@@ -136,7 +136,7 @@ def test_saldo_curto_nao_emite_nada(tmp_path, monkeypatch):
 
 def test_teto_nao_emite_nada(tmp_path, monkeypatch):
     liga(tmp_path, monkeypatch)
-    erp = ErpDeMentira(vendas=[venda_com_entradas(41)], saldo=500)
+    erp = ErpDeMentira(vendas=[venda_com_entradas(63)], saldo=500)   # teto 62 (dono, 07/11)
     assert roda(erp, tmp_path) == 2 and erp.posts == 0
 
 
