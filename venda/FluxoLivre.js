@@ -301,8 +301,43 @@ var FluxoLivre = (function () {
     });
     var out = { valor: Math.round((Number(o.valor) || 0) * 100) / 100, entrega: String(o.entrega || "").slice(0, 10), linhas: linhas };
     if (isoValida(o.assinatura)) out.assinatura = o.assinatura;   /* 31/10: início dos prazos do sinal (não é gravado) */
+    if (isoValida(o.hoje)) out.hoje = o.hoje;   /* 07/11: data de hoje de quem chama (tela/servidor), para travar vencimento no passado */
     if (o.semComissao === true) out.semComissao = true;   /* 30/10: desconto "isentar a comissão" = venda direta */
     return out;
+  }
+
+  /* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" e "em todos os locais, sempre que a data do
+     vencimento for anterior à data atual, trava e calcula o fluxo certo". Referência = a MAIOR entre a assinatura e
+     hoje (hoje só quando quem chama manda f.hoje / padrao.hoje); pré-chaves, balão e pós-chaves vencem DEPOIS dela. */
+  function refVencimento(f, padrao) {
+    var ass = isoValida(f && f.assinatura) ? f.assinatura : (padrao && isoValida(padrao.assinatura) ? padrao.assinatura : "");
+    var hoje = isoValida(f && f.hoje) ? f.hoje : (padrao && isoValida(padrao.hoje) ? padrao.hoje : "");
+    if (hoje && (!ass || hoje > ass)) return { d: hoje, de: "de hoje" };
+    return { d: ass, de: ass ? "da assinatura" : "" };
+  }
+  /* "Corrigir datas": cada linha de pré-chaves, balão ou pós-chaves com a 1ª data na referência ou antes vai para o
+     1º mês que pode, no MESMO dia. Pré-chaves e balões não passam de 30/11/2028: se a série estourar, perde as parcelas
+     que não cabem e o total da linha é repartido nas que ficaram (o fluxo continua fechando com o valor da casa).
+     { linhas, mudou: [índices] } ou { erro } */
+  function corrigirDatas(f, padrao) {
+    f = normalizar(f);
+    var ref = refVencimento(f, padrao).d, mudou = [];
+    if (!ref) return { erro: "Falta a data de assinatura" };
+    var linhas = f.linhas.map(function (l, k) {
+      if (!(l.t === "pre" || l.t === "balao" || l.t === "pos") || !isoValida(l.d) || l.d > ref) return l;
+      var d = l.d, g = 0;
+      while (d <= ref && g++ < 600) d = maisMeses(l.d, g);
+      var nova = { t: l.t, v: l.v, n: l.n, d: d, i: l.i, x: l.x };
+      if (l.u) nova.u = l.u;
+      if (l.t !== "pos") {
+        var n = Math.max(1, l.n);
+        while (n > 1 && maisMeses(d, (n - 1) * l.i) > LIMITE_PRE_CHAVES) n--;
+        if (n !== Math.max(1, l.n)) nova = comTotal({ t: l.t, n: n, d: d, i: l.i, x: l.x }, totalLinhaC(l));
+      }
+      mudou.push(k);
+      return nova;
+    });
+    return { linhas: linhas, mudou: mudou };
   }
 
   /* { ok, diferenca, erros: [texto], porLinha: { índice: [texto] }, avisos: [texto] } — diferenca = valor − soma
@@ -328,6 +363,9 @@ var FluxoLivre = (function () {
     if (!f.linhas.length) erros.push("O fluxo não tem nenhuma linha");
     if (f.linhas.length > MAX_LINHAS) erros.push("No máximo " + MAX_LINHAS + " linhas");
     var entrega = isoValida(f.entrega) ? f.entrega : "";
+    /* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" — pré-chaves, balão e pós-chaves
+       vencem DEPOIS da assinatura (o sinal tem a regra própria do ato/30/60/90) */
+    var assV = refVencimento(f, padrao), hojeV = isoValida(f.hoje) ? f.hoje : (padrao && isoValida(padrao.hoje) ? padrao.hoje : "");
     f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
       var tp = TIPOS[l.t];
       if (!tp) { erroLinha(k, "tipo inválido"); return; }
@@ -345,6 +383,11 @@ var FluxoLivre = (function () {
       }
       if (!isoValida(l.d)) { if (!tp.terceiro) erroLinha(k, "falta a 1ª data"); return; }
       var ultima = maisMeses(l.d, (Math.max(1, l.n) - 1) * l.i);
+      if (assV.d && (l.t === "pre" || l.t === "balao" || l.t === "pos") && l.d <= assV.d)
+        erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(l.d) + ": tem de vencer depois " + assV.de + " (" + dataBR(assV.d) + ") — use Corrigir datas");
+      /* 07/11 (dono): "sempre que a data do vencimento for anterior à data atual, trava" — o sinal também (a pré-reserva já paga não) */
+      if (hojeV && (l.t === "sinal" || l.t === "entrada") && l.d < hojeV)
+        erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(l.d) + ", antes de hoje — atualize a data de assinatura");
       /* 31/10/2026 (dono): pré-chaves e balões terminam SEMPRE até 30/11/2028 — passar disso trava */
       if ((l.t === "pre" || l.t === "balao") && ultima > LIMITE_PRE_CHAVES)
         erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(ultima) + ": pré-chaves e balões terminam até " + dataBR(LIMITE_PRE_CHAVES));
@@ -778,7 +821,7 @@ var FluxoLivre = (function () {
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
-           normalizar: normalizar, validar: validar, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
+           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();

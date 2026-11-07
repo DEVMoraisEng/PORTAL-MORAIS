@@ -864,6 +864,7 @@ function ctrDadosAtuais_(col, p, pid, rot, opts) {
   }
   if (opts && opts.gravarVendedor) ctrGravarVendedorAuto_(f.vendedorAuto, pid, rot);
   var d = ContratoVenda.montarDadosContrato(f.fontes);
+  d.hoje = (typeof HOJE_VENDA_TESTE_ === "string" ? HOJE_VENDA_TESTE_ : Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd"));   /* 07/11 (dono): contrato não sai com vencimento no passado */
   var faltas = ContratoVenda.faltasContrato(d);
   if (f.contaErro) faltas.push(f.contaErro);
   /* 28/10: termos de confissão ligados = os fiadores (nome e CPF) entram nas faltas do contrato do condomínio */
