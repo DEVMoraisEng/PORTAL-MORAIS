@@ -288,6 +288,7 @@ html[data-tema="escuro"] .alt-tit{color:var(--teal)}
 .alt-grade .fcampo input,.alt-grade .fcampo select{min-width:0;width:100%}
 .alt-grade input[readonly]{background:var(--bg3);color:var(--text3)}
 .alt-aj{font-size:12px;color:var(--text3);line-height:1.45}
+.alt-acoes{display:flex;gap:9px;flex-wrap:wrap;margin:4px 0 12px}.alt-acoes .bt{font-size:14px;padding:10px 16px}
 
 /* seletor de obras (grupo) */
 .obras-box{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;max-height:280px;overflow-y:auto;
@@ -1961,6 +1962,12 @@ function simVerDet(id){
   document.getElementById("sim-modalCx").innerHTML=`
     <div class="modal-tit">${esc(s.cliente||"—")}</div>
     <div class="modal-sub">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagSt(s.status)}</div>
+    <!-- 07/11/2026 — alterar unidade / valor e PDF do fluxo: logo no topo -->
+    <div class="alt-acoes">
+      ${!ehSomenteLeitura(S)?`<button class="bt verde" onclick="altSimAbrir('${s.id}')">✎ Alterar unidade / valor</button>`:""}
+      <button class="bt az" onclick="fluxoPdf('sim','${s.id}')">📄 Gerar PDF do fluxo</button>
+    </div>
+    <div id="alt-sim-${s.id}"></div>
     <div class="sim-grade">
       ${it("Corretor",esc(s.corretor||""))}${it("Imobiliária",esc(s.imobiliaria||""))}${it("E-mail",esc(s.email||""))}${it("Celular do corretor",s.celularCorretor?simLinkTel(s.celularCorretor):"—")}
       ${it("Unidade","Un. "+esc(String(s.unidade||"—"))+" (Tipo "+esc(String(s.tipo||"—"))+")")}
@@ -1976,10 +1983,7 @@ function simVerDet(id){
     ${tabFluxo}${tabEncargo}
     ${s.mensagem?`<div class="sim-aviso ${simSt(s)==="ERRO"?"err":"ok"}" style="margin-top:12px">
       <b>Mensagem do processamento</b><br><span style="white-space:pre-line">${esc(s.mensagem)}</span></div>`:""}
-    <div id="alt-sim-${s.id}"></div>
     <div style="display:flex;gap:9px;margin-top:16px;flex-wrap:wrap">
-      ${!ehSomenteLeitura(S)?`<button class="bt verde" onclick="altSimAbrir('${s.id}')">✎ Alterar unidade / valor</button>`:""}
-      <button class="bt" onclick="fluxoPdf('sim','${s.id}')">📄 PDF do fluxo</button>
       ${simSt(s)==="ERRO" && !ehSomenteLeitura(S)
         ? `<button class="bt az" onclick="simRefazer('${s.id}')">↻ Tentar de novo</button>` : ""}
       <button class="bt" style="background:#2a9d5c;color:#fff;border-color:#2a9d5c" onclick="simParaProposta('${s.id}')">📄 Transformar em proposta</button>
@@ -4120,14 +4124,14 @@ function propVer(id){
     ${chegouReservada(p,true)?`<div class="aviso-res"><b>Unidade já reservada no envio.</b>
       Esta proposta chegou quando a unidade ${esc(String(p.unidade||""))} já estava reservada —
       ela só é analisada caso haja desistência da reserva atual.</div>`:""}
-    ${propResumoValores(p)}
-    ${propQuadroFluxo(p)}
-    <!-- 07/11/2026 — alterar unidade / valor financiado e PDF do fluxo -->
-    <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:10px">
+    <!-- 07/11/2026 — alterar unidade / valor financiado e PDF do fluxo: logo no topo do card -->
+    <div class="alt-acoes">
       ${podeGravar?`<button class="bt verde" onclick="altPropAbrir('${p.id}')">✎ Alterar unidade / valor financiado</button>`:""}
-      <button class="bt" onclick="fluxoPdf('prop','${p.id}')">📄 PDF do fluxo</button>
+      <button class="bt az" onclick="fluxoPdf('prop','${p.id}')">📄 Gerar PDF do fluxo</button>
     </div>
     <div id="alt-prop"></div>
+    ${propResumoValores(p)}
+    ${propQuadroFluxo(p)}
     <div class="sim-grade" style="margin-top:14px">
       ${it("Corretor",esc(p.vendedor||""))}${it("CRECI",esc(p.creci||""))}${it("Imobiliária",esc(p.imobiliaria||""))}
       ${it("E-mail",esc(p.email||""))}${it("Celular do corretor",p.celularCorretor?simLinkTel(p.celularCorretor):"—")}${it("CPF do corretor",esc(p.cpfCorretor||"—"))}
