@@ -186,6 +186,9 @@ var ClicksignVenda = (function () {
     for (var k in (extra || {})) s[k] = extra[k];
     return s;
   }
+  function mesmaPessoa(a, b) {
+    return !!(a && b && ((soDigitos(a.cpf) && soDigitos(a.cpf) === soDigitos(b.cpf)) || txt(a.nome).toUpperCase() === txt(b.nome).toUpperCase()));
+  }
   function sigCompradores(dados) {
     var l = [sig("Comprador 1", PAPEIS.COMPRADOR, dados.comprador1, "comprador1", { rubrica: true })];
     /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele. 01/11/2026 (dono): "cônjuge (geralmente vai
@@ -198,6 +201,11 @@ var ClicksignVenda = (function () {
     if (cj && !(c2 && ((soDigitos(cj.cpf) && soDigitos(cj.cpf) === soDigitos(c2.cpf)) || txt(cj.nome).toUpperCase() === txt(c2.nome).toUpperCase())))
       l.push(sig("Cônjuge do comprador 1", PAPEIS.COMPRADOR, cj, "conjugeComprador1", { rubrica: true }));
     if (dados.comprador2) l.push(sig("Comprador 2", PAPEIS.COMPRADOR, dados.comprador2, "comprador2", { rubrica: true }));
+    /* 07/11/2026 (dono): 2º comprador casado → o cônjuge dele assina logo depois, os mesmos documentos. Não se repete
+       quando já é o comprador 1 ou o cônjuge do comprador 1 (mesmo CPF ou nome). */
+    var cj2 = dados.comprador2 && dados.condominio && dados.condominio.conjugeComprador2;
+    if (cj2 && !mesmaPessoa(cj2, dados.comprador1) && !(cj && mesmaPessoa(cj2, cj)))
+      l.push(sig("Cônjuge do comprador 2", PAPEIS.COMPRADOR, cj2, "conjugeComprador2", { rubrica: true }));
     return l;
   }
   function sigVendedor(dados, config) {
@@ -267,7 +275,7 @@ var ClicksignVenda = (function () {
       dc = { comprador1: dados.comprador1, comprador2: null, condominio: opc.incluirConjuge ? dados.condominio : null };
     }
     var rotC = termo ? "DEVEDOR/COMPRADOR" : pre ? "RESERVANTE" : "COMPRADOR", rotCj = pre ? "CÔNJUGE DO RESERVANTE" : "CÔNJUGE DO COMPRADOR";
-    sigCompradores(dc).forEach(function (s) { add(s.origem === "conjugeComprador1" ? rotCj : rotC, s.nome, s.cpf); });
+    sigCompradores(dc).forEach(function (s) { add(/^conjugeComprador[12]$/.test(s.origem) ? rotCj : rotC, s.nome, s.cpf); });
     /* dono 01/11/2026: memorial com uma linha por pessoa — a vendedora e quem compra (cônjuge incluído); mais ninguém */
     if (memorial) return out;
     if (termo) sigFiadores(dados, { comFiadores: true }).forEach(function (s) {
@@ -297,6 +305,7 @@ var ClicksignVenda = (function () {
     comprador1: "coluna Email",
     comprador2: "coluna COMPRADOR 2 - E-MAIL",
     conjugeComprador1: "coluna EMAIL CONJUGE",
+    conjugeComprador2: "coluna EMAIL CONJUGE DO COMPRADOR 1",
     vendedor: "coluna E-MAIL em VENDEDORES – CONTRATO",
     corretor: "coluna E-MAIL em CORRETORES – CONTRATO",
     fiador1: "coluna EMAIL FIADOR 1", fiador2: "coluna EMAIL FIADOR 2",
@@ -333,7 +342,7 @@ var ClicksignVenda = (function () {
   function doCliente(s) { return /^(Comprador|Fiador|C[ôo]njuge)/.test(s.papel); }
   /* 01/11/2026 (revisão final, I1): e-mail que falta (ou inválido) de fiador e de cônjuge também aparece no Gerar, com o
      mesmo texto do envio — a tela abre o bloco Fiadores/Cônjuge para corrigir. O comprador fica de fora (tem link próprio). */
-  var EMAIL_NO_GERAR = { conjugeComprador1: 1, fiador1: 1, fiador2: 1, conjugeFiador1: 1, conjugeFiador2: 1 };
+  var EMAIL_NO_GERAR = { conjugeComprador1: 1, conjugeComprador2: 1, fiador1: 1, fiador2: 1, conjugeFiador1: 1, conjugeFiador2: 1 };
   function faltasDeNomeEEmail(dados, config) {
     config = config || montarConfig({});   /* config.comFiadores: quem chama decide (ConfissaoVenda.fiadoresAssinam), como no envio */
     var lista = signatarios(dados, config), vistos = {}, por = lista.map(function () { return []; });
@@ -452,7 +461,7 @@ var ClicksignVenda = (function () {
     return txt(v.tipo).toUpperCase() === "PJ";
   }
   /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores NÃO pedem selfie — só compradores e o cônjuge do comprador. */
-  var COM_SELFIE = /^(comprador[12]|conjugeComprador1)$/;
+  var COM_SELFIE = /^(comprador[12]|conjugeComprador[12])$/;
   /* 07/11/2026 (dono): "a reserva tá pedindo selfie, pode tirar, deixar somente no contrato" — o termo de reserva manda
    * dados.semSelfie (assEnviarTermo_) e fica só com o token por e-mail; o contrato segue com a selfie. */
   function autenticacoes(s, config, dados) {
