@@ -715,6 +715,19 @@ var ContratoVenda = (function () {
     var cj = d && d.condominio && d.condominio.conjugeComprador;
     return cj && !conjugeEhComprador2(cj, d.comprador2) ? cj : null;
   }
+  /* 07/11/2026 (dono): cônjuge do 2º comprador — só com 2º comprador; não se repete quando é o comprador 1 ou o
+     cônjuge do comprador 1 (mesmo CPF ou nome). */
+  function conjugeExtra2(d) {
+    var cj = d && d.comprador2 && d.condominio && d.condominio.conjugeComprador2;
+    if (!cj || conjugeEhComprador2(cj, d.comprador1)) return null;
+    var cj1 = conjugeExtra(d);
+    return cj1 && conjugeEhComprador2(cj, cj1) ? null : cj;
+  }
+  /* o 2º comprador é casado com o comprador 1 (o cônjuge do comprador 1 é ele) */
+  function casadoComComprador1(d) {
+    var cj = d && d.condominio && d.condominio.conjugeComprador;
+    return !!(cj && d.comprador2 && conjugeEhComprador2(cj, d.comprador2));
+  }
   function fraseConjuge(cj) {
     var doc = txt(cj.cpf) ? ", CPF nº " + txt(cj.cpf) : "";
     if (cj.uniao) return "convivente em união estável com " + txt(cj.nome) + doc;
@@ -795,6 +808,10 @@ var ContratoVenda = (function () {
     var cj = conjugeDoComprador(c.conjugeComprador);
     if (cj) out.conjugeComprador = cj;
     else if (c.conjugeComprador && fiadorCasado(c.conjugeComprador.estadoCivil)) out.conjugeCompradorSemNome = true;
+    /* 07/11/2026 (dono): o 2º comprador casado também leva o cônjuge (mesmas regras). Só quando existe. */
+    var cj2 = conjugeDoComprador(c.conjugeComprador2);
+    if (cj2) out.conjugeComprador2 = cj2;
+    else if (c.conjugeComprador2 && fiadorCasado(c.conjugeComprador2.estadoCivil)) out.conjugeComprador2SemNome = true;
     return out;
   }
 
@@ -931,6 +948,13 @@ var ContratoVenda = (function () {
       if (!cjc.uniao) exige(!vazio(cjc.regime), "Cônjuge do comprador 1", "regime de bens");
     } else if (d.condominio && d.condominio.conjugeCompradorSemNome && !(d.comprador2 && fiadorCasado(semAcento(d.comprador2.estadoCivil))))
       faltas.push("Cônjuge do comprador 1: nome");
+    /* 07/11/2026 (dono): o mesmo para o 2º comprador casado (fora quando ele é casado com o comprador 1) */
+    var cjc2 = conjugeExtra2(d);
+    if (cjc2) {
+      exige(!vazio(cjc2.cpf), "Cônjuge do comprador 2", "CPF");
+      if (!cjc2.uniao) exige(!vazio(cjc2.regime), "Cônjuge do comprador 2", "regime de bens");
+    } else if (d.comprador2 && d.condominio && d.condominio.conjugeComprador2SemNome && !casadoComComprador1(d))
+      faltas.push("Cônjuge do comprador 2: nome");
 
     var v = d.vendedor;
     if (!v) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
@@ -1156,7 +1180,7 @@ var ContratoVenda = (function () {
   }
 
   function marcadores(d) {
-    var c1 = d.comprador1, c2 = d.comprador2, cjq = conjugeExtra(d), v = d.vendedor || {}, l = d.loteamento || {};
+    var c1 = d.comprador1, c2 = d.comprador2, cjq = conjugeExtra(d), cjq2 = conjugeExtra2(d), v = d.vendedor || {}, l = d.loteamento || {};
     var im = d.imovel, n = d.negociacao, c = d.comissao, k = d.corretor || {};
     var ehPJ = v.tipo === "PJ";
     var compradores = qualificacao(c1) + (c2 ? "; e " + qualificacao(c2) : "");
@@ -1192,11 +1216,11 @@ var ContratoVenda = (function () {
       PRAZO_CONCLUSAO: dataBR(im.prazoConclusao),
       /* 29/10: uma linha só (o Google Docs não troca marcador por texto com quebra de linha) */
       CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
-      ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
-      ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
+      ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : [], cjq2 ? [cjq2.nome] : []).join(" / "),
+      ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : [], cjq2 ? [cjq2.cpf] : []).join(" / "),
       /* 01/11/2026 (dono): o cônjuge assina tudo que o comprador 1 assina — também o memorial (AssinaturaVenda.assDocsDoComprador_) */
-      MEMORIAL_ASSINATURA_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : []).join(" / "),
-      MEMORIAL_ASSINATURA_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : []).join(" / "),
+      MEMORIAL_ASSINATURA_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : [], cjq2 ? [cjq2.nome] : []).join(" / "),
+      MEMORIAL_ASSINATURA_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : [], cjq2 ? [cjq2.cpf] : []).join(" / "),
       CORRETOR_DOC: txt(k.cpfCnpj),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),
@@ -1263,7 +1287,7 @@ var ContratoVenda = (function () {
     var G = gruposFluxo(co), va = valoresCondominio(co), tb = co.tabela, k = d.corretor || {};
     function ext(n) { return n === null ? "" : valorExtenso(n); }
     var num2 = /\d+/.exec(co.unidade);
-    m.COMPRADORES_QUADRO = qualificacaoQuadro(d.comprador1, conjugeExtra(d)) + (d.comprador2 ? "; e " + qualificacaoQuadro(d.comprador2) : "");
+    m.COMPRADORES_QUADRO = qualificacaoQuadro(d.comprador1, conjugeExtra(d)) + (d.comprador2 ? "; e " + qualificacaoQuadro(d.comprador2, conjugeExtra2(d)) : "");
     m.CORRETOR_QUADRO = qualificacaoCorretor(k);
     m.CORRETOR_DOC_ROTULO = docRotulo(k.cpfCnpj);
     m.CASA_NUMERO = num2 ? (num2[0].length < 2 ? "0" + num2[0] : num2[0]) : "";

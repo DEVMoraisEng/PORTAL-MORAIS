@@ -188,6 +188,8 @@ var CondominioVenda = (function () {
       por("COMPRADOR 2 - TELEFONE", L.v("CELULAR COMPRADOR 1"));
       por("COMPRADOR 2 - PROFISSÃO", L.v("PROFISSÃO COMPRADOR 1"));
       por("COMPRADOR 2 - NACIONALIDADE", L.v("NACIONALIDADE COMPRADOR 1"));
+      /* 07/11/2026 (dono): o estado civil do 2º comprador também vai para o contrato */
+      por("COMPRADOR 2 - ESTADO CIVIL", L.v("ESTADO CIVIL COMPRADOR 1"));
       por("COMPRADOR 2 - ENDEREÇO", enderecoBloco1(L));
       var rg2 = L.v("RG COMPRADOR 1");
       por("COMPRADOR 2 - DOCUMENTO", vazio(rg2) ? null : (/^\s*RG\b/i.test(rg2) ? rg2 : "RG " + String(rg2).trim()));
