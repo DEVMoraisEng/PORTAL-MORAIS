@@ -1101,7 +1101,12 @@
         '<div class="dz-nota vb-fx-ult" data-k="' + k + '"' + (l.u && l.n > 1 ? ">última: " + esc(numBR(l.u)) : ' style="display:none">') + "</div>" +
         /* 04/11 (dono): "ajustado pelo simulador" ou a sugestão do que esta linha precisaria para fechar */
         (guiada ? '<div class="vb-fx-guia" data-k="' + k + '">' + htmlGuiaLinha(ed, k) + "</div>" : "") + "</td>" +
-        '<td><input type="number" min="1" data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em"></td>' +
+        /* 07/11 (dono): pré-chaves mês a mês — o campo não passa do que cabe até out/2028 sem cair no mês da outra parte */
+        (function () {
+          var cab = l.t === "pre" ? F.cabemPre({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k) : null;
+          return '<td><input type="number" min="1"' + (cab ? ' max="' + cab + '"' : "") + ' data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em">' +
+            (cab !== null ? '<div class="dz-nota vb-fx-cab" data-k="' + k + '">cabem ' + cab + "</div>" : "") + "</td>";
+        })() +
         '<td><input type="date" data-fx="d" data-k="' + k + '" value="' + esc(l.d) + '"' + dis + "></td>" +
         '<td><input type="number" min="1" max="24" data-fx="i" data-k="' + k + '" value="' + esc(l.i || 1) + '"' + dis + ' style="width:4em"></td>' +
         /* 03/11: na permuta, a descrição é o resumo do bem (formulário "Dados do bem") */
@@ -1392,6 +1397,10 @@
       ' title="Espalha a diferença nas pré-chaves e balões, proporcional ao total de cada">Distribuir ' + esc(F.moeda(Math.abs(dif))) +
       " nas pré-chaves e balões</button></div>";
     /* 07/11: vencimento no passado — um clique leva as linhas para o 1º mês que pode (mesmo dia; o total não muda) */
+    /* 07/11: duas parcelas pré-chaves no mesmo mês ou depois de out/2028 — um clique encaixa as partes (o total de cada uma não muda) */
+    if (r.erros.some(function (x) { return /uma por mês|as parcelas terminam em outubro\/2028/.test(x); }))
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-encaixar"' + dis +
+        ' title="Cada parte da pré-chaves termina antes da próxima e até outubro/2028; o total da linha não muda">Encaixar as pré-chaves</button></div>';
     if (r.erros.some(function (x) { return /use Corrigir datas/.test(x); }))
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-datas"' + dis +
         ' title="Leva cada parcela que venceria no passado para o 1º mês que pode, no mesmo dia; o total da linha não muda">Corrigir datas</button></div>';
@@ -3904,6 +3913,13 @@
         pintar();
         return;
       }
+      if (acao === "c-fluxo-encaixar") {
+        var en = FL().encaixarPre({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, null);
+        ed.linhas = en.linhas;
+        uiC.msg = en.mudou.length ? "Pré-chaves encaixadas em " + en.mudou.length + " linha(s) — confira e salve." : "As pré-chaves já estão mês a mês.";
+        pintar();
+        return;
+      }
       if (acao === "c-fluxo-datas") {
         var cd = FL().corrigirDatas({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao);
         if (cd.erro) uiC.msg = cd.erro;
@@ -4165,7 +4181,21 @@
           if (fxb === "tipo" || fxb === "situacao") { aoDigitarBem(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* 03/11: muda os campos do formulário */
           var fx = ev.target.getAttribute("data-fx");
           if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }
-          if (fx === "n") { aoDigitarFluxo(ev.target); return; }   /* revisão 04/11: setas do número também travam e pedem a conta */   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
+          if (fx === "n" || fx === "d") {
+            aoDigitarFluxo(ev.target);
+            /* 07/11 (dono): "se eu tenho 2 pré-chaves de 12, não pode deixar eu aumentar uma para 13" — a parte mexida fica,
+               as outras andam/encurtam mês a mês (o total de cada uma não muda) e o simulador refaz as soltas */
+            var edx = uiC.fluxoEd, kx = Number(ev.target.getAttribute("data-k"));
+            if (edx && edx.linhas[kx] && edx.linhas[kx].t === "pre") {
+              var enx = FL().encaixarPre({ valor: edx.valor, entrega: edx.entrega, linhas: edx.linhas }, kx);
+              if (enx.mudou.length) {
+                edx.linhas = enx.linhas;
+                uiC.msg = "As outras pré-chaves foram encaixadas mês a mês (" + enx.mudou.map(function (j) { return "linha " + (j + 1); }).join(", ") + ").";
+                pintar();
+              }
+            }
+            return;
+          }   /* revisão 04/11: setas do número também travam e pedem a conta */   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }
           if (fx === "v" || fx === "valor") {
             /* sai formatado ao sair do campo — sem repintar: repintar no blur engoliria o clique num botão */

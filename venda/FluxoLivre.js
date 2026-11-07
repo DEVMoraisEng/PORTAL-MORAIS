@@ -29,6 +29,9 @@ var FluxoLivre = (function () {
   var POS_TETO = 788.33;
   var RE_ISO = /^\d{4}-\d{2}-\d{2}$/;
   var LIMITE_PRE_CHAVES = "2028-11-30";   /* 31/10/2026 (dono): fim das pré-chaves e balões do Reserva dos Ipês */
+  /* 07/11/2026 (dono): "não posso ter mais parcelas do que meses" — as PARCELAS mensais pré-chaves terminam em
+     outubro/2028 (o balão da entrega fica em novembro/2028, como no simulador), uma por mês e só mensais */
+  var FIM_PARCELAS_PRE = "2028-10-31";
 
   function c(v) { return Math.round((Number(v) || 0) * 100); }
   function positivo(v) { return typeof v === "number" && isFinite(v) && v > 0; }
@@ -331,13 +334,77 @@ var FluxoLivre = (function () {
       if (l.u) nova.u = l.u;
       if (l.t !== "pos") {
         var n = Math.max(1, l.n);
-        while (n > 1 && maisMeses(d, (n - 1) * l.i) > LIMITE_PRE_CHAVES) n--;
+        var lim = l.t === "pre" ? FIM_PARCELAS_PRE : LIMITE_PRE_CHAVES;
+        while (n > 1 && maisMeses(d, (n - 1) * l.i) > lim) n--;
         if (n !== Math.max(1, l.n)) nova = comTotal({ t: l.t, n: n, d: d, i: l.i, x: l.x }, totalLinhaC(l));
       }
       mudou.push(k);
       return nova;
     });
-    return { linhas: linhas, mudou: mudou };
+    /* 07/11: a parte que andou não pode cair no mês da outra — a de antes encurta (o total dela não muda) */
+    var enc = encaixarPre({ valor: f.valor, entrega: f.entrega, linhas: linhas }, null);
+    enc.mudou.forEach(function (k) { if (mudou.indexOf(k) < 0) mudou.push(k); });
+    return { linhas: enc.linhas, mudou: mudou.sort(function (a, b) { return a - b; }) };
+  }
+
+  /* ---- 07/11/2026 (dono): pré-chaves MÊS A MÊS — "se eu tenho 2 pré-chaves de 12, não pode deixar eu aumentar uma
+     para 13". Uma parcela por mês, só mensais, a última em outubro/2028. ---- */
+  function mesNum(iso) { var p = String(iso).split("-").map(Number); return p[0] * 12 + (p[1] - 1); }
+  function mesBR(n) { return ("0" + (n % 12 + 1)).slice(-2) + "/" + Math.floor(n / 12); }
+  function ultimoMesPre() { return mesNum(FIM_PARCELAS_PRE); }
+  /* índices das pré-chaves mensais com data, pela 1ª data */
+  function presOrdenadas(linhas) {
+    return linhas.map(function (l, k) { return k; })
+      .filter(function (k) { var l = linhas[k]; return l.t === "pre" && isoValida(l.d) && l.n >= 1 && (l.i || 1) === 1; })
+      .sort(function (a, b) { return mesNum(linhas[a].d) - mesNum(linhas[b].d) || a - b; });
+  }
+  /* quantas parcelas cabem na pré-chaves k: da 1ª data dela até a véspera da próxima parte (ou outubro/2028) */
+  function cabemPre(f, k) {
+    var linhas = normalizar(f).linhas, l = linhas[k];
+    if (!l || l.t !== "pre" || !isoValida(l.d)) return null;
+    var ini = mesNum(l.d), fim = ultimoMesPre();
+    presOrdenadas(linhas).forEach(function (j) { var m = mesNum(linhas[j].d); if (j !== k && m > ini && m - 1 < fim) fim = m - 1; });
+    return Math.max(0, fim - ini + 1);
+  }
+  /* Encaixa as partes da pré-chaves mês a mês (o total de cada linha não muda; o centavo vai na última parcela).
+     fixo = índice da linha que a pessoa mexeu: ela fica como está; as partes DEPOIS dela começam no mês seguinte ao fim
+     dela e encurtam até caber em outubro/2028; as de ANTES encurtam para terminar antes dela. Sem fixo: cada parte encurta
+     para não chegar na próxima nem passar de outubro/2028. { linhas, mudou: [índices] } */
+  function encaixarPre(f, fixo) {
+    f = normalizar(f);
+    var linhas = f.linhas.slice(), mudou = [], ord = presOrdenadas(linhas), fim = ultimoMesPre();
+    function marca(k) { if (mudou.indexOf(k) < 0) mudou.push(k); }
+    function encurtar(k, n) {
+      var l = linhas[k]; n = Math.max(1, n);
+      if (n >= l.n) return;
+      linhas[k] = comTotal({ t: l.t, n: n, d: l.d, i: 1, x: l.x }, totalLinhaC(l)); marca(k);
+    }
+    function mover(k, mes) {
+      var l = linhas[k], delta = mes - mesNum(l.d);
+      if (delta <= 0) return;
+      var nova = { t: l.t, v: l.v, n: l.n, d: maisMeses(l.d, delta), i: 1, x: l.x };
+      if (l.u) nova.u = l.u;
+      linhas[k] = nova; marca(k);
+    }
+    var pf = fixo === null || fixo === undefined ? -1 : ord.indexOf(Number(fixo));
+    if (pf >= 0) {
+      for (var a = pf + 1; a < ord.length; a++) {
+        var ant = linhas[ord[a - 1]];
+        mover(ord[a], mesNum(ant.d) + ant.n);
+        var la = linhas[ord[a]], prox = a + 1 < ord.length ? Math.min(mesNum(linhas[ord[a + 1]].d) - 1, fim) : fim;
+        encurtar(ord[a], prox - mesNum(la.d) + 1);
+      }
+      for (var b = pf - 1; b >= 0; b--) {
+        var lb = linhas[ord[b]], seg = mesNum(linhas[ord[b + 1]].d);
+        if (mesNum(lb.d) + lb.n > seg) encurtar(ord[b], seg - mesNum(lb.d));
+      }
+    } else {
+      ord.forEach(function (k, a) {
+        var l = linhas[k], teto = a + 1 < ord.length ? Math.min(mesNum(linhas[ord[a + 1]].d) - 1, fim) : fim;
+        if (mesNum(l.d) + l.n - 1 > teto) encurtar(k, teto - mesNum(l.d) + 1);
+      });
+    }
+    return { linhas: linhas, mudou: mudou.sort(function (x, y) { return x - y; }) };
   }
 
   /* { ok, diferenca, erros: [texto], porLinha: { índice: [texto] }, avisos: [texto] } — diferenca = valor − soma
@@ -389,12 +456,43 @@ var FluxoLivre = (function () {
       if (hojeV && (l.t === "sinal" || l.t === "entrada") && l.d < hojeV)
         erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(l.d) + ", antes de hoje — atualize a data de assinatura");
       /* 31/10/2026 (dono): pré-chaves e balões terminam SEMPRE até 30/11/2028 — passar disso trava */
-      if ((l.t === "pre" || l.t === "balao") && ultima > LIMITE_PRE_CHAVES)
+      if (l.t === "pre" && l.i !== 1) erroLinha(k, "pré-chaves só mensais (intervalo 1): uma parcela por mês");
+      else if (l.t === "pre" && ultima > FIM_PARCELAS_PRE)
+        erroLinha(k, "pré-chaves vence em " + dataBR(ultima) + ": as parcelas terminam em outubro/2028 (o balão da entrega fica em novembro/2028) — a partir de " +
+          mesBR(mesNum(l.d)) + " cabem " + Math.max(0, ultimoMesPre() - mesNum(l.d) + 1));
+      else if (l.t === "balao" && ultima > LIMITE_PRE_CHAVES)
         erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(ultima) + ": pré-chaves e balões terminam até " + dataBR(LIMITE_PRE_CHAVES));
       if (entrega && (l.t === "pre" || l.t === "balao") && ultima > entrega)
         avisos.push("Linha " + (k + 1) + ": " + tp.nome.toLowerCase() + " vence depois da entrega das chaves (" + dataBR(ultima) + ")");
       if (entrega && l.t === "pos" && l.d <= entrega) avisos.push("Linha " + (k + 1) + ": pós-chaves vence antes da entrega das chaves");
     });
+    /* 07/11/2026 (dono): uma parcela pré-chaves por mês e um balão por mês; mês sem parcela no meio é só aviso */
+    var ocup = {}, bal = {}, minM = null, maxM = null;
+    f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
+      if (!isoValida(l.d)) return;
+      if (l.t === "pre" && l.i === 1) {
+        for (var q = 0; q < Math.max(1, l.n); q++) {
+          var m = mesNum(l.d) + q;
+          if (ocup[m] !== undefined && ocup[m] !== k) {
+            erroLinha(k, "já tem parcela pré-chaves em " + mesBR(m) + " (linha " + (ocup[m] + 1) + ") — uma por mês: use Encaixar as pré-chaves");
+            break;
+          }
+          ocup[m] = k;
+          if (minM === null || m < minM) minM = m;
+          if (maxM === null || m > maxM) maxM = m;
+        }
+      }
+      if (l.t === "balao") {
+        var mb = mesNum(l.d);
+        if (bal[mb] !== undefined) erroLinha(k, "já tem balão em " + mesBR(mb) + " (linha " + (bal[mb] + 1) + ") — um balão por mês");
+        else bal[mb] = k;
+      }
+    });
+    if (minM !== null) {
+      var buracos = [];
+      for (var mm = minM; mm <= maxM; mm++) if (ocup[mm] === undefined) buracos.push(mesBR(mm));
+      if (buracos.length) avisos.push("pré-chaves sem parcela em " + buracos.slice(0, 4).join(", ") + (buracos.length > 4 ? "…" : ""));
+    }
     /* regras que dependem da proposta (dono 29/10): financiamento/FGTS/subsídio iguais aos da proposta; pós-chaves com
        0, 12 ou 24 no total (o prazo pode mudar — 31/10), parcela até o teto e sem começar antes da proposta */
     if (padrao) {
@@ -821,7 +919,7 @@ var FluxoLivre = (function () {
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
-           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
+           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();

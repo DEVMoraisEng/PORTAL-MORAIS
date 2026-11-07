@@ -391,3 +391,18 @@ test("editor: pré-chaves vencendo antes de hoje trava o Salvar e mostra Corrigi
     assert.match(h, /pré-chaves vence em 10\/12\/2026: tem de vencer depois de hoje \(15\/12\/2026\)/);
   } finally { globalThis.HOJE_VENDA_TESTE_ = "2026-01-01"; }
 });
+
+/* 07/11/2026 (dono): pré-chaves mês a mês — "cabem N" no campo e o botão Encaixar quando duas partes caem no mesmo mês */
+test("editor: quantidade da pré-chaves mostra quantas cabem; partes no mesmo mês travam e mostram Encaixar", () => {
+  const duas = [{ t: "sinal", v: 10000, n: 1, d: "2026-10-30", i: 1, x: "" },
+                { t: "pre", v: 500, n: 12, d: "2026-11-10", i: 1, x: "" }, { t: "pre", v: 500, n: 8, d: "2027-11-10", i: 1, x: "" },
+                { t: "fin", v: 80000, n: 1, d: "", i: 1, x: "" }];
+  const ok = D.htmlContrato(estado(fechado), { fluxoEd: editor({ linhas: duas.map((l) => ({ ...l })), padrao: { valor: 100000, linhas: duas } }) });
+  assert.match(ok, /max="12" data-fx="n" data-k="1"/);
+  assert.match(ok, /cabem 12/);
+  const ruim = duas.map((l) => ({ ...l })); ruim[1].n = 13;
+  const h = D.htmlFluxoVivo(editor({ motivo: "teste", linhas: ruim, padrao: { valor: 100000, linhas: duas } }), "");
+  assert.match(botao(h, "c-fluxo-encaixar"), />Encaixar as pré-chaves/);
+  assert.match(botao(h, "c-fluxo-salvar"), /disabled/);
+  assert.equal(botao(D.htmlFluxoVivo(editor({ motivo: "teste", linhas: duas.map((l) => ({ ...l })), padrao: { valor: 100000, linhas: duas } }), ""), "c-fluxo-encaixar"), "");
+});
