@@ -40,7 +40,7 @@ var ConferenciaDocs = (function () {
       if (extra) {
         campo(campos, "rg", "RG", so(p.documento) ? p.documento : "");
         campo(campos, "nacionalidade", "Nacionalidade", p.nacionalidade, true);
-        campo(campos, "nascimento", "Nascimento", extra.nascimento, true);
+        campo(campos, "nascimento", "Nascimento", dataBR(extra.nascimento), true);   /* 07/11/2026 (dono): 05/01/1976, não 1976-01-05 */
       }
       out.push({ id: id, pessoa: rotulo, coluna: coluna, tipo: "identidade", documento: "RG/CNH", campos: campos });
     }
@@ -165,6 +165,8 @@ var ConferenciaDocs = (function () {
     var a = chave(esp), b = chave(lido), br = function (x) { return /^(BR|BRASIL)/.test(x); };
     return br(a) || br(b) ? br(a) && br(b) : a === b;
   }
+  /* "1970-02-03" → "03/02/1970" (o que a tela mostra); outra coisa, como veio */
+  function dataBR(s) { var d = dataISO(s); return d ? d.slice(6, 8) + "/" + d.slice(4, 6) + "/" + d.slice(0, 4) : txt(s); }
   /* "1970-02-03", "03/02/1970" ou "03021970" → "19700203"; outra coisa → "" */
   function dataISO(s) {
     var t = txt(s), m;
