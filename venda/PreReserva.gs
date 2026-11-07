@@ -174,10 +174,10 @@ function gerarTermoPreReserva_(col, sess, p) {
   try { marc.ASSINATURAS_TERMO = ClicksignVenda.blocoAssinaturas(x.d, assConfig_(p.pageId), "PRE_RESERVA", { incluirConjuge: prConjugeIncluido_(p.pageId) }); }
   catch (e) { ctrErro_(rot + " " + pid + " bloco de assinaturas", e); }
   var g = ctrGerarPdf_({ modelo: modelo, pasta: pasta, marcadores: marc, blocos: {},
-                         titulo: ClicksignVenda.tituloDocumento("TERMO DE PRÉ-RESERVA - ", x.f.endereco, x.f.casa, x.d.comprador1 && x.d.comprador1.nome) }, pid, rot, false);
+                         titulo: ClicksignVenda.tituloDocumento("TERMO DE RESERVA - ", x.f.endereco, x.f.casa, x.d.comprador1 && x.d.comprador1.nome) }, pid, rot, false);
   if (g.resp) return g.resp;
   var endereco = String(x.f.endereco).replace(/[\\\/:*?"<>|]/g, "-");
-  var nome = "TERMO DE PRÉ-RESERVA - " + endereco + (x.f.casa ? " - CASA " + x.f.casa : "") + " - " + hoje_("dd-MM-yyyy") + " [#" + hash + "].pdf";
+  var nome = "TERMO DE RESERVA - " + endereco + (x.f.casa ? " - CASA " + x.f.casa : "") + " - " + hoje_("dd-MM-yyyy") + " [#" + hash + "].pdf";
   try {
     anexarArquivo_(p.pageId, prCol_(x.pg, PreReservaVenda.COL.GERADO), { nome: nome, mime: "application/pdf", base64: Utilities.base64Encode(g.pdf.getBytes()) }, true);
   } catch (e) { ctrErro_(rot + " " + pid + " anexo", e); return { ok: false, erro: "CONTRATO_FALHOU" }; }
@@ -193,5 +193,5 @@ function verTermoPreReserva_(col, p) {
   try { b = baixarArquivo_(f); } catch (e) { b = null; }
   if (!b || b.mime !== "application/pdf") return { ok: false, erro: "CONTRATO_ILEGIVEL" };
   if (b.base64.length * 3 / 4 > PRE_MAX_BYTES) return { ok: false, erro: "PRECONTRATO_GRANDE" };
-  return { ok: true, nome: ctrTxt_(f.name) || "termo-pre-reserva.pdf", base64: b.base64 };
+  return { ok: true, nome: ctrTxt_(f.name) || "termo-reserva.pdf", base64: b.base64 };
 }

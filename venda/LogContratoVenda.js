@@ -12,8 +12,8 @@ var LogContratoVenda = (function () {
     return s.length > n ? s.slice(0, n - 1) + "…" : s;
   }
   function preReserva(p) { return txt(p && p.doc).toUpperCase() === "PRE_RESERVA"; }
-  function doc(p) { return preReserva(p) ? "o termo de pré-reserva" : "o contrato"; }
-  function docDe(p) { return preReserva(p) ? "do termo de pré-reserva" : "do contrato"; }
+  function doc(p) { return preReserva(p) ? "o termo de reserva" : "o contrato"; }
+  function docDe(p) { return preReserva(p) ? "do termo de reserva" : "do contrato"; }
 
   /* ação -> function (p, r) { return "o que fez" }. Só ações que GRAVAM alguma coisa na venda;
      leituras (estado, ver PDF, consultar situação) não entram. */
@@ -57,10 +57,10 @@ var LogContratoVenda = (function () {
     escolherContaRecebimento: function () { return "escolheu a conta de recebimento"; },
     mcLancar: function () { return "lançou a venda no Mais Controle"; },
     gerarVendaCondominio: function () { return "gerou a venda do condomínio"; },
-    salvarContaPreReserva: function () { return "gravou a conta de devolução da pré-reserva"; },
-    salvarPagamentoPreReserva: function () { return "gravou o valor e a data do pagamento da pré-reserva"; },
-    salvarConjugePreReserva: function (p) { return p && p.incluir === true ? "incluiu o cônjuge no termo de pré-reserva" : "tirou o cônjuge do termo de pré-reserva"; },
-    gerarTermoPreReserva: function () { return "gerou o termo de pré-reserva"; },
+    salvarContaPreReserva: function () { return "gravou a conta de devolução da reserva"; },
+    salvarPagamentoPreReserva: function () { return "gravou o valor e a data do pagamento da reserva"; },
+    salvarConjugePreReserva: function (p) { return p && p.incluir === true ? "incluiu o cônjuge no termo de reserva" : "tirou o cônjuge do termo de reserva"; },
+    gerarTermoPreReserva: function () { return "gerou o termo de reserva"; },
     conferirDocumentos: function () { return "pediu a conferência dos documentos pela IA"; },
     confirmarConferencia: function () { return "confirmou um item da conferência dos documentos"; },
     /* 01/11: bloco Fiadores — só os nomes das colunas, nunca o valor (nome/CPF) */

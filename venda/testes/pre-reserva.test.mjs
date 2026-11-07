@@ -41,12 +41,12 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
 test("faltas: propriedades, CPF inválido, e-mail, casa fora da tabela", () => {
   const t = P.montar(dados({ email: "" }, { nome: "CONDOMÍNIO OUTRO TESTE" }), { hojeISO: "2026-10-27", valor: "x", dataPagamento: "amanhã" });
   assert.deepEqual(P.faltas(t), [
-    "Pré-reservante: e-mail (coluna Email)", "Unidade: fora da tabela do condomínio (tipo da casa)",
-    "Valor da pré-reserva (preencha no cartão)",
-    "Data do pagamento da pré-reserva (preencha no cartão)"]);
+    "Reservante: e-mail (coluna Email)", "Unidade: fora da tabela do condomínio (tipo da casa)",
+    "Valor da reserva (preencha no cartão)",
+    "Data do pagamento da reserva (preencha no cartão)"]);
   const cpf = C.montarDadosContrato({ venda: { CLIENTES: "X TESTE", CPF: "529.982.247-24", COMPRADOR1: {}, COMPRADOR2: { nome: "" } },
     obra: {}, condominio: { nome: "RESERVA DOS IPÊS", unidade: "1", fluxo: {}, fiadores: [] } });
-  assert.ok(P.faltas(P.montar(cpf, X)).includes("Pré-reservante: CPF inválido"));
+  assert.ok(P.faltas(P.montar(cpf, X)).includes("Reservante: CPF inválido"));
 });
 
 test("01/11: validarPagamento barra data futura (hoje vem do servidor) e valor acima do sinal; sinal desconhecido não barra", () => {
@@ -67,8 +67,8 @@ test("01/11: validarPagamento barra data futura (hoje vem do servidor) e valor a
 test("01/11: faltas repete a checagem: data futura e valor acima do sinal (só com sinal conhecido)", () => {
   const com = (fluxo, x) => P.faltas(P.montar(dados({}, { fluxo }), { ...X, hojeISO: "2026-11-01", ...x }));
   assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, {}), []);
-  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { dataPagamento: "2027-01-10" }), ["Data do pagamento da pré-reserva: não pode ser depois de hoje"]);
-  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { valor: "50000" }), ["Valor da pré-reserva: maior que o sinal da venda (R$ 10.000,00)"]);
+  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { dataPagamento: "2027-01-10" }), ["Data do pagamento da reserva: não pode ser depois de hoje"]);
+  assert.deepEqual(com({ sinalAto: 5000, sinal30: 5000 }, { valor: "50000" }), ["Valor da reserva: maior que o sinal da venda (R$ 10.000,00)"]);
   assert.deepEqual(com({}, { valor: "50000" }), [], "sem sinal conhecido não barra");
 });
 
@@ -191,4 +191,16 @@ test("06/11: histórico registra a data limite", () => {
     "06/11/2026 10:00 ana: data limite — → 11/11/2026");
   assert.equal(P.linhaHistorico({ valor: 3000, data: "2026-11-06", limite: "2026-11-11" }, { valor: 3000, data: "2026-11-06" }, "ana", "x"), "",
     "sem o campo na entrada, não muda");
+});
+
+/* 06/11/2026 (dono): "agora não é mais pré-reserva, é reserva" — o termo e as faltas falam em reserva; as colunas do
+   Notion continuam "PRÉ-RESERVA - ..." (nome interno). */
+test("06/11: textos dizem reserva; colunas do Notion seguem com o nome antigo", () => {
+  const t = P.montar(dados({ email: "" }), { hojeISO: "2026-10-27" });
+  const f = P.faltas(t).join(" | ");
+  assert.match(f, /Reservante: e-mail/);
+  assert.match(f, /Valor da reserva/);
+  assert.doesNotMatch(f, /[Pp]r[ée]-reserv/);
+  assert.equal(P.COL.VALOR, "PRÉ-RESERVA - VALOR");
+  assert.equal(P.COL.DATA_LIMITE, "PRÉ-RESERVA - DATA LIMITE");
 });

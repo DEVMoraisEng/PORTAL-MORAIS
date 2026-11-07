@@ -191,7 +191,7 @@ var ClicksignVenda = (function () {
     /* 31/10/2026 (dono): comprador casado → o cônjuge assina logo depois dele. 01/11/2026 (dono): "cônjuge (geralmente vai
        como comprador 2) tem que assinar tudo que o comprador 1 assina" — os mesmos documentos (contrato, termos, memorial,
        projeto) e os mesmos campos de ciência e vistos dos valores, ao lado dos outros compradores (rubrica: true).
-       01/11/2026 (dono): no TERMO DE PRÉ-RESERVA o cônjuge só entra se o corretor ligou a opção na venda
+       01/11/2026 (dono): no TERMO DE RESERVA o cônjuge só entra se o corretor ligou a opção na venda
        (AssinaturaVenda.assEnviarTermo_ tira o conjugeComprador antes). Se o cônjuge já é o comprador 2 (mesmo CPF ou nome),
        não assina duas vezes. */
     var cj = dados.condominio && dados.condominio.conjugeComprador, c2 = dados.comprador2;
@@ -207,7 +207,7 @@ var ClicksignVenda = (function () {
     return [sig("Vendedor", PAPEIS.VENDEDOR, { nome: v.nome, email: v.email, cpf: v.cpfCnpj }, "vendedor")];
   }
   function sigTestemunhas(dados, config) {
-    if (config && config.semTestemunhas) return [];   /* 06/11/2026 (dono): o termo de pré-reserva não leva testemunhas */
+    if (config && config.semTestemunhas) return [];   /* 06/11/2026 (dono): o termo de reserva não leva testemunhas */
     var t = testemunhas(dados, config);
     return t ? [sig("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"), sig("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha")] : [];
   }
@@ -263,10 +263,10 @@ var ClicksignVenda = (function () {
       add(rotV, nomeV, v && v.cpfCnpj, rep && rep.nome ? "Representante: " + rep.nome + (rep.cpf ? " – CPF: " + rep.cpf : "") : "");
     }
     var dc = dados;
-    if (pre) {   /* pré-reserva: o comprador 1 (e o cônjuge só com a opção ligada) */
+    if (pre) {   /* reserva: o comprador 1 (e o cônjuge só com a opção ligada) */
       dc = { comprador1: dados.comprador1, comprador2: null, condominio: opc.incluirConjuge ? dados.condominio : null };
     }
-    var rotC = termo ? "DEVEDOR/COMPRADOR" : pre ? "PRÉ-RESERVANTE" : "COMPRADOR", rotCj = pre ? "CÔNJUGE DO PRÉ-RESERVANTE" : "CÔNJUGE DO COMPRADOR";
+    var rotC = termo ? "DEVEDOR/COMPRADOR" : pre ? "RESERVANTE" : "COMPRADOR", rotCj = pre ? "CÔNJUGE DO RESERVANTE" : "CÔNJUGE DO COMPRADOR";
     sigCompradores(dc).forEach(function (s) { add(s.origem === "conjugeComprador1" ? rotCj : rotC, s.nome, s.cpf); });
     /* dono 01/11/2026: memorial com uma linha por pessoa — a vendedora e quem compra (cônjuge incluído); mais ninguém */
     if (memorial) return out;
@@ -277,7 +277,7 @@ var ClicksignVenda = (function () {
     });
     if (tipo === "CONTRATO" && dados.corretor && txt(dados.corretor.nome) && !vendaDireta(dados))
       add("INTERMEDIADOR/CORRETOR", dados.corretor.nome, dados.corretor.cpfCnpj);
-    if (pre) return out;   /* 06/11/2026 (dono): "não precisa de tanta coisa na pré-reserva" — sem testemunhas */
+    if (pre) return out;   /* 06/11/2026 (dono): "não precisa de tanta coisa na reserva" — sem testemunhas */
     var t = testemunhas(dados, config) || [null, null];
     [0, 1].forEach(function (i) { add("TESTEMUNHA " + (i + 1), t[i] && t[i].nome, t[i] && t[i].cpf); });
     return out;
@@ -356,7 +356,7 @@ var ClicksignVenda = (function () {
    * tela monta o endereço. E-mail repetido aponta as duas pontas. */
   function linksCorrigirEmail(faltas) {
     var t = (faltas || []).filter(function (f) { return /e-mail/i.test(f); }).join(" | "), l = [];
-    if (/(Comprador [12]|Pré-reservante)[^|]*e-mail|igual ao de (Comprador|Pré-reservante)/.test(t)) l.push({ quem: "comprador", rotulo: "Corrigir e-mail do comprador" });
+    if (/(Comprador [12]|Reservante)[^|]*e-mail|igual ao de (Comprador|Reservante)/.test(t)) l.push({ quem: "comprador", rotulo: "Corrigir e-mail do comprador" });
     if (/Vendedor[^|]*e-mail|igual ao de Vendedor/.test(t)) l.push({ quem: "vendedor", rotulo: "Corrigir e-mail do vendedor/representante" });
     if (/Corretor[^|]*e-mail|igual ao de Corretor/.test(t)) l.push({ quem: "corretor", rotulo: "Corrigir e-mail do corretor" });
     return l;
@@ -393,7 +393,7 @@ var ClicksignVenda = (function () {
     contrato: "Segue o contrato de compra e venda da unidade {UNIDADE} para a sua assinatura eletrônica. " +
               "Leia com calma antes de assinar e, se tiver qualquer dúvida, fale com a nossa equipe. " +
               "Obrigado pela confiança! Morais Engenharia",
-    termo: "Segue o termo de pré-reserva da unidade {UNIDADE} para a sua assinatura eletrônica. " +
+    termo: "Segue o termo de reserva da unidade {UNIDADE} para a sua assinatura eletrônica. " +
            "É ele que garante a sua unidade enquanto preparamos o contrato. Qualquer dúvida, fale com a nossa equipe. " +
            "Obrigado pela confiança! Morais Engenharia"
   };
@@ -793,7 +793,7 @@ var ClicksignVenda = (function () {
   }
   /* correção 3 (5): papéis escritos no texto de uma linha, já normalizados (um por pessoa). Dois papéis diferentes = a
      leitura pegou o bloco do lado: a linha não vai para ninguém (melhor sem assinatura posicionada do que na errada). */
-  var RE_PAPEIS = /\b(CONJUGE DO (?:COMPRADOR|PRE-RESERVANTE|FIADOR [12])|CREDORA\/VENDEDORA|DEVEDOR\/COMPRADOR|INTERMEDIADOR\/CORRETOR|VENDEDORA?|COMPRADOR|FIADOR [12]|TESTEMUNHA [12]|PRE-RESERVANTE|CORRETOR|INTERMEDIADOR)\b/g;
+  var RE_PAPEIS = /\b(CONJUGE DO (?:COMPRADOR|(?:PRE-)?RESERVANTE|FIADOR [12])|CREDORA\/VENDEDORA|DEVEDOR\/COMPRADOR|INTERMEDIADOR\/CORRETOR|VENDEDORA?|COMPRADOR|FIADOR [12]|TESTEMUNHA [12]|(?:PRE-)?RESERVANTE|CORRETOR|INTERMEDIADOR)\b/g;
   var PAPEL_NORMAL = { "CREDORA/VENDEDORA": "VENDEDOR", "VENDEDORA": "VENDEDOR", "DEVEDOR/COMPRADOR": "COMPRADOR",
                        "INTERMEDIADOR/CORRETOR": "CORRETOR", "INTERMEDIADOR": "CORRETOR" };
   function papeisNoTexto(t) {

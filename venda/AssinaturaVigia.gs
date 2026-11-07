@@ -161,7 +161,7 @@ function vigiaAvisar_(pg, doc, situacao) {
   if (MailApp.getRemainingDailyQuota() < 1) { ctrLog_("vigia " + id8 + " " + situacao + " sem cota de e-mail hoje"); return; }
   var unidade = "";
   for (var n in pg.properties) if (pg.properties[n].type === "title") unidade = ctrTxt_(ctrValor_(pg.properties[n])).trim();
-  var oque = doc.pre ? "Termo de pré-reserva" : "Contrato", sit = situacao.toLowerCase();
+  var oque = doc.pre ? "Termo de reserva" : "Contrato", sit = situacao.toLowerCase();
   MailApp.sendEmail({
     to: dest.join(","),
     subject: "[Portal de Vendas] " + oque + " " + sit + " na Clicksign — " + (unidade || "unidade sem nome"),

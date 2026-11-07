@@ -355,7 +355,7 @@ function assDocsLeves_(p) {
  * doc: "contrato", o nome do termo na Clicksign, "memorial" ou "projeto". Só leitura (o perfil TESTES vê). */
 function assinaturaPrevia_(col, p) {
   var pid = String(p.pageId).slice(0, 8), doc = assDoc_(p);
-  if (doc.pre) return { ok: true, marcas: [], avisos: [] };   /* o termo de pré-reserva não tem assinatura posicionada */
+  if (doc.pre) return { ok: true, marcas: [], avisos: [] };   /* o termo de reserva não tem assinatura posicionada */
   var pg = ctrLerPaginaVenda_(p.pageId), gerado = doc.gerado(pg);
   if (!gerado || !gerado.url) return { ok: false, erro: doc.semGerado };
   if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
@@ -504,7 +504,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var config = assConfig_(p.pageId), cfg = {};
   for (k in config) cfg[k] = config[k];
   cfg.incluirCorretor = false;
-  cfg.semTestemunhas = true;   /* 06/11/2026 (dono): o termo de pré-reserva não leva testemunhas */
+  cfg.semTestemunhas = true;   /* 06/11/2026 (dono): o termo de reserva não leva testemunhas */
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
     .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
   if (faltas.length) {
@@ -513,7 +513,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   }
   var carimbo = ctrCarimboDoNome_(gerado.nome);
   if (!carimbo || (carimbo !== prCarimbo_(x.t) && carimbo !== prCarimbo_(x.t, prAssinCarimbo_(x.d, p.pageId)))) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "TERMO_DESATUALIZADO" }; }
-  var nomeCs = "PRÉ-RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
+  var nomeCs = "RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
   return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs, null, null, null, dAss,
                            ClicksignVenda.mensagemEnvelope("termo", x.f.endereco, x.f.casa, prop_("CLICKSIGN_MENSAGEM_TERMO")));
 }
@@ -676,7 +676,7 @@ function assCriarEnvelope_(p, pid, cols, doc, gerado, lista, nomeCs, extras, adi
 /* ---- estado ---- */
 function assNomeAssinado_(nomeGerado) {
   var n = String(nomeGerado || "contrato.pdf").replace(/ \[#[0-9a-f]{8}\](\.pdf)$/i, "$1");
-  if (/^TERMO DE PRÉ-RESERVA - /.test(n)) return "TERMO DE PRÉ-RESERVA ASSINADO - " + n.slice(23);
+  if (/^TERMO DE (?:PRÉ-)?RESERVA - /.test(n)) return n.replace(/^TERMO DE (?:PRÉ-)?RESERVA - /, "TERMO DE RESERVA ASSINADO - ");   /* 06/11: aceita o nome antigo (PRÉ-RESERVA) */
   return /^CONTRATO - /.test(n) ? "CONTRATO ASSINADO - " + n.slice(11) : "ASSINADO - " + n;
 }
 /* 03/11: papéis + requisitos guardados por signatário (ASSINATURA_REQS_<envelope>_<signatário>) saem juntos */
@@ -1197,7 +1197,7 @@ var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaC
 var ASS_MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
 var ASS_MSG_ABERTO_TERMO = "O termo já foi enviado para assinatura. Para mudar, cancele o envelope do termo primeiro.";
 var ASS_MSG_ABERTO_CONJUGE = "O termo já foi enviado para assinatura. Para mudar quem assina, cancele o envelope do termo primeiro.";
-var ASS_MSG_DISPENSADA = "O contrato desta unidade foi gerado sem a pré-reserva: a pré-reserva foi dispensada.";
+var ASS_MSG_DISPENSADA = "O contrato desta unidade foi gerado sem a reserva: a reserva foi dispensada.";
 /* contrato feito = PDF em CONTRATO GERADO ou envelope do contrato já criado (situação preenchida); base sem as colunas não dispensa;
  * envio do termo ainda pendente (ASSINATURA_PENDENTE_PR_<página>: envelope criado, situação não gravada) não dispensa */
 function assPreReservaDispensada_(pg, pageId) {

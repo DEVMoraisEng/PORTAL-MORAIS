@@ -70,7 +70,7 @@ const TEST_PF = [{ nome: "Testemunha Um Pf", email: "t1.pf@teste.example", cpf: 
 
 /* termo de pré-reserva (27/10/2026): modelo de teste com todos os marcadores do termo */
 const MODELO_PR = [
-  "TERMO — PRÉ-RESERVANTE: {{PRE_RESERVANTE_QUADRO}}",
+  "TERMO — RESERVANTE: {{PRE_RESERVANTE_QUADRO}}",
   "Casa {{CASA_NUMERO}} Tipo {{CASA_TIPO}} até {{PRE_RESERVA_DATA_LIMITE}} por {{PRE_RESERVA_VALOR_EXTENSO}} ({{PRE_RESERVA_VALOR}})",
   "Devolução: {{PRE_RESERVANTE_CONTA}}",
   "{{CIDADE_DATA}}",
@@ -296,8 +296,8 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   assert.equal(c.txt("PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO"), "PIX, chave 529.982.247-25, no banco 756 - SICOOB");
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.match(r.nome, /^TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
-  assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE PRÉ-RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - Compradora de Teste");
+  assert.match(r.nome, /^TERMO DE RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
+  assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - Compradora de Teste");
   const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
   assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone (62) 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
@@ -311,7 +311,7 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   assert.equal(v.ok, true);
 });
 
-test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante e vendedora — 06/11: sem testemunhas), colunas do termo; contrato intocado", () => {
+test("termo na Clicksign: envia com doc PRE_RESERVA (reservante e vendedora — 06/11: sem testemunhas), colunas do termo; contrato intocado", () => {
   const c = cenarioPR({ linha: { "PRÉ-RESERVA - CONTA PARA DEVOLUÇÃO": texto("PIX, chave 529.982.247-25, no banco 756 - SICOOB") } });
   assert.equal(c.acao("assinaturaEnviar", { doc: "PRE_RESERVA" }).erro, "SEM_TERMO_GERADO");
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
@@ -328,7 +328,7 @@ test("termo na Clicksign: envia com doc PRE_RESERVA (pré-reservante e vendedora
 });
 
 /* 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir" — por padrão só o
-   pré-reservante assina o termo (e o e-mail do cônjuge não é cobrado); com a opção ligada na venda
+   reservante assina o termo (e o e-mail do cônjuge não é cobrado); com a opção ligada na venda
    (salvarConjugePreReserva, propriedade PR_CONJUGE_<pageId>) o cônjuge entra e o e-mail dele passa a ser exigido.
    O contrato continua com o cônjuge. */
 const CASADO_PR = { "ESTADO CIVIL": rt("CASADO"), CONJUGE: rt("Conjuge Teste da Silva"), "CPF CONJUGE": rt("935.411.347-80"),
@@ -419,7 +419,7 @@ test("31/10: valor e data por venda — salvar grava o histórico com o usuário
   assert.equal(e0.valor, null);
   assert.equal(e0.dataLimite, "");
   assert.deepEqual(c.acao("gerarTermoPreReserva").faltas,
-    ["Valor da pré-reserva (preencha no cartão)", "Data do pagamento da pré-reserva (preencha no cartão)"]);
+    ["Valor da reserva (preencha no cartão)", "Data do pagamento da reserva (preencha no cartão)"]);
   assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 0, data: "2026-10-26" }).erro, "PR_VALOR_INVALIDO");
   assert.equal(c.acao("salvarPagamentoPreReserva", { valor: 2500, data: "" }).erro, "PR_DATA_INVALIDA");
   /* 01/11: hoje vem do servidor (São Paulo); sinal da linha = ato + 30 + 60 + 90 */
@@ -1434,16 +1434,16 @@ test("plano 23 B: termo de confissão migrado leva fiadores e testemunhas; model
   assert.ok(!ct.some((l) => /^_{10,}$/.test(l)), "contrato com o modelo antigo não ganha bloco");
 });
 
-test("plano 23 B: termo de pré-reserva migrado — sem o cônjuge por padrão, com ele quando a opção está ligada", () => {
+test("plano 23 B: termo de reserva migrado — sem o cônjuge por padrão, com ele quando a opção está ligada", () => {
   const modelo = { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] };
   const c = cenarioPR({ modelosExtra: modelo, linha: { ...CONTA_PR, ...CASADO_PR } });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const p1 = salvoUltimo(c).pars;
-  assert.deepEqual(papeisDo(p1, MODELO_PR.length, p1.length), ["VENDEDORA", "PRÉ-RESERVANTE"]);
+  assert.deepEqual(papeisDo(p1, MODELO_PR.length, p1.length), ["VENDEDORA", "RESERVANTE"]);
   c.acao("salvarConjugePreReserva", { incluir: true });
   assert.equal(c.acao("gerarTermoPreReserva").ok, true);
   const p2 = salvoUltimo(c).pars;
-  assert.deepEqual(papeisDo(p2, MODELO_PR.length, p2.length), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE"]);
+  assert.deepEqual(papeisDo(p2, MODELO_PR.length, p2.length), ["VENDEDORA", "RESERVANTE", "CÔNJUGE DO RESERVANTE"]);
   assert.ok(p2.includes("Nome: Conjuge Teste da Silva"));
 });
 
@@ -1468,7 +1468,7 @@ test("correção 1 (I4): modelo migrado — trocar as testemunhas depois de gera
   assert.equal(r.ok, true, JSON.stringify(r.faltas || r));
 });
 
-test("correção 1 (I4): pré-reserva migrada — ligar o cônjuge depois de gerar deixa o termo desatualizado", () => {
+test("correção 1 (I4): reserva migrada — ligar o cônjuge depois de gerar deixa o termo desatualizado", () => {
   const novo = cenarioPR({ modelosExtra: { "modelo-pr": [...MODELO_PR, "{{ASSINATURAS_TERMO}}"] }, linha: { ...CONTA_PR, ...CASADO_PR } });
   assert.equal(novo.acao("gerarTermoPreReserva").ok, true);
   novo.acao("salvarConjugePreReserva", { incluir: true });
@@ -1827,7 +1827,7 @@ test("03/11: o caminho do incidente — Alterar fluxo depois do contrato barra; 
   assert.equal(r.ok, true, JSON.stringify(r));
 });
 
-test("03/11: fluxo gravado e contrato final sem a hora do Conferi (contrato antigo) — barra; termo de pré-reserva não é afetado", () => {
+test("03/11: fluxo gravado e contrato final sem a hora do Conferi (contrato antigo) — barra; termo de reserva não é afetado", () => {
   const c = cenarioFluxo();
   assert.equal(c.gerarFinal().ok, true);
   const pre = JSON.parse(propsDe(c).getProperty("PRECONTRATO_" + COND));

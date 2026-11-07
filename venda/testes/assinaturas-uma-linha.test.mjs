@@ -79,11 +79,11 @@ test("termo de confissão: credora, devedor(es), cônjuge, fiadores e cônjuge d
   assert.ok(!/CORRETOR/.test(linhas.join("\n")));
 });
 
-test("pré-reserva (06/11: sem testemunhas): vendedora e pré-reservante; o cônjuge só com a opção ligada; comprador 2 e corretor nunca", () => {
+test("reserva (06/11: sem testemunhas): vendedora e reservante; o cônjuge só com a opção ligada; comprador 2 e corretor nunca", () => {
   const papeis = (opc) => CS.blocoAssinaturas(dados(), CONFIG, "PRE_RESERVA", opc).split("\n")
     .filter((x) => /^[A-ZÀ-Ü\/ 12-]+$/.test(x) && !/^_+$/.test(x));
-  assert.deepEqual(papeis(), ["VENDEDORA", "PRÉ-RESERVANTE"]);
-  assert.deepEqual(papeis({ incluirConjuge: true }), ["VENDEDORA", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE"]);
+  assert.deepEqual(papeis(), ["VENDEDORA", "RESERVANTE"]);
+  assert.deepEqual(papeis({ incluirConjuge: true }), ["VENDEDORA", "RESERVANTE", "CÔNJUGE DO RESERVANTE"]);
 });
 
 test("casa de rua: rótulo VENDEDOR (o texto do modelo) e vendedor pessoa física com CPF", () => {
@@ -97,7 +97,7 @@ test("casa de rua: rótulo VENDEDOR (o texto do modelo) e vendedor pessoa físic
 test("os três marcadores viram parágrafos e o rótulo de cada pessoa sai em negrito", () => {
   for (const m of ["ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO"]) assert.ok(C.MARCADORES_PARAGRAFOS.includes(m), m);
   for (const r of ["VENDEDORA", "VENDEDOR", "COMPRADOR", "CÔNJUGE DO COMPRADOR", "CREDORA/VENDEDORA", "DEVEDOR/COMPRADOR", "FIADOR 2",
-                   "CÔNJUGE DO FIADOR 1", "INTERMEDIADOR/CORRETOR", "TESTEMUNHA 1", "PRÉ-RESERVANTE", "CÔNJUGE DO PRÉ-RESERVANTE"])
+                   "CÔNJUGE DO FIADOR 1", "INTERMEDIADOR/CORRETOR", "TESTEMUNHA 1", "RESERVANTE", "CÔNJUGE DO RESERVANTE"])
     assert.equal(C.negritoDaLinha(r), r.length, r);
   for (const x of ["Nome: COMPRADOR", "CPF: 1", TRACO, "COMPRADORA"]) assert.equal(C.negritoDaLinha(x), 0, x);
 });

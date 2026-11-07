@@ -10,7 +10,7 @@ test("linha: só ação que grava e deu certo; quem e quando na frente", () => {
   assert.equal(L.linha("salvarFluxo", { motivo: "x" }, { ok: false }, "ana.teste", "agora"), "");
   assert.equal(L.linha("contratoEstado", {}, { ok: true }, "ana.teste", "agora"), "");
   assert.match(L.linha("salvarCondicoesEspeciais", { texto: "" }, { ok: true }, "b", "t"), /apagou as condições especiais/);
-  assert.match(L.linha("assinaturaCancelar", { doc: "PRE_RESERVA" }, { ok: true }, "b", "t"), /cancelou o envelope do termo de pré-reserva/);
+  assert.match(L.linha("assinaturaCancelar", { doc: "PRE_RESERVA" }, { ok: true }, "b", "t"), /cancelou o envelope do termo de reserva/);
   assert.match(L.linha("salvarCamposContrato", { campos: { CRECI: "1", "CPF/CNPJ": "2" } }, { ok: true }, "b", "t"), /preencheu campos do contrato: CRECI, CPF\/CNPJ/);
 });
 
@@ -30,7 +30,7 @@ test("assinaturaCancelar: o texto do histórico segue o que o servidor fez (desc
   const so = l({ descartar: true }, { ok: true, descartou: false, cancelou: undefined });
   assert.match(so, /atualizou a situação \(o envelope já estava com os signatários; nada foi descartado\)/);
   assert.doesNotMatch(so, /cancelou/);
-  assert.match(l({ doc: "PRE_RESERVA", descartar: true }, { ok: true, descartou: true }), /descartou o rascunho do envelope do termo de pré-reserva/);
+  assert.match(l({ doc: "PRE_RESERVA", descartar: true }, { ok: true, descartou: true }), /descartou o rascunho do envelope do termo de reserva/);
   assert.match(l({}, { ok: true, cancelou: true }), /cancelou o envelope do contrato na Clicksign/);
-  assert.match(l({ doc: "PRE_RESERVA" }, { ok: true }), /cancelou o envelope do termo de pré-reserva/);
+  assert.match(l({ doc: "PRE_RESERVA" }, { ok: true }), /cancelou o envelope do termo de reserva/);
 });

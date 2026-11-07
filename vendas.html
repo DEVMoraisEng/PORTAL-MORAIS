@@ -440,7 +440,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 @media (max-width:600px){ .pn-grade{grid-template-columns:1fr} .pn-abas .tab{padding:8px 2px;font-size:11px} }
 /* 31/10/2026 (dono quer o cartão bom no celular): abaixo de 600 px as 6 abas ficam em 3 x 2 (nenhuma escondida) e as
    tabelas da conferência e das parcelas viram blocos empilhados — cada célula com o nome do campo (data-rot), os
-   botões embaixo na largura toda. Pré-reserva, Contrato e Andamento já cabem e não mudam. */
+   botões embaixo na largura toda. Reserva, Contrato e Andamento já cabem e não mudam. */
 @media (max-width:600px){
   .cd-abas .tabs{display:grid;grid-template-columns:repeat(3,1fr);width:100%}
   .cd-abas .tab{padding:8px 2px;font-size:11px;letter-spacing:0;text-align:center;white-space:nowrap;min-width:0;overflow:hidden;text-overflow:ellipsis}
@@ -1246,7 +1246,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=46"></script>
 <script src="venda/painel-casa.js?v=6"></script>
-<script src="venda/FluxoLivre.js?v=16"></script><!-- 29/10: Alterar fluxo -->
+<script src="venda/FluxoLivre.js?v=17"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
 <script src="venda-dossie.js?v=82"></script>
@@ -1790,7 +1790,7 @@ function abaSetor(t){
 let COND=null, COND_ABERTA=null, COND_CARREGANDO=false;
 /* 31/10/2026: aba aberta no cartão do condomínio — fica a mesma ao redesenhar e ao abrir outra unidade */
 let COND_ABA="resumo";
-const CD_ABAS=[["resumo","Resumo"],["prereserva","Pré-reserva"],["documentos","Documentos"],["contrato","Contrato"],["financeiro","Financeiro"],["andamento","Andamento"]];
+const CD_ABAS=[["resumo","Resumo"],["prereserva","Reserva"],["documentos","Documentos"],["contrato","Contrato"],["financeiro","Financeiro"],["andamento","Andamento"]];
 const CD_PADRAO=["UNIDADE","CONDOMÍNIO","PROPONENTE","CORRETOR","CPF CORRETOR","STATUS DO CADASTRO","DATA DA VENDA","VALOR DE VENDA","COMISSÃO",
   "VALOR DO CRÉDITO","VALOR DA PARCELA","DATA DE ASSINATURA DO CONTRATO","DIA PAGAMENTO PARCELAS","DATA DA ENTREGA",
   "DATA SINAL 30 DIAS","DATA SINAL 60 DIAS","DATA SINAL 90 DIAS",
@@ -2047,21 +2047,21 @@ function condAbatimentos(l,fx){
   return h+'</div>';
 }
 /* 27/10/2026 — ETAPAS DA VENDA (só leitura): calculadas das colunas que o portal já grava na linha.
-   Pré-reserva → Datas do fluxo → Contrato → Assinaturas → Mais Controle. Clique numa etapa leva ao bloco dela. */
+   Reserva → Datas do fluxo → Contrato → Assinaturas → Mais Controle. Clique numa etapa leva ao bloco dela. */
 function cdTemArq(v){ return Array.isArray(v)?v.length>0:!!(v&&String(v).trim()); }
 function cdSit(l,col){ return String(cdVal(l,col)||"").trim().toUpperCase(); }
 function condEtapas(l){
   const g=n=>cdVal(l,n);
   const prSit=cdSit(l,"PRÉ-RESERVA - SITUAÇÃO"), aSit=cdSit(l,"ASSINATURA - SITUAÇÃO"), mcSit=cdSit(l,"MC - SITUAÇÃO");
   /* 03/11/2026 (dono): progresso "3 de 5" gravado pela vigia; recusado/cancelado/expirado em vermelho; contrato gerado
-     direto com o termo nunca enviado = pré-reserva dispensada (mesma regra do servidor, PreReservaVenda.dispensada) */
+     direto com o termo nunca enviado = reserva dispensada (mesma regra do servidor, PreReservaVenda.dispensada) */
   const prProg=String(cdVal(l,"PRÉ-RESERVA - PROGRESSO")||"").trim(), aProg=String(cdVal(l,"ASSINATURA - PROGRESSO")||"").trim();
   const ruim=s=>s==="RECUSADO"||s==="CANCELADO"||s==="EXPIRADO";
   const prDisp=(cdTemArq(g("CONTRATO GERADO"))||!!aSit)&&prSit!=="ENVIADO"&&prSit!=="ASSINADO";
   const it=[
-    {nome:"Pré-reserva", alvo:".vb-pr", feito:prSit==="ASSINADO"||prDisp, erro:!prDisp&&ruim(prSit),
+    {nome:"Reserva", alvo:".vb-pr", feito:prSit==="ASSINADO"||prDisp, erro:!prDisp&&ruim(prSit),
      sub:prDisp?"dispensada":prSit==="ASSINADO"?"assinado":prSit==="ENVIADO"?"assinando"+(prProg?" · "+prProg:""):ruim(prSit)?prSit.toLowerCase():cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"termo gerado":"a fazer",
-     prox:prSit==="ENVIADO"?"esperar a assinatura do termo (ou reenviar o link)":cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"enviar o termo de pré-reserva para assinatura":"preencher a conta para devolução e gerar o termo de pré-reserva"},
+     prox:prSit==="ENVIADO"?"esperar a assinatura do termo (ou reenviar o link)":cdTemArq(g("PRÉ-RESERVA - TERMO GERADO"))?"enviar o termo de reserva para assinatura":"preencher a conta para devolução e gerar o termo de reserva"},
     {nome:"Datas do fluxo", alvo:"#cd-ass", feito:!!(g("DATA DE ASSINATURA DO CONTRATO")&&g("DIA PAGAMENTO PARCELAS")&&g("DATA DA ENTREGA")),
      sub:"", prox:"preencher data de assinatura, dia de pagamento e entrega e salvar o fluxo"},
     {nome:"Contrato", alvo:".vb-ct", feito:cdTemArq(g("CONTRATO GERADO"))||!!aSit,
@@ -2074,7 +2074,7 @@ function condEtapas(l){
   it[1].sub=it[1].feito?"preenchidas":"faltam datas"; it[2].sub=it[2].sub||(it[2].feito?"gerado":"");
   if(it[3].feito) it[3].sub="assinado"; if(it[4].feito) it[4].sub="lançada";
   /* 31/10/2026 (dono): contrato gerado, assinando ou assinado sobrepõe a pré-reserva — a etapa da linha passa a ser
-     a do contrato em diante, mesmo com o termo de pré-reserva pendente */
+     a do contrato em diante, mesmo com o termo de reserva pendente */
   /* 03/11/2026 (dono): sem pré-reserva em andamento, a etapa some da faixa (conta como feita e sai da lista) */
   const semPR=!condUsaPreReserva(l); if(semPR) it[0].feito=true;
   const ini=it[2].feito?2:0;
@@ -2093,12 +2093,12 @@ function condEtapaTag(l){
 function condEtapaTexto(x){
   const sub=String(x.sub||""), prog=(sub.match(/·\s*(.+)$/)||[])[1]||"";
   const comProg=t=>t+(prog?" · "+prog:"");
-  if(x.erro) return x.nome==="Assinaturas"?"Assinatura "+sub.toLowerCase().replace(/o$/,"a"):x.nome==="Pré-reserva"?"Termo de pré-reserva "+sub.toLowerCase():x.nome+" · "+sub;
+  if(x.erro) return x.nome==="Assinaturas"?"Assinatura "+sub.toLowerCase().replace(/o$/,"a"):x.nome==="Reserva"?"Termo de reserva "+sub.toLowerCase():x.nome+" · "+sub;
   switch(x.nome){
-    case "Pré-reserva":
+    case "Reserva":
       if(/^assinando/.test(sub)) return comProg("⚠ Pendente assinatura do termo");
       if(sub==="termo gerado") return "⚠ Pendente envio do termo";
-      return "⚠ Pendente pré-reserva";
+      return "⚠ Pendente reserva";
     case "Datas do fluxo": return "⚠ Pendente datas do fluxo";
     case "Contrato": return "⚠ Pendente contrato";
     case "Assinaturas": return /^assinando/.test(sub)?comProg("⚠ Pendente assinatura"):"⚠ Pendente envio p/ assinatura";
@@ -2133,14 +2133,14 @@ function condAbaDoBloco(el){
   return null;
 }
 /* 03/11/2026 (dono): a pré-reserva sai do fluxo — a reserva agora é o Reservar da proposta, com 5 dias para gerar
-   o contrato. A aba e a etapa só aparecem na venda que já tem termo de pré-reserva gerado ou enviado. */
+   o contrato. A aba e a etapa só aparecem na venda que já tem termo de reserva gerado ou enviado. */
 function condUsaPreReserva(l){
   /* 06/11/2026 (dono): o termo voltou pela pergunta do Reservar — a data limite gravada também mostra a aba */
   return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")) ||
                 !!String(cdVal(l,"PRÉ-RESERVA - DATA LIMITE")||"").trim());
 }
 /* 06/11/2026 (dono): a ABA Pré-reserva fica disponível enquanto o contrato não foi gerado (reservas de antes da
-   pergunta do Reservar também geram o termo pelo cartão); com contrato gerado e sem pré-reserva, oculta. A faixa de
+   pergunta do Reservar também geram o termo pelo cartão); com contrato gerado e sem reserva, oculta. A faixa de
    etapas continua com condUsaPreReserva: o termo é opcional e não vira "próximo passo" de toda venda. */
 function condMostraAbaPR(l){
   if(!l) return false;

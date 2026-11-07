@@ -212,7 +212,7 @@ test("semComissao vai e volta na serialização; ausente quando falso (o robô l
 });
 
 /* ---- 31/10/2026 (dono): a pré-reserva paga abate o sinal ---- */
-test("pré-reserva abate o sinal: sai do ato, depois do 30, 60 e 90 dias; soma continua fechando", () => {
+test("reserva abate o sinal: sai do ato, depois do 30, 60 e 90 dias; soma continua fechando", () => {
   assert.deepEqual(F.abaterSinal([1000, 3000, 3000, 3000], 3000), { valores: [0, 1000, 3000, 3000], abatido: 3000 });
   assert.deepEqual(F.abaterSinal([1000, 3000, 3000, 3000], 500.5), { valores: [499.5, 3000, 3000, 3000], abatido: 500.5 });
   assert.deepEqual(F.abaterSinal([1000, 3000, 3000, 3000], 12000), { valores: [0, 0, 0, 0], abatido: 10000 });
@@ -220,10 +220,10 @@ test("pré-reserva abate o sinal: sai do ato, depois do 30, 60 e 90 dias; soma c
   assert.deepEqual(f.linhas.slice(0, 4).map((l) => [l.t, l.v, l.d]),
     [["prereserva", 3000, "2026-10-28"], ["sinal", 1000, "2026-11-30"], ["sinal", 3000, "2026-12-30"], ["sinal", 3000, "2027-01-30"]]);
   assert.deepEqual(F.validar(f).erros, []);
-  assert.deepEqual(F.doPadrao(gavetas, 0, null).linhas.map((l) => l.t), F.doPadrao(gavetas).linhas.map((l) => l.t), "sem pré-reserva não muda");
+  assert.deepEqual(F.doPadrao(gavetas, 0, null).linhas.map((l) => l.t), F.doPadrao(gavetas).linhas.map((l) => l.t), "sem reserva não muda");
 });
 
-test("com pré-reserva o restante do sinal se divide livre, só nos prazos do sinal e sem baixar o sinal", () => {
+test("com reserva o restante do sinal se divide livre, só nos prazos do sinal e sem baixar o sinal", () => {
   const p = F.doPadrao(gavetas, 0, { valor: 3000, data: "2026-10-28" });
   const troca = (linhas) => Object.assign({}, p, { linhas });
   const fixos = p.linhas.filter((l) => l.t !== "sinal");
@@ -243,7 +243,7 @@ test("com pré-reserva o restante do sinal se divide livre, só nos prazos do si
   assert.match(F.validar(menor, p).erros.join(";"), /não pode ficar abaixo do da proposta: R\$ 10\.000,00/);
   /* pré-reserva não muda */
   const mexeu = troca([Object.assign({}, fixos[0], { v: 2000 }), { t: "sinal", v: 8000, n: 1, d: "2026-10-30", i: 1, x: "" }, ...fixos.slice(1)]);
-  assert.match(F.validar(mexeu, p).erros.join(";"), /Pré-reserva paga, financiamento, FGTS e subsídio não mudam/);
+  assert.match(F.validar(mexeu, p).erros.join(";"), /Reserva paga, financiamento, FGTS e subsídio não mudam/);
 });
 
 test("31/10/2026 (dono): pré-chaves e balões não passam de 30/11/2028 (trava, não aviso)", () => {
@@ -328,7 +328,7 @@ test("prazo em qualquer ordem dá sempre o mesmo fluxo (36→24→36, 48→36, 3
 });
 
 /* 03/11/2026 (dono): "nesse caso o carro entra como sinal/entrada" — a permuta conta no mínimo do sinal. Dados FALSOS. */
-test("permuta conta no sinal mínimo junto com o sinal e a pré-reserva; permuta menor que o necessário continua recusada", () => {
+test("permuta conta no sinal mínimo junto com o sinal e a reserva; permuta menor que o necessário continua recusada", () => {
   const p = F.doPadrao(Object.assign({}, gavetas, { sinalAto: 3280.41, balao1Valor: 7719.59 }), 0, { valor: 1000, data: "2026-10-28" });
   const troca = (linhas) => Object.assign({}, p, { linhas });
   const fixos = p.linhas.filter((l) => l.t !== "sinal");
@@ -341,7 +341,7 @@ test("permuta conta no sinal mínimo junto com o sinal e a pré-reserva; permuta
   /* carro de 10.280,41 e os 1.000 que faltam numa pré-chaves: recusado com o texto novo */
   const pre = fixos.find((l) => l.t === "pre");
   const menor = troca([...fixos.map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l), permuta(10280.41)]);
-  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a pré-reserva e a permuta\) não pode ficar abaixo do da proposta: R\$ 12\.280,41/);
+  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a reserva e a permuta\) não pode ficar abaixo do da proposta: R\$ 12\.280,41/);
 });
 
 /* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" — pré-chaves, balão e pós-chaves vencem

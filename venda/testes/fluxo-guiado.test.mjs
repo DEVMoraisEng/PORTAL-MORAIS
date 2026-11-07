@@ -121,7 +121,7 @@ test("limite: nenhuma linha fica abaixo de R$ 1,00 por parcela; o que não cabe 
   assert.equal(s.sugestao, null, "nem destravando fecha");
 });
 
-test("tipos fixos nunca mudam (sinal, entrada, permuta, financiamento, FGTS, subsídio, pré-reserva)", () => {
+test("tipos fixos nunca mudam (sinal, entrada, permuta, financiamento, FGTS, subsídio, reserva)", () => {
   const f = base();
   f.linhas.push({ t: "entrada", v: 500, n: 1, d: "2026-11-05", i: 1, x: "" }, { t: "permuta", v: 1500, n: 1, d: "2026-11-20", i: 1, x: "carro" },
                 { t: "fgts", v: 1000, n: 1, d: "", i: 1, x: "" }, { t: "prereserva", v: 1000, n: 1, d: "2026-10-30", i: 1, x: "" });
