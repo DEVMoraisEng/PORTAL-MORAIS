@@ -819,6 +819,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 <script src="venda/FluxoLivre.js?v=17" defer></script><!-- 29/10: Alterar fluxo -->
 <script src="venda-dossie.js?v=81" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=4" defer></script>
+<script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV da Análise de vendas (período, tipo, rua) --><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 /*POLL-INI*/
@@ -4171,6 +4172,7 @@ function propVer(id){
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
       </div>
       ${PROP_NORM(p.status)==='RESERVADA'?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de reserva</button></div>`:""}
+      ${PROP_NORM(p.status)==='RESERVADA'&&window.AtualizarVendaUI?AtualizarVendaUI.botaoHtml(p.id,'prop','bt'):""}<!-- 07/11: Atualizar venda pela proposta (venda/atualizar-venda.js) -->
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
       <div style="margin-top:10px"><button class="bt" style="background:#B7791F;color:#fff" onclick="propAlerta('${p.id}')">📣 Enviar alerta de pendências ao corretor</button>
@@ -4262,6 +4264,11 @@ function propVer(id){
     ed.addEventListener("input",()=>{ if(!ed.textContent.trim() && !ed.querySelector("li,img")) ed.innerHTML=""; });
   }
   propCarregarDetalhe(p.id);
+  /* 07/11: a venda já existe e a proposta mudou? (venda/atualizar-venda.js) */
+  if(podeGravar && PROP_NORM(p.status)==='RESERVADA' && window.AtualizarVendaUI){
+    window.__avAoAplicar=()=>{ setTimeout(()=>{ try{ AtualizarVendaUI.aviso("av-aviso-prop", p.id); }catch(e){} }, 300); };
+    setTimeout(()=>{ try{ AtualizarVendaUI.aviso("av-aviso-prop", p.id); }catch(e){} }, 1200);
+  }
 }
 
 /* ---------- detalhe: anexos, campos e o que falta ----------

@@ -1251,6 +1251,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
 <script src="venda-dossie.js?v=81"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
+<script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -2229,6 +2230,7 @@ function condAbrir(id){
     '<div class="cd-kpis" id="cd-kpis">'+condKpisHtml(l,fx)+'</div>'+
     (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
     condLinkVendaHtml(l)+
+    condAtualizarVendaHtml(l)+
     '</div>'+
     /* aba Contrato: datas que entram no contrato e o quadro do pro soluto (recolhido); os blocos do contrato,
        assinatura e Mais Controle vêm do venda-dossie.js logo abaixo, em #cd-venda */
@@ -2248,6 +2250,23 @@ function condAbrir(id){
     '</div>';
   document.getElementById("cd-card").style.display="block";
   if(window.VendaBlocos){ VendaBlocos.montar(document.getElementById("cd-venda"),id); if(VendaBlocos.aba) VendaBlocos.aba(COND_ABA); }   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+  /* 07/11: a proposta mudou depois da reserva? (venda/atualizar-venda.js) */
+  if(condPodeAtualizarVenda(l)){
+    const pid=String(cdVal(l,"ID PROPOSTA"));
+    window.__avAoAplicar=async()=>{ try{ await condCarregar(true); if(COND&&COND.linhas.some(x=>x.id===id)) condAbrir(id); }catch(e){} };
+    setTimeout(()=>{ try{ AtualizarVendaUI.aviso("av-aviso-cond", pid); }catch(e){} }, 900);
+  }
+}
+/* 07/11/2026 — botão "Atualizar venda pela proposta" na aba Resumo: só com proposta ligada, sem contrato gerado
+   e para quem grava (o servidor confere tudo de novo antes de gravar) */
+function condPodeAtualizarVenda(l){
+  if(!l || SO_LEITURA || !window.AtualizarVendaUI) return false;
+  if(!String(cdVal(l,"ID PROPOSTA")||"").trim()) return false;
+  return !(cdTemArq(cdVal(l,"CONTRATO GERADO"))||!!cdSit(l,"ASSINATURA - SITUAÇÃO"));
+}
+function condAtualizarVendaHtml(l){
+  if(!condPodeAtualizarVenda(l)) return "";
+  return '<div style="margin-top:10px">'+AtualizarVendaUI.botaoHtml(String(cdVal(l,"ID PROPOSTA")),"cond","cd-bt")+'</div>';
 }
 /* 07/10 (entrega 7) — TELA DE VENDA do condomínio: os blocos CONTRATO / ASSINATURA / MAIS CONTROLE
    da tela de venda das casas, para a própria linha (venda-dossie.js desenha em #cd-venda). */
