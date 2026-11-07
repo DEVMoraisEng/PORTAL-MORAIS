@@ -192,8 +192,9 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
                 salvar()
     c = _contagem(linhas, resultados)
     salvar()
-    fim = "boletos: %d emitidos, %d aguardando, %d decidir, %d pulados" % (
-        c["emitidos"], c["aguardar"], c["decidir"], c["pular"])
+    # 07/11: "a emitir" = escolhidas pela regra; na prévia "emitidos" é sempre 0 e a linha escondia o que vai sair
+    fim = "boletos: %d a emitir, %d emitidos, %d aguardando, %d decidir, %d pulados" % (
+        c["emitir"], c["emitidos"], c["aguardar"], c["decidir"], c["pular"])
     if c["recusados"] or c["sem_confirmacao"]:
         fim += ", %d recusados, %d sem confirmação" % (c["recusados"], c["sem_confirmacao"])
     if trava and not fora:   # saldo, teto, interruptor ou mês: rótulo sem dado pessoal
