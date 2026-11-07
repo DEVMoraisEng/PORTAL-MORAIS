@@ -46,6 +46,7 @@ class AbaPorteiro:
         self._page = page
         self._fechar = fechar
         self._cab: dict[str, dict] = {}
+        self._vistos: dict[str, str] = {}   # 03/11: rota -> URL do 1º GET que a PRÓPRIA tela fez (parâmetros dela)
         page.on("request", self._ouvir)
 
     @classmethod
@@ -61,11 +62,14 @@ class AbaPorteiro:
                                % (porta, type(e).__name__)) from None
         ctx = nav.contexts[0] if nav.contexts else nav.new_context()
         page = ctx.new_page()
+        from venda.mc import registro_aba
+        registro = registro_aba.registrar(page, porta)   # 06/11/26: robô morto → a faxina do porteiro fecha
 
         def fechar():
             try:
                 page.close()
             finally:
+                registro_aba.desregistrar(registro)
                 pw.stop()          # só desconecta: o Chrome do porteiro continua aberto
         aba = cls(page, fechar)
         try:
@@ -85,6 +89,13 @@ class AbaPorteiro:
             return                     # ouvinte nunca derruba a aba
         if "authorization" in cab:
             self._cab[host] = cab
+        try:
+            if host == HOST_LEGACY and str(getattr(req, "method", "GET") or "GET").upper() == "GET":
+                rota = req.url.split("://", 1)[-1].split("/", 1)[-1].split("?", 1)[0]
+                if rota not in self._vistos and len(self._vistos) < 80:
+                    self._vistos[rota] = req.url      # só a URL (nunca cabeçalho): é o pedido da tela, igualzinho
+        except Exception:
+            pass
 
     def capturar(self, espera: float = 90.0) -> None:
         """Abre a tela e espera ela chamar os dois back-ends (é dali que sai a autenticação)."""
@@ -99,6 +110,19 @@ class AbaPorteiro:
             self._page.wait_for_timeout(250)
         raise PorteiroErro("o Chrome do porteiro não está logado no Mais Controle — o porteiro precisa entrar "
                            "(python -m erp.porteiro estado, no servidor)")
+
+    def pedido_da_tela(self, trecho: str, espera: float = 20.0) -> str | None:
+        """URL do primeiro GET que a tela fez numa rota que contém `trecho` (espera a tela pedir, até `espera` s).
+        Ex.: a lista Financeiro › Pagamentos pede /payable-installments/paginated-result com os filtros dela
+        (centro de custo, datas, situação) — o robô copia esses parâmetros em vez de adivinhar."""
+        limite = time.monotonic() + espera
+        while True:
+            for rota, url in self._vistos.items():
+                if trecho in rota:
+                    return url
+            if time.monotonic() >= limite:
+                return None
+            self._page.wait_for_timeout(250)
 
     def cabecalhos(self, host: str) -> dict:
         return dict(self._cab.get(host) or {})

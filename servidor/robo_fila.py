@@ -13,7 +13,9 @@ Configuração (FORA do repositório, só no servidor): C:\\AUTOMAÇÕES MAIS CO
                 "pode_gravar": false, "vars": {"DB_VENDAS_COND": "...", "DB_CORRETORES": "...", ...}},
                {"nome": "producao", ..., "pode_gravar": true}]}
 Gravar no ERP exige as DUAS chaves, como no GitHub: o pedido pediu "aplicar" E a fila tem "pode_gravar": true
-E existe o arquivo _central\\VENDA_APLICAR.txt (só o dono cria). A fila "teste" nunca grava.
+E existe o arquivo _central\\VENDA_APLICAR.txt (só o dono cria). A fila "teste" não grava — a não ser com uma
+TERCEIRA chave, separada e só dela: o arquivo _central\\TESTE_PODE_GRAVAR.txt (05/11/2026, para o dono testar o
+processo inteiro da casa de rua gravando de verdade no Mais Controle; ele mesmo cria e apaga). Sem ele, nada muda.
 
 Log PÚBLICO de propósito curto: só tipo, 8 letras do id e o código de saída — nunca nome, CPF ou valores."""
 from __future__ import annotations
@@ -28,13 +30,29 @@ import subprocess
 import sys
 import time
 import urllib.request
+import urllib.error
 
 RAIZ = pathlib.Path(__file__).resolve().parent.parent          # o clone do portal
 CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
 CONFIG = CENTRAL / "robos-portal.json"
 TRAVA = CENTRAL / "robos-portal.trava"
+TRAVA_INDICES = CENTRAL / "robo-indices.trava"   # 04/11: os índices não esperam a trava da fila
+#: 04/11: a VEZ no Mais Controle — um robô de cada vez na aba do porteiro. Às 17:2x os índices, as medições e os
+#: anexos entraram juntos no mesmo Chrome: medições com Page.goto estourando, índices "código 1" sem mensagem e o
+#: porteiro dando "fora". Quem chega espera a vez (até ESPERA_VEZ_S) em vez de disputar a aba.
+TRAVA_MC = CENTRAL / "robo-mc-vez.trava"
+ESPERA_VEZ_S = 50 * 60
+#: 04/11: quem está rodando agora (rodado pela tarefa OU por um .bat): o Escritório mostra "trabalhando".
+RODANDO = CENTRAL / "rodando"
 SAUDE = CENTRAL / "robos-portal-saude.json"
 APLICAR = CENTRAL / "VENDA_APLICAR.txt"
+#: 05/11/2026: chave EXPLÍCITA e separada para a fila "teste" gravar no ERP (o dono cria para o 1º teste ao vivo e
+#: apaga depois). Vale junto com "pode_gravar": true da fila e o VENDA_APLICAR.txt — nunca sozinha.
+TESTE_PODE_GRAVAR = CENTRAL / "TESTE_PODE_GRAVAR.txt"
+#: 05/11/2026: baixas e alteração de sinal/financiamento/FGTS da casa de rua (venda/mc/recebimentos.py). Trava PRÓPRIA:
+#: grava só com "pode_gravar_recebimento": true na fila E este arquivo (só o dono cria). Vale também na fila "teste" —
+#: o dono pediu o 1º processo inteiro no portal de teste gravando de verdade no Mais Controle.
+APLICAR_RECEBIMENTO = CENTRAL / "RECEBIMENTO_APLICAR.txt"
 LOGS = CENTRAL / "logs"
 PRAZO_PEGO_S = 15 * 60          # pedido PEGO há mais que isto (robô morreu no meio) volta a ser atendido
 PRAZO_ROBO_S = 600              # mesmo teto do GitHub (timeout-minutes: 10)
@@ -93,6 +111,13 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
     if tipo == "mc-retrato":   # só LÊ o ERP e grava o retrato no Notion: nunca leva --aplicar
         pagina = str(p.get("pageId") or "")
         return (["-m", "venda.mc.retrato", "--page", pagina], {}) if RE_ID.match(pagina) else None
+    if tipo == "mc-recebimento":   # 05/11: pode_gravar aqui é a trava PRÓPRIA dos recebimentos (Fila.pode_gravar_recebimento)
+        pagina = str(p.get("pageId") or "")
+        if not RE_ID.match(pagina):
+            return None
+        pediu = p.get("aplicar") is True or str(p.get("aplicar")).lower() == "true"
+        return (["-m", "venda.mc.recebimentos", "--page", pagina] +
+                ((["--aplicar"] if pode_gravar else ["--bloqueado"]) if pediu else []), {})
     if tipo not in ("mc-venda", "mc-anexos"):
         return None
     pagina = str(p.get("pageId") or "")
@@ -136,6 +161,34 @@ def apos_gravar(argv: list) -> list | None:
     return None
 
 
+# ---------------------------------------------------------------- 03/11: "Rodar de novo" do Escritório de Robôs
+RE_TAREFA = re.compile(r"^MoraisEng - [0-9A-Za-zÀ-ÿ ()._-]{2,80}$")
+SEM_JANELA = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+
+
+def tarefa_para_rodar(p: dict, nome_fila: str) -> tuple[str | None, str]:
+    """Pedido robo-rodar -> (nome da tarefa agendada, "") ou (None, motivo). Só tarefas "MoraisEng - …" que já
+    existem; nunca o porteiro (derrubaria a sessão de todo mundo) nem a própria fila; nunca pela fila de teste."""
+    nome = str(p.get("tarefa") or "").strip()
+    if nome_fila == "teste":
+        return None, "a fila de teste não dispara robô"
+    if not RE_TAREFA.match(nome):
+        return None, "tarefa inválida"
+    baixo = nome.lower()
+    if "porteiro" in baixo or "(fila)" in baixo:
+        return None, "essa tarefa não se roda pelo portal"
+    return nome, ""
+
+
+def rodar_tarefa(nome: str) -> tuple[bool, str]:
+    """schtasks /Run: roda a MESMA tarefa agendada (rodar_e_relatar.py, e-mail e escritório inclusos). Se ela já
+    está rodando, o Agendador não abre outra (as tarefas são criadas com "não rodar duas ao mesmo tempo")."""
+    r = subprocess.run(["schtasks", "/Run", "/TN", nome], capture_output=True, text=True, errors="replace",
+                       timeout=60, creationflags=SEM_JANELA)
+    msg = " ".join(((r.stdout or "") + " " + (r.stderr or "")).split())[:300]
+    return r.returncode == 0, msg
+
+
 class Fila:
     def __init__(self, cfg: dict):
         self.nome = cfg["nome"]
@@ -144,7 +197,9 @@ class Fila:
         self.notion = Notion(tok)
         self.token = tok
         self.vars = {k: str(v) for k, v in (cfg.get("vars") or {}).items()}
-        self.pode_gravar = bool(cfg.get("pode_gravar")) and self.nome != "teste" and APLICAR.exists()
+        self.pode_gravar = (bool(cfg.get("pode_gravar")) and APLICAR.exists()
+                            and (self.nome != "teste" or TESTE_PODE_GRAVAR.exists()))
+        self.pode_gravar_recebimento = bool(cfg.get("pode_gravar_recebimento")) and APLICAR_RECEBIMENTO.exists()
 
     def sinal(self) -> None:
         r = self.notion.api("POST", "/databases/%s/query" % self.db,
@@ -199,7 +254,9 @@ class Fila:
         except ValueError:
             payload = {}
         alvo = str(payload.get("pageId") or "")[:8]
-        montado = argumentos(tipo, payload, self.pode_gravar)
+        if tipo == "robo-rodar":
+            return self.rodar_de_novo(linha, payload)
+        montado = argumentos(tipo, payload, self.pode_gravar_recebimento if tipo == "mc-recebimento" else self.pode_gravar)
         if not montado:
             self.marcar(linha["id"], "ERRO", "pedido inválido (%s)" % tipo)
             log("[%s] %s %s: pedido inválido" % (self.nome, tipo, alvo))
@@ -236,20 +293,90 @@ class Fila:
         return "FEITO" if codigo == 0 else "ERRO"
 
 
+    def rodar_de_novo(self, linha: dict, payload: dict) -> str:
+        """03/11: botão "Rodar de novo" do Escritório de Robôs. Dispara a tarefa e marca FEITO na hora (o resultado
+        da rodada vem no e-mail e na própria aba); a próxima publicação do escritório sai logo, com a mesa rodando."""
+        nome, motivo = tarefa_para_rodar(payload, self.nome)
+        quem = str(payload.get("quem") or "")[:40]
+        if not nome:
+            self.marcar(linha["id"], "ERRO", motivo)
+            log("[%s] robo-rodar: recusado (%s)" % (self.nome, motivo))
+            return "ERRO"
+        if nome == "MoraisEng - Reorganizar":          # 04/11: o Coordenador da fila (servidor/reorganizar.py)
+            return self.reorganizar(linha, quem)
+        try:
+            ok, msg = rodar_tarefa(nome)
+        except Exception as e:
+            ok, msg = False, "%s: %s" % (type(e).__name__, str(e)[:200])
+        self.marcar(linha["id"], "FEITO" if ok else "ERRO", ("disparada: " if ok else "não disparou: ") + nome + (" — " + msg if not ok else ""))
+        log("[%s] robo-rodar %s%s: %s" % (self.nome, nome, (" (pedido de %s)" % quem) if quem else "", "disparada" if ok else "FALHOU " + msg))
+        if ok:
+            try:
+                time.sleep(3)                       # deixa o Agendador marcar "Running" antes de publicar
+                sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+                import escritorio_robos
+                escritorio_robos.publicar(lambda m: log("[escritorio] " + m))
+            except Exception:
+                pass
+        return "FEITO" if ok else "ERRO"
+
+
+    def reorganizar(self, linha: dict, quem: str) -> str:
+        try:
+            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+            import escritorio_robos as ER
+            import reorganizar as RZ
+            plano, motivo = RZ.criar_plano(ER.ler_tarefas(), ER.rodadas(), quem)
+        except Exception as e:
+            plano, motivo = None, "%s: %s" % (type(e).__name__, str(e)[:200])
+        if not plano:
+            self.marcar(linha["id"], "ERRO", "reorganizar: " + motivo)
+            log("[coordenador] não reorganizei: %s" % motivo)
+            return "ERRO"
+        ordem = " → ".join(i["chave"] for i in plano["fila"])
+        self.marcar(linha["id"], "FEITO", "fila montada: " + ordem)
+        log("[coordenador] fila montada%s: %s" % ((" (pedido de %s)" % quem) if quem else "", ordem))
+        passo_coordenador()
+        return "FEITO"
+
+
+def passo_coordenador() -> None:
+    """04/11: um passo do Coordenador da fila por minuto (um robô de cada vez, ver servidor/reorganizar.py)."""
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import reorganizar as RZ
+        if not RZ.ativo(RZ.ler()):
+            return
+        import escritorio_robos as ER
+        msg = RZ.passo(ER.ler_tarefas(), ER.conferir_porteiro)
+        if msg:
+            log("[coordenador] " + msg)
+            ER.publicar(lambda m: log("[escritorio] " + m))
+    except Exception as e:
+        log("[coordenador] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+
+
 def carregar() -> list:
     cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
     return [Fila(f) for f in cfg.get("filas") or []]
 
 
-def com_trava(funcao):
-    """Uma execução por vez (o Agendador chama a cada minuto; um lançamento pode durar mais)."""
+def com_trava(funcao, trava=None):
+    """Uma execução por vez (o Agendador chama a cada minuto; um lançamento pode durar mais).
+
+    04/11/2026: os índices têm a trava DELES (TRAVA_INDICES). Com a mesma da fila, o "Rodar de novo" e o
+    Coordenador (que soltam a tarefa de dentro da rodada da fila, com a trava pega) faziam os índices saírem na
+    hora com "outra execução ainda está rodando" — código 0, nenhuma linha no log e o relatório "FALHOU"."""
+    trava = trava or TRAVA
     CENTRAL.mkdir(parents=True, exist_ok=True)
     import msvcrt
-    f = open(TRAVA, "a+")
+    f = open(trava, "a+")
     try:
         msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
     except OSError:
         print("outra execução ainda está rodando — saindo")
+        if trava != TRAVA:
+            log("[%s] outra execução ainda está rodando — não abri outra" % pathlib.Path(trava).stem.replace("robo-", ""))
         return 0
     try:
         return funcao()
@@ -259,6 +386,90 @@ def com_trava(funcao):
             msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
         finally:
             f.close()
+
+
+def _travar(f) -> bool:
+    """Pega a trava sem esperar (True) ou diz que outro está com ela (False). Windows: msvcrt; resto: fcntl."""
+    try:
+        import msvcrt
+        try:
+            msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+            return True
+        except OSError:
+            return False
+    except ImportError:
+        import fcntl
+        try:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+            return True
+        except OSError:
+            return False
+
+
+def _soltar(f) -> None:
+    try:
+        import msvcrt
+        f.seek(0)
+        msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+    except ImportError:
+        import fcntl
+        fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+    except OSError:
+        pass
+
+
+def marcar_rodando(nome: str, fase: str | None) -> None:
+    """Escreve (fase) ou apaga (None) o _central/rodando/<nome>.json que o Escritório lê. Nunca derruba o robô."""
+    try:
+        arq = RODANDO / ("%s.json" % nome)
+        if fase is None:
+            arq.unlink(missing_ok=True)
+            return
+        RODANDO.mkdir(parents=True, exist_ok=True)
+        antes = {}
+        try:
+            antes = json.loads(arq.read_text(encoding="utf-8"))
+        except Exception:
+            pass
+        arq.write_text(json.dumps({"robo": nome, "fase": fase, "pid": os.getpid(),
+                                   "desde": antes.get("desde") or agora_iso(), "fase_em": agora_iso()}),
+                       encoding="utf-8")
+    except Exception:
+        pass
+
+
+def na_vez(nome: str, funcao, espera_s: float = ESPERA_VEZ_S, dormir=time.sleep, relogio=time.monotonic) -> int:
+    """Roda `funcao` quando for a vez dele no Mais Controle (TRAVA_MC). Espera quem estiver lá; desiste depois de
+    `espera_s` com código 1 e uma linha clara no log (o relatório mostra o motivo)."""
+    CENTRAL.mkdir(parents=True, exist_ok=True)
+    f = open(TRAVA_MC, "a+")
+    ini, avisou = relogio(), False
+    try:
+        while not _travar(f):
+            if not avisou:
+                quem = []
+                try:
+                    quem = sorted(x.stem for x in RODANDO.glob("*.json") if x.stem != nome)
+                except Exception:
+                    pass
+                log("[vez] %s esperando a vez no Mais Controle (usando agora: %s)" % (nome, ", ".join(quem) or "outro robô"))
+                marcar_rodando(nome, "esperando a vez")
+                avisou = True
+            if relogio() - ini > espera_s:
+                marcar_rodando(nome, None)
+                log("[%s] FALHOU: esperei %d min a vez no Mais Controle e outro robô não terminou" % (nome, espera_s // 60))
+                return 1
+            dormir(10)
+        if avisou:
+            log("[vez] %s: chegou a vez (esperou %d min)" % (nome, (relogio() - ini) // 60))
+        marcar_rodando(nome, "trabalhando")
+        try:
+            return funcao()
+        finally:
+            marcar_rodando(nome, None)
+            _soltar(f)
+    finally:
+        f.close()
 
 
 def rodada() -> int:
@@ -279,6 +490,7 @@ def rodada() -> int:
             erro = 1
         saude["filas"][fila.nome] = st
     SAUDE.write_text(json.dumps(saude, ensure_ascii=False, indent=1), encoding="utf-8")
+    passo_coordenador()
     return erro
 
 
@@ -288,9 +500,21 @@ def indices() -> int:
     for n in ("MC_ROBO_EMAIL", "MC_ROBO_SENHA", "MC_ROBO_APARELHO"):
         env.pop(n, None)
     argv = ["-m", "venda.mc.indices"] + (["--aplicar"] if (CENTRAL / "INDICES_APLICAR.txt").exists() else [])
-    r = subprocess.run([sys.executable] + argv, cwd=RAIZ, env=env, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
-    log("[indices] código %s %s" % (r.returncode, ((r.stdout or "").strip().splitlines() or [""])[-1][:200]))
+    try:
+        r = subprocess.run([sys.executable] + argv, cwd=RAIZ, env=env, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
+    except subprocess.TimeoutExpired:
+        log("[indices] código 124 passou de %d min" % (PRAZO_ROBO_S // 60))
+        return 124
+    fim = ((r.stdout or "").strip().splitlines() or [""])[-1]
+    if r.returncode and not fim.strip():     # 04/11: "código 1" sem nada — o motivo estava no stderr
+        fim = ((r.stderr or "").strip().splitlines() or ["(sem mensagem)"])[-1]
+    log("[indices] código %s %s" % (r.returncode, fim[:200]))
+    try:
+        (LOGS / "saida-indices.txt").write_text("%s código %s\n%s\n%s" % (
+            agora_iso(), r.returncode, (r.stdout or "")[-60000:], (r.stderr or "")[-20000:]), encoding="utf-8")
+    except Exception:
+        pass
     return r.returncode
 
 
@@ -308,9 +532,16 @@ ROBOS = {
     # 03/11: anexos dos pagamentos (boleto/NF/recibo/comprovante) para a Auditoria Financeira; só lê o ERP.
     # Precisa de "vars": {"SUPABASE_URL": ...} e "supabase_key_arquivo" (service key, o dono cola no arquivo).
     "anexos": ["robo_mc_anexos.py"],
+    # 04/11: medidores comprados por obra (solicitação atendida / OC) para o alerta da aba Ligações; só lê o ERP.
+    # Publica dist/medidores_mc.json no repositório como as medições (github_token_arquivo).
+    "medidores": ["robo_mc_medidores.py"],
+    # 05/11: documentos do Orçamento (matrícula, certidão mãe, alvará, habite-se) -> dossiê do imóvel das casas de rua
+    # com venda. Só lê o ERP; grava no Notion só com ROBOS_APLICAR.txt. Precisa de "vars": {"DB_VENDAS": ...}.
+    "documentos": ["robo_mc_documentos.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"
+ARQ_MEDIDORES = "dist/medidores_mc.json"
 PRAZO_ROBO_ANTIGO_S = 40 * 60
 
 
@@ -331,8 +562,14 @@ def env_robos(cfg: dict) -> dict:
 
 def publicar_medicoes(cfg: dict) -> str:
     """Sobe dist/mc_medicoes/contratos.json pela API do GitHub (o Mapa de Obras lê do site) e devolve o clone limpo."""
+    return publicar_arquivo(cfg, ARQ_MEDICOES, "Medições de contratos do MC %s (servidor) [skip ci]" % agora_iso())
+
+
+def publicar_arquivo(cfg: dict, caminho: str, mensagem: str) -> str:
+    """04/11: o mesmo das medições para qualquer arquivo do dist/ (medidores): sobe pela API do GitHub só se mudou
+    e devolve o clone limpo (o servidor só faz git pull)."""
     import base64
-    arq = RAIZ / ARQ_MEDICOES
+    arq = RAIZ / caminho
     if not arq.exists():
         return "sem arquivo"
     tok_arq = cfg.get("github_token_arquivo")
@@ -341,18 +578,32 @@ def publicar_medicoes(cfg: dict) -> str:
             return "sem github_token_arquivo na configuração — não publiquei"
         tok = pathlib.Path(tok_arq).read_text(encoding="utf-8").strip()
         novo = arq.read_bytes()
-        url = "https://api.github.com/repos/%s/contents/%s" % (REPO_GH, ARQ_MEDICOES)
+        url = "https://api.github.com/repos/%s/contents/%s" % (REPO_GH, caminho)
         cab = {"Authorization": "Bearer " + tok, "Accept": "application/vnd.github+json", "User-Agent": "robo-servidor"}
-        atual = json.loads(urllib.request.urlopen(urllib.request.Request(url + "?ref=main", headers=cab), timeout=60).read())
-        if base64.b64decode(atual.get("content") or "") == novo:
+        try:
+            atual = json.loads(urllib.request.urlopen(urllib.request.Request(url + "?ref=main", headers=cab), timeout=60).read())
+        except urllib.error.HTTPError as e:
+            if e.code != 404:
+                raise
+            atual = {}                       # arquivo novo no repositório
+        if atual and base64.b64decode(atual.get("content") or "") == novo:
             return "sem mudança"
-        corpo = {"message": "Medições de contratos do MC %s (servidor) [skip ci]" % agora_iso(), "branch": "main",
-                 "sha": atual["sha"], "content": base64.b64encode(novo).decode()}
+        corpo = {"message": mensagem, "branch": "main", "content": base64.b64encode(novo).decode()}
+        if atual.get("sha"):
+            corpo["sha"] = atual["sha"]
         req = urllib.request.Request(url, method="PUT", data=json.dumps(corpo).encode(), headers=cab)
         urllib.request.urlopen(req, timeout=60).read()
         return "publicado"
     finally:
-        subprocess.run(["git", "checkout", "--", ARQ_MEDICOES], cwd=RAIZ, capture_output=True)
+        subprocess.run(["git", "checkout", "--", caminho], cwd=RAIZ, capture_output=True)
+        # 04/11: arquivo NOVO no repositório (medidores, problemas da água) não tem o que o checkout devolver — e,
+        # largado no clone, faz o próximo git pull parar com "untracked working tree file would be overwritten"
+        r = subprocess.run(["git", "ls-files", "--error-unmatch", caminho], cwd=RAIZ, capture_output=True)
+        if getattr(r, "returncode", 0) != 0:
+            try:
+                arq.unlink()
+            except OSError:
+                pass
 
 
 def robo_antigo(nome: str) -> int:
@@ -374,6 +625,13 @@ def robo_antigo(nome: str) -> int:
         except subprocess.TimeoutExpired:
             codigo, fim = 124, "passou de %d min" % (PRAZO_ROBO_ANTIGO_S // 60)
         log("[%s] %s código %s %s" % (nome, script, codigo, str(fim)[:200]))
+        try:                    # 04/11: a saída inteira da última rodada de cada robô (o log só guarda a última linha)
+            if "r" in locals():
+                (LOGS / ("saida-%s.txt" % nome)).write_text(
+                    "%s %s código %s\n%s\n%s" % (agora_iso(), script, codigo, (r.stdout or "")[-60000:], (r.stderr or "")[-20000:]),
+                    encoding="utf-8")
+        except Exception:
+            pass
         if env.get("DESCOBRIR") and "r" in locals():          # 03/11: na descoberta, mostra a saída inteira
             print((r.stdout or "") + (r.stderr or ""))
         pior = pior or codigo
@@ -382,6 +640,13 @@ def robo_antigo(nome: str) -> int:
             log("[medicoes] site: %s" % publicar_medicoes(cfg))
         except Exception as e:
             log("[medicoes] publicar FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))
+            pior = 1
+    if nome == "medidores" and not pior and not env.get("DESCOBRIR") and not env.get("SIMULAR"):
+        try:
+            hora = dt.datetime.now().strftime("%Y-%m-%d %H:%M")
+            log("[medidores] site: %s" % publicar_arquivo(cfg, ARQ_MEDIDORES, "Medidores MC %s (servidor) [skip ci]" % hora))
+        except Exception as e:
+            log("[medidores] publicar FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))
             pior = 1
     saude = json.loads(SAUDE.read_text(encoding="utf-8")) if SAUDE.exists() else {}
     saude.setdefault("robos", {})[nome] = {"em": agora_iso(), "codigo": pior}
@@ -396,6 +661,8 @@ def verificar() -> int:
     if CONFIG.exists():
         for fila in carregar():
             print(" fila %-9s base %s… pode gravar: %s" % (fila.nome, fila.db[:8], "SIM" if fila.pode_gravar else "não"))
+            if fila.nome == "teste" and fila.pode_gravar:   # 05/11: a 3ª chave está ligada — lembrar de apagar
+                print("   ATENÇÃO: a fila de teste GRAVA no Mais Controle (%s existe)" % TESTE_PODE_GRAVAR.name)
     sys.path.insert(0, str(RAIZ))
     from venda.mc.porteiro import AbaPorteiro, PorteiroErro
     try:
@@ -417,10 +684,100 @@ def main(argv=None) -> int:
     if a.verificar:
         return verificar()
     if a.indices:
-        return com_trava(indices)
-    if a.robo:
-        return robo_antigo(a.robo)      # sem a trava da fila: os robôs antigos não usam a fila
-    return com_trava(rodada)
+        return com_trava(lambda: na_vez("indices", indices), TRAVA_INDICES)
+    if a.robo:                          # sem a trava da fila (não usam a fila), mas um de cada vez no MC
+        return na_vez(a.robo, lambda: robo_antigo(a.robo))
+    codigo = com_trava(rodada)
+    atualizar_codigo()
+    publicar_escritorio()
+    return codigo
+
+
+def publicar_escritorio() -> None:
+    """03/11/2026 — aba ESCRITÓRIO DE ROBÔS do portal: a cada 5 min (04/11: era 15; o dono quer saber logo se o porteiro caiu) (a fila roda de minuto em minuto) sobe o
+    retrato das tarefas agendadas, rodadas e saúde da fila (servidor/escritorio_robos.py). Nunca atrapalha a fila."""
+    try:
+        sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+        import escritorio_robos
+        if escritorio_robos.publicar_se_passou(5, lambda m: log("[escritorio] " + m)):
+            publicar_problemas_agua((escritorio_robos.ULTIMO or {}).get("agua"))
+    except Exception as e:
+        log("[escritorio] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+
+
+#: 05/11: o servidor só recebia código novo quando alguém clicava num .bat — o PR #103 ficou 13 h sem chegar. Agora a
+#: fila (de minuto em minuto) faz o git pull sozinha a cada ATUALIZAR_MIN, só com o clone limpo e nenhum robô do MC
+#: rodando (quem já está rodando termina com o código com que começou).
+ATUALIZAR_MIN = 15
+MARCA_PULL = CENTRAL / "ultimo-git-pull.txt"
+URL_REPO = "https://github.com/DEVMoraisEng/PORTAL-MORAIS.git"
+
+
+def atualizar_codigo(agora=time.time, rodar=subprocess.run) -> str | None:
+    try:
+        if MARCA_PULL.exists() and agora() - MARCA_PULL.stat().st_mtime < ATUALIZAR_MIN * 60:
+            return None
+        CENTRAL.mkdir(parents=True, exist_ok=True)
+        # 05/11: com os anexos rodando o dia inteiro, "nenhum robô rodando" quase nunca acontecia e o código novo não
+        # chegava. Quem já está rodando carregou o código dele; só espera quem COMEÇOU agora (pode estar importando).
+        try:
+            for x in RODANDO.glob("*.json"):
+                if agora() - x.stat().st_mtime < 90:
+                    return "robô começando agora — tento no próximo minuto"
+        except Exception:
+            pass
+        MARCA_PULL.write_text(dt.datetime.now().isoformat(timespec="seconds"), encoding="utf-8")
+        st = rodar(["git", "status", "--porcelain", "-uno"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        if (st.stdout or "").strip():
+            log("[atualizar] clone com mudança local, não puxei: %s" % (st.stdout or "").strip().replace("\n", " | ")[:200])
+            return "clone sujo"
+        antes = rodar(["git", "rev-parse", "--short", "HEAD"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        r = rodar(["git", "pull", "--ff-only", URL_REPO, "main"], cwd=RAIZ, capture_output=True, text=True, timeout=180)
+        depois = rodar(["git", "rev-parse", "--short", "HEAD"], cwd=RAIZ, capture_output=True, text=True, timeout=60)
+        if r.returncode:
+            log("[atualizar] git pull FALHOU: %s" % ((r.stderr or r.stdout or "").strip().splitlines() or [""])[-1][:200])
+            return "falhou"
+        if (antes.stdout or "").strip() != (depois.stdout or "").strip():
+            log("[atualizar] código novo: %s → %s" % ((antes.stdout or "").strip(), (depois.stdout or "").strip()))
+            return "atualizado"
+        return "em dia"
+    except Exception as e:
+        log("[atualizar] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+        return "falhou"
+
+
+ARQ_PROBLEMAS_AGUA = "dist/agua_problemas.json"
+
+
+def publicar_problemas_agua(sala) -> str | None:
+    """04/11: a aba PROBLEMAS COM AS LIGAÇÕES (ligacoes.html) — pendências e repetidas da rodada da água, sem valores
+    nem CPF. Sobe pela API do GitHub só quando muda (a rodada é uma vez por dia; o resto das vezes "sem mudança")."""
+    try:
+        import sala_agua
+        doc = sala_agua.problemas_publicos(sala)
+        if not doc.get("ok"):
+            return None
+        comparar = dict(doc, updated_at=None)
+        marca = CENTRAL / "agua-problemas-publicado.json"
+        try:
+            if json.loads(marca.read_text(encoding="utf-8")) == comparar:
+                return "sem mudança"
+        except Exception:
+            pass
+        cfg = json.loads(CONFIG.read_text(encoding="utf-8")).get("robos") or {}
+        arq = RAIZ / ARQ_PROBLEMAS_AGUA
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        arq.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        res = publicar_arquivo(cfg, ARQ_PROBLEMAS_AGUA,
+                               "Problemas das ligações %s (servidor) [skip ci]" % dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        if res in ("publicado", "sem mudança"):
+            marca.write_text(json.dumps(comparar, ensure_ascii=False), encoding="utf-8")
+        log("[escritorio] problemas das ligações: %s (%d pendência(s), %d repetida(s))" % (
+            res, len(doc["itens"]), len(doc["duplicadas"])))
+        return res
+    except Exception as e:
+        log("[escritorio] problemas das ligações FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+        return None
 
 
 if __name__ == "__main__":

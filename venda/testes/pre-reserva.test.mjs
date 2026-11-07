@@ -24,7 +24,7 @@ test("termo completo: sem faltas e todos os marcadores preenchidos", () => {
   const t = P.montar(dados(), X);
   assert.deepEqual(P.faltas(t), []);
   const m = P.marcadores(t);
-  assert.equal(m.PRE_RESERVANTE_QUADRO, "COMPRADORA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
+  assert.equal(m.PRE_RESERVANTE_QUADRO, "COMPRADORA TESTE, BRASILEIRA, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
     "residente e domiciliado(a) à RUA TESTE, 10, e-mail compradora@teste.invalid, telefone (62) 90000-0000");
   assert.equal(m.CASA_NUMERO, "13");
   assert.equal(m.CASA_TIPO, "02");
@@ -153,4 +153,42 @@ test("03/11: dispensada = contrato feito e termo nunca enviado com sucesso (ENVI
   for (const s of ["RASCUNHO", "CANCELADO", "RECUSADO", "EXPIRADO", "rascunho"]) assert.equal(P.dispensada(s, true), true, s);
   for (const s of ["ENVIADO", "ASSINADO", " enviado "]) assert.equal(P.dispensada(s, true), false, s);
   for (const s of ["", "ENVIADO", "CANCELADO"]) assert.equal(P.dispensada(s, false), false, "sem contrato: " + s);
+});
+
+/* 06/11/2026 (dono): a DATA LIMITE do termo é digitada por venda (sugestão hoje + 5) e passa a ser o prazo da reserva.
+   Venda antiga, sem data limite gravada, continua com pagamento + 7. */
+test("06/11: data limite digitada vale no termo; sem ela, pagamento + 7", () => {
+  assert.equal(P.COL.DATA_LIMITE, "PRÉ-RESERVA - DATA LIMITE");
+  assert.equal(P.TIPOS[P.COL.DATA_LIMITE], "date");
+  assert.equal(P.prazoEfetivo("2026-11-11", "2026-11-06"), "2026-11-11");
+  assert.equal(P.prazoEfetivo("", "2026-11-06"), "2026-11-13");
+  assert.equal(P.prazoEfetivo("lixo", ""), "");
+  const t = P.montar(dados(), { ...X, dataLimite: "2026-11-02" });
+  assert.equal(t.dataLimite, "2026-11-02");
+  assert.equal(P.marcadores(t).PRE_RESERVA_DATA_LIMITE, "02/11/2026");
+  assert.equal(P.marcadores(P.montar(dados(), X)).PRE_RESERVA_DATA_LIMITE, "31/10/2026", "venda antiga: pagamento + 7");
+  assert.notEqual(P.baseCarimbo(t).dataLimite, P.baseCarimbo(P.montar(dados(), X)).dataLimite, "data limite muda o carimbo");
+});
+
+test("06/11: validarPagamento com data limite (não antes de hoje, nem do pagamento; obrigatória depois de gravada)", () => {
+  const v = (o) => P.validarPagamento({ valor: 3000, data: "2026-11-06", hojeISO: "2026-11-06", sinal: 10000, ...o });
+  assert.deepEqual(v({ limite: "2026-11-11" }), { ok: true, valor: 3000, data: "2026-11-06", limite: "2026-11-11" });
+  assert.equal(v({ limite: "11/11/2026" }).limite, "2026-11-11");
+  assert.equal(v({ limite: "2026-11-06" }).ok, true, "hoje vale");
+  assert.equal(v({ limite: "2026-11-05" }).erro, "PR_LIMITE_PASSADA");
+  assert.equal(v({ limite: "2026-11-05", limiteAtual: "2026-11-05", data: "2026-11-01" }).ok, true, "a já gravada pode ficar (mudar só o valor)");
+  assert.equal(v({ limite: "2026-11-05", data: "2026-11-01", hojeISO: "" }).ok, true, "sem hoje do servidor não checa passada");
+  assert.equal(v({ limite: "2026-11-03", data: "2026-11-04", hojeISO: "" }).erro, "PR_LIMITE_ANTES_DO_PAGAMENTO");
+  assert.equal(v({ limite: "amanhã" }).erro, "PR_LIMITE_INVALIDA");
+  assert.equal(v({ limite: "" }).ok, true, "venda antiga sem data limite");
+  assert.equal(v({ limite: "" }).limite, "");
+  assert.equal(v({}).limite, undefined, "chamada antiga (sem o campo) não mexe na data limite");
+  assert.equal(v({ limite: "", limiteAtual: "2026-11-11" }).erro, "PR_LIMITE_INVALIDA", "depois de gravada não pode apagar");
+});
+
+test("06/11: histórico registra a data limite", () => {
+  assert.equal(P.linhaHistorico({ valor: 3000, data: "2026-11-06", limite: "" }, { valor: 3000, data: "2026-11-06", limite: "2026-11-11" }, "ana", "06/11/2026 10:00"),
+    "06/11/2026 10:00 ana: data limite — → 11/11/2026");
+  assert.equal(P.linhaHistorico({ valor: 3000, data: "2026-11-06", limite: "2026-11-11" }, { valor: 3000, data: "2026-11-06" }, "ana", "x"), "",
+    "sem o campo na entrada, não muda");
 });

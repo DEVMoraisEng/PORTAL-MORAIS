@@ -207,6 +207,7 @@ var ClicksignVenda = (function () {
     return [sig("Vendedor", PAPEIS.VENDEDOR, { nome: v.nome, email: v.email, cpf: v.cpfCnpj }, "vendedor")];
   }
   function sigTestemunhas(dados, config) {
+    if (config && config.semTestemunhas) return [];   /* 06/11/2026 (dono): o termo de pré-reserva não leva testemunhas */
     var t = testemunhas(dados, config);
     return t ? [sig("Testemunha 1", PAPEIS.TESTEMUNHA, t[0], "testemunha"), sig("Testemunha 2", PAPEIS.TESTEMUNHA, t[1], "testemunha")] : [];
   }
@@ -238,7 +239,8 @@ var ClicksignVenda = (function () {
    * tipo: "CONTRATO" | "TERMO" (confissão PRÉ/PÓS) | "PRE_RESERVA". Só entra quem assina aquele documento, pelas mesmas
    * regras do envio: no contrato, sem fiadores (assinam só os termos) e com o corretor quando há comissão (como o antigo
    * {{#COM_COMISSAO}}); nos termos de confissão, com os fiadores e os cônjuges deles e sem corretor (não é parte do termo);
-   * na pré-reserva, só o comprador 1 e o cônjuge apenas com opc.incluirConjuge (PR_CONJUGE_<pageId>).
+   * na pré-reserva, só o comprador 1 e o cônjuge apenas com opc.incluirConjuge (PR_CONJUGE_<pageId>) — e, desde 06/11/2026,
+   * sem testemunhas (só vendedora e pré-reservante).
    * Ordem: vendedora, comprador 1, cônjuge do comprador 1, comprador 2, fiador 1, cônjuge do fiador 1, fiador 2, cônjuge do
    * fiador 2, corretor, testemunha 1, testemunha 2. Cada pessoa: traço, "Nome: …", "CPF: …" (CNPJ de empresa) e o papel —
    * o nome logo abaixo do traço é o que RubricasVenda.acharLinhas lê e atribuirLinhas casa com o signatário. */
@@ -275,6 +277,7 @@ var ClicksignVenda = (function () {
     });
     if (tipo === "CONTRATO" && dados.corretor && txt(dados.corretor.nome) && !vendaDireta(dados))
       add("INTERMEDIADOR/CORRETOR", dados.corretor.nome, dados.corretor.cpfCnpj);
+    if (pre) return out;   /* 06/11/2026 (dono): "não precisa de tanta coisa na pré-reserva" — sem testemunhas */
     var t = testemunhas(dados, config) || [null, null];
     [0, 1].forEach(function (i) { add("TESTEMUNHA " + (i + 1), t[i] && t[i].nome, t[i] && t[i].cpf); });
     return out;
@@ -306,7 +309,7 @@ var ClicksignVenda = (function () {
     var faltas = [];
     config = config || montarConfig({});
     if (!dados.vendedor) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
-    if (!testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
+    if (!config.semTestemunhas && !testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
     if (config.incluirCorretor && !dados.corretor && !vendaDireta(dados)) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
     var vistos = {}, porPessoa = [];
     signatarios(dados, config).forEach(function (s) {
@@ -468,7 +471,8 @@ var ClicksignVenda = (function () {
     if (soDigitos(v.cpfCnpj).length === 14) return true;
     return txt(v.tipo).toUpperCase() === "PJ";
   }
-  var COM_SELFIE = /^(comprador[12]|conjugeComprador1|fiador[12]|conjugeFiador[12])$/;
+  /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores NÃO pedem selfie — só compradores e o cônjuge do comprador. */
+  var COM_SELFIE = /^(comprador[12]|conjugeComprador1)$/;
   function autenticacoes(s, config, dados) {
     return config && config.selfie && vendedorEmpresa(dados) && COM_SELFIE.test(txt(s && s.origem)) ? ["email"].concat(AUTH_SELFIE) : ["email"];
   }
@@ -530,6 +534,21 @@ var ClicksignVenda = (function () {
     for (var k in guardado[2]) a[k] = guardado[2][k];
     return { data: { type: "requirements", attributes: a, relationships: relacoes(guardado[1], signerId) } };
   }
+  /* 03/11 (sandbox): com o envelope em running, POST /requirements responde 403 "envelope não está com status draft" —
+   * requisito novo em envelope ativo só pela operação em lote (docs/signatarios: "Envelopes que já estão em processo de
+   * assinatura exigem um procedimento específico para a adição de seus requisitos. Utilize a funcionalidade de operações
+   * em massa"). Um pedido só, na ordem de requisitosParaRecriar. */
+  function corpoAdicionarRequisitos(guardados, signerId) {
+    return { "atomic:operations": requisitosParaRecriar(guardados).map(function (g) {
+      return { op: "add", data: corpoRequisitoTrocado(g, signerId).data };
+    }) };
+  }
+  /* ids dos requisitos criados em lote, na ordem das operações ("" quando a resposta não traz) */
+  function idsDoLote(resultados, n) {
+    var l = Array.isArray(resultados) ? resultados : [], out = [];
+    for (var i = 0; i < n; i++) { var r = l[i] || {}; out.push(txt(r.data && r.data.id)); }
+    return out;
+  }
   function corpoRemoverRequisitos(ids) {
     return { "atomic:operations": (ids || []).filter(function (id) { return txt(id); })
       .map(function (id) { return { op: "remove", ref: { type: "requirements", id: txt(id) } }; }) };
@@ -562,8 +581,11 @@ var ClicksignVenda = (function () {
     if (code >= 200 && code < 300) {
       if (!j || typeof j !== "object") return { ok: true, id: "", status: "", data: null };
       var d = j.data || null;
-      return { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
+      var res = { ok: true, id: d && !Array.isArray(d) ? txt(d.id) : "",
                status: d && !Array.isArray(d) && d.attributes ? txt(d.attributes.status) : "", data: d };
+      /* 03/11: operações em lote (bulk_requirements) respondem em "atomic:results" */
+      if (Array.isArray(j["atomic:results"])) res.resultados = j["atomic:results"];
+      return res;
     }
     var e = j && Array.isArray(j.errors) && j.errors[0] ? j.errors[0] : null;
     var det = e ? [txt(e.title), txt(e.detail)].filter(function (x) { return x; }).join(": ") : "";
@@ -715,12 +737,14 @@ var ClicksignVenda = (function () {
   }
   /* O que a tela mandou junto com "Enviar": { nome (do PDF lido), campos: [pos], valores: pos | null }.
    * nomeGerado = nome do PDF que o servidor vai mandar; diferente = a tela leu outro PDF. */
-  /* opc.linhas === false (ASSINATURA_LINHAS desligada): linhas e termos da tela são ignorados sem conferir */
+  /* opc.linhas === false (ASSINATURA_LINHAS desligada): linhas e termos da tela são ignorados sem conferir;
+     opc.camposOpcionais (casa de rua, 05/11): lista de campos vazia vale */
   function validarRubricas(r, nomeGerado, opc) {
     if (!r || typeof r !== "object") return { ok: false, erro: "RUBRICAS_FALTANDO" };
     if (txt(r.nome) !== txt(nomeGerado)) return { ok: false, erro: "RUBRICAS_DE_OUTRO_PDF" };
     var campos = Array.isArray(r.campos) ? r.campos : [];
-    if (!campos.length || campos.length > MAX_CAMPOS) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
+    /* 05/11/2026 (casa de rua): opc.camposOpcionais — a rua aceita a leitura sem campo de ciência (envia como antes, com aviso) */
+    if ((!campos.length && !(opc && opc.camposOpcionais)) || campos.length > MAX_CAMPOS) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
     var ok = campos.map(posicaoValida);
     if (ok.some(function (p) { return !p; })) return { ok: false, erro: "RUBRICAS_INVALIDAS" };
     var val = null;
@@ -1021,6 +1045,7 @@ var ClicksignVenda = (function () {
     corpoNotificacao: corpoNotificacao, interpretar: interpretar, situacao: situacao, assinaram: assinaram,
     MENSAGEM: MENSAGEM, mensagemEnvelope: mensagemEnvelope, prazoAssinatura: prazoAssinatura, PRAZO_MAX_DIAS: PRAZO_MAX_DIAS, corpoSignatarioTrocado: corpoSignatarioTrocado, requisitoGuardado: requisitoGuardado,
     requisitosParaRecriar: requisitosParaRecriar, corpoRequisitoTrocado: corpoRequisitoTrocado, corpoRemoverRequisitos: corpoRemoverRequisitos,
+    corpoAdicionarRequisitos: corpoAdicionarRequisitos, idsDoLote: idsDoLote,
     conferirEmailNovo: conferirEmailNovo,
     podeEnviar: podeEnviar, linkAssinado: linkAssinado, mascararEmails: mascararEmails, FINAIS: FINAIS,
     situacaoDosSignatarios: situacaoDosSignatarios, nomeMascarado: nomeMascarado,

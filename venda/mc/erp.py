@@ -200,6 +200,19 @@ class Erp:
     def obra(self, obra_id: str) -> dict:
         return self.pedir("GET", "/works/" + obra_id) or {}
 
+    def link_do_arquivo(self, arquivo_id: str) -> str:
+        """05/11/2026: link assinado de um arquivo de pasta (GET /file/{id}/get-url — a tela usa para abrir; responde o
+        link em texto puro ou num objeto). "" se a resposta não trouxer link."""
+        r = self.pedir("GET", "/file/%s/get-url" % arquivo_id)
+        if isinstance(r, str):
+            s = r.strip().strip('"')
+            return s if s.startswith("http") else ""
+        if isinstance(r, dict):
+            for k in ("url", "signedUrl", "downloadUrl", "value", "link"):
+                if isinstance(r.get(k), str) and r[k].startswith("http"):
+                    return r[k]
+        return ""
+
     def cliente_por_cpf(self, cpf: str) -> list[dict]:
         d = R.so_digitos(cpf)
         j = self.pedir("GET", "/participants", params={"role": "CUSTOMER", "keyword": d, "page": 0,
@@ -251,6 +264,53 @@ class Erp:
             if pagina >= 30:
                 raise ErpErro("mais de 30 páginas de recebimentos; parei para não decidir com lista incompleta")
 
+    # -- 05/11/2026: recebimentos da casa de rua (venda/mc/recebimentos.py) -------------------------------
+    # As rotas que GRAVAM ficam só aqui. CONFERIR NO 1º TESTE AO VIVO (portal de teste, venda de teste):
+    #  [a] baixa: POST {legado}/receipt-installments/{parcela}/receipts com value, receivedValue, receivingDate,
+    #      account{id}, responsible{id} — é o corpo que o app de aportes usa em produção, mas sempre com a parcela
+    #      INTEIRA. Baixa PARCIAL (valor menor que a parcela) é suposição: conferir que a parcela fica em aberto com o
+    #      saldo certo (pendingValue/sumOfReceivedValues) e que o recebimento aparece em `receipts`.
+    #  [b] alterar a venda: PUT {legado}/readjustment-sales/{id} com o objeto inteiro do GET /sales/{id} (o distrato
+    #      usa). Parcela NOVA (sem id) dentro do PUT é suposição: conferir que o ERP cria a parcela do tipo certo.
+    #  [c] contas: GET {core}/financial/bank-accounts/all (contas_erp.py lê) — o id da conta é o mesmo que a baixa
+    #      do app de aportes manda em account{id}.
+    #  [d] campo da data no recebimento lido de volta: receivingDate (o que se manda) — se vier outro nome,
+    #      recebimentos.data_do_recibo já tenta date e dateOfReceipt.
+    def ler_venda(self, venda_id: str) -> dict:
+        return self.pedir("GET", "/sales/%s" % venda_id) or {}   # GET /readjustment-sales/{id} dá 405
+
+    def contas_bancarias(self) -> list[dict]:
+        """[c] Financeiro > Contas bancárias (API nova): cada uma com id, name, bankCode, agency, account, accountDigit."""
+        r = self.pedir_core("GET", "/financial/bank-accounts/all")
+        if isinstance(r, list):
+            return r
+        if isinstance(r, dict):
+            return r.get("content") or r.get("data") or r.get("items") or []
+        return []
+
+    def receber_parcela(self, parcela_id: str, valor: float, data: str, conta_id: str, responsavel_id: str = ""):
+        """[a] Baixa (inteira ou parcial) de UMA parcela a receber da venda. Quem chama já decidiu gravar."""
+        corpo = {"value": round(float(valor), 2), "receivedValue": round(float(valor), 2), "receivingDate": data[:10],
+                 "account": {"id": conta_id}}
+        if responsavel_id:
+            corpo["responsible"] = {"id": responsavel_id}
+        return self.pedir("POST", "/receipt-installments/%s/receipts" % parcela_id, corpo=corpo)
+
+    def alterar_venda(self, venda_id: str, corpo: dict):
+        """[b] Grava a venda inteira (alteração das parcelas ou o desfazer com o JSON guardado antes)."""
+        return self.pedir("PUT", "/readjustment-sales/%s" % venda_id, corpo=corpo)
+
+    def anexar_se_faltar(self, venda_id: str, nome: str, conteudo: bytes, mime: str) -> str:
+        """Comprovante na pasta "Arquivos" do recebimento da venda (a mesma do contrato, rota já provada).
+        Devolve "JA_EXISTIA" (mesmo nome na pasta) ou "ANEXADO"."""
+        pasta = self.pasta_da_venda(venda_id, criar=True)
+        if self.tem_arquivo(pasta, nome):
+            return "JA_EXISTIA"
+        if not self.cabe_na_pasta(pasta["id"], len(conteudo)):
+            raise ErpErro("a pasta de arquivos da venda está cheia")
+        self.subir_arquivo(pasta["id"], nome, conteudo, mime)
+        return "ANEXADO"
+
     # -- gravação (só com --aplicar) ----------------------------------------
     def criar_cliente(self, corpo: dict) -> dict:
         return self.pedir("POST", "/participants", corpo=corpo)
@@ -286,6 +346,13 @@ class ErpPeloPorteiro(Erp):
         self.user_id, self.ou_id = str(leg.get("user-id") or ""), str(leg.get("organization-unit-id") or "")
         self.jwt = sem(core.get("authorization"))
 
+    def pedido_da_tela(self, trecho: str, espera: float = 20.0) -> str | None:
+        """03/11: URL do pedido que a própria tela do porteiro fez (ver AbaPorteiro.pedido_da_tela)."""
+        if not self.token:
+            self.logar()
+        f = getattr(self._aba, "pedido_da_tela", None)
+        return f(trecho, espera) if f else None
+
     def fechar(self) -> None:
         """Fecha a aba deste robô (o Chrome do porteiro continua aberto e logado)."""
         if self._aba is not None:
@@ -310,7 +377,13 @@ class ErpPeloPorteiro(Erp):
         if st >= 300:
             # mesma mensagem do login por senha: o CORPO da recusa diz o campo que falta
             raise ErpErro("%s %s -> HTTP %s: %s" % (metodo, caminho.split("?")[0], st, texto[:600]))
-        return json.loads(texto) if texto.strip() else None
+        if not texto.strip():
+            return None
+        try:
+            return json.loads(texto)
+        except ValueError:
+            # 04/11 (4ª descoberta dos anexos): GET /file/{id}/get-url responde o LINK em texto puro, não JSON
+            return texto.strip()
 
     def _cab_pagina(self, token: str) -> dict:
         return {"authorization": "Bearer " + token, "company-id": str(self.company_id)}

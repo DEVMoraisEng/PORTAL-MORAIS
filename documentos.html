@@ -1078,8 +1078,9 @@ th.th-ord .seta{font-size:10px;opacity:.9}
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
 <script src="alertas-docs.js?v=1"></script>
+<script src="painel-abas.js?v=2"></script>
 <script>
 /* claro/escuro — mesma chave (morais_tema) das outras páginas do portal. */
 const TEMA_KEY="morais_tema";
@@ -2225,7 +2226,7 @@ function renderPainel(o){
   }).join("");
   const anexos=CAMPOS.filter(c=>c.tipo==="files").map(c=>{
     const n=(o.sens&&o.sens[c.nome])||0;
-    return `<div class="campo"><label>${esc(c.nome.trim())}</label>
+    return `<div class="campo campo-arq"><label>${esc(c.nome.trim())}</label>
       <span class="ro-inline">${n?`${n} arquivo(s) — abra no Notion`:"—"}</span>
       ${podeEditar?`<input type="file" onchange="enviarArquivo('${o.id}','${jsArg(c.nome)}',this)">`:""}</div>`;
   }).join("");
@@ -2233,6 +2234,26 @@ function renderPainel(o){
     `<div class="pgrupo"><div class="ptit">Dados da obra</div>${linhas}</div>`+
     (anexos?`<div class="pgrupo"><div class="ptit">Anexos</div>${anexos}</div>`:"")+
     (ehAdmTela()?`<div class="pgrupo"><button class="bt danger" onclick="excluirObra('${o.id}')">Arquivar esta obra</button></div>`:"");
+  abasDocumentos();
+}
+/* 06/11/26 — painel da obra em ABAS, igual ao painel da casa da Gestão de Vendas, mas com as
+   etapas dos DOCUMENTOS da obra (painel-abas.js só muda as caixas de lugar; salvar não muda).
+   Ordem das regras importa: a 1ª que casa com o nome da coluna leva a caixa. */
+const ABAS_DOCUMENTOS=[
+  ["resumo","Resumo",null],
+  ["lote","Lote e escritura",/CERTID|LOTE|ITBI|ESCRITURA|REGISTRO|MATRICULA|AQUISICAO|CONTRATO (INVESTIDOR|MESTRE)/],
+  ["projeto","Projeto e alvará",/PROJETO|ALVARA|USO DO SOLO|ART FEITA|^ART\b|TAXAS ENTRADA/],
+  ["obra","Obra",/ACRESCIMO|\bCNO\b|\bCND\b|\bRET\b|INCORPORACAO|ISSQN|MAO OBRA|INICIO|INICIADA|INCIADA|TERMINO|FINALIZ|PRAZO DE OBRA|PREVISAO/],
+  ["habite","Habite-se e Caixa",/HABITE|NUM OFICIAL|VISTORIA|SCPO|CAIXA/],
+  ["anexos","Anexos",null]
+];
+function abasDocumentos(){
+  if(!window.PainelAbas) return;
+  const regra=ABAS_DOCUMENTOS.slice(1,5).concat([ABAS_DOCUMENTOS[0],ABAS_DOCUMENTOS[5]]);   // resumo = o que sobra
+  const body=document.getElementById("pn-body");
+  /* anexos vão para a aba Anexos pelo tipo (files), não pelo nome */
+  PainelAbas.aplicar(body,{chave:"documentos",item:OBRA_ABERTA,lado:"22px",gap:"0px",padrao:"resumo",ordem:ABAS_DOCUMENTOS.map(a=>a[0]),abas:regra,
+    aba:c=>c.classList.contains("campo-arq")?"anexos":null});
 }
 async function enviarArquivo(pageId,prop,input){
   const f=input.files[0]; if(!f) return;

@@ -35,23 +35,25 @@ test("lendo: o espaço ocupado avisa e todos os botões ficam desabilitados", ()
   assert.ok(botoes.every((b) => b.includes("disabled")));
 });
 
-test("Ler de novo só habilita com arquivo no espaço", () => {
+test("Ler de novo só aparece com arquivo no espaço (04/11: sem arquivo, só Anexar)", () => {
   const h = D.html(base, ui());
   assert.doesNotMatch(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>/)[0], /disabled/);
-  assert.match(h.match(/<button[^>]*data-acao="reler"[^>]*data-espaco="C1_COMPROVANTE"[^>]*>/)[0], /disabled/);
+  assert.doesNotMatch(h, /data-acao="reler"[^>]*data-espaco="C1_COMPROVANTE"/);
+  assert.match(h, /data-acao="anexar" data-espaco="C1_COMPROVANTE"[^>]*>Anexar</);
+  assert.match(h, /dz-doc-falta/); assert.match(h, /dz-doc-ok/);
 });
 
 test("botão Trocar aparece com arquivo e fica desabilitado sem arquivo no espaço", () => {
   const h = D.html(base, ui());
   assert.match(h, /data-acao="trocar"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>Trocar/);
   assert.doesNotMatch(h.match(/<button[^>]*data-acao="trocar"[^>]*data-espaco="C1_IDENTIDADE"[^>]*>/)[0], /disabled/);
-  assert.match(h.match(/<button[^>]*data-acao="trocar"[^>]*data-espaco="C1_COMPROVANTE"[^>]*>/)[0], /disabled/);
+  assert.doesNotMatch(h, /data-acao="trocar"[^>]*data-espaco="C1_COMPROVANTE"/);   /* 04/11: sem arquivo não aparece */
 });
 
 test("contagem de arquivos vinda do servidor é convertida em número (não vira HTML)", () => {
   const h = D.html(Object.assign({}, base, { arquivos: Object.assign({}, base.arquivos, { C1_IDENTIDADE: "<b>2</b>" }) }), ui());
   assert.doesNotMatch(h, /<b>2<\/b>/);
-  assert.match(h, /nenhum arquivo/);
+  assert.match(h, /dz-doc-falta/);
 });
 
 test("observação é escapada", () => {
@@ -428,4 +430,14 @@ test("03/11: a aba Contrato troca para só leitura quando o envelope abre e volt
   assert.match(src, /return enviadoA\(\) \? htmlContratoLeitura\(estadoC, uiC\) : htmlContrato\(estadoC, uiC\);/);
   assert.match(src, /if \(enviadoA\(\) !== vistoEnvA\) return pintar\(\);/);
   assert.match(src, /ctxA\.desatualizado = !!\(contratoFinal\(estadoC\) && estadoC\.envioDesatualizado\);/);
+});
+
+test("03/11 (dono): conferência feita antes de os documentos chegarem — aviso de que os anexos mudaram, não o de dados", () => {
+  const base = { feito: true, em: "", confirmados: {}, linhas: [] };
+  let h = D.htmlConferencia({ ...base, atual: false, anexosMudaram: true }, {});
+  assert.match(h, /Os documentos anexados mudaram depois desta conferência — confira de novo/);
+  assert.doesNotMatch(h, /Os dados mudaram depois desta conferência/);
+  h = D.htmlConferencia({ ...base, atual: false }, {});
+  assert.match(h, /Os dados mudaram depois desta conferência/);
+  assert.doesNotMatch(D.htmlConferencia({ ...base, atual: true }, {}), /confira de novo/);
 });

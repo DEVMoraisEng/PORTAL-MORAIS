@@ -194,7 +194,8 @@ test("condomínio (contrato de 21/10): sem cadastro em LOTEAMENTOS e sem conta d
   assert.deepEqual(C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null })), []);
   /* fora do condomínio continua exigido */
   const rua = C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null, condominio: null }));
-  assert.ok(rua.includes("Loteamento: cadastro em LOTEAMENTOS – CONTRATO") && rua.includes("Vendedor: banco"), rua.join(" | "));
+  /* 05/11/2026: casa de rua sem cadastro de loteamento — pede a matrícula da casa lida pela IA */
+  assert.ok(rua.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler") && rua.includes("Vendedor: banco"), rua.join(" | "));
 });
 
 /* ---------------- GerarContrato.gs com Notion/Docs/Drive falsos ---------------- */
@@ -455,4 +456,17 @@ test("rodada 1: nome de fiador com número só barra o Gerar quando o fiador ass
   const com = cenario({ linha: ruim, props: { MODELO_CONFISSAO_PRE_ID: "modelo-cfd-pre", MODELO_CONFISSAO_POS_ID: "modelo-cfd-pos" } }).gerar();
   assert.equal(com.erro, "FALTAM_DADOS");
   assert.ok(com.faltas.includes("Fiador 1: nome sem números"), JSON.stringify(com.faltas));
+});
+
+/* 07/11/2026 (dono): "em todos os locais, sempre que a data do vencimento for anterior à data atual, trava" —
+   d.hoje vem do GerarContrato.gs (os testes do servidor usam HOJE_VENDA_TESTE_ fixo) */
+test("contrato do condomínio: assinatura que já passou trava; parcela vencendo até a assinatura também", () => {
+  const d = C.montarDadosContrato(fontes());
+  d.hoje = "2026-10-07";
+  assert.deepEqual(C.faltasContrato(d), [], "assinatura hoje: tudo certo");
+  d.hoje = "2026-10-08";
+  assert.ok(C.faltasContrato(d).some((x) => /a data de assinatura \(07\/10\/2026\) já passou/.test(x)), JSON.stringify(C.faltasContrato(d)));
+  const d2 = C.montarDadosContrato(fontes({ condominio: { fluxo: Object.assign({}, FLUXO, { pre1Data: "2026-10-05" }) } }));
+  d2.hoje = "2026-10-07";
+  assert.ok(C.faltasContrato(d2).some((x) => /pré-chaves vence em 05\/10\/2026 — tem de vencer depois da assinatura \(07\/10\/2026\)/.test(x)), JSON.stringify(C.faltasContrato(d2)));
 });

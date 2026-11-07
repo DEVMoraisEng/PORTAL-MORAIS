@@ -44,6 +44,7 @@ import re
 import sys
 import time
 import unicodedata
+from datetime import datetime, timedelta, timezone
 import urllib.error
 import urllib.request
 
@@ -423,6 +424,82 @@ def aguardando_sinal(sinal_data, data_venda) -> bool:
     return not dv or dv >= INICIO_RESERVA_ATE_SINAL
 
 
+# Regra do dono (05/11/2026), só casa de rua: gerar o contrato FINAL no portal (Apps Script PORTAL-VENDA,
+# aprovarPreContratoMiolo_) grava "CONTRATO - GERADO EM" (data com hora). A partir daí:
+#   ASSINATURA - SITUAÇÃO = ASSINADO (todos assinaram) -> vendida;
+#   não assinado e menos de 48 h                         -> reservada (motivo CONTRATO, prazo em reservaAte);
+#   não assinado e 48 h ou mais                          -> disponível de novo (o envelope fica aberto na Clicksign).
+# Sem CONTRATO - GERADO EM nada muda (as vendas antigas seguem pela régua CLIENTES + SINAL).
+# Precedência sobre a regra do SINAL (08/10): o contrato decide quando a data existe — assinado vence o SINAL
+# (vendida mesmo sem o sinal no portal), e o prazo vencido libera mesmo sem o sinal.
+# A mesma régua: venda/RegrasVenda.js (reservaContrato) e vendas.html (reservaContratoDe).
+RESERVA_CONTRATO_HORAS = 48
+# o mapa dos corretores (SITE-DE-VENDAS) conta 24 h a partir de dataReserva; para ele mostrar o prazo de 48 h
+# sem mudar nada lá, a reserva do contrato publica dataReserva = reservaAte - 24 h (ver situacao_mapa).
+_HORAS_SITE = 24
+_FUSO_PADRAO = timezone(timedelta(hours=-3))   # America/Sao_Paulo (sem horário de verão desde 2019)
+
+
+def _data_hora(x):
+    """ISO do Notion ('2026-11-05T14:30:00.000-03:00', '...Z' ou só '2026-11-05') -> datetime com fuso, ou None."""
+    if isinstance(x, dict):
+        x = x.get("start")
+    s = str(x or "").strip()
+    if not s:
+        return None
+    if s.endswith("Z"):
+        s = s[:-1] + "+00:00"
+    try:
+        d = datetime.fromisoformat(s)
+    except ValueError:
+        return None
+    if d.tzinfo is None:
+        d = d.replace(tzinfo=_FUSO_PADRAO)
+    return d
+
+
+def _iso_utc(d):
+    return d.astimezone(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+
+
+def reserva_contrato(gerado_em, situacao_assinatura, agora=None):
+    """None sem CONTRATO - GERADO EM; senão {"estado": VENDIDA|RESERVADA|LIBERADA, "geradoEm", "ate"} (ISO UTC)."""
+    g = _data_hora(gerado_em)
+    if g is None:
+        return None
+    ate = g + timedelta(hours=RESERVA_CONTRATO_HORAS)
+    agora = agora or datetime.now(timezone.utc)
+    if norm(situacao_assinatura or "") == "ASSINADO":
+        estado = "VENDIDA"
+    elif agora < ate:
+        estado = "RESERVADA"
+    else:
+        estado = "LIBERADA"
+    return {"estado": estado, "geradoEm": _iso_utc(g), "ate": _iso_utc(ate)}
+
+
+def situacao_mapa(tem_cliente, reservada, data_reserva, sinal_data, data_venda,
+                  gerado_em=None, situacao_assinatura=None, agora=None):
+    """Situação de uma casa no mapa_vendas.json: dict com vendida, reservada, dataReserva, motivoReserva, reservaAte."""
+    vendida, motivo, reserva_ate = bool(tem_cliente), "", None
+    rc = reserva_contrato(gerado_em, situacao_assinatura, agora)
+    # 08/10/2026: venda nova com comprador e sem o sinal confirmado no portal fica RESERVADA (sem prazo).
+    # Com o contrato gerado (rc), quem decide é o contrato (ver comentário de RESERVA_CONTRATO_HORAS).
+    if not rc and vendida and aguardando_sinal(sinal_data, data_venda):
+        vendida, reservada, data_reserva, motivo = False, "SIM", None, "SINAL"
+    if rc:
+        if rc["estado"] == "VENDIDA":
+            vendida = True
+        elif rc["estado"] == "RESERVADA":
+            ate = _data_hora(rc["ate"])
+            vendida, reservada, motivo, reserva_ate = False, "SIM", "CONTRATO", rc["ate"]
+            data_reserva = _iso_utc(ate - timedelta(hours=_HORAS_SITE))
+        else:
+            vendida, reservada, data_reserva, motivo = False, "NÃO", None, ""
+    return {"vendida": vendida, "reservada": reservada, "dataReserva": data_reserva,
+            "motivoReserva": motivo, "reservaAte": reserva_ate}
+
+
 def gravar(nome, obj):
     caminho = os.path.join(SAIDA, nome)
     with open(caminho, "w", encoding="utf-8") as f:
@@ -623,9 +700,13 @@ def main():
         # 08/10/2026 (pedido do dono): venda nova com comprador e SEM o sinal confirmado no portal
         # (bloco Recebimentos -> RECEBIMENTO - SINAL DATA) aparece como RESERVADA, não vendida.
         # Vendas com DATA DA VENDA antes da regra seguem como estavam (nunca tiveram o sinal no portal).
-        motivo_reserva = ""
-        if vendida and aguardando_sinal(campo_mv(v, "RECEBIMENTO - SINAL DATA"), campo_mv(v, "DATA DA VENDA")):
-            vendida, reservada, data_reserva, motivo_reserva = False, "SIM", None, "SINAL"
+        # 05/11/2026: com CONTRATO - GERADO EM, o contrato decide (48 h para assinar) — ver situacao_mapa
+        sm = situacao_mapa(vendida, reservada, data_reserva,
+                           campo_mv(v, "RECEBIMENTO - SINAL DATA"), campo_mv(v, "DATA DA VENDA"),
+                           simples(campo_mv(v, "CONTRATO - GERADO EM")),
+                           simples(campo_mv(v, "ASSINATURA - SITUAÇÃO")))
+        vendida, reservada, data_reserva = sm["vendida"], sm["reservada"], sm["dataReserva"]
+        motivo_reserva, reserva_ate = sm["motivoReserva"], sm["reservaAte"]
         ref = simples(campo_mv(v, "REF")) or ""
         setor = simples(campo_mv(v, "SETOR")) or setor_por_ref(ref)
         mv.append({
@@ -654,6 +735,9 @@ def main():
             "dataReserva": data_reserva,
             # "SINAL" = reservada até o sinal ser confirmado (sem prazo de 24 h; o mapa mostra "aguardando sinal")
             "motivoReserva": motivo_reserva,
+            # "CONTRATO" = contrato gerado aguardando as assinaturas: reservada até reservaAte (ISO UTC, 48 h do
+            # CONTRATO - GERADO EM). dataReserva vai como reservaAte - 24 h para o mapa (24 h fixas) contar até lá.
+            "reservaAte": reserva_ate,
         })
     gravar("mapa_vendas.json", {
         "ok": True, "total": len(mv), "rows": mv, "updated_at": agora,

@@ -214,9 +214,8 @@ test("comprovante: endereço vazio é preenchido; velho e de outra pessoa viram 
   const leitura = { tipo_documento: "COMPROVANTE", titular: "CARLOS OUTRO", endereco_completo: "RUA TESTE, 10, CENTRO, GOIÂNIA/GO, 74000-000", data_emissao: "01/05/2026" };
   const p = R.planejarGravacao("C1_COMPROVANTE", leitura, { [C.CLIENTES]: "ANA TESTE" }, HOJE);
   assert.equal(p.props[C.C1_END], "RUA TESTE, 10, CENTRO, GOIÂNIA/GO, 74000-000");
-  assert.equal(p.observacoes.length, 2);
-  assert.match(p.observacoes[0], /outra pessoa/);
-  assert.match(p.observacoes[1], /145 dias/);
+  assert.equal(p.observacoes.length, 1, "05/11 (dono): titular de outro nome não vira observação");
+  assert.match(p.observacoes[0], /145 dias/);
 });
 
 test("comprovante sem data legível vira observação", () => {

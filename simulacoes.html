@@ -79,6 +79,27 @@ html[data-tema="escuro"] .kpi .val{color:var(--teal)}
 .kpi .sub.meta-ok{color:var(--verde-esc);font-weight:800}
 .kpi .sub.meta-ruim{color:var(--vermelho);font-weight:800}
 /* 30/10 — cortes da aba Propostas: 5 cartões clicáveis que filtram a tabela */
+/* 03/11/2026: Análise de vendas — barra de filtros e VGV vendido em destaque */
+.an-filtros{display:flex;flex-wrap:wrap;gap:10px;align-items:center;background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:10px 12px;margin-bottom:16px}
+.an-filtros .lb{font-size:11px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text3)}
+.an-filtros select{border:1.5px solid var(--border);border-radius:8px;padding:7px 9px;font:inherit;font-size:13px;background:var(--sup);color:var(--text)}
+.an-per{display:flex;gap:4px;padding:4px;border:2px solid var(--verde-btn);border-radius:10px;background:rgba(76,217,100,.06);flex-wrap:wrap}
+.an-per button{border:2px solid transparent;background:none;color:var(--text3);border-radius:7px;padding:5px 10px;font-family:'Barlow Condensed',sans-serif;font-size:13.5px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;cursor:pointer}
+.an-per button:hover{background:rgba(76,217,100,.15)}
+.an-per button.on{background:var(--verde-btn);color:#1a3347;border-color:var(--verde-btn)}
+.an-filtros .limpar{margin-left:auto;border:1.5px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;padding:7px 11px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer}
+.kpis.an-top{grid-template-columns:1.5fr 1fr 1fr 1fr}
+.kpis.an-top .kpi.hero .val{font-size:44px}
+.kpis.an-top .kpi .val{font-size:34px}
+.kpis.an-top .kpi .ant{margin-top:8px;font-size:12px;font-weight:700;color:var(--text3)}
+.kpis.an-top .kpi.hero .ant{color:var(--teal)}
+.kpis.an-top .kpi .ant b.sobe{color:var(--verde-esc)}.kpis.an-top .kpi .ant b.desce{color:var(--vermelho)}
+.kpis.an-top .kpi.hero .ant b.sobe{color:#8ce0a5}.kpis.an-top .kpi.hero .ant b.desce{color:#f3a29a}
+.an-mbar{height:7px;border-radius:20px;background:var(--bg3);margin-top:10px;overflow:hidden}
+.an-mbar i{display:block;height:100%;background:var(--verde);border-radius:20px}
+@media(max-width:900px){.kpis.an-top{grid-template-columns:repeat(2,1fr)}.kpis.an-top .kpi.hero{grid-column:1/-1}}
+@media(max-width:520px){.kpis.an-top{grid-template-columns:1fr}.kpis.an-top .kpi.hero .val{font-size:36px}.an-filtros .limpar{margin-left:0}
+  #an-vgv .kpi{min-width:0;padding:12px}#an-vgv .kpi .val{font-size:21px}}
 .kpis.k5{grid-template-columns:repeat(6,1fr);margin-bottom:14px}
 .kpis.k5 .kpi.cred{cursor:default}
 .kpis.k5 .cred-lin{display:flex;gap:8px;margin-top:8px}
@@ -237,6 +258,37 @@ html[data-tema="escuro"] td.num.abaixo{color:#8ce0a5}
 .bt{font:inherit;font-weight:700;font-size:13px;padding:8px 14px;border-radius:8px;cursor:pointer;border:1px solid transparent}
 .bt.az{background:var(--azul);color:#fff}.bt.az:hover{background:var(--azul-esc)}
 .bt.ghost{background:var(--sup);border-color:var(--border);color:var(--text3)}.bt.ghost:hover{background:var(--bg3)}
+/* 07/11/2026 — Nova simulação / SUBIR PASTA pelo portal: mesmos botões do mapa de vendas
+   (Fazer simulação em amarelo, SUBIR PASTA em verde) */
+.bt.mp-sim{background:#EFB700;color:#7A4A16;border-color:#D8A818}.bt.mp-sim:hover{background:#D8A818}
+.bt.mp-prop{background:#27AE60;color:#fff;border-color:#1E8449;font-weight:800}.bt.mp-prop:hover{background:#1E8449}
+.novo-bar{display:flex;gap:8px;flex-wrap:wrap;margin-left:8px}
+.un-grade{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px;margin-top:10px}
+.un-op{display:flex;flex-direction:column;gap:2px;text-align:left;font:inherit;padding:10px 12px;border-radius:10px;
+  border:1px solid var(--border);background:var(--sup);color:var(--text);cursor:pointer}
+.un-op b{font-size:15px}.un-op small{font-size:12px;color:var(--text3)}
+.un-op:hover{border-color:#27AE60;box-shadow:0 0 0 3px rgba(39,174,96,.18)}
+.un-op.res{border-color:#9CC3E4;background:#EEF4FB}
+html[data-tema="escuro"] .un-op.res{background:rgba(31,111,178,.18)}
+.un-op .st{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:#1a6b40}
+.un-op.res .st{color:#1F6FB2}
+.form-ov{position:fixed;inset:0;background:rgba(15,26,34,.6);z-index:70;display:flex;flex-direction:column;padding:12px}
+.form-cx{flex:1;display:flex;flex-direction:column;background:var(--sup);border-radius:14px;overflow:hidden;
+  box-shadow:0 18px 50px rgba(0,0,0,.35);max-width:1100px;width:100%;margin:0 auto}
+.form-topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:10px 14px;border-bottom:1px solid var(--border)}
+.form-topo .modal-tit{flex:1;min-width:180px}
+.form-cx iframe{flex:1;width:100%;border:0;background:#FBF7EE}
+@media(max-width:600px){.form-ov{padding:0}.form-cx{border-radius:0}}
+/* 07/11/2026 — alterar unidade / valor financiado (proposta e simulação) */
+.bt.verde{background:#27AE60;color:#fff;border-color:#1E8449}.bt.verde:hover{background:#1E8449}.bt:disabled{opacity:.55;cursor:not-allowed}
+.alt-box{margin-top:12px;padding:14px 16px;border:2px solid #27AE60;border-radius:12px;background:rgba(39,174,96,.05)}
+.alt-tit{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.3px;color:var(--azul-esc);margin-bottom:8px}
+html[data-tema="escuro"] .alt-tit{color:var(--teal)}
+.alt-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:10px}
+.alt-grade .fcampo input,.alt-grade .fcampo select{min-width:0;width:100%}
+.alt-grade input[readonly]{background:var(--bg3);color:var(--text3)}
+.alt-aj{font-size:12px;color:var(--text3);line-height:1.45}
+.alt-acoes{display:flex;gap:9px;flex-wrap:wrap;margin:4px 0 12px}.alt-acoes .bt{font-size:14px;padding:10px 16px}
 
 /* seletor de obras (grupo) */
 .obras-box{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px;max-height:280px;overflow-y:auto;
@@ -573,6 +625,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-st="CONCLUIDO" onclick="simSegSt('CONCLUIDO')">Concluídas</button>
             <button class="seg-bt" data-st="ERRO" onclick="simSegSt('ERRO')">Com erro</button>
           </div>
+          <!-- 07/11/2026 — preencher nova simulação/proposta pelo portal, como no mapa -->
+          <div class="novo-bar">
+            <button class="bt mp-sim" onclick="novoEscolherUn('sim')">＋ Fazer simulação</button>
+            <button class="bt mp-prop" onclick="novoEscolherUn('prop')">＋ SUBIR PASTA</button>
+          </div>
         </div>
         <div class="card">
           <div class="filtros">
@@ -593,6 +650,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 
       <!-- ==================== ANÁLISE DE VENDAS (r49 · item 6) ==================== -->
       <section id="tab-analise" class="hide">
+        <!-- 03/11/2026 (dono): filtros por período, tipo e rua + VGV vendido em destaque (só contrato ASSINADO) -->
+        <div class="an-filtros" id="an-filtros"></div>
+        <div class="sec"><span class="cond">VGV vendido</span><span style="flex:1"></span>
+          <span style="font-size:12px;color:var(--text3)">só contrato assinado por todos, no mês da assinatura</span></div>
+        <div class="kpis an-top" id="an-top"></div>
         <div class="sec"><span class="cond">VGV · meta de R$ 315.000 por unidade</span></div>
         <div class="kpis" id="an-vgv"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
 
@@ -602,6 +664,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
         <div class="card">
           <div id="an-mapa" style="overflow:auto"></div>
           <div id="an-detalheUn" class="an-det"></div>
+          <div id="an-diverg" style="margin-top:10px"></div>
         </div>
 
         <div class="sec"><span class="cond">Vendas e reservas por tempo</span></div>
@@ -648,12 +711,20 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="seg-bt" data-pc="SIM" onclick="propSegCredito('SIM')">Com carta</button>
             <button class="seg-bt" data-pc="NAO" onclick="propSegCredito('NAO')">Sem carta</button>
           </div>
+          <!-- 07/11/2026 — preencher nova simulação/proposta pelo portal, como no mapa -->
+          <div class="novo-bar">
+            <button class="bt mp-sim" onclick="novoEscolherUn('sim')">＋ Fazer simulação</button>
+            <button class="bt mp-prop" onclick="novoEscolherUn('prop')">＋ SUBIR PASTA</button>
+          </div>
         </div>
         <div class="kpis k5" id="prop-cortes"></div>
         <div class="card">
           <div class="filtros">
             <div class="fcampo"><label>Buscar</label>
               <input type="search" id="prop-busca" placeholder="Cliente, CPF, unidade ou corretor…" oninput="propRender()"></div>
+            <!-- 06/11/26 — filtro do correspondente -->
+            <div class="fcampo"><label>Correspondente</label>
+              <select id="prop-corr-f" onchange="propRender()"><option value="">Todos</option></select></div>
             <button class="bt ghost" onclick="propCarregar(true,this)">↻ Atualizar agora</button>
             <div class="fcampo"><label>Ordem</label>
               <div class="seg" id="seg-ordem">
@@ -662,7 +733,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
               </div></div>
             <span style="font-size:12px;color:var(--text3);align-self:center">
               <span style="display:inline-block;width:10px;height:10px;background:#F6D6D2;border:1px solid #D98A80;border-radius:2px;vertical-align:middle"></span>
-              linha vermelha = reservada há mais de 24 h
+              linha vermelha = reserva vence em menos de 24 h (prazo de 5 dias para gerar o contrato)
               &nbsp;·&nbsp;
               <span class="leg-res"></span>
               linha azul = proposta enviada com a unidade já <b>reservada</b> (só é analisada se houver desistência)
@@ -698,10 +769,9 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <span id="sim-alteradas" style="font-size:12px;color:var(--text3);align-self:center"></span>
           </div>
           <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--text3);margin:4px 0 6px">
-            <b style="color:var(--text2)">Status interno (só controle, não vai para o mapa):</b>
+            <b style="color:var(--text2)">Cor da linha = STATUS MAPA:</b>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E3F4E8;border:1px solid #9BD3AE;vertical-align:-2px"></i> disponível</span>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#E1ECF8;border:1px solid #9CC3E4;vertical-align:-2px"></i> reservada</span>
-            <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#EDE3F6;border:1px solid #B79AD6;vertical-align:-2px"></i> pagou preferência</span>
             <span><i style="display:inline-block;width:12px;height:12px;border-radius:3px;background:#FBE1E1;border:1px solid #E7A3A3;vertical-align:-2px"></i> vendida</span>
           </div>
           <div class="tbl-wrap alta"><table id="sim-tabUn"></table></div>
@@ -719,10 +789,37 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
     <div class="modal-cx" id="sim-modalCx"></div>
   </div>
 
-<script src="app.js?v=45"></script>
-<script src="venda/FluxoLivre.js?v=11" defer></script><!-- 29/10: Alterar fluxo -->
-<script src="venda-dossie.js?v=65" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
-<script src="venda/contrato-vendida.js?v=2" defer></script><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
+  <!-- 07/11/2026 — escolha da unidade e o formulário do simulador dentro do portal -->
+  <div class="modal-ov hide" id="novo-un" onclick="if(event.target===this)novoFecharUn()">
+    <div class="modal-cx">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="modal-tit" id="novo-unTit" style="flex:1"></div>
+        <button class="bt ghost" onclick="novoFecharUn()">✕</button>
+      </div>
+      <div class="modal-sub" id="novo-unSub"></div>
+      <div class="filtros" style="margin:0">
+        <div class="fcampo"><label>Buscar</label>
+          <input type="search" id="novo-unBusca" placeholder="Unidade ou tipo…" oninput="novoRenderUn()"></div>
+      </div>
+      <div id="novo-unLista" class="un-grade"></div>
+    </div>
+  </div>
+  <div class="form-ov hide" id="novo-form">
+    <div class="form-cx">
+      <div class="form-topo">
+        <div class="modal-tit" id="novo-formTit"></div>
+        <button class="bt ghost" onclick="novoNovaAba()" title="Abre o mesmo formulário numa aba separada do navegador">↗ Abrir em nova aba</button>
+        <button class="bt az" onclick="novoFecharForm()">✕ Fechar</button>
+      </div>
+      <iframe id="novo-formFr" title="Formulário do simulador" allow="camera; clipboard-write"></iframe>
+    </div>
+  </div>
+
+<script src="app.js?v=46"></script>
+<script src="venda/FluxoLivre.js?v=16" defer></script><!-- 29/10: Alterar fluxo -->
+<script src="venda-dossie.js?v=82" defer></script><!-- 28/10: termo de pré-reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda/contrato-vendida.js?v=4" defer></script>
+<script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV da Análise de vendas (período, tipo, rua) --><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 /*POLL-INI*/
 /* 01/11 (cota do Google): consulta periódica só com a aba visível; ao voltar a ficar visível,
@@ -794,7 +891,7 @@ function trocarTab(nome){
   clearInterval(window._srvTimer);
   if(nome==="servidores"){ srvCarregar(); window._srvTimer=setInterval(()=>{ if(!document.hidden) srvCarregar(); }, 20000); }
   if(nome==="propostas") propCarregar();   // r40 — revalida toda vez (respeita o TTL)
-  if(nome==="analise"){ propCarregar(); if(!UNS.length) simCarregarUnidades(); else analiseRender(); }
+  if(nome==="analise"){ propCarregar(); anCarregarPlanilha(true); if(!UNS.length) simCarregarUnidades(); else analiseRender(); }   // 03/11: planilha relida a cada abertura
 }
 
 /* ---------- boot ---------- */
@@ -1177,6 +1274,9 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
        (o mapa do site do corretor continua só com a coluna VENDIDA) */
     const si=PROP_NORM(u.statusInterno||"");
     if(si==="VENDIDA") e="vendida"; else if(si==="RESERVADA") e="reservada"; else if(si==="PAGOU PREFERENCIA") e="preferencia";   // 05/10 (item 2)
+    /* 03/11 (dono) — no mapa da Análise de vendas manda a PLANILHA CASAS CONDOMÍNIO */
+    const pl=clicavel ? anPlanilhaDaUnidade(id) : null;
+    if(pl && pl.estado) e=pl.estado;
     c[e]++;
     pol.setAttribute("fill", cor[e]);
     pol.setAttribute("fill-opacity","0.62");
@@ -1187,7 +1287,8 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
     let t=pol.querySelector("title");
     if(!t){ t=document.createElementNS("http://www.w3.org/2000/svg","title"); pol.appendChild(t); }
     t.textContent="Un. "+id+" · T"+(u.tipo||"—")+" · "+simBRL(Number(u.valorVenda)||0)+" · "+
-      ({vendida:"vendida",reservada:"reservada",preferencia:"pagou preferência",disponivel:"disponível",indisponivel:"em breve"})[e];
+      ({vendida:"vendida",reservada:"reservada",preferencia:"pagou preferência",disponivel:"disponível",indisponivel:"em breve"})[e]+
+      (pl && pl.cliente ? " para "+pl.cliente : "");
   });
   const leg=document.getElementById(alvoLegenda);
   if(leg) leg.innerHTML=
@@ -1204,30 +1305,211 @@ async function pintarMapa(alvo, alvoLegenda, clicavel){
  * Junta unidades (situação e preço) com propostas (quem, corretor, crédito
  * e fluxo). Clicar numa unidade do mapa abre quem está nela.
  * ------------------------------------------------------------------ */
-function anEstado(u){
+/* 03/11/2026 (dono) — o mapa da Análise tem de bater com a PLANILHA CASAS CONDOMÍNIO
+ * (BANCO DE DADOS VENDAS CONDOMÍNIO): "vendida para X" é quem está na linha da venda, não a
+ * proposta mais nova da unidade (a unidade 18 mostrava uma proposta RECEBIDA de outro cliente e a
+ * 31 uma NEGADA com outro corretor). Situação pela linha, mesma régua do contrato-vendida.js:
+ * 04/11/2026 (dono): vendida só com a ETAPA Concluída (assinaturas concluídas e venda lançada no Mais Controle);
+ * antes disso a casa é reservada — PAGOU PREFERÊNCIA ou termo de pré-reserva assinado = preferência (roxo, só no
+ * mapa interno); DISTRATO não conta. Unidade sem linha segue a base UNIDADES. */
+let AN_PLAN=null, AN_PLAN_LENDO=false, AN_PLAN_ERRO="";
+async function anCarregarPlanilha(forcar){
+  if(AN_PLAN_LENDO || (AN_PLAN && !forcar)) return;
+  AN_PLAN_LENDO=true;
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  AN_PLAN_LENDO=false;
+  if(r && r.ok){ AN_PLAN={linhas:r.linhas||[], titulo:r.titulo||""}; AN_PLAN_ERRO=""; }
+  else AN_PLAN_ERRO=(r&&(r.mensagem||r.erro))||"sem resposta do servidor";
+  analiseRender();
+}
+function anPlVal(l,nome){
+  const v=(l&&l.v)||{};
+  if(v[nome]!==undefined) return v[nome];
+  const a=PROP_NORM(nome), k=Object.keys(v).find(x=>PROP_NORM(x)===a);
+  return k===undefined ? null : v[k];
+}
+function anNumUn(t){ const m=/\d+/.exec(String(t==null?"":t)); return m ? Number(m[0]) : null; }
+/* {linha, estado, cliente, corretor, assinatura} da unidade, ou null (sem linha / mais de uma) */
+function anPlanilhaDaUnidade(un){
+  if(!AN_PLAN) return null;
+  const n=anNumUn(un); if(n===null) return null;
+  const ls=AN_PLAN.linhas.filter(l=>{
+    const cond=PROP_NORM(anPlVal(l,"CONDOMÍNIO")).replace(/^CONDOMINIO\s+(RESIDENCIAL\s+)?/,"");
+    if(cond && !/RESERVA DOS? IPE/.test(cond)) return false;
+    if(PROP_NORM(anPlVal(l,"STATUS INTERNO"))==="DISTRATO") return false;
+    return anNumUn(anPlVal(l,"UNIDADE") || anPlVal(l,AN_PLAN.titulo))===n;
+  });
+  if(ls.length!==1) return ls.length ? {duplicada:ls.length} : null;
+  const l=ls[0];
+  const ass=PROP_NORM(anPlVal(l,"ASSINATURA - SITUAÇÃO"));
+  const si=PROP_NORM(anPlVal(l,"STATUS INTERNO"));
+  const pre=PROP_NORM(anPlVal(l,"PRÉ-RESERVA - SITUAÇÃO"));
+  const concl=window.ContratoVendida ? ContratoVendida.concluida(l)
+    : (ass==="ASSINADO" && !!String(anPlVal(l,"MC - VENDA ID")||"").trim());
+  let estado="reservada";
+  if(concl) estado="vendida";
+  else if(si==="PAGOU PREFERENCIA" || pre==="ASSINADO") estado="preferencia";
+  const nomes=[];
+  ["PROPONENTE","COMPRADOR 1","COMPRADOR 2","COMPRADOR 3"].forEach(c=>{
+    const t=String(anPlVal(l,c)||"").trim();
+    if(t && !nomes.some(x=>PROP_NORM(x)===PROP_NORM(t))) nomes.push(t);
+  });
+  return { linha:l, estado, cliente:nomes.join(" e "), corretor:String(anPlVal(l,"CORRETOR")||"").trim(),
+           imobiliaria:String(anPlVal(l,"IMOBILIÁRIA")||"").trim(), assinatura:ass, valor:Number(anPlVal(l,"VALOR DE VENDA"))||0,
+           idProposta:String(anPlVal(l,"ID PROPOSTA")||"").replace(/-/g,"").toLowerCase() };
+}
+/* situação só pela base UNIDADES (a mesma régua do mapa interno) */
+function anEstadoBase(u){
   const st=String(u.vendida||u.vendidaCru||"").toUpperCase();
-  if(st==="SIM") return "vendida";
-  if(st.indexOf("RESERV")===0) return "reservada";
+  const si=PROP_NORM(u.statusInterno||"");
+  if(si==="VENDIDA" || st==="SIM") return "vendida";
+  if(si==="PAGOU PREFERENCIA") return "preferencia";
+  if(si==="RESERVADA" || st.indexOf("RESERV")===0) return "reservada";
   const d=String(u.disponivel||"").toUpperCase();
   return (d==="SIM"||u.disponivel===true) ? "disponivel" : "indisponivel";
+}
+function anEstado(u){
+  const pl=anPlanilhaDaUnidade(u.unidade);
+  return (pl && pl.estado) ? pl.estado : anEstadoBase(u);
 }
 function anPropostaDaUnidade(un){
   const alvo=String(un).trim();
   const desta=PROPS.filter(p=>String(p.unidade||"").trim()===alvo);
-  const peso={ACEITA:3, RESERVADA:2, "EM ANALISE":1};
+  /* a proposta da venda: a que a linha da planilha aponta (ID PROPOSTA) */
+  const pl=anPlanilhaDaUnidade(un);
+  if(pl && pl.idProposta){ const p=desta.find(x=>String(x.id||"").replace(/-/g,"").toLowerCase()===pl.idProposta); if(p) return p; }
+  const peso={VENDIDA:4, ACEITA:3, RESERVADA:2, "EM ANALISE":1};
   return desta.sort((a,b)=>(peso[PROP_NORM(b.status)]||0)-(peso[PROP_NORM(a.status)]||0) ||
                            String(b.criadoEm||"").localeCompare(String(a.criadoEm||"")))[0] || null;
 }
+/* ---- 03/11/2026 (dono): filtros da Análise de vendas e VGV vendido em destaque ----
+   Período (pela data de assinatura do contrato), tipo e rua. Tipo e rua valem para a tela toda (cartões, mapa e
+   tabela); o período vale para o que foi vendido. No VGV só é venda o contrato ASSINADO por todos; contrato enviado
+   aparece em "Em assinatura". O mapa só pinta de vendida com a ETAPA Concluída (04/11). Contas em
+   venda/vgv-condominio.js. */
+const AN_F={per:"tudo",mes:"",tri:"",ano:"",de:"",ate:"",tipo:"",rua:""};
+try{ Object.assign(AN_F,JSON.parse(localStorage.getItem("an_filtros")||"{}")); }catch(e){}
+function anHoje(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function anF(campo,valor){ AN_F[campo]=valor; try{ localStorage.setItem("an_filtros",JSON.stringify(AN_F)); }catch(e){} analiseRender(); }
+function anLimparF(){ AN_F.per="tudo"; AN_F.tipo=""; AN_F.rua=""; anF("per","tudo"); }
+function anPassaF(u){
+  if(AN_F.tipo && String(u.tipo||"").trim()!==AN_F.tipo) return false;
+  if(AN_F.rua && VgvCondominio.rua(u.unidade)!==AN_F.rua) return false;
+  return true;
+}
+/* venda da unidade para o VGV: {estado: assinado|assinando|fora, data, valor} pela linha da Planilha Casas Condomínio */
+function anVendaVgv(u){
+  const pl=anPlanilhaDaUnidade(u.unidade), l=pl&&pl.linha;
+  if(!l) return {estado:"fora", data:"", valor:Number(u.valorVenda)||0};
+  const it=VgvCondominio.itens([l], anPlVal)[0];
+  if(!it.valor) it.valor=Number(u.valorVenda)||0;
+  return it;
+}
+function anPeriodo(){
+  const hoje=anHoje();
+  if(!AN_F.mes) AN_F.mes=hoje.slice(0,7); if(!AN_F.ano) AN_F.ano=hoje.slice(0,4);
+  if(!AN_F.tri) AN_F.tri=hoje.slice(0,4)+"-"+Math.ceil(Number(hoje.slice(5,7))/3);
+  if(!AN_F.de) AN_F.de="2026-10"; if(!AN_F.ate) AN_F.ate=hoje.slice(0,7);
+  return VgvCondominio.periodo(AN_F.per,{hoje:hoje,mes:AN_F.mes,tri:AN_F.tri,ano:AN_F.ano,de:AN_F.de,ate:AN_F.ate});
+}
+function anFiltros(){
+  const el=document.getElementById("an-filtros"); if(!el||typeof VgvCondominio==="undefined") return;
+  const V=VgvCondominio, hoje=anHoje();
+  const meses=[]; for(let m="2026-10"; m<=hoje.slice(0,7); m=(function(x){const t=Number(x.slice(0,4))*12+Number(x.slice(5,7)); return Math.floor(t/12)+"-"+String(t%12+1).padStart(2,"0");})(m)) meses.push(m);
+  meses.reverse();
+  const anos=[...new Set(meses.map(m=>m.slice(0,4)))];
+  const sel=(campo,ops,rot)=>'<select aria-label="'+rot+'" onchange="anF(\''+campo+'\',this.value)">'+ops.map(o=>'<option value="'+esc(o[0])+'"'+(String(AN_F[campo])===String(o[0])?" selected":"")+'>'+esc(o[1])+'</option>').join("")+'</select>';
+  const bt=(k,t)=>'<button type="button" class="'+(AN_F.per===k?"on":"")+'" onclick="anF(\'per\',\''+k+'\')">'+t+'</button>';
+  let extra="";
+  if(AN_F.per==="mes") extra=sel("mes",meses.map(m=>[m,V.mesLongo(m)]),"Mês");
+  if(AN_F.per==="tri") extra=sel("tri",anos.flatMap(a=>[4,3,2,1].map(t=>[a+"-"+t,t+"º tri "+a])),"Trimestre");
+  if(AN_F.per==="ano") extra=sel("ano",anos.map(a=>[a,a]),"Ano");
+  if(AN_F.per==="livre") extra='<span class="lb">de</span>'+sel("de",meses.slice().reverse().map(m=>[m,V.mesCurto(m)]),"De")+'<span class="lb">até</span>'+sel("ate",meses.map(m=>[m,V.mesCurto(m)]),"Até");
+  const tipos=[...new Set(UNS.map(u=>String(u.tipo||"").trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,"pt-BR",{numeric:true}));
+  const algum=AN_F.per!=="tudo"||AN_F.tipo||AN_F.rua;
+  el.innerHTML='<span class="lb">Período</span><div class="an-per" role="group" aria-label="Período">'+
+    bt("tudo","Tudo")+bt("mesat","Este mês")+bt("mes","Mês")+bt("tri","Trimestre")+bt("ano","Ano")+bt("livre","De… até…")+'</div>'+extra+
+    '<span class="lb">Tipo</span>'+sel("tipo",[["","Todos"]].concat(tipos.map(t=>[t,"Tipo "+t])),"Tipo")+
+    '<span class="lb">Rua</span>'+sel("rua",[["","Todas"]].concat(V.ruas().map(r=>[r,"Rua "+r])),"Rua")+
+    (algum?'<button type="button" class="limpar" onclick="anLimparF()">Limpar filtros</button>':'');
+}
+function anTop(){
+  const el=document.getElementById("an-top"); if(!el) return;
+  if(!UNS.length||typeof VgvCondominio==="undefined"){ el.innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>'; return; }
+  if(!AN_PLAN){ el.innerHTML='<div class="vazio" style="grid-column:1/-1">'+(AN_PLAN_ERRO?"Sem a Planilha Casas Condomínio não dá para saber quais contratos foram assinados.":'<span class="load"></span> Lendo a Planilha Casas Condomínio…')+'</div>'; return; }
+  const U=UNS.filter(anPassaF), p=anPeriodo();
+  const vs=U.map(u=>Object.assign(anVendaVgv(u),{u:u}));
+  const r=VgvCondominio.resumo(vs,p);
+  const estoque=U.filter(u=>{ const e=anEstado(u); return e!=="vendida"; });
+  const vEst=estoque.reduce((a,u)=>a+(Number(u.valorVenda)||0),0);
+  const delta=(a,b,rot)=>{ if(!r.ant) return ""; if(!b) return '<div class="ant">'+esc(rot)+': —</div>';
+    const d=(a-b)/b; return '<div class="ant"><b class="'+(d>=0?"sobe":"desce")+'">'+(d>=0?"▲":"▼")+" "+Math.abs(d*100).toLocaleString("pt-BR",{maximumFractionDigits:1})+'%</b> vs '+esc(rot)+'</div>'; };
+  const pct=U.length?r.acumulado.n/U.length*100:0;
+  el.innerHTML=
+    '<div class="kpi hero"><div class="lab">VGV vendido · '+esc(p.rotulo)+'</div><div class="val">'+simBRL(r.vgv)+'</div>'+
+      (r.ant?delta(r.vgv,r.ant.vgv,r.ant.rotulo):'<div class="sub">'+r.n+' contrato(s) assinado(s)</div>')+'</div>'+
+    '<div class="kpi"><div class="lab">Casas vendidas</div><div class="val">'+r.n+'</div>'+
+      '<div class="sub">'+r.acumulado.n+' de '+U.length+' assinadas até hoje · ticket '+(r.n?simBRL(r.ticket):"—")+'</div><div class="an-mbar"><i style="width:'+pct.toFixed(1)+'%"></i></div></div>'+
+    '<div class="kpi"><div class="lab">Em assinatura · fora do VGV</div><div class="val">'+simBRL(r.assinando.vgv)+'</div><div class="sub">'+r.assinando.n+' contrato(s) enviado(s), faltam assinaturas</div></div>'+
+    '<div class="kpi"><div class="lab">VGV a vender</div><div class="val">'+simBRL(vEst)+'</div><div class="sub">'+estoque.length+' casa(s) em estoque</div></div>'+
+    (r.semData?'<div class="sim-aviso err" style="grid-column:1/-1">'+r.semData+' contrato(s) assinado(s) sem data de assinatura válida: não entram em período nenhum. Corrija a data na Planilha Casas Condomínio.</div>':'');
+}
+/* tipo/rua: apaga no mapa as casas fora do filtro */
+function anMapaFiltro(){
+  const svg=document.querySelector("#an-mapa svg"); if(!svg) return;
+  UNS.forEach(u=>{
+    const id=String(u.unidade||"").trim();
+    const pol=svg.querySelector('[id="'+id+'"]')||svg.querySelector('[id="'+id.padStart(2,"0")+'"]');
+    if(pol) pol.style.opacity=anPassaF(u)?"":"0.15";
+  });
+}
 function analiseRender(){
   if(!document.getElementById("an-vgv")) return;
-  anVgv(); anMapa(); anFluxo(); anTabela();
+  /* só com a aba aberta: o Apps Script atende um pedido por vez */
+  const aberta=!document.getElementById("tab-analise").classList.contains("hide");
+  if(aberta && !AN_PLAN && !AN_PLAN_LENDO && !AN_PLAN_ERRO) anCarregarPlanilha();
+  anFiltros(); anTop(); anVgv(); anMapa(); anFluxo(); anTabela(); anDivergencias();
+}
+/* o que a base UNIDADES diz diferente da planilha — o mapa já segue a planilha; a lista diz o que acertar */
+function anDivergencias(){
+  const el=document.getElementById("an-diverg"); if(!el) return;
+  if(AN_PLAN_ERRO){ el.innerHTML='<div class="sim-aviso err">Não consegui ler a Planilha Casas Condomínio ('+esc(AN_PLAN_ERRO)+'): o mapa está só com a base Unidades. <button class="bt" onclick="AN_PLAN_ERRO=\'\';anCarregarPlanilha(true)">↻ Tentar de novo</button></div>'; return; }
+  if(!AN_PLAN){ el.innerHTML='<div class="sim-aviso"><span class="load"></span> Lendo a Planilha Casas Condomínio…</div>'; return; }
+  if(!UNS.length){ el.innerHTML=""; return; }
+  const nome={vendida:"vendida", reservada:"reservada", preferencia:"pagou preferência", disponivel:"disponível", indisponivel:"em breve"};
+  const itens=[];
+  UNS.forEach(u=>{
+    const pl=anPlanilhaDaUnidade(u.unidade);
+    if(pl && pl.duplicada){ itens.push("Un. "+esc(String(u.unidade))+": "+pl.duplicada+" linhas na planilha — fica uma só."); return; }
+    if(!pl) return;
+    const b=anEstadoBase(u);
+    if(b!==pl.estado) itens.push("Un. "+esc(String(u.unidade))+": base Unidades diz <b>"+nome[b]+"</b>, a planilha diz <b>"+nome[pl.estado]+"</b>"+
+      (pl.assinatura==="CANCELADO" ? " (contrato CANCELADO)" : "")+".");
+    else if(PROP_NORM(u.statusInterno||"")==="DISPONIVEL" && pl.estado!=="disponivel")
+      itens.push("Un. "+esc(String(u.unidade))+": STATUS INTERNO = DISPONÍVEL na base Unidades, mas está "+nome[pl.estado]+" na planilha.");
+    const p=anPropostaDaUnidade(u.unidade);
+    if(p && pl.idProposta && String(p.id||"").replace(/-/g,"").toLowerCase()===pl.idProposta && PROP_NORM(p.status)!=="VENDIDA" && pl.estado==="vendida")
+      itens.push("Un. "+esc(String(u.unidade))+": a proposta da venda está "+esc(p.status||"sem status")+", não VENDIDA.");
+  });
+  const nums=new Set(UNS.map(u=>anNumUn(u.unidade)));
+  AN_PLAN.linhas.forEach(l=>{
+    const n=anNumUn(anPlVal(l,"UNIDADE") || anPlVal(l,AN_PLAN.titulo));
+    const cond=PROP_NORM(anPlVal(l,"CONDOMÍNIO")).replace(/^CONDOMINIO\s+(RESIDENCIAL\s+)?/,"");
+    if((!cond || /RESERVA DOS? IPE/.test(cond)) && n!==null && !nums.has(n)) itens.push("Linha da planilha com a unidade "+n+", que não existe na base Unidades.");
+  });
+  el.innerHTML = itens.length
+    ? '<div class="sim-aviso err"><b>Base Unidades × Planilha Casas Condomínio</b> — o mapa acima já segue a planilha; acerte a base Unidades em Simulações › Editar unidades:<ul style="margin:6px 0 0 18px">'+itens.map(t=>"<li>"+t+"</li>").join("")+"</ul></div>"
+    : '<div class="sim-aviso ok">Base Unidades e Planilha Casas Condomínio batem.</div>';
 }
 function anVgv(){
   const el=document.getElementById("an-vgv");
   if(!UNS.length){ el.innerHTML='<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando unidades…</div>'; return; }
   const val=u=>Number(u.valorVenda)||0;
-  const vend=UNS.filter(u=>anEstado(u)==="vendida");
-  const estoque=UNS.filter(u=>anEstado(u)!=="vendida");
+  /* 03/11: tipo e rua do filtro valem aqui; "vendidas" = contrato ASSINADO (regra do VGV) */
+  const U=UNS.filter(anPassaF);
+  const vend=U.filter(u=>anVendaVgv(u).estado==="assinado");
+  const estoque=U.filter(u=>anEstado(u)!=="vendida");
   const med=a=>a.length ? a.reduce((x,u)=>x+val(u),0)/a.length : 0;
   const card=(lab,val2,meta,extra)=>{
     let sub=extra?`<div class="sub">${esc(extra)}</div>`:"";
@@ -1237,22 +1519,20 @@ function anVgv(){
     }
     return `<div class="kpi"><div class="lab">${lab}</div><div class="val">${val2}</div>${sub}</div>`;
   };
-  const faltam=Math.max(0, VGV_META*UNS.length - UNS.reduce((a,u)=>a+val(u),0));
+  const faltam=Math.max(0, VGV_META*U.length - U.reduce((a,u)=>a+val(u),0));
   const ehDecorado=u=>u.decorado===true || /^SIM$/i.test(String(u.decorado||"").trim());
-  const semDecorado=UNS.filter(u=>!ehDecorado(u));
+  const semDecorado=U.filter(u=>!ehDecorado(u));
   el.innerHTML=
-    card("VGV médio · vendidas", simBRL(med(vend)), med(vend), null)+
+    card("VGV médio · vendidas", vend.length?simBRL(med(vend)):"—", vend.length?med(vend):null, vend.length?null:"nenhum contrato assinado")+
     card("VGV médio · estoque", simBRL(med(estoque)), med(estoque), null)+
     /* 02/10 — geral COM e SEM o(s) decorado(s): o decorado tem valor bem acima
        (vai mobiliado) e puxa a média do conjunto para cima */
-    card("VGV médio · geral (com decorado)", simBRL(med(UNS)), med(UNS), null)+
+    card("VGV médio · geral (com decorado)", simBRL(med(U)), med(U), null)+
     card("VGV médio · geral (sem decorado)", simBRL(med(semDecorado)), med(semDecorado), null)+
-    card("Vendidas", vend.length+" de "+UNS.length, null, simBRL(vend.reduce((a,u)=>a+val(u),0))+" vendidos")+
-    card("Em estoque", estoque.length+"", null, simBRL(estoque.reduce((a,u)=>a+val(u),0))+" a vender")+
     card("Para bater a meta", faltam?simBRL(faltam):"na meta", null,
          faltam?"é o quanto falta no conjunto para a média chegar a "+simBRL(VGV_META):"o conjunto já está na meta");
 }
-function anMapa(){ pintarMapa("an-mapa","an-legenda", true); }
+function anMapa(){ Promise.resolve(pintarMapa("an-mapa","an-legenda", true)).then(anMapaFiltro); }
 function anFluxo(){
   const datas=PROPS.filter(p=>["ACEITA","RESERVADA"].includes(PROP_NORM(p.status)))
                    .map(p=>p.dataAceite||p.dataReserva||p.criadoEm);
@@ -1260,20 +1540,25 @@ function anFluxo(){
 }
 function anTabela(){
   const el=document.getElementById("an-tabela"); if(!el) return;
-  const linhas=UNS.filter(u=>anEstado(u)!=="disponivel" && anEstado(u)!=="indisponivel")
+  const linhas=UNS.filter(u=>anEstado(u)!=="disponivel" && anEstado(u)!=="indisponivel" && anPassaF(u))
     .sort((a,b)=>(parseInt(a.unidade,10)||0)-(parseInt(b.unidade,10)||0));
-  const cab='<thead><tr><th>Unidade</th><th>Situação</th><th class="col-num">Valor</th>'+
+  const cab='<thead><tr><th>Unidade</th><th>Rua</th><th>Situação</th><th>Assinado em</th><th class="col-num">Valor</th>'+
             '<th>Cliente</th><th>Corretor</th><th>Crédito</th><th>Sinal</th></tr></thead>';
   const corpo=linhas.length ? linhas.map(u=>{
-    const e=anEstado(u), p=anPropostaDaUnidade(u.unidade);
-    const sit=e==="vendida" ? '<span class="pill ruim">VENDIDA</span>' : '<span class="pill" style="background:rgba(31,111,178,.16);color:#1F6FB2">RESERVADA</span>';
+    const e=anEstado(u), p=anPropostaDaUnidade(u.unidade), pl=anPlanilhaDaUnidade(u.unidade);
+    const sit=e==="vendida" ? '<span class="pill ruim">VENDIDA</span>'
+      : e==="preferencia" ? '<span class="pill" style="background:rgba(123,79,160,.16);color:#7B4FA0">PAGOU PREFERÊNCIA</span>'
+      : '<span class="pill" style="background:rgba(31,111,178,.16);color:#1F6FB2">RESERVADA</span>';
+    /* 03/11 — cliente e corretor da PLANILHA CASAS CONDOMÍNIO; sem linha lá, os da proposta */
+    const cli=(pl&&pl.cliente)||(p&&p.cliente)||"—", cor=(pl&&pl.corretor)||(p&&p.vendedor)||"—";
     return `<tr class="clicavel" onclick="anDetalhe('${esc(String(u.unidade))}')">`+
-      `<td><b>Un. ${esc(String(u.unidade))}</b> · T${esc(String(u.tipo||"—"))}</td><td>${sit}</td>`+
-      `<td class="num">${simBRL(u.valorVenda)}</td>`+
-      `<td>${esc((p&&p.cliente)||"—")}</td><td>${esc((p&&p.vendedor)||"—")}</td>`+
+      `<td><b>Un. ${esc(String(u.unidade))}</b> · T${esc(String(u.tipo||"—"))}</td><td>${esc(VgvCondominio.rua(u.unidade)||"—")}</td><td>${sit}</td>`+
+      `<td>${(function(){ const x=anVendaVgv(u); return x.estado==="assinado"&&x.data ? x.data.slice(8,10)+"/"+x.data.slice(5,7)+"/"+x.data.slice(0,4) : x.estado==="assinando" ? "assinando" : "—"; })()}</td>`+
+      `<td class="num">${simBRL((pl&&pl.valor)||u.valorVenda)}</td>`+
+      `<td>${esc(cli)}</td><td>${esc(cor)}</td>`+
       `<td>${p ? (p.comCredito?'<span class="pill bom">APROVADO</span>':'<span class="pill ruim">SEM CARTA</span>') : "—"}</td>`+
       `<td>${p ? propPillSinais(p) : "—"}</td></tr>`;
-  }).join("") : '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:16px">Nenhuma unidade reservada ou vendida ainda.</td></tr>';
+  }).join("") : '<tr><td colspan="9" style="text-align:center;color:var(--text3);padding:16px">Nenhuma unidade reservada ou vendida com esses filtros.</td></tr>';
   el.innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
 function anDetalhe(un){
@@ -1282,13 +1567,17 @@ function anDetalhe(un){
   document.getElementById("sim-modal").classList.remove("hide");
   const u=UNS.find(x=>String(x.unidade).trim()===String(un).trim());
   if(!u){ cx.innerHTML=""; return; }
-  const e=anEstado(u), p=anPropostaDaUnidade(un);
+  const e=anEstado(u), p=anPropostaDaUnidade(un), pl=anPlanilhaDaUnidade(un);
   const it=(r,v)=>`<div class="sim-item"><small>${r}</small><b>${v||"—"}</b></div>`;
-  const nome={vendida:"Vendida", reservada:"Reservada", disponivel:"Disponível", indisponivel:"Em breve"}[e];
-  let html=`<div class="modal-tit">Unidade ${esc(String(un))} · ${nome}</div>
+  const nome={vendida:"Vendida", reservada:"Reservada", preferencia:"Pagou preferência", disponivel:"Disponível", indisponivel:"Em breve"}[e];
+  let html=`<div class="modal-tit">Unidade ${esc(String(un))} · ${nome}${pl&&pl.cliente ? " para "+esc(pl.cliente) : ""}</div>
     <div class="modal-sub">Condomínio Reserva dos Ipês</div>
-    <div class="sim-grade" style="margin-top:12px">${it("Tipo","T"+esc(String(u.tipo||"—")))}${it("Valor de venda",simBRL(u.valorVenda))}
+    <div class="sim-grade" style="margin-top:12px">${it("Tipo","T"+esc(String(u.tipo||"—")))}${it("Valor de venda",simBRL((pl&&pl.valor)||u.valorVenda))}
     ${it("Avaliação",simBRL(u.avaliacao))}${it("Situação",nome)}</div>`;
+  if(pl && pl.cliente){
+    html+=`<div class="sim-grade" style="margin-top:12px">${it("Comprador(es) · planilha",esc(pl.cliente))}${it("Corretor · planilha",esc(pl.corretor))}
+      ${it("Imobiliária · planilha",esc(pl.imobiliaria))}${it("Contrato",esc(pl.assinatura||"não enviado"))}</div>`;
+  }
   if(!p){
     html+='<div class="sim-aviso" style="margin-top:12px">Nenhuma proposta ligada a esta unidade no portal.</div>';
   } else {
@@ -1628,6 +1917,8 @@ function simVerAbaixo(id){
     <div class="sec" style="margin-top:0"><span class="cond">Simulação de ${esc(s.cliente||"—")}</span>
       <span style="flex:1"></span>
       <button class="bt" style="background:#2a9d5c;color:#fff;border-color:#2a9d5c;margin-right:8px" onclick="simParaProposta('${s.id}')">📄 Transformar em proposta</button>
+      ${!ehSomenteLeitura(S)?`<button class="bt verde" style="margin-right:8px" onclick="simVerDet('${s.id}');setTimeout(function(){altSimAbrir('${s.id}')},60)">✎ Alterar unidade / valor</button>`:""}
+      <button class="bt" style="margin-right:8px" onclick="fluxoPdf('sim','${s.id}')">📄 PDF do fluxo</button>
       <button class="bt ghost" onclick="document.getElementById('sim-detBaixo').style.display='none'">Fechar</button></div>
     <div class="modal-sub" style="margin-bottom:10px">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagSt(s.status)}</div>
     <div class="sim-grade">
@@ -1671,6 +1962,12 @@ function simVerDet(id){
   document.getElementById("sim-modalCx").innerHTML=`
     <div class="modal-tit">${esc(s.cliente||"—")}</div>
     <div class="modal-sub">CPF ${esc(s.cpf||"—")} · ${simData(s.criadoEm)} · ${simTagSt(s.status)}</div>
+    <!-- 07/11/2026 — alterar unidade / valor e PDF do fluxo: logo no topo -->
+    <div class="alt-acoes">
+      ${!ehSomenteLeitura(S)?`<button class="bt verde" onclick="altSimAbrir('${s.id}')">✎ Alterar unidade / valor</button>`:""}
+      <button class="bt az" onclick="fluxoPdf('sim','${s.id}')">📄 Gerar PDF do fluxo</button>
+    </div>
+    <div id="alt-sim-${s.id}"></div>
     <div class="sim-grade">
       ${it("Corretor",esc(s.corretor||""))}${it("Imobiliária",esc(s.imobiliaria||""))}${it("E-mail",esc(s.email||""))}${it("Celular do corretor",s.celularCorretor?simLinkTel(s.celularCorretor):"—")}
       ${it("Unidade","Un. "+esc(String(s.unidade||"—"))+" (Tipo "+esc(String(s.tipo||"—"))+")")}
@@ -1725,6 +2022,378 @@ function simParaProposta(id){
     "&unidade="+encodeURIComponent(d.unidade)+"&daSimulacao=1", "_blank");
 }
 function simFecharDet(){ document.getElementById("sim-modal").classList.add("hide"); }
+
+/* =====================================================================
+ * 07/11/2026 (dono) — NOVA SIMULAÇÃO / SUBIR PASTA PELO PORTAL
+ * ---------------------------------------------------------------------
+ * Os mesmos dois botões do mapa de vendas (Fazer simulação · SUBIR PASTA),
+ * agora nas abas Simulações Recebidas e Propostas. Primeiro escolhe a
+ * unidade (igual a clicar no lote do mapa: só disponível ou reservada —
+ * reservada entra, mas a proposta só é analisada se houver desistência);
+ * depois o formulário do simulador abre aqui dentro, numa janela por cima
+ * do portal. É a mesma página do mapa (mesmo domínio), então grava nas
+ * mesmas bases, manda os mesmos e-mails e passa pelas mesmas regras.
+ * Ao fechar, a lista da aba é recarregada para a nova já aparecer.
+ * ------------------------------------------------------------------ */
+const SIMULADOR_URL = "https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/";
+let NOVO_MODO = "sim", NOVO_URL = "";
+function novoEstadoUn(u){
+  const e = anEstadoBase(u);
+  return e==="preferencia" ? "reservada" : e;   // pagou preferência = reservada no mapa do corretor
+}
+async function novoEscolherUn(modo){
+  NOVO_MODO = modo;
+  document.getElementById("novo-unTit").textContent = modo==="sim" ? "Fazer simulação · escolha a unidade" : "SUBIR PASTA · escolha a unidade";
+  document.getElementById("novo-unSub").innerHTML = modo==="sim"
+    ? "Abre o simulador com a unidade já escolhida, como pelo mapa de vendas."
+    : "Abre a proposta com a unidade já escolhida, como pelo mapa de vendas. Unidade <b style=\"color:#1F6FB2\">reservada</b>: a proposta entra, mas só é analisada se houver desistência.";
+  document.getElementById("novo-unBusca").value = "";
+  document.getElementById("novo-un").classList.remove("hide");
+  if(!UNS.length){
+    document.getElementById("novo-unLista").innerHTML = '<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando as unidades…</div>';
+    try{ await simCarregarUnidades(); }catch(e){}
+  }
+  novoRenderUn();
+  setTimeout(()=>{ try{ document.getElementById("novo-unBusca").focus(); }catch(e){} }, 50);
+}
+function novoRenderUn(){
+  const box = document.getElementById("novo-unLista"); if(!box) return;
+  if(!UNS.length){
+    box.innerHTML = '<div class="vazio" style="grid-column:1/-1">Não consegui carregar as unidades agora. ' +
+      'Tente de novo ou <a href="#" onclick="novoAbrir(\'\',\'\');return false">abra o formulário sem unidade</a> e escolha por lá.</div>';
+    return;
+  }
+  const q = PROP_NORM(document.getElementById("novo-unBusca").value||"");
+  const lista = UNS.filter(u=>{
+    const e = novoEstadoUn(u);
+    if(e!=="disponivel" && e!=="reservada") return false;   // vendida e "em breve" ficam de fora, como no mapa
+    if(!q) return true;
+    return PROP_NORM("un "+u.unidade+" unidade "+u.unidade+" tipo "+(u.tipo||"")+" t"+(u.tipo||"")).indexOf(q)>=0;
+  }).sort((a,b)=>(parseInt(a.unidade,10)||0)-(parseInt(b.unidade,10)||0));
+  box.innerHTML = lista.length ? lista.map(u=>{
+    const res = novoEstadoUn(u)==="reservada";
+    const un = esc(String(u.unidade||"").replace(/['\\]/g,"")), tp = esc(String(u.tipo||"").replace(/['\\]/g,""));
+    return `<button class="un-op${res?" res":""}" onclick="novoAbrir('${tp}','${un}')">
+      <b>Un. ${un}</b><small>Tipo ${tp||"—"} · ${simBRL(Number(u.valorVenda)||0)}</small>
+      <span class="st">${res?"Reservada":"Disponível"}</span></button>`;
+  }).join("") : '<div class="vazio" style="grid-column:1/-1">Nenhuma unidade disponível'+(q?" com essa busca":"")+'.</div>';
+}
+function novoFecharUn(){ document.getElementById("novo-un").classList.add("hide"); }
+function novoAbrir(tipo, unidade){
+  novoFecharUn();
+  const pag = NOVO_MODO==="sim" ? "simulador.html" : "proposta.html";
+  NOVO_URL = SIMULADOR_URL + pag + (unidade ? "?tipo="+encodeURIComponent(tipo)+"&unidade="+encodeURIComponent(unidade) : "");
+  document.getElementById("novo-formTit").textContent =
+    (NOVO_MODO==="sim" ? "Fazer simulação" : "SUBIR PASTA") + (unidade ? " · Unidade "+unidade+(tipo?" · Tipo "+tipo:"") : "");
+  document.getElementById("novo-formFr").src = NOVO_URL;
+  document.getElementById("novo-form").classList.remove("hide");
+  document.body.style.overflow = "hidden";
+}
+function novoNovaAba(){
+  let url = NOVO_URL;
+  try{ const l = document.getElementById("novo-formFr").contentWindow.location.href; if(l && l!=="about:blank") url = l; }catch(e){}
+  window.open(url, "_blank");
+}
+function novoFecharForm(){
+  const fr = document.getElementById("novo-formFr");
+  let enviado = false;
+  try{ enviado = /enviado\.html/i.test(fr.contentWindow.location.pathname); }catch(e){}
+  if(!enviado && !confirm("Fechar o formulário? O que ainda não foi enviado se perde.")) return;
+  document.getElementById("novo-form").classList.add("hide");
+  document.body.style.overflow = "";
+  fr.src = "about:blank";
+  /* a nova simulação/proposta já aparece na lista */
+  try{ storeInvalidar("sims_lista","sims_propostas"); }catch(e){}
+  try{ simCarregar(true); }catch(e){}
+  try{ propCarregar(true); }catch(e){}
+}
+
+/* =====================================================================
+ * 07/11/2026 (dono) — ALTERAR UNIDADE E VALOR FINANCIADO PELO PORTAL
+ * ---------------------------------------------------------------------
+ * PROPOSTA: troca a unidade e/ou o valor financiado (sem crédito aprovado,
+ * até 80% da avaliação). O fluxo é refeito aqui com a MESMA conta do
+ * simulador (fluxo-calc.js, fpcGerar) e gravado pelo servidor do simulador
+ * (ação simsPropostaAlterar → portalAlterarProposta). Se o valor para o
+ * sinal ficar abaixo do sinal mínimo da unidade nova, ele sobe até o
+ * mínimo. Proposta que segura a unidade (reservada, pagou preferência,
+ * vendida): a reserva vai junto e a unidade antiga volta a disponível.
+ * SIMULAÇÃO: mantém os dados da pessoa, troca unidade e/ou valor a
+ * financiar, o servidor refaz a estimativa e o sinal mínimo e devolve
+ * para a fila (sai e-mail novo).
+ * ------------------------------------------------------------------ */
+let ALT_CALC=null;
+function altCarregarCalc(){
+  if(typeof fpcGerar==="function") return Promise.resolve(true);
+  if(ALT_CALC) return ALT_CALC;
+  ALT_CALC=new Promise((ok,falha)=>{
+    const sc=document.createElement("script");
+    sc.src=SIMULADOR_URL+"fluxo-calc.js?v="+Date.now();
+    sc.onload=()=>ok(true); sc.onerror=()=>{ ALT_CALC=null; falha(new Error("fluxo-calc")); };
+    document.head.appendChild(sc);
+  });
+  return ALT_CALC;
+}
+const altMoeda=v=>(Number(v)||0).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2});
+function altNum(id){ const el=document.getElementById(id); return el ? propNumBR(el.value) : 0; }
+function altMascara(el){ const d=String(el.value||"").replace(/\D/g,""); el.value = d ? (parseInt(d,10)/100).toLocaleString("pt-BR",{minimumFractionDigits:2,maximumFractionDigits:2}) : ""; }
+function altPrazo(v){ const n=Number(v)||48; return n<=24 ? 24 : (n<=36 ? 36 : 48); }
+function altOpcoesUn(atual, aceitaReservada){
+  const lista=UNS.filter(u=>{
+    if(String(u.unidade)===String(atual)) return false;
+    const e=novoEstadoUn(u);
+    return e==="disponivel" || (aceitaReservada && e==="reservada");
+  }).sort((a,b)=>(parseInt(a.unidade,10)||0)-(parseInt(b.unidade,10)||0));
+  return `<option value="">— manter a unidade ${esc(String(atual||""))} —</option>`+lista.map(u=>
+    `<option value="${esc(String(u.unidade))}">Unidade ${esc(String(u.unidade))} · Tipo ${esc(String(u.tipo||"—"))} · ${simBRL(Number(u.valorVenda)||0)}${novoEstadoUn(u)==="reservada"?" · RESERVADA":""}</option>`).join("");
+}
+function altUnidade(num){ return UNS.find(u=>String(u.unidade)===String(num)) || null; }
+async function altGarantirUnidades(){ if(!UNS.length){ try{ await simCarregarUnidades(); }catch(e){} } }
+
+/* ---------- PROPOSTA ---------- */
+let ALT_P=null;
+async function altPropAbrir(id){
+  const p=PROPS.find(x=>x.id===id); if(!p) return;
+  const cx=document.getElementById("alt-prop"); if(!cx) return;
+  if(cx.dataset.aberto==="1"){ cx.innerHTML=""; cx.dataset.aberto=""; return; }
+  cx.dataset.aberto="1";
+  cx.innerHTML='<div class="sim-aviso ok"><span class="load"></span> Carregando as unidades e a conta do fluxo…</div>';
+  try{ await Promise.all([altCarregarCalc(), altGarantirUnidades()]); }
+  catch(e){ cx.innerHTML='<div class="sim-aviso err">Não consegui carregar a conta do fluxo agora. Tente de novo.</div>'; cx.dataset.aberto=""; return; }
+  const d=p.dados||{};
+  const cred=!!p.comCredito && Number(p.creditoAprovado)>0;
+  ALT_P={ p, d, cred, finEditado:false };
+  cx.innerHTML=`<div class="alt-box">
+    <div class="alt-tit">Alterar unidade e valores da proposta</div>
+    <div class="alt-grade">
+      <div class="fcampo"><label>Unidade</label><select id="alt-un" onchange="altPropCalc(true)">${altOpcoesUn(p.unidade,false)}</select></div>
+      <div class="fcampo"><label>Valor financiado (R$)</label><input id="alt-fin" inputmode="numeric" ${cred?"readonly":""}
+        oninput="altMascara(this);ALT_P.finEditado=true;altPropCalc(false)"><span class="alt-aj" id="alt-finAj"></span></div>
+      <div class="fcampo"><label>Valor para o sinal (R$)</label><input id="alt-inf" inputmode="numeric"
+        oninput="altMascara(this);altPropCalc(false)"><span class="alt-aj" id="alt-infAj"></span></div>
+    </div>
+    <div id="alt-aviso" class="sim-aviso" style="margin-top:8px"></div>
+    <div id="alt-prev" style="margin-top:10px"></div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:10px">
+      <button class="bt verde" id="alt-bt" onclick="altPropSalvar()">Salvar alteração</button>
+      <button class="bt ghost" onclick="altPropAbrir('${p.id}')">Cancelar</button>
+    </div>
+    <div class="alt-aj" style="margin-top:6px">Ao salvar, valor, comissão e fluxo são refeitos e gravados na proposta.
+      ${/RESERV|VENDID|ACEIT/.test(PROP_NORM(p.status))||/RESERV|PREFERENCIA|VENDID/.test(PROP_NORM(p.statusInterno))
+        ? "<b>Esta proposta segura a unidade:</b> trocando a unidade, a reserva vai junto e a unidade "+esc(String(p.unidade||""))+" volta a disponível."
+        : ""}</div>
+  </div>`;
+  document.getElementById("alt-fin").value=altMoeda(p.valorFinanciado);
+  document.getElementById("alt-inf").value=altMoeda(p.valorEntrada);
+  altPropCalc(false);
+}
+function altPropConta(){
+  const A=ALT_P; if(!A) return null;
+  const p=A.p, d=A.d, novo=document.getElementById("alt-un").value;
+  const u=novo ? altUnidade(novo) : null;
+  const preco=u ? Number(u.valorVenda)||0 : (Number(p.preco)||Number(d.preco)||0);
+  const aval=u ? Number(u.avaliacao)||0 : (Number(p.avaliacao)||Number(d.avaliacao)||0);
+  const teto=aval*0.8;
+  let fin;
+  if(A.cred) fin = teto ? Math.min(Number(p.creditoAprovado), teto) : Number(p.creditoAprovado);
+  else { fin = altNum("alt-fin") || Number(p.valorFinanciado) || teto; if(teto && fin>teto) fin=teto; }
+  fin=Math.round(fin*100)/100;
+  const fgtsP=Number(d.saldoFgts!=null?d.saldoFgts:p.fgts)||0, fgtsC=Number(d.saldoFgtsConjuge)||0, sub=Number(p.subsidio)||Number(d.subsidio)||0;
+  const hoje=new Date();
+  const o={preco, financiado:fin, fgts:fgtsP+fgtsC, subsidio:sub, nSinal:Number(d.sinalParcelas)||4,
+           prazoEntrada:altPrazo(d.prazoEntrada||p.prazoEntrada), ano:hoje.getFullYear(), mes:hoje.getMonth()+1, primeira:d.primeiraParcela||""};
+  const g0=fpcGerar(Object.assign({},o,{informado:0}));
+  return {u, novo, preco, aval, teto, fin, fgtsP, fgtsC, sub, o, g0, min:g0.sinalMinimo, max:Math.max(10000, Math.round(g0.entradaCliente*100)/100)};
+}
+function altPropCalc(trocouUnidade){
+  const A=ALT_P; if(!A) return;
+  const k=altPropConta(); if(!k) return;
+  const finEl=document.getElementById("alt-fin"), infEl=document.getElementById("alt-inf");
+  if(A.cred || trocouUnidade){ if(document.activeElement!==finEl && (A.cred || altNum("alt-fin")>k.teto+0.005)) finEl.value=altMoeda(k.fin); }
+  document.getElementById("alt-finAj").innerHTML = A.cred
+    ? "crédito aprovado na CAIXA (limitado a 80% da avaliação) — não muda aqui"
+    : "sem crédito aprovado: pode alterar, até 80% da avaliação ("+simBRL(k.teto)+")"+(altNum("alt-fin")>k.teto+0.5?' <b style="color:#C0392B">— acima do teto, vale '+simBRL(k.teto)+'</b>':"");
+  /* sinal mínimo da unidade: abaixo dele o valor sobe sozinho até o mínimo */
+  let inf=altNum("alt-inf"); const av=document.getElementById("alt-aviso");
+  let nota="";
+  if(inf < k.min-0.005){ nota="O valor para o sinal subiu de "+simBRL(inf)+" para "+simBRL(k.min)+" (sinal mínimo desta unidade)."; inf=k.min; if(document.activeElement!==infEl || trocouUnidade) infEl.value=altMoeda(inf); }
+  document.getElementById("alt-infAj").innerHTML="mínimo <b>"+simBRL(k.min)+"</b> (sinal mínimo) · máximo <b>"+simBRL(k.max)+"</b> (a entrada inteira)";
+  const btn=document.getElementById("alt-bt");
+  if(inf > k.max+0.005){ av.className="sim-aviso err"; av.innerHTML="O valor para o sinal não pode passar de <b>"+simBRL(k.max)+"</b> (a entrada inteira)."; btn.disabled=true; document.getElementById("alt-prev").innerHTML=""; return; }
+  btn.disabled=false;
+  const dil=(A.d.diluicao&&A.d.diluicao.length?A.d.diluicao.slice(0,2):[0,0]).map(x=>Number(x)||0);
+  const g=fpcGerar(Object.assign({},k.o,{informado:inf, diluir:dil}));
+  A.conta={k, inf, g, dil};
+  const fluxo=g.fluxo.map((x,i)=>({quando:x[0], valor:propBRL2(x[1]), forma:x[2], grupo:x[3], i, dilTxt:x[4]||""}));
+  const c=entCalcular({preco:k.preco, financiado:k.fin, fgts:k.fgtsP+k.fgtsC, subsidio:k.sub, informado:inf,
+    prazo:k.o.prazoEntrada, devolucao:g.devolucao, fluxo});
+  av.className = nota ? "sim-aviso ok" : "sim-aviso"; av.innerHTML = nota;
+  document.getElementById("alt-prev").innerHTML='<div class="alt-aj" style="margin-bottom:6px"><b>Prévia</b> — como fica a proposta'+
+    (k.novo?" na unidade "+esc(k.novo):"")+':</div>'+entResumoHtml(c)+entQuadroHtml(c,{titulo:"Novo fluxo de pagamento (prévia)"});
+}
+function altEsquema(fl){ return fl.map(x=>x[0]+": R$ "+altMoeda(x[1])+" ("+x[2]+")").join("; "); }
+async function altPropSalvar(){
+  const A=ALT_P; if(!A || !A.conta) return;
+  const {k, inf, g, dil}=A.conta, p=A.p;
+  const mudouUn=!!k.novo, mudouFin=!A.cred && Math.abs(k.fin-(Number(p.valorFinanciado)||0))>0.5, mudouInf=Math.abs(inf-(Number(p.valorEntrada)||0))>0.005;
+  const av=document.getElementById("alt-aviso"), bt=document.getElementById("alt-bt");
+  if(!mudouUn && !mudouFin && !mudouInf){ av.className="sim-aviso err"; av.textContent="Nada mudou: escolha outra unidade ou altere um valor."; return; }
+  if(mudouUn && !confirm("Trocar a proposta da unidade "+p.unidade+" para a unidade "+k.novo+"?")) return;
+  const venda={valorEntrada:inf, saldoFgts:k.fgtsP, saldoFgtsConjuge:k.fgtsC, subsidio:k.sub, prazoEntrada:k.o.prazoEntrada,
+    sinalParcelas:k.o.nSinal, diluicao:dil, esquema:altEsquema(g.fluxo), esquemaOriginal:(dil[0]||dil[1]) ? altEsquema(g.fluxoOriginal||[]) : "",
+    financiado:k.fin, entradaTotal:g.total, sinal:g.sinaisTotal, devolucao:g.devolucao};
+  bt.disabled=true; av.className="sim-aviso ok"; av.innerHTML='<span class="load"></span> Gravando'+(mudouUn?" a troca de unidade, a reserva e":"")+" o fluxo novo…";
+  let r=null;
+  try{ r=await chamar({action:"simsPropostaAlterar", pageId:p.id, unidadeNova:mudouUn?k.novo:"", venda}, 180000, true); }catch(e){ r=null; }
+  bt.disabled=false;
+  if(!r || !r.ok){
+    av.className="sim-aviso err";
+    av.innerHTML="<b>Não gravou.</b> "+esc((r&&(r.mensagem||r.erro))||"sem resposta do servidor")+
+      (r&&/ACAO_DESCONHECIDA/.test(String(r.erro||""))?" — o Apps Script do portal ainda não tem esta versão.":"");
+    return;
+  }
+  av.className="sim-aviso ok";
+  av.innerHTML="<b>Alterado.</b><br>"+(r.feito||[]).map(esc).join("<br>")+
+    (r.reserva&&!r.reserva.ok?'<br><b style="color:#C0392B">Reserva não foi levada: '+esc(r.reserva.erro||"")+"</b> — confira as duas unidades na aba Unidades.":"");
+  try{ storeInvalidar("sims_propostas","sims_unidades"); }catch(e){}
+  UNS=[];
+  try{ await propCarregar(true); simCarregarUnidades(true); }catch(e){}
+  setTimeout(()=>{ try{ propVer(p.id); }catch(e){} }, 400);
+}
+
+/* ---------- SIMULAÇÃO ---------- */
+async function altSimAbrir(id){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  const cx=document.getElementById("alt-sim-"+id); if(!cx) return;
+  if(cx.dataset.aberto==="1"){ cx.innerHTML=""; cx.dataset.aberto=""; return; }
+  cx.dataset.aberto="1";
+  cx.innerHTML='<div class="sim-aviso ok"><span class="load"></span> Carregando as unidades…</div>';
+  await altGarantirUnidades();
+  cx.innerHTML=`<div class="alt-box">
+    <div class="alt-tit">Alterar unidade e valor da simulação</div>
+    <div class="alt-grade">
+      <div class="fcampo"><label>Unidade</label><select id="alts-un-${id}" onchange="altSimTeto('${id}')">${altOpcoesUn(s.unidade,true)}</select></div>
+      <div class="fcampo"><label>Valor a financiar (R$) <span style="font-weight:400">— opcional</span></label><input id="alts-fin-${id}" inputmode="numeric" placeholder="manter a estimativa"
+        oninput="altMascara(this);altSimTeto('${id}')"><span class="alt-aj" id="alts-aj-${id}"></span></div>
+    </div>
+    <div id="alts-av-${id}" class="sim-aviso" style="margin-top:8px"></div>
+    <div style="display:flex;gap:9px;flex-wrap:wrap;margin-top:10px">
+      <button class="bt verde" id="alts-bt-${id}" onclick="altSimSalvar('${id}')">Salvar e refazer a simulação</button>
+      <button class="bt ghost" onclick="altSimAbrir('${id}')">Cancelar</button>
+    </div>
+    <div class="alt-aj" style="margin-top:6px">Os dados da pessoa ficam como estão. Muda o que depende da unidade e do financiamento
+      (valor, avaliação, comissão, sinal e fluxo): se o sinal mínimo da unidade nova for maior, o valor para o sinal sobe até ele.
+      A simulação volta para a fila, é refeita e o corretor recebe o e-mail novo. Com crédito aprovado, vale o crédito (até 80% da avaliação).</div>
+  </div>`;
+  altSimTeto(id);
+}
+function altSimTeto(id){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  const novo=document.getElementById("alts-un-"+id).value, u=novo?altUnidade(novo):null;
+  const aval=u?Number(u.avaliacao)||0:Number(s.avaliacao)||0, teto=aval*0.8, v=altNum("alts-fin-"+id);
+  document.getElementById("alts-aj-"+id).innerHTML="até 80% da avaliação: <b>"+simBRL(teto)+"</b>"+
+    (v>teto+0.5?' <b style="color:#C0392B">— acima do teto, vale '+simBRL(teto)+"</b>":"")+
+    (u&&novoEstadoUn(u)==="reservada"?'<br><b style="color:#1F6FB2">Unidade reservada</b>: a proposta só é analisada se houver desistência.':"");
+}
+async function altSimSalvar(id){
+  const s=SIMS.find(x=>x.id===id); if(!s) return;
+  const novo=document.getElementById("alts-un-"+id).value, fin=altNum("alts-fin-"+id);
+  const av=document.getElementById("alts-av-"+id), bt=document.getElementById("alts-bt-"+id);
+  if(!novo && !(fin>0)){ av.className="sim-aviso err"; av.textContent="Nada mudou: escolha outra unidade ou informe o valor a financiar."; return; }
+  bt.disabled=true; av.className="sim-aviso ok"; av.innerHTML='<span class="load"></span> Gravando e devolvendo para a fila…';
+  let r=null;
+  try{ r=await chamar({action:"simsSimAlterar", pageId:id, unidadeNova:novo, financiado:fin||0}, 120000, true); }catch(e){ r=null; }
+  bt.disabled=false;
+  if(!r || !r.ok){
+    av.className="sim-aviso err";
+    av.innerHTML="<b>Não gravou.</b> "+esc((r&&(r.mensagem||r.erro))||"sem resposta do servidor")+
+      (r&&/ACAO_DESCONHECIDA/.test(String(r.erro||""))?" — o Apps Script do portal ainda não tem esta versão.":"");
+    return;
+  }
+  av.className="sim-aviso ok";
+  av.innerHTML="<b>Alterada e de volta na fila.</b><br>"+(r.feito||[]).map(esc).join("<br>")+
+    "<br>O sistema refaz e o corretor recebe o e-mail novo em alguns minutos.";
+  try{ storeInvalidar("sims_lista"); }catch(e){}
+  try{ simCarregar(true); }catch(e){}
+}
+
+/* =====================================================================
+ * 07/11/2026 (dono) — PDF DO FLUXO (proposta e simulação)
+ * Abre uma página só com o fluxo (resumo, composição e fluxo de pagamento)
+ * no visual do portal, em tema claro, e baixa o PDF na hora.
+ * ------------------------------------------------------------------ */
+function fluxoPdf(tipo, id){
+  let corpo="", tit="", sub="", nome="";
+  if(tipo==="prop"){
+    const p=PROPS.find(x=>x.id===id); if(!p) return;
+    const fluxo=propParseEsquema(p.esquema);
+    if(!fluxo.length){ alert("Esta proposta ainda não tem fluxo gravado."); return; }
+    let mud=new Set();
+    try{ const dil=propDilAplicar(p, fluxo); mud=new Set([...dil.mudou].map(ix=>fluxo[ix]&&fluxo[ix].i)); }catch(e){}
+    const c=entDaProposta(p, fluxo);
+    corpo=entResumoHtml(c)+entQuadroHtml(c,{mudou:mud});
+    tit="Fluxo de pagamento da proposta";
+    sub=(p.proposta||"")+" · "+(p.cliente||"")+" · Unidade "+(p.unidade||"")+(p.tipo?" (Tipo "+p.tipo+")":"");
+    nome="Fluxo "+(p.proposta||("proposta un "+(p.unidade||"")));
+  } else {
+    const s=SIMS.find(x=>x.id===id); if(!s) return;
+    if(!propParseEsquema(s.esquema).length){ alert("Esta simulação ainda não tem fluxo (pode estar na fila)."); return; }
+    corpo=simFluxoHtml(s);
+    tit="Fluxo de pagamento da simulação";
+    sub=(s.cliente||"")+" · Unidade "+(s.unidade||"")+(s.tipo?" (Tipo "+s.tipo+")":"")+" · "+simData(s.criadoEm);
+    nome="Fluxo simulacao "+(s.cliente||"")+" un "+(s.unidade||"");
+  }
+  nome=nome.replace(/[\\/:*?"<>|]+/g," ").replace(/\s+/g," ").trim()+".pdf";
+  const estilos=[...document.querySelectorAll("style")].map(x=>x.outerHTML).join("\n");
+  const hoje=new Date().toLocaleDateString("pt-BR");
+  const w=window.open("", "_blank");
+  if(!w){ alert("O navegador bloqueou a janela do PDF. Libere pop-ups para o portal e tente de novo."); return; }
+  w.document.open();
+  w.document.write(`<!doctype html><html lang="pt-BR" data-tema="claro"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(nome.replace(/\.pdf$/,""))}</title>
+<base href="${esc(location.href)}">${estilos}
+<style>
+  :root{color-scheme:light}
+  body{background:#fff!important;margin:0;padding:0}
+  .pdf-bar{position:sticky;top:0;z-index:5;display:flex;gap:8px;align-items:center;padding:10px 16px;background:#1e3f58;color:#fff;font:600 13px system-ui,sans-serif}
+  .pdf-bar button{font:700 13px system-ui,sans-serif;padding:8px 14px;border-radius:8px;border:0;cursor:pointer}
+  .pdf-bar .b1{background:#4cd964;color:#0c3f22}.pdf-bar .b2{background:#fff;color:#1e3f58}
+  #pdf{max-width:820px;margin:0 auto;padding:22px 26px;background:#fff}
+  .pdf-cab{display:flex;justify-content:space-between;align-items:flex-end;gap:14px;border-bottom:3px solid #4cd964;padding-bottom:10px;margin-bottom:14px}
+  .pdf-cab h1{font:800 20px 'Barlow Condensed',system-ui,sans-serif;text-transform:uppercase;letter-spacing:.4px;color:#1e3f58;margin:0}
+  .pdf-cab .s{font-size:12.5px;color:#4a5a66;margin-top:3px}
+  .pdf-cab .m{font:700 12px system-ui,sans-serif;color:#1e3f58;text-align:right;line-height:1.4}
+  .pdf-rod{margin-top:14px;padding-top:8px;border-top:1px solid #d5dde3;font-size:11px;color:#5a6a76;line-height:1.5}
+  #pdf .tbl-wrap{max-height:none!important;overflow:visible!important}
+  #pdf tr{page-break-inside:avoid}
+  @media print{.pdf-bar{display:none}#pdf{padding:0}}
+</style></head><body>
+<div class="pdf-bar"><span id="pdf-st">Gerando o PDF…</span><span style="flex:1"></span>
+  <button class="b1" onclick="baixar()">⬇ Baixar PDF</button><button class="b2" onclick="print()">🖨 Imprimir</button></div>
+<div id="pdf">
+  <div class="pdf-cab"><div><h1>${esc(tit)}</h1><div class="s">${esc(sub)}</div></div>
+    <div class="m">Condomínio Reserva do Ipês<br>Morais Engenharia e Construção<br>${esc(hoje)}</div></div>
+  ${corpo}
+  <div class="pdf-rod">Documento informativo: repassa os dados preenchidos e não substitui o contrato. As parcelas e os valores podem mudar
+    conforme a data de assinatura do contrato. O financiamento depende da aprovação da CAIXA.</div>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"><\/script>
+<script>
+  function baixar(){
+    var st=document.getElementById('pdf-st');
+    if(typeof html2pdf!=='function'){ st.textContent='Não consegui carregar o gerador de PDF — use Imprimir e escolha "Salvar como PDF".'; return; }
+    st.textContent='Gerando o PDF…';
+    html2pdf().set({margin:[8,8,10,8], filename:${JSON.stringify(nome)}, image:{type:'jpeg',quality:0.96},
+      html2canvas:{scale:2, useCORS:true, backgroundColor:'#ffffff'}, jsPDF:{unit:'mm', format:'a4', orientation:'portrait'},
+      pagebreak:{mode:['css','legacy'], avoid:['tr','.prop-resumo']}})
+      .from(document.getElementById('pdf')).save()
+      .then(function(){ st.textContent='PDF baixado. Se precisar de novo, clique em Baixar PDF.'; })
+      .catch(function(){ st.textContent='Falhou ao gerar — use Imprimir e escolha "Salvar como PDF".'; });
+  }
+  window.addEventListener('load', function(){ setTimeout(baixar, 300); });
+<\/script></body></html>`);
+  w.document.close();
+}
 
 /* Devolve uma simulação com erro para a fila. O worker já tenta três vezes
    sozinho; isto é para o caso de você ter corrigido algo (um dado da unidade,
@@ -1882,7 +2551,7 @@ function propCopiar(id, bt){
    isso a coluna aqui e um select de tres opcoes e nao um SIM/NAO. */
 const SIM_COLS=[["unidade","UNIDADE","ro"],["tipo","TIPO","num"],["valorVenda","VALOR DE VENDA","num"],
                 ["avaliacao","AVALIACAO","num"],["informacoes","INFORMACOES","txt"],
-                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","VENDIDA","v3"],
+                ["decorado","DECORADO","sn"],["disponivel","DISPONIVEL","sn"],["vendidaCru","STATUS MAPA","v3"],
                 ["statusInterno","STATUS INTERNO","si"],   // 02/10 (item 6) — só controle interno
                 ["observacao","OBSERVACAO","obs"]];        // 05/10 (item 1) — abre numa janela, aceita quebra de linha
 /* INFORMACOES ganhou tipo proprio: e texto livre que vai para o popup do mapa,
@@ -2014,7 +2683,9 @@ function simColetarLinha(i){
 function simRenderUnidades(){
   const termo=(document.getElementById("sim-buscaUn").value||"").toLowerCase();
   const vis=UNS.filter(u=>`${u.unidade} tipo ${u.tipo}`.toLowerCase().includes(termo));
-  const cab='<thead><tr>'+SIM_COLS.map(c=>`<th>${c[1]}</th>`).join("")+'<th></th></tr></thead>';
+  /* 03/11/2026 (dono): a coluna STATUS INTERNO sai da vista — fica no DOM, oculta, porque acompanha o STATUS MAPA
+     sozinha (simEspelharStatusInterno) e grava junto */
+  const cab='<thead><tr>'+SIM_COLS.map(c=>`<th${c[2]==="si"?' style="display:none"':''}>${c[1]}</th>`).join("")+'<th></th></tr></thead>';
   const corpo=vis.map(u=>{
     const i=UNS.indexOf(u);
     const alterada = SIM_ALTERADAS.has(i);
@@ -2023,10 +2694,10 @@ function simRenderUnidades(){
       if(tipo==="ro") return `<td><b>${esc(String(v==null?"":v))}</b></td>`;
       if(tipo==="v3"){
         const atual=String(v||"NAO").toUpperCase();
-        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simEspelharStatusInterno(${i});simAoEditar(${i},true)">
-          <option value="NAO"${atual==="NAO"?" selected":""}>NÃO</option>
+        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" style="min-width:132px" onchange="simEspelharStatusInterno(${i});simAoEditar(${i},true)">
+          <option value="NAO"${atual==="NAO"?" selected":""}>NÃO VENDIDA</option>
           <option value="RESERVADA"${atual==="RESERVADA"?" selected":""}>RESERVADA</option>
-          <option value="SIM"${atual==="SIM"?" selected":""}>SIM</option></select></td>`;
+          <option value="SIM"${atual==="SIM"?" selected":""}>VENDIDA</option></select></td>`;
       }
       if(tipo==="area") return `<td><textarea class="sim-edit" rows="2" data-i="${i}" data-c="${campo}" oninput="simAoEditar(${i})" onblur="simSairDoCampo(${i})" style="width:100%;min-width:220px;resize:vertical;font-family:inherit;font-size:13px;line-height:1.4">${esc(String(v==null?"":v))}</textarea></td>`;
       if(tipo==="sn") return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true)">
@@ -2038,7 +2709,7 @@ function simRenderUnidades(){
         if(!String(vs||"").trim()){ const vc=String((UNS[i]||{}).vendidaCru||(UNS[i]||{}).vendida||"").toUpperCase();
           vs = vc==="SIM" ? "VENDIDA" : (vc.indexOf("RESERV")===0 ? "RESERVADA" : "DISPONÍVEL"); if(UNS[i]) UNS[i].statusInterno=vs; }
         const ops=["DISPONÍVEL","RESERVADA","PAGOU PREFERÊNCIA","VENDIDA"];   // 05/10 (item 2)
-        return `<td><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
+        return `<td style="display:none"><select class="sim-edit" data-i="${i}" data-c="${campo}" onchange="simAoEditar(${i},true);simCorStatusInterno(${i})">`+
           ops.map(o=>`<option value="${o}"${PROP_NORM(o)===PROP_NORM(vs)?" selected":""}>${o||"—"}</option>`).join("")+`</select></td>`;
       }
       if(tipo==="obs"){   // 05/10 (item 1) — OBSERVAÇÃO: prévia na célula, edição numa janela
@@ -2334,11 +3005,15 @@ async function propCarregar(forcar, bt){
   else { propAviso("err", propErro(r && r.erro)); }
 }
 /* 31/10/2026 (dono): venda do condomínio com contrato ENVIADO/ASSINADO na Clicksign e proposta ainda fora de
-   "Vendidas" (saiu sem o botão Vendida): marca a proposta VENDIDA e a unidade VENDIDA = SIM — regra em
-   venda/contrato-vendida.js, a mesma da Planilha Casas Condomínio. Uma vez por abertura da página. */
-let PROP_VARREU=false;
+   "Vendidas" (saiu sem o botão Vendida): marca a proposta VENDIDA — regra em venda/contrato-vendida.js, a mesma da
+   Planilha Casas Condomínio. 04/11/2026 (dono): e confere o MAPA de todas as vendas: a casa fica RESERVADA enquanto
+   está no banco de vendas e só vira VENDIDA com a ETAPA Concluída. Uma vez por abertura da página. */
+let PROP_VARREU=false, PROP_VARREU_EM=0;
 async function propVarrerContratosEnviados(){
-  if(PROP_VARREU) return;
+  /* 04/11/2026: de novo a cada 15 min com a página aberta (o propCarregar do polling chama aqui) — pega a venda
+     que concluiu a etapa e o SIM que o servidor grava quando o contrato final é gerado */
+  if(PROP_VARREU && Date.now()-PROP_VARREU_EM < 15*60*1000) return;
+  PROP_VARREU_EM=Date.now();
   if(!window.ContratoVendida){ setTimeout(propVarrerContratosEnviados, 1500); return; }   // o módulo é defer
   PROP_VARREU=true;
   let r=null;
@@ -2349,18 +3024,31 @@ async function propVarrerContratosEnviados(){
     return;
   }
   const enviados=r.linhas.filter(l=>ContratoVendida.contratoEnviado(l)).length;
+  const concl=r.linhas.filter(l=>ContratoVendida.concluida(l)).length;
   const ids=ContratoVendida.pendentes(r.linhas, r.titulo);
-  console.log("[contrato enviado → vendida] linhas "+r.linhas.length+", contrato enviado/assinado "+enviados+", a conferir "+ids.length);
+  console.log("[venda → mapa] linhas "+r.linhas.length+", contrato enviado/assinado "+enviados+", etapa concluída "+concl+", a conferir "+ids.length);
   if(!ids.length) return;
-  propAviso("ok","Conferindo "+ids.length+" venda(s) com contrato enviado para assinatura… (cada uma leva alguns segundos)");
   const msgs=[];
   await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar,
     aviso: (id,t,h)=>{ const l=r.linhas.find(x=>x.id===id); msgs.push((t==="ok"?"✓ ":"⚠ ")+"Un. "+esc(String((l&&l.v&&(l.v["UNIDADE"]||l.v[r.titulo]))||""))+" — "+h); },
     aoTerminar: async n=>{
-      const mostrar=()=>{ if(msgs.length) propAviso(msgs.some(m=>m.indexOf("⚠")===0)?"err":"ok","<b>Contrato enviado = vendida</b><br>"+msgs.join("<br>")); else propAviso("ok",""); };
+      const mostrar=()=>{ if(msgs.length) propAviso(msgs.some(m=>m.indexOf("⚠")===0)?"err":"ok","<b>Vendas × mapa</b><br>"+msgs.join("<br>")); else propAviso("ok",""); };
       mostrar();
       if(n){ await propCarregar(true); mostrar(); try{ UNS=[]; simCarregarUnidades(true); }catch(e){} }
     }});
+}
+/* 04/11/2026 (dono): o servidor põe VENDIDA = SIM na unidade quando a proposta vira VENDIDA; no mapa ela fica
+   RESERVADA até a ETAPA da venda ficar Concluída — confere a unidade logo depois do botão. */
+async function propCorrigirMapaUnidade(un){
+  if(!window.ContratoVendida) return;
+  const so=v=>String(v==null?"":v).replace(/\D/g,"").replace(/^0+/,""), alvo=so(un); if(!alvo) return;
+  let r=null;
+  try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+  if(!r||!r.ok||!Array.isArray(r.linhas)) return;
+  const ids=r.linhas.filter(l=>so((l.v||{})["UNIDADE"]||(l.v||{})[r.titulo])===alvo).map(l=>l.id);
+  if(!ids.length) return;
+  await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar, forcar: true,
+    aoTerminar: async n=>{ if(n){ try{ UNS=[]; simCarregarUnidades(true); }catch(e){} } } });
 }
 function propAviso(t,m){
   const a=document.getElementById("prop-aviso");
@@ -2424,7 +3112,29 @@ function propHorasReservada(p){
   if(isNaN(d)) return null;
   return (Date.now()-d.getTime())/36e5;
 }
-function propVencida(p){ const h=propHorasReservada(p); return h!==null && h>24; }
+/* 03/11/2026 (dono): a reserva vale 5 dias corridos; sem contrato gerado, cai sozinha (vigia do SIMULADOR).
+   O vencimento vem do servidor (DADOS.reserva.vence); sem ele, DATA RESERVA + 5 dias, nunca antes de a regra
+   entrar no ar (as reservas que já existiam contam a partir de 03/11/2026). */
+const PROP_RESERVA_DIAS=5, PROP_RESERVA_INICIO="2026-11-03T12:00:00-03:00";
+function propReservaVence(p){
+  if(PROP_NORM(p.status)!=="RESERVADA") return null;
+  const r=((p.dados||{}).reserva)||{};
+  if(r.vence){ const v=new Date(r.vence); if(!isNaN(v)) return v; }
+  if(!p.dataReserva) return null;
+  const d=new Date(p.dataReserva); if(isNaN(d)) return null;
+  const ini=new Date(PROP_RESERVA_INICIO);
+  return new Date(Math.max(d.getTime(), ini.getTime()) + PROP_RESERVA_DIAS*864e5);
+}
+function propReservaFaltaH(p){ const v=propReservaVence(p); return v ? (v.getTime()-Date.now())/36e5 : null; }
+function propReservaPrazoHtml(p){
+  const v=propReservaVence(p); if(!v) return "";
+  const h=(v.getTime()-Date.now())/36e5;
+  const quando=v.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  const termo=(((p.dados||{}).reserva)||{}).termo;   /* 06/11: o vigia grava quando o prazo é a data limite do termo */
+  return '<div style="margin-top:6px;font-weight:700;color:'+(h<24?'#C0392B':'var(--azul)')+'">⏳ Reserva vence em '+esc(quando)+(termo?' (data limite do termo de pré-reserva)':'')+
+    (h<=0 ? ' — prazo esgotado: o robô derruba na próxima rodada se o contrato não tiver sido gerado.' : ' (faltam '+propHorasTxt(h)+').')+'</div>';
+}
+function propVencida(p){ const h=propReservaFaltaH(p); return h!==null && h<24; }
 /* 28/10/2026 — SEM CARTA × CORRESPONDENTE: a lista mostra se a proposta já foi enviada
    ao correspondente e conta 24 h a partir do PRIMEIRO envio (registro "ENVIO
    CORRESPONDENTE", "dd/mm/aaaa hh:mm · NOME (e-mail)", o mais novo no topo — vale
@@ -2478,9 +3188,9 @@ function propAlerta24(){
   const emls=(typeof propEmailsLista==="function") ? propEmailsLista() : [];   // r96q — e-mail novo
   if(!vencidas.length && !corr.length && !emls.length){ el.classList.add("hide"); return; }
   el.classList.remove("hide");
-  el.innerHTML = (vencidas.length ? "<b>"+vencidas.length+" proposta(s) reservada(s) há mais de 24 horas.</b><br>" +
-    vencidas.map(p=>"Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
-      " · "+Math.floor(propHorasReservada(p))+" h").join("<br>") : "") +
+  el.innerHTML = (vencidas.length ? "<b>"+vencidas.length+" reserva(s) vencendo em menos de 24 horas sem contrato gerado.</b><br>" +
+    vencidas.map(p=>{ const h=propReservaFaltaH(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+
+      " · "+(h<=0?"prazo esgotado":"faltam "+propHorasTxt(h)); }).join("<br>") : "") +
     (corr.length ? (vencidas.length?"<br><br>":"")+"<b>"+corr.length+" proposta(s) SEM CARTA enviada(s) ao correspondente há mais de 24 horas.</b><br>" +
     corr.map(p=>{ const e=propCorrEnvio(p); return "Un. "+esc(String(p.unidade||"—"))+" · "+esc(p.cliente||"—")+" · "+esc(e.nomes.join(" / "))+" · "+propHorasTxt(e.horas); }).join("<br>") : "") +
     (emls.length ? ((vencidas.length||corr.length)?"<br><br>":"")+"<b>✉ "+emls.length+" e-mail(s) novo(s) sem abrir.</b><br>" +
@@ -2536,8 +3246,30 @@ function propSeloInterno(unidade, p){
   }
   return ' <span title="status interno da unidade'+(p&&!dono?' — marque na proposta certa pelo Status interno':'')+'" style="font-size:10px;font-weight:800;color:'+est[1]+';background:'+est[2]+';border:1px solid '+est[3]+';border-radius:8px;padding:1px 6px">'+est[0]+' (interno)</span>';
 }
+/* 06/11/26 — CORRESPONDENTE da proposta, na ordem: quem está na coluna
+   CORRESPONDENTE do Notion (aprovou / definido) → a quem a proposta foi enviada
+   (ENVIO CORRESPONDENTE) → a preferência do corretor. */
+function propCorrNomeBonito(n){ return String(n||"").trim().replace(/\s+/g," ").toUpperCase(); }
+function propCorrDe(p){
+  const c=propCorrNomeBonito(p.correspondente);
+  if(c) return {nomes:[c], tipo:p.comCredito?"aprovou o crédito":"definido na proposta"};
+  const e=propCorrEnvio(Object.assign({},p,{comCredito:false}));
+  if(e && e.enviado && e.nomes.length) return {nomes:e.nomes.map(propCorrNomeBonito), tipo:"enviada"};
+  const pr=propCorrNomeBonito(p.correspondentePref||((p.dados||{}).correspondentePreferido)||"");
+  if(pr) return {nomes:[pr], tipo:"preferência do corretor"};
+  return {nomes:[], tipo:""};
+}
+function propCorrOpcoes(){
+  const el=document.getElementById("prop-corr-f"); if(!el) return;
+  const atual=el.value, set=new Set(); let sem=0;
+  (PROPS||[]).forEach(p=>{ const c=propCorrDe(p); if(c.nomes.length) c.nomes.forEach(n=>set.add(n)); else sem++; });
+  const lista=[...set].sort((a,b)=>a.localeCompare(b,"pt-BR"));
+  el.innerHTML='<option value="">Todos</option>'+lista.map(n=>`<option value="${esc(n)}">${esc(n)}</option>`).join("")+(sem?'<option value="__SEM__">(sem correspondente)</option>':"");
+  if(atual && [...el.options].some(o=>o.value===atual)) el.value=atual;
+}
 function propRender(){
   try{ propCortes(); }catch(e){}   // 30/10 — cortes acima da tabela
+  try{ propCorrOpcoes(); }catch(e){}   // 06/11 — filtro do correspondente
   try{ propRankAba(); }catch(e){}  // 30/10 — rankings abaixo da tabela
   const termo=(document.getElementById("prop-busca").value||"").toLowerCase();
   const vis=PROPS.filter(p=>{
@@ -2545,6 +3277,8 @@ function propRender(){
     if(!alvo.includes(termo)) return false;
     if(propFiltroCredito==="SIM" && !p.comCredito) return false;
     if(propFiltroCredito==="NAO" && p.comCredito) return false;
+    const fc=(document.getElementById("prop-corr-f")||{}).value||"";
+    if(fc){ const c=propCorrDe(p).nomes; if(fc==="__SEM__" ? c.length : !c.includes(fc)) return false; }
     return !propFiltro || propNoCorte(p, propFiltro);
   });
   /* r47 (item 4) — ordem pela data de chegada; padrão: mais antiga no topo */
@@ -2552,16 +3286,17 @@ function propRender(){
   vis.sort((a,b)=> propOrdem==="desc" ? tempo(b)-tempo(a) : tempo(a)-tempo(b));
   /* estilo do editor injetado uma vez */
   propEstiloEditor();
-  /* 28/10 — ordem: proposta · unidade · crédito · sinal · cliente · corretor · valor · entrada · resto */
+  /* 28/10 — ordem: proposta · unidade · crédito · sinal · cliente · corretor · valor · entrada · resto
+     06/11 — correspondente, cliente e CPF do cliente juntos, depois o corretor */
   const cab='<thead><tr><th>Proposta</th><th>Unidade</th><th>Crédito Caixa</th><th>Sinal</th>'+
-            '<th>Cliente</th><th>Corretor</th>'+
+            '<th>Correspondente</th><th>Cliente</th><th>CPF</th><th>Corretor</th>'+
             '<th class="col-num">Valor</th><th class="col-num">Entrada</th>'+
-            '<th class="col-num">Renda</th><th>CPF</th><th>Imobiliária</th><th>Observações</th>'+
+            '<th class="col-num">Renda</th><th>Imobiliária</th><th>Observações</th>'+
             '<th style="cursor:pointer" title="Clique para inverter a ordem" onclick="propOrdenar(propOrdem===\'asc\'?\'desc\':\'asc\')">'+
             'Criada <span class="arr">'+(propOrdem==="desc"?"▼":"▲")+'</span></th><th>Status</th></tr></thead>';
   if(!vis.length){
     document.getElementById("prop-tab").innerHTML=cab+
-      '<tbody><tr><td colspan="14" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
+      '<tbody><tr><td colspan="15" style="text-align:center;color:var(--text3);padding:22px">Nenhuma proposta encontrada.</td></tr></tbody>';
     return;
   }
   const corpo=vis.map(p=>{
@@ -2576,14 +3311,15 @@ function propRender(){
             ? '<span class="pill bom">APROVADO</span>'
             : '<span class="pill ruim">SEM CARTA</span>'+propCorrCelula(p)}</td>
       <td>${propPillSinais(p)}</td>
-      <td>${esc(p.cliente||"—")}</td><td>${esc(p.vendedor||"—")}</td>
+      <td>${(c=>c.nomes.length?'<b>'+esc(c.nomes.join(" / "))+'</b><div style="font-size:10.5px;color:var(--text3);white-space:nowrap">'+esc(c.tipo)+'</div>':'<span style="color:var(--text3)">—</span>')(propCorrDe(p))}</td>
+      <td>${esc(p.cliente||"—")}</td><td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.vendedor||"—")}</td>
       <td class="num">${p.creditoAprovado?simBRL(p.creditoAprovado):"—"}</td>
       <td class="num">${p.valorEntrada?simBRL(p.valorEntrada):"—"}</td>
       <td class="num">${p.rendaTotal?simBRL(p.rendaTotal):"—"}</td>
-      <td class="col-un">${esc(p.cpf||"—")}</td><td>${esc(p.imobiliaria||"—")}</td>
+      <td>${esc(p.imobiliaria||"—")}</td>
       <td class="prop-obs-td" onclick="event.stopPropagation();propObsAbrir('${p.id}')" title="Clique para ver o histórico e escrever">${propObsCelula(p)}</td>
       <td>${simData(p.criadoEm)}</td>
-      <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">+24h</span>':''}</td></tr>`;
+      <td>${propTag(p.status)}${venc?' <span style="color:#C0392B;font-weight:700">vence &lt;24h</span>':''}</td></tr>`;
   }).join("");
   document.getElementById("prop-tab").innerHTML=cab+"<tbody>"+corpo+"</tbody>";
 }
@@ -3388,6 +4124,12 @@ function propVer(id){
     ${chegouReservada(p,true)?`<div class="aviso-res"><b>Unidade já reservada no envio.</b>
       Esta proposta chegou quando a unidade ${esc(String(p.unidade||""))} já estava reservada —
       ela só é analisada caso haja desistência da reserva atual.</div>`:""}
+    <!-- 07/11/2026 — alterar unidade / valor financiado e PDF do fluxo: logo no topo do card -->
+    <div class="alt-acoes">
+      ${podeGravar?`<button class="bt verde" onclick="altPropAbrir('${p.id}')">✎ Alterar unidade / valor financiado</button>`:""}
+      <button class="bt az" onclick="fluxoPdf('prop','${p.id}')">📄 Gerar PDF do fluxo</button>
+    </div>
+    <div id="alt-prop"></div>
     ${propResumoValores(p)}
     ${propQuadroFluxo(p)}
     <div class="sim-grade" style="margin-top:14px">
@@ -3427,16 +4169,19 @@ function propVer(id){
       <div class="prop-dec ${PROP_NORM(p.status)?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">
         <button class="bt az ${PROP_NORM(p.status)==='RESERVADA'?'atual':''}" onclick="propStatus('${p.id}','RESERVADA')">Reservar</button>
         <button class="bt vermelho ${PROP_NORM(p.status)==='NEGADA'?'atual':''}" onclick="propStatus('${p.id}','NEGADA')">Negar</button>
-        <button class="bt ${PROP_NORM(p.status)==='VENDIDA'?'atual':''}" style="background:#5B2A86;color:#fff" onclick="propStatus('${p.id}','VENDIDA')">Vendida</button>
       </div>
+      ${PROP_NORM(p.status)==='RESERVADA'?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de pré-reserva</button></div>`:""}
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
       <div style="margin-top:10px"><button class="bt" style="background:#B7791F;color:#fff" onclick="propAlerta('${p.id}')">📣 Enviar alerta de pendências ao corretor</button>
         <div id="prop-alertaInfo" class="sim-aviso" style="margin-top:6px"></div></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
-        <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no Notion
-        (e ela fica azul no mapa de vendas). <b>Negar</b> devolve a unidade para NÃO.
-        <b>Vendida</b> é o definitivo: muda a unidade para VENDIDA = SIM no mapa e preenche/revalida o BANCO DE DADOS VENDAS CONDOMÍNIO.
+        <b>Reservar</b> marca a unidade ${esc(String(p.unidade||""))} como RESERVADA no mapa, cria a venda no
+        BANCO DE DADOS VENDAS CONDOMÍNIO e manda ao corretor o link para completar os dados e documentos.
+        A reserva vale <b>${PROP_RESERVA_DIAS} dias corridos</b> — com termo de pré-reserva, até a <b>data limite do termo</b>: sem contrato gerado nesse prazo ela cai sozinha
+        (a unidade volta a disponível e a venda vai para DISTRATOS CONDOMÍNIO). <b>Negar</b> faz o mesmo na hora.
+        A proposta vira <b>VENDIDA</b> sozinha quando o contrato é gerado — e só então o corretor recebe o e-mail de venda.
+        ${propReservaPrazoHtml(p)}
       </div>
     </div>
     ${propSIBloco(p)}
@@ -4293,7 +5038,9 @@ function propSincronizarTudo(){
  *                       DISPONÍVEL.
  * ------------------------------------------------------------------- */
 /* 28/10: VENDIDA é só o definitivo (Decisão) e DISPONÍVEL volta sozinho no distrato */
-const PROP_SI=[["RESERVADA","#1F6FB2"],["PAGOU PREFERÊNCIA","#7B4FA0"],["DISTRATO","#6B5A45"]];
+/* 03/11/2026 (dono): reserva e preferência saíram daqui (o Reservar da Decisão faz a reserva; a pré-reserva foi
+   ocultada) — fica só o DISTRATO, para desfazer uma venda */
+const PROP_SI=[["DISTRATO","#6B5A45"]];
 function propSIAtual(p){
   let k=PROP_NORM(p.statusInterno||((p.dados||{}).statusInterno)||"");
   if(PROP_NORM(p.status)==="DISTRATO") k="DISTRATO";
@@ -4308,7 +5055,7 @@ function propSIBloco(p){
     const clique = k==="DISTRATO" ? `propSIDistratoAbrir('${p.id}')` : `propStatusInterno('${p.id}','${nome}')`;
     return `<button class="bt ${at===k?'atual':''}" data-si="${k}" style="background:${cor};color:#fff" onclick="${clique}">${nome}</button>`;
   }).join("");
-  return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Status interno</b>
+  return `<div style="margin-top:16px"><b style="font-size:13px;color:var(--azul)">Distrato</b>
       <span style="font-size:12px;color:var(--text3)"> · unidade ${esc(String(p.unidade||""))}${propSeloInterno(p.unidade, p)}</span>
       <div class="prop-si ${at?'tem-status':''}" style="display:flex;gap:9px;margin-top:8px;flex-wrap:wrap">${bts}</div>
       <div id="prop-siDist" class="hide" style="margin-top:10px;padding:12px;border:1px solid #E7A3A3;background:#FDF1F1;border-radius:10px">
@@ -4321,12 +5068,9 @@ function propSIBloco(p){
           <button class="bt" onclick="document.getElementById('prop-siDist').classList.add('hide')">Cancelar</button>
         </div>
       </div>
-      ${at==="PAGOU PREFERENCIA"?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de pré-reserva</button></div>`:""}
       <div id="prop-siAviso" class="sim-aviso" style="margin-top:8px"></div>
       <div style="font-size:12px;color:var(--text3);margin-top:6px">
-        <b>Pagou preferência</b> já cria a linha no BANCO DE DADOS VENDAS CONDOMÍNIO (a unidade fica roxa no mapa interno).
         <b>Distrato</b> guarda a venda em DISTRATOS CONDOMÍNIO, tira do banco de vendas e a unidade volta a DISPONÍVEL.
-        O definitivo é o <b>Vendida</b> da Decisão, acima.
       </div>
     </div>`;
 }
@@ -4348,7 +5092,7 @@ async function propStatusInterno(id, nome){
     if(!motivo){ const av0=document.getElementById("prop-siAviso"); av0.className="sim-aviso err"; av0.textContent="Escreva o motivo do distrato."; return; }
     if(!confirm("Confirmar o DISTRATO da unidade "+(p.unidade||"")+"?\n\nA venda sai do BANCO DE DADOS VENDAS CONDOMÍNIO (fica guardada em DISTRATOS CONDOMÍNIO) e a unidade volta a DISPONÍVEL.")) return;
   } else if(k==="VENDIDA"){
-    if(!confirm("Marcar a unidade "+(p.unidade||"")+" como VENDIDA?\n\nA unidade passa para VENDIDA = SIM, os dados da venda são revalidados no BANCO DE DADOS VENDAS CONDOMÍNIO e o corretor recebe o e-mail.")) return;
+    if(!confirm("Marcar a unidade "+(p.unidade||"")+" como VENDIDA?\n\nNo mapa a unidade fica RESERVADA até a ETAPA da venda ficar Concluída; os dados da venda são revalidados no BANCO DE DADOS VENDAS CONDOMÍNIO e o corretor recebe o e-mail.")) return;
   } else if(k==="PAGOU PREFERENCIA"){
     if(!confirm("Marcar PAGOU PREFERÊNCIA na unidade "+(p.unidade||"")+"?\n\nA linha da venda já é criada no BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
   }
@@ -4376,7 +5120,7 @@ async function propStatusInterno(id, nome){
   }
   p.statusInterno=nome; if(p.dados) p.dados.statusInterno=nome;
   if(k==="DISTRATO") p.status="DISTRATO";
-  if(k==="VENDIDA") p.status="VENDIDA";
+  if(k==="VENDIDA"){ p.status="VENDIDA"; propCorrigirMapaUnidade(p.unidade); }
   propSIMarcar(k);
   if(k==="VENDIDA" && r.venda){ propMarcarAtual("VENDIDA"); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} }
   else {
@@ -4425,10 +5169,20 @@ function propSimNao(msg){
 }
 /* 28/10 (dono): proposta que JÁ pagou a preferência também gera o termo — acha a linha da venda pela unidade
    no BANCO DE DADOS VENDAS CONDOMÍNIO (simsVendasCond, o mesmo da Planilha Casas Condomínio). */
-async function propPreReservaDaUnidade(id){
-  const p=PROPS.find(x=>x.id===id)||{}, av=document.getElementById("prop-siAviso");
+/* 06/11/2026 (dono): depois do Reservar, pergunta se gera o termo de pré-reserva; Sim abre a pergunta rápida
+   (valor, data do pagamento e data limite — a data limite vira o prazo da reserva). A linha da venda vem da resposta
+   do Reservar; sem ela (resposta perdida), procura pela unidade. */
+async function propOferecerTermo(id, r){
+  if(!(await propSimNao("Reserva feita. Gerar o termo de pré-reserva agora?"))) return;
+  const v=r && r.emailCorretor && r.emailCorretor.venda;
+  if(v && v.ok && v.linha) propAbrirPreReserva(String(v.linha), {rapido:true});
+  else propPreReservaDaUnidade(id, {rapido:true});
+}
+async function propPreReservaDaUnidade(id, o){
+  const p=PROPS.find(x=>x.id===id)||{}, av=document.getElementById("prop-detAviso")||document.getElementById("prop-siAviso");   /* 06/11: o botão mora na Decisão */
   const so=v=>String(v==null?"":v).replace(/\D/g,"").replace(/^0+/,"");
   const un=so(p.unidade);
+  const avAntes=av?[av.className, av.innerHTML]:null;   /* 06/11: a mensagem do Reservar volta depois da busca */
   if(av){ av.className="sim-aviso ok"; av.textContent="Procurando a venda da unidade "+(p.unidade||"")+"…"; }
   let r=null;
   try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
@@ -4438,12 +5192,12 @@ async function propPreReservaDaUnidade(id){
   const achadas=(r.linhas||[]).filter(l=>un && so(val(l,"UNIDADE"))===un);
   if(!achadas.length){ if(av){ av.className="sim-aviso err"; av.textContent="A unidade "+(p.unidade||"")+" não tem linha no BANCO DE DADOS VENDAS CONDOMÍNIO. Marque PAGOU PREFERÊNCIA de novo para criar."; } return; }
   if(achadas.length>1){ if(av){ av.className="sim-aviso err"; av.textContent="A unidade "+(p.unidade||"")+" tem "+achadas.length+" linhas no banco de vendas — abra pela Planilha Casas Condomínio."; } return; }
-  if(av){ av.className="sim-aviso"; av.textContent=""; }
-  propAbrirPreReserva(String(achadas[0].id));
+  if(av){ av.className=avAntes[0]; av.innerHTML=avAntes[1]; }
+  propAbrirPreReserva(String(achadas[0].id), o);
 }
 /* 28/10/2026 — TERMO DE PRÉ-RESERVA pela proposta: abre por cima a mesma tela do cartão da unidade
    (conta para devolução, gerar, ver e enviar à Clicksign), desenhada pelo venda-dossie.js na linha da venda. */
-function propAbrirPreReserva(linha){
+function propAbrirPreReserva(linha, o){
   if(!window.VendaBlocos || !VendaBlocos.montarPreReserva){ alert("A tela do termo ainda está carregando — tente de novo em instantes."); return; }
   let fundo=document.getElementById("prop-pr-fundo");
   if(!fundo){
@@ -4456,14 +5210,18 @@ function propAbrirPreReserva(linha){
     document.body.appendChild(fundo);
   }
   fundo.style.display="flex";
-  VendaBlocos.montarPreReserva(document.getElementById("prop-pr-tela"), linha);
+  VendaBlocos.montarPreReserva(document.getElementById("prop-pr-tela"), linha, o);
 }
 function propFecharPreReserva(){
   const f=document.getElementById("prop-pr-fundo"); if(f) f.style.display="none";
   if(window.VendaBlocos && VendaBlocos.soltarPreReserva) VendaBlocos.soltarPreReserva();
 }
 async function propStatus(id, status){
-  if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nA unidade passa para VENDIDA = SIM no mapa e os dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO.")) return;
+  if(status==="VENDIDA" && !confirm("Marcar esta proposta como VENDIDA?\n\nOs dados vão para o BANCO DE DADOS VENDAS CONDOMÍNIO. No mapa a unidade fica RESERVADA até a ETAPA da venda ficar Concluída.")) return;
+  /* 03/11/2026 (dono): Reservar cria a venda, manda o link ao corretor e abre o prazo de 5 dias */
+  if(status==="RESERVADA" && !confirm("Reservar esta proposta?\n\n• a unidade fica RESERVADA no mapa;\n• a venda é criada no BANCO DE DADOS VENDAS CONDOMÍNIO;\n• o corretor recebe o link para completar dados e documentos;\n• prazo de "+PROP_RESERVA_DIAS+" dias corridos para gerar o contrato — sem contrato, a reserva cai sozinha.")) return;
+  if(status==="NEGADA" && PROP_NORM((PROPS.find(x=>x.id===id)||{}).status)==="RESERVADA" &&
+     !confirm("Negar esta proposta reservada?\n\nA unidade volta a disponível e a venda criada na reserva vai para DISTRATOS CONDOMÍNIO.")) return;
   const av=document.getElementById("prop-detAviso");
   av.className="sim-aviso ok"; av.textContent="Salvando…";
   const pararProg=propProgresso(av, status);
@@ -4491,7 +5249,9 @@ async function propStatus(id, status){
     if(conferido===true){
       av.className="sim-aviso ok";
       av.textContent="Demorou, mas gravou: a proposta está como "+status+".";
-      propMarcarAtual(status); propSincronizarTudo(); return;
+      propMarcarAtual(status); propSincronizarTudo();
+      if(status==="RESERVADA") propOferecerTermo(id, null);
+      return;
     }
     av.className="sim-aviso err";
     av.textContent = conferido===false
@@ -4501,13 +5261,18 @@ async function propStatus(id, status){
   }
   if(_conf) clearInterval(_conf);
   pararProg();
-  if(r && r.ok && status==="VENDIDA"){ propMarcarAtual(status); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){} return; }
+  if(r && r.ok && status==="VENDIDA"){ propMarcarAtual(status); await propPosVendida(id, r, av); try{ simCarregarUnidades(true); }catch(e){}
+    propCorrigirMapaUnidade((PROPS.find(x=>x.id===id)||{}).unidade); return; }
   if(r && r.ok){
     av.className="sim-aviso ok";
     av.innerHTML="<b>✓ Status: "+esc(r.status||status)+".</b> "+esc(r.reflexo||"")+"<br><span style='font-size:12px'>Unidade, mapa e lista de propostas já atualizados."+
-      (r.emailCorretor ? (r.emailCorretor.ok ? " E-mail enviado ao corretor ("+esc(r.emailCorretor.para||"")+")." : " ⚠ E-mail ao corretor não saiu: "+esc(r.emailCorretor.erro||"")) : "")+"</span>";
+      (r.emailCorretor ? (r.emailCorretor.ok ? " E-mail enviado ao corretor ("+esc(r.emailCorretor.para||"")+")." : " ⚠ E-mail ao corretor não saiu: "+esc(r.emailCorretor.erro||"")) : "")+
+      (r.emailCorretor && r.emailCorretor.vence ? " Reserva vence em "+esc(new Date(r.emailCorretor.vence).toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"}))+"." : "")+
+      (r.emailCorretor && r.emailCorretor.venda ? (r.emailCorretor.venda.ok ? " Venda criada no BANCO DE DADOS VENDAS CONDOMÍNIO." : " ⚠ A venda não foi criada: "+esc(r.emailCorretor.venda.erro||r.emailCorretor.venda.mensagem||"")) : "")+
+      (r.reservaCaiu ? (r.reservaCaiu.ok ? " A venda da reserva foi para DISTRATOS CONDOMÍNIO." : " ⚠ A venda da reserva não saiu do banco de vendas: "+esc(r.reservaCaiu.mensagem||r.reservaCaiu.erro||"")) : "")+"</span>";
     propMarcarAtual(status);
     propSincronizarTudo();
+    if(status==="RESERVADA") propOferecerTermo(id, r);
   }else{
     av.className="sim-aviso err";
     av.innerHTML=(r&&r.erro==="MODO_TESTE") ? "Perfil TESTES não grava." : propErro(r&&r.erro);

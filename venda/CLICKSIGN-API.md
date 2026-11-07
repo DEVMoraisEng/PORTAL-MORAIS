@@ -374,17 +374,19 @@ A API v3 não edita signatário (Signatários: Listar, Criar, Detalhes, Excluir)
   `ASSINATURA_PAPEIS_<envelope>` quando o envelope termina.
 - **Na troca** (envelope `running`, situação ENVIADO, signatário pendente):
   1. `POST /envelopes/{id}/signers` — novo, com nome/CPF/telefone/avisos do antigo e o e-mail certo;
-  2. `POST /envelopes/{id}/requirements` — os requisitos guardados, para o novo (qualificação, autenticação, rubricas);
-  3. `POST /envelopes/{id}/bulk_requirements` — `{"atomic:operations":[{"op":"remove","ref":{"type":"requirements","id":"…"}}]}`
-     tira os do antigo ("vale com o envelope em draft e em running");
-  4. `DELETE /envelopes/{id}/signers/{antigo}` (403 se já assinou);
-  5. `POST /envelopes/{id}/signers/{novo}/notifications` — só o novo recebe o link.
+  2. `POST /envelopes/{id}/bulk_requirements` — `{"atomic:operations":[{"op":"add","data":{"type":"requirements",…}}]}`
+     com os requisitos guardados, para o novo (qualificação, autenticação, rubricas). **Sandbox 03/11:** com o envelope
+     ativo, `POST /requirements` avulso dá 403 "envelope não está com status draft" — só o lote passa;
+  3. `DELETE /envelopes/{id}/signers/{antigo}` (403 se já assinou) — leva os requisitos dele junto. **Sandbox 03/11:**
+     tirar antes os requisitos do antigo (`bulk_requirements` remove) dá 422 "há signatário(s) sem os requisitos
+     necessários para ativação";
+  4. `POST /envelopes/{id}/signers/{novo}/notifications` — só o novo recebe o link.
 - O novo entra **antes** de o antigo sair: sem a pessoa, o `auto_close` fecharia o contrato.
-  Falha em 2–4 desfaz o novo; sem conseguir desfazer → `TROCA_INCOMPLETA` (cancelar o envelope).
+  Falha em 2–3 desfaz o novo (DELETE do novo); sem conseguir desfazer → `TROCA_INCOMPLETA` (cancelar o envelope).
 - Envelope enviado antes desta versão não tem os requisitos guardados → `TROCA_SEM_REQUISITOS`.
 
 Páginas: reference/api-excluir-signatario, reference/bulk-requirements, reference/api-notificar-signatario,
-reference/api-listar-requisitos (lidas em 03/11/2026). **Ainda não provado no sandbox.**
+reference/api-listar-requisitos, docs/signatarios (lidas em 03/11/2026).
 
 ## Mensagem do envelope (03/11/2026)
 

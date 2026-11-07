@@ -64,7 +64,7 @@ def test_parcelas_do_fluxo_tipos_tabelas_e_datas():
     assert por["Balão 12/27"]["tipo"] == R.TIPO_INTERMEDIARIA and por["Balão 12/27"]["tabela"] == "INCC-M"
     assert por["Balão entrega de chaves"]["tipo"] == R.TIPO_CHAVES
     assert por["Pós-chaves 2/3"]["data"] == "2029-02-28" and por["Pós-chaves 2/3"]["tabela"] == "IPCA + 1% a.m."
-    assert por["Financiamento"]["tabela"] is None and por["FGTS"]["data"] == "2026-11-09"
+    assert por["Financiamento"]["tabela"] is None and por["FGTS"]["data"] == "2028-11-30"
 
 
 def test_faltas_do_fluxo():
@@ -111,7 +111,7 @@ def test_parcelas_do_fluxo_alterado_linha_a_linha():
     assert por["Permuta - veículo marca/modelo/ano/placa"]["tabela"] is None
     assert (por["Pós-chaves 3/3"]["valor"], por["Pós-chaves 3/3"]["tabela"]) == (820, C.TABELA_POS)
     assert por["Pós-chaves 2/3"]["data"] == "2029-02-28"
-    assert (por["Financiamento"]["data"], por["FGTS"]["valor"]) == ("2026-11-09", 10000)
+    assert (por["Financiamento"]["data"], por["FGTS"]["valor"]) == ("2028-11-30", 10000)
     assert [p["data"] for p in ps] == sorted(p["data"] for p in ps)
 
 
@@ -224,11 +224,11 @@ def test_corretor_novo_leva_email_celular_e_creci(monkeypatch):
     assert cor["phones"] == [{"number": "62900000001"}] and cor["comment"] == "Corretor — CRECI 12345"
 
 
-def test_condominio_financiamento_30_dias_apos_assinatura_e_cpf_do_corretor_da_pasta(monkeypatch):
+def test_condominio_financiamento_em_30_11_2028_e_cpf_do_corretor_da_pasta(monkeypatch):
     monkeypatch.delenv("DB_VENDAS_COND", raising=False)
     fx = C.fluxo(fluxo_props())
     ps = C.parcelas(fx, {"data_venda": "2026-09-01", "fgts": 100, "financiado": 1000})
-    assert {p["rotulo"]: p["data"] for p in ps}["Financiamento"] == "2026-11-09"   # assinatura 10/10 + 30
+    assert {p["rotulo"]: p["data"] for p in ps}["Financiamento"] == "2028-11-30"   # dono 06/11/2026: condomínio vence sempre em 30/11/2028
     cond = fluxo_props(**{"CPF CORRETOR": txt("111.444.777-35")})
     n = NotionDuas(dados_venda(), cond)
     n.corretores = []
@@ -593,3 +593,39 @@ def test_fechar_centavos_nao_mexe_em_diferenca_grande():
     assert ps[0]["valor"] == 1000.00
     C.fechar_centavos(ps, 1000.20)  # soma abaixo do valor: falta, o robô não inventa dinheiro
     assert ps[0]["valor"] == 1000.00
+
+
+def test_financiamento_reduzido_no_fluxo_alterado_lanca_o_valor_da_linha(monkeypatch):
+    """05/11/2026 (dono): financiamento menor que a carta (VALOR DO CRÉDITO 200.000) no Alterar fluxo — o robô lança
+    a linha do fluxo (190.000), não a coluna; os 10.000 foram para o balão da entrega."""
+    linhas = [dict(l) for l in LIVRE]
+    fin = next(l for l in linhas if l["t"] == "fin")
+    fin["v"] = 190000
+    next(l for l in linhas if l["t"] == "balao" and l["d"] == "2028-11-30")["v"] += 10000
+    fx = C.fluxo(fluxo_props(**_livre(linhas)))
+    assert C.faltas_do_fluxo(fx, fx["unidade"]) == []
+    d = {"data_venda": "2026-09-01", "total": 228900, "aquisicao": 228900, "financiado": 200000, "subsidio": None}
+    C.ajustar_dados_livre(fx, d)
+    assert d["financiado"] == 190000, "o dado da venda segue a linha do fluxo"
+    ps = C.parcelas(fx, d, 30)
+    assert [p["valor"] for p in ps if p["tipo"] == R.TIPO_FINANCIAMENTO] == [190000]
+    monkeypatch.setenv("DB_VENDAS_COND", DB_COND)
+    r = L.processar(LINHA_ID, NotionLinha(linha_cond(**_livre(linhas))), ErpLinha())
+    assert r["situacao"] == "PREVIA", r
+    inst = r["corpo_venda"]["tradeReceivable"]["installments"]
+    assert [i["plannedValue"] for i in inst if i["readjustmentDetail"]["type"]["id"] == R.TIPO_FINANCIAMENTO] == [190000]
+    assert round(sum(i["plannedValue"] for i in inst), 2) == 228900
+
+
+# 06/11/2026 (dono): no condomínio FINANCIAMENTO e FGTS vencem sempre em 30/11/2028 (entrega), qualquer que seja a
+# data da venda/assinatura e o --dias-financiamento; antes saía data da venda + 30 e as 7 vendas reais vieram erradas.
+def test_condominio_financiamento_e_fgts_vencem_em_30_11_2028_sem_depender_da_data():
+    for dv, dias in (("2026-10-31", 30), ("2027-03-15", 45)):
+        fx = C.fluxo(fluxo_props())
+        fx["assinatura"] = dv
+        ps = C.parcelas(fx, {"data_venda": dv, "fgts": 5000, "financiado": 200000}, dias)
+        datas = {p["rotulo"]: p["data"] for p in ps}
+        assert (datas["Financiamento"], datas["FGTS"]) == ("2028-11-30", "2028-11-30")
+    fx = C.fluxo(fluxo_props(**_livre(LIVRE)))
+    ps = C.parcelas(fx, {"data_venda": "2026-11-03"}, 30)
+    assert {p["data"] for p in ps if p["tipo"] in (R.TIPO_FINANCIAMENTO, R.TIPO_FGTS)} == {"2028-11-30"}

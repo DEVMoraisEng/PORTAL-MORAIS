@@ -127,3 +127,15 @@ test("NÃO pedido ao robô também oferece o botão; ZIP grande não (só à mã
   assert.ok(botao(D.htmlMC({ situacao: "ainda não lançada\nContratos (ZIP): guardado no Notion (2 documentos), NÃO pedido ao robô (y) — use o botão", vendaId: "" }, ui()), "mc-anexar-zip"));
   assert.equal(botao(D.htmlMC({ situacao: "CRIADA\nContratos (ZIP): ZIP grande (mais de 20 MB): envie à mão para a pasta Contratos Venda", vendaId: "v-9" }, ui()), "mc-anexar-zip"), null);
 });
+
+/* 03/11/2026 (casa 31): o robô antigo recusou o pedido e a situação ficou "pedido ao robô" — o botão some para sempre */
+test("pedido ao robô parado há mais de 10 minutos libera o botão de novo (contrato e ZIP)", () => {
+  const sit = "CRIADA | venda v1\nContrato: pedido ao robô em 03/11 14:22\nContratos (ZIP): pedido ao robô em 03/11 14:22";
+  assert.equal(D.pedidoParado(sit, "Contrato", "2026-11-03T14:40:00"), true);
+  assert.equal(D.pedidoParado(sit, "Contrato", "2026-11-03T14:28:00"), false, "6 minutos: ainda espera o robô");
+  assert.equal(D.pedidoParado(sit, "Contratos (ZIP)","2026-11-03T14:40:00"), true);
+  assert.equal(D.pedidoParado("Contrato: anexado no recebimento", "Contrato", "2026-11-03T14:40:00"), false);
+  assert.equal(D.pedidoParado("Contrato: pedido ao robô em 31/12 23:55", "Contrato", "2027-01-01T00:20:00"), true, "virada de ano");
+  const h = D.htmlMC({ situacao: "CRIADA | venda v1\nContrato: pedido ao robô em 01/01 00:00", vendaId: "v1" }, ui());
+  assert.ok(botao(h, "mc-anexar"), "botão de volta");
+});

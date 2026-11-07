@@ -54,14 +54,12 @@ class ErpFalso:
         pass
 
 
-def test_escolhe_alertas_e_janela():
+def test_escolhe_alertas_e_janela(monkeypatch):
+    monkeypatch.setattr(ra, "ESCOPO", "alertas")
     alvo = ra.escolher(aud_falsa())
     assert set(alvo) == {101, 303}               # 202 é OK sem alerta; 404 está fora dos 90 dias; 303 tem DUP
-    ra.ESCOPO = "todos"
-    try:
-        assert set(ra.escolher(aud_falsa())) == {101, 202, 303}
-    finally:
-        ra.ESCOPO = "alertas"
+    monkeypatch.setattr(ra, "ESCOPO", "todos")   # 05/11: o padrão — todos da página; com alerta marcados
+    assert set(ra.escolher(aud_falsa())) == {101, 202, 303, 404} and ra.ALERTAS == {101, 303}
 
 
 def test_rodada_com_link_longo_do_mc_nao_copia(monkeypatch):
@@ -122,3 +120,309 @@ def test_descoberta_sem_lancamento_sai_com_erro():
 def test_validade():
     assert ra.validade_s("https://x/a?X-Amz-Expires=3600") == 3600
     assert ra.validade_s("https://x/a") is None
+
+
+class ErpComCentroDeCusto(ErpFalso):
+    """03/11 (2ª descoberta no servidor): sem costCenterIds o MC recusa a lista; a tela do porteiro pediu com eles."""
+    TELA = ("https://legacy-api.maiscontroleerp.com.br/maiscontrole/services/payable-installments/paginated-result"
+            "?page=0&size=20&dateField=PLANNED&startDate=2026-11-01&endDate=2026-11-30"
+            "&costCenterIds=11111111-0000-4000-8000-000000000000&costCenterIds=22222222-0000-4000-8000-000000000000"
+            "&status=OPEN")
+
+    def pedido_da_tela(self, trecho, espera=20.0):
+        return self.TELA if trecho in self.TELA else None
+
+    def pedir(self, metodo, caminho, corpo=None, params=None):
+        if caminho == "/payable-installments/paginated-result":
+            self.pedidos.append((caminho, params))
+            if not params.get("costCenterIds"):
+                raise RuntimeError('HTTP 400: {"message":"O centro de custo deve ser especificado"}')
+            assert params["costCenterIds"] == ["11111111-0000-4000-8000-000000000000", "22222222-0000-4000-8000-000000000000"]
+            if params.get("status") == ["OPEN"]:            # só as abertas: nenhuma paga — tenta sem a situação
+                return {"content": [], "hasNextPage": False}
+            p = dict(params, page=int(params["page"][0]))
+            return ErpFalso.pedir(self, metodo, caminho, corpo, dict(p, dateField=None))
+        return ErpFalso.pedir(self, metodo, caminho, corpo, params)
+
+
+def test_lista_copia_os_parametros_da_tela_e_troca_janela_e_pagina():
+    erp = ErpComCentroDeCusto()
+    leitor = ra.LeitorMC(erp)
+    assert ra.descobrir(leitor, {101: D(5), 303: D(10)}) == 0
+    assert leitor.params_ok[0] == "da tela, sem filtro de situação"
+    q = [p for c, p in erp.pedidos if c == "/payable-installments/paginated-result"][0]
+    assert q["dateField"] == ["DATE_OF_PAYMENT"] and q["size"] == ["100"] and q["page"] == ["0"]
+    assert q["startDate"] == [(HOJE - dt.timedelta(days=ra.DIAS + 120)).isoformat()]
+    assert q["endDate"] == [(HOJE + dt.timedelta(days=30)).isoformat()]
+    assert leitor.formato_da_tela()["costCenterIds"] == "uuid×2" and leitor.formato_da_tela()["status"] == "OPEN"
+    assert [t[0] for t in leitor.tentativas][:3] == ["da tela, por data de pagamento", "da tela", "da tela, sem filtro de situação"]
+
+
+class ErpListaSemNumero(ErpFalso):
+    """04/11 (3ª descoberta): a lista da tela não traz o nº do lançamento, só tradePayableId (UUID)."""
+    def pedido_da_tela(self, trecho, espera=20.0):
+        return ("https://legacy-api.maiscontroleerp.com.br/x/payable-installments/paginated-result?page=0&size=20"
+                "&dateField=PLANNED&startDate=2026-11-01&endDate=2026-11-30&costCentreType=ALL")
+
+    def pedir(self, metodo, caminho, corpo=None, params=None):
+        if caminho == "/payable-installments/paginated-result":
+            self.pedidos.append((caminho, params))
+            if params["page"] != ["0"]:
+                return {"content": [], "hasNextPage": False}
+            U = self.UU
+            return {"content": [
+                {"id": U % 1, "tradePayableId": U % 151, "plannedDate": D(5), "dateOfPayment": D(5), "sumOfPaidValues": 10.0,
+                 "remainingValue": 0, "description": "Areia", "filteredPaids": [{"id": U % 191, "payingDate": D(5), "paidValue": 10.0}]},
+                {"id": U % 2, "tradePayableId": U % 353, "plannedDate": D(10), "dateOfPayment": D(10), "sumOfPaidValues": 25.5,
+                 "remainingValue": 0, "description": "Cimento", "filteredPaids": []},
+                {"id": U % 3, "tradePayableId": U % 999, "plannedDate": D(10), "dateOfPayment": D(10), "sumOfPaidValues": 25.5,
+                 "remainingValue": 0, "description": "Outra coisa", "filteredPaids": []},          # mesmo dia e valor: desempata
+                {"id": U % 4, "tradePayableId": U % 888, "plannedDate": D(3), "sumOfPaidValues": 77.0, "remainingValue": 0}],
+                "hasNextPage": False}
+        return ErpFalso.pedir(self, metodo, caminho, corpo, params)
+
+
+def test_casa_pela_data_e_valor_quando_a_lista_nao_tem_o_numero():
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101, 303, 202], "dp": [D(5), D(10), D(10)], "dv": [D(5), D(10), D(10)], "st": [1, 1, 1],
+                    "v": [10.0, 25.5, 25.5], "vp": [10.0, 25.5, 25.5], "d": ["AREIA", "Cimento CP-II", "x"], "nd": ["", "", ""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    assert set(alvo) == {101, 303, 202}
+    aud["cols"]["d"][2] = "outra coisa"
+    leitor = ra.LeitorMC(ErpListaSemNumero())
+    leitor.preparar_casamento(aud, alvo)
+    assert ra.descobrir(leitor, alvo) == 0
+    mapa, _ = leitor.mapear(alvo, max_paginas=2)
+    assert mapa[101]["tp"] == ErpFalso.UU % 151 and mapa[101]["baixas"] == [ErpFalso.UU % 191]
+    assert mapa[202]["tp"] == ErpFalso.UU % 999            # "outra coisa" desempatou com a descrição
+    assert 303 not in mapa or mapa[303]["tp"] == ErpFalso.UU % 353
+    assert leitor.campo_num is None and leitor.casados >= 2
+
+
+def test_datas_da_lista_em_texto_viram_iso_e_a_janela_e_a_do_escopo():
+    """04/11 (3ª descoberta): 8 páginas lidas e 0 casados — a lista vem como texto e em ordem de data, e a janela
+    larga (210 dias) gastava as páginas com parcelas mais velhas que o escopo."""
+    assert ra._data_iso("2026-10-05T00:00:00") == "2026-10-05"
+    assert ra._data_iso("05/10/2026") == "2026-10-05" and ra._data_iso("") == "" and ra._data_iso(None) == ""
+    assert ra._mascara("1.234,56") == "9.999,99" and ra._mascara(None) == "vazio"
+
+    class ErpTexto(ErpListaSemNumero):
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            r = ErpListaSemNumero.pedir(self, metodo, caminho, corpo, params)
+            if caminho == "/payable-installments/paginated-result":
+                for it in r.get("content") or []:
+                    for k in ("plannedDate", "dateOfPayment"):
+                        if it.get(k):
+                            y, m, d = it[k][:10].split("-")
+                            it[k] = "%s/%s/%s" % (d, m, y)
+                    it["sumOfPaidValues"] = ("%.2f" % it["sumOfPaidValues"]).replace(".", ",")
+            return r
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101, 303], "dp": [D(5), D(10)], "dv": [D(5), D(10)], "st": [1, 1],
+                    "v": [10.0, 25.5], "vp": [10.0, 25.5], "d": ["AREIA", "Cimento CP-II"], "nd": ["", ""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    erp = ErpTexto()
+    leitor = ra.LeitorMC(erp)
+    leitor.preparar_casamento(aud, alvo)
+    assert leitor.janela[0] < min(D(5), D(10)) and max(D(5), D(10)) < leitor.janela[1]
+    mapa, _ = leitor.mapear(alvo, max_paginas=2)
+    assert mapa[101]["tp"] == ErpFalso.UU % 151
+    q = erp.pedidos[0][1]
+    assert q["startDate"] == [leitor.janela[0]] and q["endDate"] == [leitor.janela[1]]
+
+
+def test_rodada_de_verdade_casada_por_data_e_valor(monkeypatch):
+    """04/11 (1ª rodada de verdade): a lista sem o nº do lançamento parava a rodada ('não achei em que campo…')
+    mesmo com a descoberta casando por data e valor."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpListaSemNumero):
+        def __init__(self):
+            ErpListaSemNumero.__init__(self, validade=604800)
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101], "dp": [D(5)], "dv": [D(5)], "st": [1], "v": [10.0], "vp": [10.0], "d": ["AREIA"], "nd": [""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    leitor = ra.LeitorMC(Erp())
+    leitor.preparar_casamento(aud, alvo)
+    itens, est = ra.rodada(leitor, aud, alvo)
+    assert leitor.campo_num is None and est["lidos"] == 1 and itens["101"]["a"]
+
+
+def test_sessao_que_cai_no_meio_para_para_repetir(monkeypatch):
+    """04/11 (2ª rodada): a sessão do MC caiu no meio e a rodada terminou 'OK' com 1 lançamento lido. Agora para
+    com 'não está logado' (o rodar_e_relatar espera o porteiro e repete)."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpListaSemNumero):
+        def __init__(self):
+            ErpListaSemNumero.__init__(self, validade=604800)
+
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            if caminho == "/folder":
+                raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle")
+            return ErpListaSemNumero.pedir(self, metodo, caminho, corpo, params)
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101], "dp": [D(5)], "dv": [D(5)], "st": [1], "v": [10.0], "vp": [10.0], "d": ["AREIA"], "nd": [""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    leitor = ra.LeitorMC(Erp())
+    leitor.preparar_casamento(aud, alvo)
+    itens, est = ra.rodada(leitor, aud, alvo)        # 05/11: não joga fora — devolve e marca que caiu (o main sai com 1)
+    assert est["caiu"] and est["lidos"] == 0
+    assert leitor.lidos_lista >= 1 and leitor.data_bate >= 1
+
+
+def test_segunda_rodada_lembra_o_mc_e_nao_le_a_lista_de_novo(monkeypatch):
+    """04/11 (pedido do dono): quem já foi achado no MC guarda os UUIDs ("mc") e a rodada seguinte não lê a lista
+    de pagamentos (a parte lenta) para ele — só abre as pastas de novo quando o pagamento é recente."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpListaSemNumero):
+        def __init__(self):
+            ErpListaSemNumero.__init__(self, validade=604800)
+
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101], "dp": [D(5)], "dv": [D(5)], "st": [1], "v": [10.0], "vp": [10.0], "d": ["AREIA"], "nd": [""]},
+           "fiscal": []}
+    alvo = ra.escolher(aud)
+    erp1 = Erp()
+    itens, est = ra.rodada(ra.LeitorMC(erp1), aud, alvo)
+    assert itens["101"]["mc"]["tp"] == ErpFalso.UU % 151 and itens["101"]["mc"]["parcelas"]
+    # conferido de novo só porque ainda não tem o comprovante e foi aberto há mais de RECHECAR_HORAS
+    itens["101"]["a"] = [a for a in itens["101"]["a"] if a.get("o") != "P"]
+    itens["101"]["v"] = (dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=2)).isoformat(timespec="minutes")
+    aud["anexos"] = {"itens": itens}
+    erp2 = Erp()
+    leitor2 = ra.LeitorMC(erp2)
+    itens2, est2 = ra.rodada(leitor2, aud, alvo)
+    assert not [p for p in erp2.pedidos if p[0] == "/payable-installments/paginated-result"]   # a lista não foi lida
+    assert est2["lidos"] == 1 and itens2["101"]["a"] and itens2["101"]["mc"]["tp"] == ErpFalso.UU % 151
+
+
+def test_tempo_da_rodada_acaba_e_grava_o_que_leu(monkeypatch):
+    """04/11: a 1ª rodada passou dos 40 min e foi cortada sem gravar. Com o tempo acabado, para de abrir e devolve o
+    que já leu (o main grava)."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    t = [0.0]
+
+    def relogio():
+        t[0] += 60 * 30                  # cada olhada no relógio = 30 min
+        return t[0]
+    leitor = ra.LeitorMC(ErpFalso(validade=604800))
+    itens, est = ra.rodada(leitor, aud_falsa(), {101: D(5)}, relogio=relogio)
+    assert est["consultados"] == 0
+    # 04/11 (17:12): o que a lista achou fica guardado para a próxima abrir sem ler a lista de novo
+    assert not itens["101"].get("v") and itens["101"]["mc"]["parcelas"] and est["a_abrir"] == 1
+    aud = dict(aud_falsa(), anexos={"itens": itens})
+    erp2 = ErpFalso(validade=604800)
+    itens2, est2 = ra.rodada(ra.LeitorMC(erp2), aud, {101: D(5)})
+    assert not [x for x in erp2.pedidos if x[0] == "/payable-installments/paginated-result"]
+    assert itens2["101"]["v"] and itens2["101"]["a"] and est2["a_abrir"] == 0
+
+
+def test_nao_achado_so_e_procurado_de_novo_depois_de_uns_dias(monkeypatch):
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    alvo = {101: D(5), 777: D(5)}
+    itens, est = ra.rodada(ra.LeitorMC(ErpFalso()), aud_falsa(), alvo)
+    assert itens["777"]["nao_achado"] == ra.HOJE.isoformat() and est["erros"] == 0 and est["nao_achados"] == 1
+    erp2 = ErpFalso()
+    itens2, _ = ra.rodada(ra.LeitorMC(erp2), dict(aud_falsa(), anexos={"itens": itens}), alvo)
+    assert not [x for x in erp2.pedidos if x[0] == "/payable-installments/paginated-result"]
+    assert itens2["777"]["nao_achado"] == ra.HOJE.isoformat()
+    velho = dict(itens2, **{"777": {"nao_achado": (ra.HOJE - dt.timedelta(days=ra.REPROCURAR_DIAS)).isoformat()}})
+    erp3 = ErpFalso()
+    ra.rodada(ra.LeitorMC(erp3), dict(aud_falsa(), anexos={"itens": velho}), alvo)
+    assert [x for x in erp3.pedidos if x[0] == "/payable-installments/paginated-result"]
+
+
+def test_nao_reabre_quem_ja_tem_comprovante_nem_quem_foi_aberto_agora():
+    agora = dt.datetime.now(dt.timezone.utc)
+    lim = D(ra.RECHECAR_DIAS)
+    com = {"v": agora.isoformat(timespec="minutes"), "a": [{"o": "P"}], "mc": {"tp": "x"}}
+    sem_agora = {"v": agora.isoformat(timespec="minutes"), "a": [{"o": "L"}], "mc": {"tp": "x"}}
+    sem_ontem = dict(sem_agora, v=(agora - dt.timedelta(days=1)).isoformat(timespec="minutes"))
+    assert not ra._rechecar(com, D(2), lim, agora)
+    assert not ra._rechecar(sem_agora, D(2), lim, agora)
+    assert ra._rechecar(sem_ontem, D(2), lim, agora)
+    assert not ra._rechecar(sem_ontem, D(60), lim, agora)          # pagamento antigo: não confere mais
+    assert ra._rechecar(None, D(60), lim, agora) and ra._rechecar({"mc": {"tp": "x"}}, D(60), lim, agora)
+
+
+def test_com_muitos_achados_esperando_nao_le_a_lista(monkeypatch):
+    """04/11 (urgência): com a fila de achados cheia, a rodada só abre — a lista (≈20 min) fica para depois."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    monkeypatch.setattr(ra, "PRONTOS_SEM_LISTA", 1)
+    ant = {"101": {"mc": {"tp": ErpFalso.UU % 151, "parcelas": [ErpFalso.UU % 101]}}}
+    erp = ErpFalso()
+    itens, est = ra.rodada(ra.LeitorMC(erp), dict(aud_falsa(), anexos={"itens": ant}), {101: D(5), 888: D(4)})
+    assert not [x for x in erp.pedidos if x[0] == "/payable-installments/paginated-result"]
+    assert itens["101"]["v"] and "888" not in itens
+
+
+def test_cobertura_por_alerta():
+    aud = aud_falsa()
+    itens = {"101": {"v": "x", "a": [{"o": "P"}]}, "303": {"nao_achado": "2026-11-04"}}
+    l = ra.cobertura(aud, itens)
+    assert l == ["  DUP: não achado no MC 1"]
+def test_nao_achado_recente_fica_fora_da_rodada():
+    agora = dt.datetime.now(dt.timezone.utc)
+    lim = D(ra.RECHECAR_DIAS)
+    assert not ra._rechecar({"nao_achado": ra.HOJE.isoformat()}, D(2), lim, agora)
+    velho = (ra.HOJE - dt.timedelta(days=ra.REPROCURAR_DIAS)).isoformat()
+    assert ra._rechecar({"nao_achado": velho}, D(2), lim, agora)
+
+
+def test_alerta_da_fiscalizacao_velho_entra_e_lista_em_pedacos(monkeypatch):
+    aud = {"dict": {"st": ["OK", "DIVERGENTE"]},
+           "cols": {"id": [101, 202, 303], "dp": [D(5), D(300), D(300)], "st": [1, 0, 1]},
+           "fiscal": [["TARDIO", 1, "x"]]}
+    monkeypatch.setattr(ra, "ESCOPO", "alertas")
+    alvo = ra.escolher(aud)
+    assert set(alvo) == {101, 202}            # 202: alerta da Fiscalização com 300 dias entra; 303 (só situação) não
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    leitor = ra.LeitorMC(ErpFalso())
+    itens, est = ra.rodada(leitor, aud_falsa(), alvo)
+    assert "202" not in itens or not itens["202"].get("nao_achado")   # o pedaço velho fica para a próxima rodada
+
+
+def test_sem_alerta_guarda_o_arquivo_sem_link(monkeypatch):
+    """05/11: lançamento sem alerta só guarda nome/tipo (sem pedir link nem copiar para o Supabase)."""
+    subidos = []
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: subidos.append(a))
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+    monkeypatch.setattr(ra, "ALERTAS", {999})
+    leitor = ra.LeitorMC(ErpFalso(validade=60))       # link curto: com alerta, copiaria
+    itens, est = ra.rodada(leitor, aud_falsa(), {101: D(5)})
+    a = itens["101"]["a"]
+    assert a and all(x.get("sl") and "u" not in x for x in a) and not subidos and est["copiados"] == 0
+
+
+def test_sessao_que_cai_no_meio_guarda_o_que_ja_leu(monkeypatch):
+    """05/11 13:24: a sessão caiu e "nada gravado" jogou fora 8 min de leitura."""
+    monkeypatch.setattr(ra, "sb_subir", lambda *a: None)
+    monkeypatch.setattr(ra, "sb_apagar", lambda c: None)
+
+    class Erp(ErpFalso):
+        n = 0
+        def pedir(self, metodo, caminho, corpo=None, params=None):
+            if caminho == "/folder" and params.get("origin") == "TRADE_PAYABLE":
+                Erp.n += 1
+                if Erp.n > 1:
+                    raise RuntimeError("o Chrome do porteiro não está logado no Mais Controle")
+            return ErpFalso.pedir(self, metodo, caminho, corpo, params)
+    itens, est = ra.rodada(ra.LeitorMC(Erp()), aud_falsa(), {101: D(5), 303: D(6)})
+    assert est["caiu"] and est["lidos"] == 1
+    assert sum(1 for x in itens.values() if x.get("v")) == 1

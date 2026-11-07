@@ -3,6 +3,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
 const require = createRequire(import.meta.url);
+globalThis.HOJE_VENDA_TESTE_ = "2026-01-01";   /* 07/11: "hoje" da tela fixo, antes das datas inventadas (trava de vencimento no passado) */
 const D = require("../../venda-dossie.js");
 const F = require("../FluxoLivre.js");
 
@@ -85,12 +86,17 @@ test("editor: valor da casa mudou mostra o campo do segundo motivo e pede ele (q
   assert.doesNotMatch(botao(D.htmlFluxoVivo({ ...ed, motivoPreco: "aprovado" }, ""), "c-fluxo-salvar"), /disabled/);
 });
 
-test("financiamento e FGTS só aparecem (sem campos nem botões); o tipo não oferece eles para linha nova", () => {
-  const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
+test("FGTS só aparece (sem campos nem botões); financiamento só o valor, até a carta (05/11); o tipo não oferece eles para linha nova", () => {
+  const ed = editor(); ed.linhas.push({ t: "fgts", v: 1, n: 1, d: "", i: 1, x: "" }); ed.padrao = { ...ed.padrao, linhas: [...ed.padrao.linhas, ed.linhas[3]] };
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  const linhaFgts = h.match(/<tr data-fx-linha="3">.*?<\/tr>/s)[0];
+  assert.match(linhaFgts, /FGTS.*fixo — vem da proposta/s);
+  assert.doesNotMatch(linhaFgts, /não muda/);
+  assert.doesNotMatch(linhaFgts, /<input|<select|data-acao/);
   const linhaFin = h.match(/<tr data-fx-linha="2">.*?<\/tr>/s)[0];
-  assert.match(linhaFin, /Financiamento.*fixo — vem da proposta/s);
-  assert.doesNotMatch(linhaFin, /não muda/);
-  assert.doesNotMatch(linhaFin, /<input|<select|data-acao/);
+  assert.match(linhaFin, /Financiamento.*até R\$ 70\.000,00 \(carta de aprovação\)/s);
+  assert.equal((linhaFin.match(/<input/g) || []).length, 1);
+  assert.doesNotMatch(linhaFin, /<select|data-acao/);
   assert.doesNotMatch(h, /<option value="fin">/);
 });
 
@@ -260,4 +266,143 @@ test("campo do bem: guarda na linha, troca de tipo mantém o proprietário, a da
 test("valores do bem são escapados no formulário", () => {
   const h = D.htmlFluxo(fechado, { fluxoEd: comPermutaUI({ ...carroUI, marca: '"><script>x</script>' }, { bemK: 3 }) }, "");
   assert.doesNotMatch(h, /<script>/);
+});
+
+/* ---- 04/11/2026 (dono): fluxo à mão guiado pelo simulador — a linha mexida trava (🔒), as outras pré-chaves,
+   balões e pós-chaves se ajustam; tudo travado = sugestão por linha + Aplicar sugestão. Números inventados. ---- */
+const reguaUI = () => editor({
+  valor: 199999.92, padrao: { valor: 199999.92, linhas: [] },
+  linhas: [{ t: "sinal", v: 10000, n: 1, d: "2026-11-05", i: 1, x: "" }, { t: "pre", v: 860, n: 12, d: "2026-12-10", i: 1, x: "" },
+           { t: "pre", v: 330, n: 12, d: "2027-12-10", i: 1, x: "" }, { t: "balao", v: 10000, n: 1, d: "2027-12-10", i: 1, x: "" },
+           { t: "balao", v: 7000, n: 1, d: "2028-11-10", i: 1, x: "" }, { t: "pos", v: 788.33, n: 24, d: "2028-12-10", i: 1, x: "" },
+           { t: "fin", v: 139800, n: 1, d: "", i: 1, x: "" }]
+});
+const linhaTr = (h, k) => h.match(new RegExp('<tr data-fx-linha="' + k + '"[^>]*>.*?</tr>', "s"))[0];
+
+test("guiado: mexer numa pré-chaves trava a linha e o simulador ajusta as outras; a tela marca as ajustadas", () => {
+  const ed = reguaUI();
+  ed.linhas[1].v = 760;
+  const mudou = D.guiarEditor(ed, 1);
+  assert.deepEqual(mudou.slice().sort(), [2, 3, 4]);
+  assert.equal(ed.travadas[1], true);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  assert.match(botao(linhaTr(h, 1), "c-fluxo-trava"), /aria-pressed="true"[^>]*>🔒/);
+  assert.match(botao(linhaTr(h, 2), "c-fluxo-trava"), /aria-pressed="false"[^>]*>🔓/);
+  for (const k of [2, 3, 4]) assert.match(linhaTr(h, k), /ajustado pelo simulador/);
+  assert.doesNotMatch(linhaTr(h, 1), /ajustado pelo simulador/);
+  assert.equal(botao(linhaTr(h, 0), "c-fluxo-trava"), "", "sinal sem cadeado");
+  assert.equal(botao(linhaTr(h, 6), "c-fluxo-trava"), "", "financiamento sem cadeado");
+  assert.match(D.htmlFluxoVivo(ed, ""), /Diferença: <b>R\$ 0,00 ✓/);
+});
+
+test("guiado: o cadeado trava e destrava; destravar recalcula com a linha de volta no jogo", () => {
+  const ed = reguaUI();
+  D.travarLinha(ed, 3);
+  assert.equal(ed.travadas[3], true);
+  ed.linhas[1].v = 760;
+  D.guiarEditor(ed, 1);
+  assert.equal(F.totalLinha(ed.linhas[3]), 10000, "1º balão travado não mudou");
+  D.travarLinha(ed, 3);
+  assert.ok(!ed.travadas[3]);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  D.travarLinha(ed, 0);
+  assert.ok(!ed.travadas[0], "linha fixa não trava");
+});
+
+test("guiado: tudo travado com diferença mostra a sugestão em cada linha e o Aplicar sugestão, que fecha a conta", () => {
+  const ed = reguaUI();
+  [2, 3, 4, 5].forEach((k) => D.travarLinha(ed, k));
+  ed.linhas[1].v = 760;
+  assert.deepEqual(D.guiarEditor(ed, 1), []);
+  assert.ok(ed.sugestao);
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  for (const k of [1, 2, 3, 4]) assert.match(linhaTr(h, k), /sugestão: R\$ [\d.]+,\d\d/);
+  assert.equal(F.totalLinha(ed.linhas[3]), 10000, "travada não muda sozinha");
+  const v = D.htmlFluxoVivo(ed, "");
+  assert.match(botao(v, "c-fluxo-sug"), /Aplicar sugestão/);
+  assert.match(v, /travad/);
+  D.aplicarSugestao(ed);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  assert.deepEqual(ed.travadas, {});
+  assert.equal(ed.sugestao, null);
+  assert.equal(botao(D.htmlFluxoVivo(ed, ""), "c-fluxo-sug"), "");
+});
+
+test("guiado: apagar uma linha desloca os cadeados; recomeçar limpa", () => {
+  const ed = reguaUI();
+  D.travarLinha(ed, 3); D.travarLinha(ed, 5);
+  D.travasAoApagar(ed, 2);
+  assert.deepEqual(ed.travadas, { 2: true, 4: true });
+  D.limparGuia(ed);
+  assert.deepEqual([ed.travadas, ed.ajustadas, ed.sugestao], [{}, {}, null]);
+});
+
+test("guiado: o editor explica o cadeado; o ↻ continua entre o tipo e o valor", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: reguaUI() }, "");
+  assert.match(h, /trava \(🔒\)/);
+  assert.match(linhaTr(h, 1), /<\/select>.*?<\/td><td><button[^>]*data-acao="c-fluxo-red"[^>]*>↻<\/button><\/td><td><input[^>]*data-fx="v"/s);
+});
+
+/* ---- 04/11 (revisão): tipo e quantidade também travam; sugestão com a última diferente; cores pelo tema ---- */
+test("guiado: trocar o tipo para pré-chaves/balão/pós-chaves ou mudar a quantidade trava a linha e pede a conta", () => {
+  const ed = reguaUI();
+  ed.linhas.push({ t: "entrada", v: 3000, n: 1, d: "2027-06-10", i: 1, x: "" });   // 7: sobram 3.000
+  ed.linhas[7].t = "balao";
+  assert.equal(D.fxMexeu(ed, 7, "t"), true, "virou balão: trava e refaz");
+  assert.equal(ed.travadas[7], true);
+  D.guiarEditor(ed, null);
+  assert.equal(F.validar({ valor: ed.valor, linhas: ed.linhas }).diferenca, 0);
+  assert.equal(F.totalLinha(ed.linhas[7]), 3000);
+  ed.linhas[7].t = "entrada";
+  assert.equal(D.fxMexeu(ed, 7, "t"), false, "virou tipo fixo: sem conta");
+  assert.ok(!ed.travadas[7], "e o cadeado sai");
+  assert.equal(D.fxMexeu(ed, 2, "n"), true);
+  assert.equal(ed.travadas[2], true);
+  assert.equal(D.fxMexeu(ed, 3, "d"), false, "data não mexe na conta");
+  assert.ok(!ed.travadas[3]);
+});
+
+test("guiado: sugestão mostra a última parcela quando ela é diferente", () => {
+  const ed = reguaUI();
+  ed.sugestao = { 1: 812.33 }; ed.sugestaoU = { 1: 812.4 };
+  assert.match(D.htmlFluxo(fechado, { fluxoEd: ed }, "").match(/<tr data-fx-linha="1"[^>]*>.*?<\/tr>/s)[0], /sugestão: R\$ 812,33 \(última R\$ 812,40\)/);
+  const r = F.guiar({ ...reguaUI(), linhas: reguaUI().linhas.map((l, k) => (k === 1 ? { ...l, v: 760 } : l)) }, [1, 2, 3, 4, 5]);
+  for (const k of Object.keys(r.sugestaoU || {})) assert.ok(r.sugestaoU[k] !== r.sugestao[k]);
+});
+
+test("guiado: cores por classe (tema claro/escuro), sem cor fixa no HTML da linha", () => {
+  const ed = reguaUI(); ed.linhas[1].v = 760; D.guiarEditor(ed, 1);
+  const h = D.htmlFluxo(fechado, { fluxoEd: ed }, "");
+  assert.doesNotMatch(h, /#1d6b43|rgba\(255,200,0/);
+  assert.match(h, /<tr data-fx-linha="2" data-fx-ajustada="1">/);
+  assert.match(h, /class="dz-nota vb-fx-ok"/);
+});
+
+/* 07/11/2026 (dono): vencimento no passado trava o Salvar e a tela oferece Corrigir datas */
+test("editor: pré-chaves vencendo antes de hoje trava o Salvar e mostra Corrigir datas; sem isso, o botão não aparece", () => {
+  const sem = D.htmlFluxoVivo(editor({ motivo: "teste" }), "");
+  assert.equal(botao(sem, "c-fluxo-datas"), "");
+  globalThis.HOJE_VENDA_TESTE_ = "2026-12-15";
+  try {
+    const h = D.htmlFluxoVivo(editor({ motivo: "teste" }), "");
+    assert.match(botao(h, "c-fluxo-datas"), />Corrigir datas/);
+    assert.match(botao(h, "c-fluxo-salvar"), /disabled/);
+    assert.match(h, /pré-chaves vence em 10\/12\/2026: tem de vencer depois de hoje \(15\/12\/2026\)/);
+  } finally { globalThis.HOJE_VENDA_TESTE_ = "2026-01-01"; }
+});
+
+/* 07/11/2026 (dono): pré-chaves mês a mês — "cabem N" no campo e o botão Encaixar quando duas partes caem no mesmo mês */
+test("editor: quantidade da pré-chaves mostra quantas cabem; partes no mesmo mês travam e mostram Encaixar", () => {
+  const duas = [{ t: "sinal", v: 10000, n: 1, d: "2026-10-30", i: 1, x: "" },
+                { t: "pre", v: 500, n: 12, d: "2026-11-10", i: 1, x: "" }, { t: "pre", v: 500, n: 8, d: "2027-11-10", i: 1, x: "" },
+                { t: "fin", v: 80000, n: 1, d: "", i: 1, x: "" }];
+  const ok = D.htmlContrato(estado(fechado), { fluxoEd: editor({ linhas: duas.map((l) => ({ ...l })), padrao: { valor: 100000, linhas: duas } }) });
+  assert.match(ok, /max="12" data-fx="n" data-k="1"/);
+  assert.match(ok, /cabem 12/);
+  const ruim = duas.map((l) => ({ ...l })); ruim[1].n = 13;
+  const h = D.htmlFluxoVivo(editor({ motivo: "teste", linhas: ruim, padrao: { valor: 100000, linhas: duas } }), "");
+  assert.match(botao(h, "c-fluxo-encaixar"), />Encaixar as pré-chaves/);
+  assert.match(botao(h, "c-fluxo-salvar"), /disabled/);
+  assert.equal(botao(D.htmlFluxoVivo(editor({ motivo: "teste", linhas: duas.map((l) => ({ ...l })), padrao: { valor: 100000, linhas: duas } }), ""), "c-fluxo-encaixar"), "");
 });

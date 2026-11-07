@@ -112,6 +112,8 @@ select:focus,input:focus{outline:none;border-color:var(--verde);box-shadow:0 0 0
 /* alertas */
 .al{background:var(--sup);border:1px solid var(--border2);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;margin-bottom:9px;display:flex;justify-content:space-between;align-items:center;gap:12px}
 .al .end{font-weight:700;font-size:13.5px;color:var(--azul)}.al .txt{color:#B45309;font-size:12.5px}
+.al .at-dias{display:inline-block;margin-left:8px;padding:2px 9px;border-radius:20px;color:#fff;font-size:12px;font-weight:800;white-space:nowrap}
+.al .at-casa{font-weight:600;color:var(--text3);font-size:11.5px;margin-left:4px}
 /* rótulo ainda sem nome de obra resolvido — some sozinho quando o Notion responde */
 .al .end.end-vazio{color:var(--text4);font-weight:600;font-style:italic}
 .al .end:hover{text-decoration:underline;cursor:pointer}
@@ -165,10 +167,11 @@ td.edt:hover{outline:2px solid var(--verde);outline-offset:-2px;background:#f0fb
 /* cor das linhas = SITUAÇÃO DO PROCESSO (fórmula do Notion) — item 5: cores mais distintas entre si */
 tbody tr.sit1 td{background:#FFF3AD}
 tbody tr.sit1 td.stick{background:#FCE87F}
-tbody tr.sit2 td{background:#FFD8A0}
-tbody tr.sit2 td.stick{background:#FDC06E}
-tbody tr.sit3 td{background:#FFB3B3}
-tbody tr.sit3 td.stick{background:#FF8F8F}
+/* 06/11/26: cores do ⚠️ >45 dias e do 🚨 >45 dias e não recebeu trocadas entre si (pedido do Morais) */
+tbody tr.sit2 td{background:#FFB3B3}
+tbody tr.sit2 td.stick{background:#FF8F8F}
+tbody tr.sit3 td{background:#FFD8A0}
+tbody tr.sit3 td.stick{background:#FDC06E}
 tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brightness(.96)}
 .chkcompleto{display:inline-flex;align-items:center;justify-content:center;width:15px;height:15px;border-radius:50%;background:var(--verde);color:#fff;font-size:9px;font-weight:900;margin-left:7px;vertical-align:middle}
 
@@ -180,23 +183,24 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .legenda .sw input{margin:0;accent-color:var(--azul)}
 .legenda .dot{width:13px;height:13px;border-radius:4px;display:inline-block;border:1px solid rgba(20,50,65,.18)}
 .legenda .dot.sit1{background:#FFF3AD;border-color:#E8CE5A}
-.legenda .dot.sit2{background:#FFD8A0;border-color:#EDA344}
-.legenda .dot.sit3{background:#FFB3B3;border-color:#E05252}
+.legenda .dot.sit2{background:#FFB3B3;border-color:#E05252}
+.legenda .dot.sit3{background:#FFD8A0;border-color:#EDA344}
 .legenda .dot.sit0{background:var(--sup);border-color:var(--border)}
 
 /* painel obra */
-.overlay{position:fixed;inset:0;background:rgba(20,40,55,.55);display:none;z-index:40}
-/* Painel da obra: metade da tela. Era largura fixa (620px), que em monitor
-   grande virava uma faixa estreita de ~25%. O clamp mantém o piso de 620px
-   (abaixo disso os campos lado a lado ficam apertados) e o teto na largura
-   da janela. Abaixo de 680px o media query lá embaixo assume e vira tela cheia. */
-.painel{position:fixed;top:0;right:0;height:100%;width:clamp(620px,50vw,100vw);background:var(--bg2);z-index:41;box-shadow:-14px 0 44px rgba(0,0,0,.3);display:none;flex-direction:column}
+.overlay{position:fixed;inset:0;background:rgba(15,30,45,.55);display:none;z-index:40}
+/* 05/11/2026 (dono): o painel da casa de rua abre igual ao cartão do condomínio (.cd-ov/.cd-cardbox): caixa
+   central flutuante sobre a lista escurecida, largura máxima 880px, cabeçalho e abas parados e rolagem só dentro
+   (#pn-body). Antes era aba lateral fixa à direita. Abaixo de 680px o media query lá embaixo vira tela cheia. */
+.painel{position:fixed;top:24px;left:50%;transform:translateX(-50%);width:min(880px,calc(100vw - 24px));height:calc(100vh - 48px);height:calc(100dvh - 48px);background:var(--sup);z-index:41;border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.35);display:none;flex-direction:column}
 .painel.on,.overlay.on{display:flex}
-.ph{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:18px 22px;position:relative}
-.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1;letter-spacing:.5px}
-.ph .loc{color:var(--teal);font-size:12px;font-weight:700;margin-top:4px}
+.ph{background:var(--sup);color:var(--text);padding:20px 22px 4px;position:relative;display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.ph .end{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:24px;text-transform:uppercase;line-height:1.05;letter-spacing:.5px;color:var(--azul)}
+.ph .pn-tit{min-width:0;overflow-wrap:anywhere}
+.ph .cd-bt{flex:0 0 auto}
+.ph .loc{color:var(--text3);font-size:13px;margin-top:2px}
 .pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:30px;height:30px;border-radius:8px;font-size:18px;cursor:pointer}
-.pbody{padding:0 0 24px;overflow:auto;flex:1}
+.pbody{padding:0 0 24px;overflow:auto;flex:1;min-height:0;overscroll-behavior:contain}
 .resumo{background:var(--sup);margin:0;padding:16px 22px;border-bottom:1px solid var(--border2);display:grid;grid-template-columns:repeat(2,1fr);gap:12px 18px}
 .ri .k{font-size:10px;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);font-weight:700;margin-bottom:5px}
 .ri input,.ri select{width:100%}
@@ -413,6 +417,27 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox .vb-fin .bt.bt-mini.fin-atraso{border-color:#c0392b;color:#c0392b}
 .cd-cardbox .vb-fin .bt.bt-mini.fin-atraso:not(.ghost){background:#c0392b;color:#fff}
 .cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-fin,.cd-cardbox[data-aba="financeiro"] #cd-venda>.vb-antec{display:block}
+/* 04/11/2026 (dono): o painel da casa de rua em abas, igual ao cartão do condomínio (mesma pílula .cd-abas). As abas
+   ficam paradas entre o cabeçalho e a rolagem; cada parte do painel tem data-sec, e os blocos que o venda-dossie.js
+   põe no painel (#dossie-wrap no topo, #contrato-wrap no fim) vão para a aba pelo id. Só esconde/mostra. */
+.pn-abas{margin:0;padding:10px 12px 8px;background:var(--sup);border-bottom:1px solid var(--border2)}
+.pn-abas:empty{display:none}
+.pn-abas .tab{padding:7px 11px;font-size:12.5px}
+#painel[data-aba] #pn-body>[data-sec],#painel[data-aba] #dossie-wrap,#painel[data-aba] #contrato-wrap{display:none}
+#painel[data-aba="resumo"] #pn-body>[data-sec="resumo"],#painel[data-aba="documentos"] #pn-body>[data-sec="documentos"],
+#painel[data-aba="compradores"] #pn-body>[data-sec="compradores"],#painel[data-aba="contrato"] #pn-body>[data-sec="contrato"],
+#painel[data-aba="andamento"] #pn-body>[data-sec="andamento"],
+#painel[data-aba="documentos"] #dossie-wrap,#painel[data-aba="contrato"] #contrato-wrap,#painel[data-aba="recebimentos"] #contrato-wrap{display:block}
+#painel[data-aba="contrato"] #contrato-wrap>.vb-rec,#painel[data-aba="recebimentos"] #contrato-wrap>:not(.vb-rec){display:none}
+/* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê (venda-dossie.js, evento dossie:compradores) esconde o grupo
+   Comprador 2 da aba Compradores. Só no painel da casa de rua (#painel); o cartão do condomínio não muda. */
+#painel[data-compradores="1"] #pn-body [data-comprador2]{display:none}
+/* campos em duas colunas dentro das abas (a lista inteira numa coluna só era o que fazia 16 telas de rolagem) */
+.pn-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:0 11px}
+.pn-grade>.campo{padding:0 11px}
+.pn-grade>.campo:has(.msgrid),.pn-grade>.campo:has(textarea){grid-column:1/-1}
+.pn-vazio{margin:18px 22px;color:var(--text3);font-size:13px}
+@media (max-width:600px){ .pn-grade{grid-template-columns:1fr} .pn-abas .tab{padding:8px 2px;font-size:11px} }
 /* 31/10/2026 (dono quer o cartão bom no celular): abaixo de 600 px as 6 abas ficam em 3 x 2 (nenhuma escondida) e as
    tabelas da conferência e das parcelas viram blocos empilhados — cada célula com o nome do campo (data-rot), os
    botões embaixo na largura toda. Pré-reserva, Contrato e Andamento já cabem e não mudam. */
@@ -462,9 +487,10 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox .vb-fx-tab{overflow-x:visible!important}
 .cd-cardbox .tbl-fx{table-layout:fixed;width:100%}
 .cd-cardbox .tbl-fx th,.cd-cardbox .tbl-fx td{padding:4px 3px;vertical-align:top;overflow-wrap:anywhere}
-.cd-cardbox .tbl-fx th:nth-child(1){width:16%}.cd-cardbox .tbl-fx th:nth-child(2){width:5%}.cd-cardbox .tbl-fx th:nth-child(3){width:13%}
+/* 04/11: a última coluna leva 🔒 + ✕ lado a lado (fluxo guiado) — 11%, tirados do tipo, da descrição e do total */
+.cd-cardbox .tbl-fx th:nth-child(1){width:15%}.cd-cardbox .tbl-fx th:nth-child(2){width:5%}.cd-cardbox .tbl-fx th:nth-child(3){width:13%}
 .cd-cardbox .tbl-fx th:nth-child(4){width:7%}.cd-cardbox .tbl-fx th:nth-child(5){width:16%}.cd-cardbox .tbl-fx th:nth-child(6){width:7%}
-.cd-cardbox .tbl-fx th:nth-child(7){width:14%}.cd-cardbox .tbl-fx th:nth-child(8){width:15%}.cd-cardbox .tbl-fx th:nth-child(9){width:7%}
+.cd-cardbox .tbl-fx th:nth-child(7){width:12%}.cd-cardbox .tbl-fx th:nth-child(8){width:14%}.cd-cardbox .tbl-fx th:nth-child(9){width:11%}
 .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
 .cd-cardbox .tbl-fx td.vb-fx-tot{white-space:normal!important}
 .cd-cardbox .tbl-fx th{white-space:normal;line-height:1.2}
@@ -824,8 +850,9 @@ body{display:flex;flex-direction:column;min-height:100vh}
   .atv{flex-direction:column;align-items:stretch;gap:8px}
   .atv .bt{width:100%}
 
-  /* painel da obra: tela cheia, é o único jeito de caber */
-  .painel{width:100vw;max-width:100vw;right:0;border-radius:0}
+  /* painel da obra: tela cheia, é o único jeito de caber (05/11: o modal central vira a tela inteira) */
+  .painel{inset:0;top:0;left:0;transform:none;width:100vw;max-width:100vw;height:100%;border-radius:0}
+  .ph{padding:14px 12px 4px}
   .pn-body,.corpo{padding:12px}
   .campo input,.campo select,.campo textarea{width:100%}
   .grupo>summary{padding:12px}
@@ -878,7 +905,7 @@ html[data-tema="escuro"] .chip{background:var(--bg3);color:var(--text3)}
 html[data-tema="escuro"] .chip.alerta{background:#3a2d12;color:#f0c95f}
 html[data-tema="escuro"] .aviso{background:#2a2113;border-color:#57431f;color:#f0c95f}
 html[data-tema="escuro"] .atv.atrasada{background:#3a1e1e}
-html[data-tema="escuro"] .painel{box-shadow:-6px 0 26px rgba(0,0,0,.55)}
+html[data-tema="escuro"] .painel{box-shadow:0 12px 40px rgba(0,0,0,.6)}
 /* Títulos e números que no claro são azul-escuro: no escuro esse azul fica
    quase igual ao fundo e o texto some. Passam todos para o tom claro do tema.
    (Mesma correção que já tinha sido feita no ligacoes.html.) */
@@ -967,6 +994,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <option value="">Todas as casas</option>
           <option value="vendida">Vendas em Andamento</option>
           <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
+          <option value="reservada">Reservadas (contrato aguardando assinatura)</option>
           <option value="completo">Processo de vendas completo</option>
         </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
@@ -1020,6 +1048,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
             <option value="">Todas as casas</option>
             <option value="vendida">Vendas em Andamento</option>
             <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
+          <option value="reservada">Reservadas (contrato aguardando assinatura)</option>
             <option value="completo">Processo de vendas completo</option>
           </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
@@ -1157,8 +1186,9 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   </main>
 
   <div class="overlay" id="overlay" onclick="fecharObra()"></div>
-  <aside class="painel" id="painel">
-    <div class="ph"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div><button class="pfechar" onclick="fecharObra()">×</button></div>
+  <aside class="painel" id="painel" role="dialog" aria-modal="true" aria-labelledby="pn-end" tabindex="-1">
+    <div class="ph"><div class="pn-tit"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div></div><button type="button" class="cd-bt" id="pn-fechar" onclick="fecharObra()">✕ Fechar</button></div>
+    <div class="pn-abas cd-abas" id="pn-abas"></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
 
@@ -1214,13 +1244,13 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=45"></script>
-<script src="venda/painel-casa.js?v=1"></script>
-<script src="venda/FluxoLivre.js?v=11"></script><!-- 29/10: Alterar fluxo -->
+<script src="app.js?v=46"></script>
+<script src="venda/painel-casa.js?v=6"></script>
+<script src="venda/FluxoLivre.js?v=16"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=66"></script>
-<script src="venda/contrato-vendida.js?v=2"></script>
+<script src="venda-dossie.js?v=82"></script>
+<script src="venda/contrato-vendida.js?v=4"></script>
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1597,6 +1627,10 @@ async function boot(){
   _mapaObraId=null; _vendidasPorEnd=null;   // dados novos: refaz os índices derivados
   atualizarBadgesSetores(); // 1ª passada (sem atividades ainda); a promise acima repinta
   abrirCasaDaUrl();
+  /* 04/11/2026 (dono): o mapa do Reserva (RESERVADA até a ETAPA Concluída) não pode depender de alguém abrir a
+     Planilha Casas Condomínio — confere ao abrir a Gestão de Vendas, depois do resto carregar e a cada 15 min */
+  setTimeout(condVarrerSilencioso, 15000);
+  setInterval(()=>{ if(document.visibilityState==="visible") condVarrerSilencioso(); }, CD_VARRER_MS);
 }
 /* vendas.html?abrir=<id da página>: abre direto o painel daquela casa. É o
    caminho do "Gerar venda" da tela do condomínio (a casa acabou de nascer e
@@ -1771,7 +1805,8 @@ const cdBRL=v=>(v==null||v===""||isNaN(v))?"—":"R$ "+Number(v).toLocaleString(
 const cdDia=iso=>{ if(!iso) return "—"; const p=String(iso).slice(0,10).split("-"); return p.length===3?p[2]+"/"+p[1]+"/"+p[0]:String(iso); };
 function cdCampoTipo(nome){ const c=(COND&&COND.colunas||[]).find(x=>x.nome===nome); return c?c.tipo:""; }
 function cdEhMoeda(nome,tipo){ return tipo==="number" && /VALOR|COMISS|FGTS|PARCELA|AVALIA|SUBIS|CR[EÉ]DITO/i.test(nome) && !/^N[ºO°]/i.test(nome) && !/PERCENTUAL|DIA /i.test(nome); }
-function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0; }
+/* 04/11/2026 (dono): a entrega do condomínio é 30/11/2028 para todas — "ninguém mexe nessa" */
+function cdEditavel(c){ return c && CD_SO_LEITURA.indexOf(c.tipo)<0 && c.nome!=="DATA DA ENTREGA"; }
 /* 30/09: acha a coluna mesmo com espaço/acento diferente no nome (era por isso
    que "Sinal 60 dias", "Sinal 90 dias" e as datas do pós-chaves saíam em branco
    no card, mesmo gravados no Notion) */
@@ -1995,7 +2030,10 @@ function condAbatimentos(l,fx){
   let h='<div class="cd-abat"><b style="color:var(--azul);font-size:14px">COMO SE CHEGA NO PRO SOLUTO</b>'+
     '<table class="cd-fl" style="margin-top:6px"><tbody>'+
     linha(mudouPreco?"Valor de venda (alterado no fluxo; na proposta "+cdBRL(vProp)+")":"Valor de venda",venda)+
-    linha("Crédito aprovado (financiamento)",cred,true)+
+    /* 05/11/2026 (dono): financiamento reduzido no Alterar fluxo — o fluxo vale; a carta fica de referência */
+    (alt&&cred!=null&&Number(g("VALOR DO CRÉDITO"))>cred+0.004
+      ?linha("Financiamento (reduzido no fluxo; carta aprovada "+cdBRL(Number(g("VALOR DO CRÉDITO")))+")",cred,true)
+      :linha("Crédito aprovado (financiamento)",cred,true))+
     (entr!=null?linha("Entrada (valor para entrada informado)",entr):linha("Entrada (valor de venda − crédito)",entradaCalc))+
     linha("FGTS usado na entrada",fgts,true)+
     linha("Subsídio usado na entrada",sub,true)+
@@ -2037,15 +2075,36 @@ function condEtapas(l){
   if(it[3].feito) it[3].sub="assinado"; if(it[4].feito) it[4].sub="lançada";
   /* 31/10/2026 (dono): contrato gerado, assinando ou assinado sobrepõe a pré-reserva — a etapa da linha passa a ser
      a do contrato em diante, mesmo com o termo de pré-reserva pendente */
+  /* 03/11/2026 (dono): sem pré-reserva em andamento, a etapa some da faixa (conta como feita e sai da lista) */
+  const semPR=!condUsaPreReserva(l); if(semPR) it[0].feito=true;
   const ini=it[2].feito?2:0;
   let atual=it.findIndex((x,i)=>i>=ini&&!x.feito);
+  if(semPR){ it.shift(); if(atual>0) atual--; }
   return {itens:it, atual:atual};   /* atual = -1: tudo feito */
 }
 function condEtapaTag(l){
   const e=condEtapas(l);
   if(e.atual<0) return '<span class="cd-etapa ok">Concluída</span>';
   const x=e.itens[e.atual];
-  return '<span class="cd-etapa'+(x.erro?' erro':'')+'">'+esc(x.nome)+(x.sub?' · '+esc(x.sub):'')+'</span>';
+  return '<span class="cd-etapa'+(x.erro?' erro':'')+'" title="'+esc(x.nome+(x.sub?' · '+x.sub:''))+'">'+esc(condEtapaTexto(x))+'</span>';
+}
+/* 03/11/2026 (dono: "Contrato fica meio avulso"): o selo da coluna ETAPA diz o que falta, com ⚠ quando é pendência
+   ("⚠ Pendente contrato", "⚠ Pendente assinatura · 2 de 4"); recusado/cancelado/expirado sai sem ⚠, em vermelho */
+function condEtapaTexto(x){
+  const sub=String(x.sub||""), prog=(sub.match(/·\s*(.+)$/)||[])[1]||"";
+  const comProg=t=>t+(prog?" · "+prog:"");
+  if(x.erro) return x.nome==="Assinaturas"?"Assinatura "+sub.toLowerCase().replace(/o$/,"a"):x.nome==="Pré-reserva"?"Termo de pré-reserva "+sub.toLowerCase():x.nome+" · "+sub;
+  switch(x.nome){
+    case "Pré-reserva":
+      if(/^assinando/.test(sub)) return comProg("⚠ Pendente assinatura do termo");
+      if(sub==="termo gerado") return "⚠ Pendente envio do termo";
+      return "⚠ Pendente pré-reserva";
+    case "Datas do fluxo": return "⚠ Pendente datas do fluxo";
+    case "Contrato": return "⚠ Pendente contrato";
+    case "Assinaturas": return /^assinando/.test(sub)?comProg("⚠ Pendente assinatura"):"⚠ Pendente envio p/ assinatura";
+    case "Mais Controle": return sub==="processando"?"Lançando no Mais Controle…":"⚠ Pendente lançar no Mais Controle";
+  }
+  return x.nome+(sub?" · "+sub:"");
 }
 function condEtapasHtml(l){
   const e=condEtapas(l);
@@ -2073,8 +2132,25 @@ function condAbaDoBloco(el){
   for(const c of n.classList) if(CD_ABA_DO_BLOCO[c]) return CD_ABA_DO_BLOCO[c];
   return null;
 }
-function condAbasHtml(){
-  return '<div class="cd-abas"><div class="tabs" role="tablist">'+CD_ABAS.map(a=>'<button type="button" role="tab" class="tab'+(a[0]===COND_ABA?" on":"")+'" aria-selected="'+(a[0]===COND_ABA)+'" data-aba="'+a[0]+'" onclick="condTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div></div>';
+/* 03/11/2026 (dono): a pré-reserva sai do fluxo — a reserva agora é o Reservar da proposta, com 5 dias para gerar
+   o contrato. A aba e a etapa só aparecem na venda que já tem termo de pré-reserva gerado ou enviado. */
+function condUsaPreReserva(l){
+  /* 06/11/2026 (dono): o termo voltou pela pergunta do Reservar — a data limite gravada também mostra a aba */
+  return !!l && (!!cdSit(l,"PRÉ-RESERVA - SITUAÇÃO") || cdTemArq(cdVal(l,"PRÉ-RESERVA - TERMO GERADO")) ||
+                !!String(cdVal(l,"PRÉ-RESERVA - DATA LIMITE")||"").trim());
+}
+/* 06/11/2026 (dono): a ABA Pré-reserva fica disponível enquanto o contrato não foi gerado (reservas de antes da
+   pergunta do Reservar também geram o termo pelo cartão); com contrato gerado e sem pré-reserva, oculta. A faixa de
+   etapas continua com condUsaPreReserva: o termo é opcional e não vira "próximo passo" de toda venda. */
+function condMostraAbaPR(l){
+  if(!l) return false;
+  const contrato=cdTemArq(cdVal(l,"CONTRATO GERADO"))||!!cdSit(l,"ASSINATURA - SITUAÇÃO");
+  return !contrato || condUsaPreReserva(l);
+}
+function condAbasHtml(l){
+  const pr=condMostraAbaPR(l);
+  if(!pr && COND_ABA==="prereserva") COND_ABA="resumo";
+  return '<div class="cd-abas"><div class="tabs" role="tablist">'+CD_ABAS.filter(a=>pr||a[0]!=="prereserva").map(a=>'<button type="button" role="tab" class="tab'+(a[0]===COND_ABA?" on":"")+'" aria-selected="'+(a[0]===COND_ABA)+'" data-aba="'+a[0]+'" onclick="condTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div></div>';
 }
 function condTrocarAba(aba){
   if(!CD_ABAS.some(a=>a[0]===aba)) return;
@@ -2147,7 +2223,7 @@ function condAbrir(id){
     '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+(g("CPF CORRETOR")?' · CPF '+esc(g("CPF CORRETOR")):'')+'</div></div>'+
     '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
     condEtapasHtml(l)+
-    condAbasHtml()+
+    condAbasHtml(l)+
     /* aba Resumo: valores, link para completar a venda e pendências */
     '<div data-sec="resumo">'+
     '<div class="cd-kpis" id="cd-kpis">'+condKpisHtml(l,fx)+'</div>'+
@@ -2160,7 +2236,7 @@ function condAbrir(id){
     '<div class="cd-ent">'+
       '<div><label>Data de assinatura do contrato</label><input type="date" id="cd-ass" value="'+esc(ass?String(ass).slice(0,10):"")+'"></div>'+
       '<div><label>Dia de pagamento (cliente escolhe)</label><select id="cd-dia"><option value="">—</option>'+Array.from({length:27},(_,i)=>'<option value="'+(i+5)+'"'+(String(dia)===String(i+5)?" selected":"")+'>Dia '+(i+5)+'</option>').join("")+'</select></div>'+
-      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+esc(ent?String(ent).slice(0,10):COND_ENTREGA_PADRAO)+'"'+(ent?'':' title="Padrão do contrato (item 8 a); grava ao salvar"')+'></div>'+
+      '<div><label>Data da entrega</label><input type="date" id="cd-ent" value="'+COND_ENTREGA_PADRAO+'" disabled title="Fixa para todo o condomínio (contrato, item 8 a): 30/11/2028"></div>'+
       '<button class="cd-bt pri" id="cd-calc" onclick="condCalcular(\''+esc(id)+'\')">Salvar e recalcular o fluxo</button>'+
       '<div class="cd-prog" id="cd-prog" style="display:none;flex-basis:100%"></div>'+
     '</div>'+
@@ -2388,7 +2464,7 @@ async function condCalcular(id){
   const l=COND.linhas.find(x=>x.id===id);
   const novos=[["DATA DE ASSINATURA DO CONTRATO",document.getElementById("cd-ass").value],
                ["DIA PAGAMENTO PARCELAS",document.getElementById("cd-dia").value],
-               ["DATA DA ENTREGA",document.getElementById("cd-ent").value]];
+               ["DATA DA ENTREGA",COND_ENTREGA_PADRAO]];   /* 04/11 (dono): fixa; salvar corrige a que estiver diferente */
   /* 30/09: as três juntas, um recálculo só (antes: 3 gravações e 3 recálculos) */
   const mudou={};
   novos.forEach(([prop,val])=>{ const atual=cdVal(l,prop), a=atual==null?"":String(atual).slice(0,10);
@@ -3037,14 +3113,24 @@ function renderAtrasados(){
   const dados = DADOS.set.length?DADOS.set:DADOS.hub;
   if(!dados.length){ box.innerHTML='<div class="vazio">Abra a Planilha uma vez para carregar a situação do processo.</div>'; return; }
   const ORDEM={sit3:0, sit2:1, sit1:2}; // mais urgente primeiro
-  const COR={sit1:"#E8CE5A", sit2:"#E67E22", sit3:"#c0392b"};
+  const COR={sit1:"#E8CE5A", sit2:"#c0392b", sit3:"#E67E22"};   // 06/11: ⚠️ e 🚨 trocaram de cor
   const TXT={sit1:"⏳ Tempo corrido > 20 dias", sit2:"⚠️ Tempo corrido > 45 dias", sit3:"🚨 Tempo corrido > 45 dias e não recebeu"};
   const linhas=dados.map(v=>({v, prazo:corSituacao(v.valores)})).filter(x=>ORDEM[x.prazo]!==undefined);
   linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo]);
   if(!linhas.length){ box.innerHTML='<div class="vazio">Nenhum processo com pendência de prazo. 🎉</div>'; return; }
-  box.innerHTML=linhas.map(({v,prazo})=>
-    `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${jsArg(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}</span><span class="txt">${TXT[prazo]}</span></div>`
-  ).join("");
+  /* 06/11/26: além do status, o tempo corrido do processo — o mesmo contador da
+     fórmula SITUAÇÃO DO PROCESSO do Notion: dateBetween(now(), DATA DE ENVIO DOS
+     DOCUMENTOS, "days") (dias inteiros; >=20 ⏳, >=45 ⚠️/🚨) */
+  const agora=Date.now();
+  const tempo=v=>{ const d=String(getV(v.valores,"DATA DE ENVIO DOS DOCUMENTOS")||"").slice(0,10); if(!/^\d{4}-\d{2}-\d{2}$/.test(d)) return null;
+    return {dias:Math.floor((agora-new Date(d+"T00:00:00"))/86400000), data:d.split("-").reverse().join("/")}; };
+  linhas.forEach(x=>{ x.t=tempo(x.v); });
+  linhas.sort((a,b)=>ORDEM[a.prazo]-ORDEM[b.prazo] || ((b.t?b.t.dias:-1)-(a.t?a.t.dias:-1)));
+  box.innerHTML=linhas.map(({v,prazo,t})=>{
+    const casa=getV(v.valores,"CASA");
+    return `<div class="al" style="border-left-color:${COR[prazo]}"><span class="end" onclick='abrirObra(${jsArg(v.id)})'>${esc(getV(v.valores,"ENDEREÇO")||"(sem endereço)")}${casa?` <small class="at-casa">Casa ${esc(casa)}</small>`:""}</span>`+
+      `<span class="txt">${TXT[prazo]}${t?` <b class="at-dias" style="background:${COR[prazo]}${prazo==="sit1"?";color:#4a3b00":""}" title="Documentos enviados em ${t.data}">${t.dias} dias</b>`:""}</span></div>`;
+  }).join("");
 }
 
 /* ---------- PLANILHA (todas as colunas, rolagem em cima e embaixo) ---------- */
@@ -3140,10 +3226,28 @@ function temCliente(rec){
    trocar de "Casas vendidas" pra "Casas disponíveis" mostrava praticamente
    as mesmas linhas (e os dois contadores do informativo somavam a mesma
    obra duas vezes). */
+/* 05/11/2026 (dono), casa de rua: gerar o contrato grava CONTRATO - GERADO EM. Daí em diante quem decide é o
+   contrato: ASSINATURA - SITUAÇÃO = ASSINADO -> vendida; menos de 48 h -> "reservada" (conta à parte, não é
+   vendida nem disponível); 48 h ou mais sem todas as assinaturas -> volta a disponível. Sem a data, a régua de
+   sempre (tem cliente = vendida). Mesma régua do fetch_vendas.py (reserva_contrato) e do RegrasVenda.reservaContrato. */
+const RESERVA_CONTRATO_MS=48*3600*1000;
+function reservaContratoDe(valores){
+  const g=getV(valores||{},"CONTRATO - GERADO EM");
+  const t=g?Date.parse(typeof g==="object"&&g.start?g.start:g):NaN;
+  if(isNaN(t)) return null;
+  if(normNome(getV(valores,"ASSINATURA - SITUAÇÃO")||"")==="ASSINADO") return "VENDIDA";
+  return Date.now()<t+RESERVA_CONTRATO_MS?"RESERVADA":"LIBERADA";
+}
+function vendidaDe(rec){
+  const rc=reservaContratoDe(rec&&rec.valores);
+  return rc ? rc==="VENDIDA" : temCliente(rec);
+}
 function situacoesDe(valores,rec){
   const arr=[];
-  const vendida=temCliente(rec||{valores:valores});
+  const r=rec||{valores:valores}, rc=reservaContratoDe(valores);
+  const vendida=vendidaDe(r);
   if(vendida){ arr.push("vendida"); }
+  else if(rc==="RESERVADA"){ arr.push("reservada"); }
   else {
     const vm=getV(valores,"VALOR NA MÃO");
     if(vm!=null && vm!=="") arr.push("disponivel");
@@ -3510,17 +3614,18 @@ function aplicarFiltros(ctx){
 function infoCard(lab,val){ return `<div class="icard"><div class="ival">${val}</div><div class="ilab">${esc(lab)}</div></div>`; }
 function atualizarInformativo(ctx){
   const box=document.getElementById(ctx+"-info"); if(!box) return;
-  let vendidas=0, disponiveis=0, breve=0, construcao=0;
+  let vendidas=0, disponiveis=0, reservadas=0, breve=0, construcao=0;
   // conta só as linhas visíveis (respeita os filtros aplicados agora) — reaproveita os data-* já marcados no render
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     if(tr.style.display==="none") return;
     const sit=","+(tr.dataset.sit||"")+",";
     if(sit.indexOf(",vendida,")>=0) vendidas++;
     if(sit.indexOf(",disponivel,")>=0) disponiveis++;
+    if(sit.indexOf(",reservada,")>=0) reservadas++;   /* 05/11/2026: contrato gerado aguardando assinatura (48 h) */
     if(tr.dataset.breve==="1") breve++;
     if(tr.dataset.obra==="1") construcao++;
   });
-  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)+infoCard("Em breve",DOCS_OK?breve:"—")+infoCard("Em construção",DOCS_OK?construcao:"—");
+  let html = infoCard("Vendidas",vendidas)+infoCard("Disponíveis",disponiveis)+(reservadas?infoCard("Reservadas (contrato)",reservadas):"")+infoCard("Em breve",DOCS_OK?breve:"—")+infoCard("Em construção",DOCS_OK?construcao:"—");
   if(!DOCS_OK) html += `<div class="inote">Contadores de "em breve"/"em construção" precisam do secret DOCUMENTOS_DB_ID configurado no GitHub — sem ele o pipeline não publica documentos.json.</div>`;
   box.innerHTML = html;
 }
@@ -3565,7 +3670,7 @@ function indiceVendidasPorEndereco(){
   _vendidasPorEnd={};
   const base=(DADOS.hub&&DADOS.hub.length)?DADOS.hub:(DADOS.set||[]);
   base.forEach(v=>{
-    if(!temCliente(v)) return;
+    if(!vendidaDe(v)) return;   /* 05/11/2026: com contrato gerado, só assinado conta como vendida */
     const k=normNome(getV(v.valores,"ENDEREÇO"));
     if(k) _vendidasPorEnd[k]=(_vendidasPorEnd[k]||0)+1;
   });
@@ -3646,6 +3751,7 @@ function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
 let OBRA_ABERTA=null;   // id da obra no painel aberto (null = painel fechado)
 async function abrirObra(pageId){
   OBRA_ABERTA=pageId;
+  pnModalAbrir();
   document.getElementById("overlay").classList.add("on"); document.getElementById("painel").classList.add("on");
   const body=document.getElementById("pn-body"); body.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
   // o registro já está em memória (veio do vendas.json) — abre na hora, sem ida ao servidor
@@ -3698,9 +3804,11 @@ async function recarregarCamposCasa(pageId){
   cabecalhoObra(V); renderPainel(V,pageId,false);
   if(body) body.scrollTop=topo;
 }
-/* 31/10/2026 (dono): contrato do condomínio ENVIADO/ASSINADO = proposta VENDIDA e unidade VENDIDA = SIM.
+/* 31/10/2026 (dono): contrato do condomínio ENVIADO/ASSINADO = proposta VENDIDA.
+   04/11/2026 (dono): no MAPA a casa fica RESERVADA enquanto está no banco de vendas e só vira VENDIDA quando a
+   ETAPA fica Concluída (assinaturas concluídas e venda lançada no Mais Controle).
    A regra mora em venda/contrato-vendida.js (a aba Propostas usa a mesma). Aqui: ao enviar/abrir o cartão
-   (evento "venda:contrato-enviado" do venda-dossie.js) e numa varredura depois de carregar a planilha. */
+   (evento "venda:contrato-enviado" do venda-dossie.js) e numa varredura de todas as linhas depois de carregar a planilha. */
 function cdAvisoUnidade(id,tipo,txt){
   const semT=x=>String(x||"").replace(/-/g,"").toLowerCase();
   if(semT(COND_ABERTA)!==semT(id)) return;
@@ -3709,9 +3817,24 @@ function cdAvisoUnidade(id,tipo,txt){
   if(!d){ d=document.createElement("div"); d.id="cd-un-aviso"; alvo.parentNode.insertBefore(d,alvo); }
   d.className=tipo==="ok"?"cd-aviso":"cd-falta"; d.style.margin="6px 0"; d.innerHTML=txt;
 }
-function condMarcarVendidaFila(ids){
+function condMarcarVendidaFila(ids, extra){
   if(!window.ContratoVendida||!COND) return;
-  return ContratoVendida.rodar(COND.linhas, COND.titulo, ids, { chamar: chamar, aviso: cdAvisoUnidade });
+  return ContratoVendida.rodar(COND.linhas, COND.titulo, ids, Object.assign({ chamar: chamar, aviso: cdAvisoUnidade }, extra||{}));
+}
+/* 04/11/2026: mesma varredura sem abrir a aba (sem desenhar nada); quem não tem acesso ao banco do condomínio
+   recebe recusa do servidor e fica por isso mesmo. Linha já conferida na sessão (mesma situação) não vai de novo. */
+const CD_VARRER_MS=15*60*1000;
+let CD_VARRENDO=false;
+async function condVarrerSilencioso(){
+  if(!window.ContratoVendida||CD_VARRENDO) return;
+  CD_VARRENDO=true;
+  try{
+    let r=null;
+    try{ r=await chamar({action:"simsVendasCond"},70000); }catch(e){ r=null; }
+    if(!r||!r.ok||!Array.isArray(r.linhas)) return;
+    const ids=ContratoVendida.pendentes(r.linhas, r.titulo);
+    if(ids.length) await ContratoVendida.rodar(r.linhas, r.titulo, ids, { chamar: chamar, aviso: cdAvisoUnidade });
+  } finally { CD_VARRENDO=false; }
 }
 function condVarrerContratosEnviados(){
   if(!window.ContratoVendida||!COND||!COND.linhas) return;
@@ -3720,7 +3843,18 @@ function condVarrerContratosEnviados(){
 }
 window.addEventListener("venda:contrato-enviado", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
-  if(id) condMarcarVendidaFila([String(id)]);
+  /* contrato final gerado/enviado: proposta VENDIDA; o mapa confere de novo (o servidor põe SIM na unidade) */
+  if(!id) return;
+  const gerado=ev.detail.situacao==="GERADO";   /* só quando o contrato final acabou de ser gerado: de novo, mesmo já conferida */
+  condMarcarVendidaFila([String(id)], gerado ? { proposta: true, forcar: true } : null);
+});
+/* 05/11/2026: seletor "Compradores 1 | 2" do dossiê → atributo no #painel (o CSS esconde o Comprador 2 em 1).
+   n = 0 (casa trocando, estado ainda não veio) tira o atributo: mostra tudo. Outra casa que não a aberta é ignorada. */
+window.addEventListener("dossie:compradores", ev=>{
+  const d=(ev&&ev.detail)||{}, painel=document.getElementById("painel"); if(!painel) return;
+  if(d.n!==1&&d.n!==2){ painel.removeAttribute("data-compradores"); return; }
+  if(d.pageId!==OBRA_ABERTA) return;
+  painel.setAttribute("data-compradores",String(d.n));
 });
 window.addEventListener("venda:dados-gravados", ev=>{
   const id=ev && ev.detail && ev.detail.pageId;
@@ -3936,32 +4070,104 @@ function sensPendenteResumoHtml(c){
 function campoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteHtml(c);
   if(bloqueadoParaMim(c)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-  // Endereço (nome da obra): só ADM edita — sempre mostrado, independente do campo vir marcado como "editável" no schema
-  if(c.nome==="ENDEREÇO"){
-    if(S.tipo!=="ADM" && !ehMaster(S)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(só ADM edita)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-    const on=`onchange='editar(${jsArg(pageId)},"ENDEREÇO","text",this.value,this); document.getElementById("pn-end").textContent=this.value||"(sem endereço)";'`;
-    return `<div class="campo"><label>${esc(c.nome.trim())}</label><input type="text" value="${esc(valor||"")}" ${on}></div>`;
-  }
+  /* Endereço (nome da obra): 05/11/2026 (dono) ninguém muda pelo painel, ADM inclusive — saiu do Resumo; se algum
+     caminho ainda pedir a caixa, ela vem só leitura */
+  if(normNome(c.nome)==="ENDERECO") return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
   return `<div class="campo"><label>${esc(c.nome.trim())}</label>${inputControl(c,valor,pageId)}</div>`;
 }
 function campoResumoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteResumoHtml(c);
   return `<div class="ri"><div class="k">${esc(c.nome.trim())}</div>${inputControl(c,valor,pageId)}</div>`;
 }
+/* 05/11/2026 (dono): a mesma coluna em duas abas (Resumo e Compradores → Comprador 1). Cada caixa leva
+   data-espelho=<nome normalizado>; ao editar uma, pnEspelhar põe o valor novo nas outras — nunca duas caixas
+   divergindo. Grava uma vez só (o editar de sempre, na coluna de sempre). */
+function pnMarcarEspelho(html,nome){
+  const ehEsp=(window.PainelCasa&&window.PainelCasa.ESPELHO_COMPRADOR1||[]).some(x=>normNome(x.coluna)===normNome(nome));
+  return ehEsp ? String(html).replace(/^<div class="(ri|campo)"/,`<div class="$1" data-espelho="${esc(normNome(nome))}"`) : html;
+}
+function pnEspelhoComprador1(V,pageId,sensPendente){
+  const lista=(window.PainelCasa&&window.PainelCasa.ESPELHO_COMPRADOR1)||[];
+  return lista.map(x=>{
+    const c=campoPorNome(x.coluna); if(!c||nomeExcluido(c.nome,"painel")) return "";
+    const rot=`${esc(x.rotulo)} <span style="color:var(--text4);font-weight:500">(o mesmo do Resumo)</span>`;
+    const corpo=(c.sensivel&&sensPendente)?`<div class="sens-ro">••• carregando…</div>`:inputControl(c,getV(V,c.nome),pageId);
+    return `<div class="campo" data-espelho="${esc(normNome(c.nome))}"><label>${rot}</label>${corpo}</div>`;
+  }).join("");
+}
+function pnEspelhar(prop,valor,el){
+  const body=document.getElementById("pn-body"); if(!body) return;
+  const k=normNome(prop);
+  body.querySelectorAll("[data-espelho]").forEach(box=>{
+    if(box.getAttribute("data-espelho")!==k || (el&&box.contains(el))) return;
+    box.querySelectorAll("input:not([type=checkbox]):not([type=file]),select").forEach(i=>{ i.value=valor==null?"":String(valor); i.style.borderColor=""; });
+  });
+}
+/* 04/11/2026 (dono): o painel da casa de rua em ABAS, igual ao cartão do condomínio. Antes era uma coluna só com
+   118 campos (~16 telas de rolagem) e o Gerar contrato no fim, depois do Distrato. Cada parte vai para a aba dela
+   (venda/painel-casa.js decide onde fica cada campo); nada muda no Notion nem no jeito de salvar. Sem o
+   painel-casa.js o painel volta a ser a coluna de antes (sem data-aba nada é escondido). */
+let PN_ABA="resumo";
+function pnAbas(){ return (window.PainelCasa && window.PainelCasa.ABAS) || null; }
+function pnTemAba(aba){
+  const sec=document.querySelector('#pn-body>[data-sec="'+aba+'"]');
+  if(sec && sec.children.length) return true;
+  /* os blocos do venda-dossie.js (dossiê, contrato, Clicksign, recebimentos, Mais Controle) chegam depois */
+  if(window.VendaBlocos && (aba==="documentos"||aba==="contrato"||aba==="recebimentos")) return true;
+  return false;
+}
+function pnDesenharAbas(){
+  const barra=document.getElementById("pn-abas"), painel=document.getElementById("painel");
+  const abas=pnAbas();
+  if(!barra||!painel) return;
+  if(!abas){ barra.innerHTML=""; painel.removeAttribute("data-aba"); return; }
+  const vis=abas.filter(a=>pnTemAba(a[0]));
+  if(!vis.length){ barra.innerHTML=""; painel.removeAttribute("data-aba"); return; }
+  if(!vis.some(a=>a[0]===PN_ABA)) PN_ABA=vis[0][0];
+  barra.innerHTML='<div class="tabs" role="tablist">'+vis.map(a=>'<button type="button" role="tab" class="tab'+(a[0]===PN_ABA?" on":"")+'" aria-selected="'+(a[0]===PN_ABA)+'" data-aba="'+a[0]+'" onclick="pnTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div>';
+  painel.setAttribute("data-aba",PN_ABA);
+}
+function pnTrocarAba(aba){
+  const abas=pnAbas(); if(!abas||!abas.some(a=>a[0]===aba)) return;
+  PN_ABA=aba;
+  const painel=document.getElementById("painel"); if(painel) painel.setAttribute("data-aba",aba);
+  document.querySelectorAll("#pn-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===aba; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
+  const body=document.getElementById("pn-body"); if(body) body.scrollTop=0;
+}
+function pnAbaDoCampo(nome){ try{ return window.PainelCasa&&window.PainelCasa.abaDoCampo ? window.PainelCasa.abaDoCampo(nome) : "andamento"; }catch(e){ return "andamento"; } }
+function pnPorDepartamento(nomes){
+  try{ if(window.PainelCasa&&window.PainelCasa.porDepartamento) return window.PainelCasa.porDepartamento(nomes); }catch(e){}
+  return nomes.length?[{titulo:"Preenchimento",campos:nomes}]:[];
+}
+/* 04/11/2026 (dono): o que falta para gerar o contrato da casa vira a caixa do campo dentro da aba Contrato
+   (venda-dossie.js chama window.PainelFaltaCampo(pageId, frase)). Mesma caixa e mesmo salvar do painel
+   (campoHtml → editar → updateVenda), então grava na coluna certa. Coluna protegida que ainda não chegou do
+   servidor não abre (a caixa vazia apagaria o dado real). */
+let PN_V=null, PN_PAGE=null, PN_SENS=false;
+window.PainelFaltaCampo=function(pageId,falta){
+  const semT=x=>String(x||"").replace(/-/g,"").toLowerCase();
+  if(!PN_V||!PN_PAGE||semT(pageId)!==semT(PN_PAGE)||semT(OBRA_ABERTA)!==semT(PN_PAGE)) return "";
+  if(!window.PainelCasa||!window.PainelCasa.colunasDaFalta) return "";
+  const cols=window.PainelCasa.colunasDaFalta(falta).map(n=>campoPorNome(n)).filter(c=>c&&c.editavel!==false&&!(c.sensivel&&PN_SENS));
+  if(!cols.length) return "";
+  setTimeout(()=>{ const w=document.getElementById("contrato-wrap"); if(w) ligarMoedas(w); },0);   // máscara de R$ depois de o bloco entrar na tela
+  return cols.map(c=>campoHtml(c,getV(PN_V,c.nome),PN_PAGE,false)).join("");
+};
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
-  let html="";
+  PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;
+  const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:""};
 
-  // identificação — endereço editável (ADM) — corrige bug "sou ADM mas não consigo editar o endereço"
-  const cEnd=campoPorNome("ENDEREÇO");
-  if(cEnd){ html+=campoHtml(cEnd,getV(V,"ENDEREÇO"),pageId); }
+  /* 05/11/2026 (dono): o ENDEREÇO saiu do Resumo — "não tem que ter possibilidade de mudar o endereço". Ele já é o
+     título do painel (pn-end, cabecalhoObra) e continua na planilha, nos filtros e no contrato; só não é mais caixa
+     de edição aqui, para ninguém (ADM inclusive). */
 
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
-  html+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
+  sec.resumo+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
     const c=campoPorNome(n); if(!c)return "";
     if(nomeExcluido(c.nome,"painel")) return "";
     const val=getV(V,n);
-    return campoResumoHtml(c,val,pageId,sensPendente);
+    return pnMarcarEspelho(campoResumoHtml(c,val,pageId,sensPendente),c.nome);
   }).join("")+'</div>';
 
   // alertas / situação
@@ -3987,74 +4193,88 @@ function renderPainel(V,pageId,sensPendente){
     const sim=normNome(val)==="SIM";
     chips.push(`<span class="chip${sim?" ok":" alerta"}">${esc(rot)} ${sim?"TRANSFERIDA":"NÃO TRANSFERIDA"}</span>`);
   });
-  if(chips.length) html+=`<div class="chips">${chips.join("")}</div>`;
+  if(chips.length) sec.resumo+=`<div class="chips">${chips.join("")}</div>`;
 
-  // campos editáveis, na ordem pedida — com um subtítulo especial quando entra no bloco de reparos/vistoria
-  // item 2 (rodada 2): o subtítulo "Reparos e Vistoria" não desligava mais depois de ligado — REF, CIDADE,
-  // SETOR e outros campos sem nada a ver ficavam presos ali embaixo dele (bug real, visto no print).
-  // Agora ele liga só nos campos do bloco de reparo e desliga assim que sai desse bloco.
-  /* entrega 14: título por grupo (Comprador 1, Comprador 2, Contrato — …); o resto fica em "Preenchimento" */
-  let entrouReparo=false, grupoAtual=null;
+  /* campos do formulário, cada um na aba dele. Compradores e Contrato mantêm os títulos da entrega 14
+     (Comprador 1, Comprador 2, Contrato — …); o Andamento é separado por departamento (mesma régua do
+     cartão do condomínio). Tudo em duas colunas. */
+  const porAba={compradores:[],contrato:[],documentos:[],andamento:[]};
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
-    const grupo=grupoNoPainelCasa(nome)||"Preenchimento";
-    if(grupo!==grupoAtual){ html+=`<div class="grp">${esc(grupo)}</div>`; grupoAtual=grupo; entrouReparo=false; }
-    if(BLOCO_REPARO.test(normNome(nome))){
-      if(!entrouReparo){ html+=`<div class="grp sub">Reparos e Vistoria</div>`; entrouReparo=true; }
-    } else if(entrouReparo){
-      html+=`<div class="grp">Preenchimento</div>`; entrouReparo=false; // volta ao normal — nada mais herda o subtítulo por engano
-    }
-    html+=campoHtml(c,getV(V,nome),pageId,sensPendente);
+    const aba=pnAbaDoCampo(nome);
+    (porAba[aba]||porAba.andamento).push(nome);
   });
-  if(grupoAtual===null) html+=`<div class="grp">Preenchimento</div>`;
+  const blocoTitulado=(nomes,titulo,antes)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+nomes.map(n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente)).join("")+`</div>`:"";
+  /* 05/11/2026 (dono): Comprador 1 mostra nome, CPF, WhatsApp e e-mail do Resumo — a MESMA coluna (venda/painel-casa.js,
+     ESPELHO_COMPRADOR1); o COMPRADOR 1 - E-MAIL antigo só aparece se tiver algo diferente do Email */
+  const espC1=pnEspelhoComprador1(V,pageId,sensPendente);
+  const antigoC1=(window.PainelCasa&&window.PainelCasa.EMAIL_ANTIGO_C1)||"";
+  if(antigoC1 && window.PainelCasa.emailAntigoVisivel){
+    porAba.compradores=porAba.compradores.filter(n=>normNome(n)!==normNome(antigoC1)||sensPendente||
+      window.PainelCasa.emailAntigoVisivel(getV(V,n),getV(V,"Email")));
+  }
+  const porGrupo=(nomes,padrao,c2)=>{
+    const out=[]; nomes.forEach(n=>{ const g=grupoNoPainelCasa(n)||padrao; const t=c2&&g===padrao&&/^COMPRADOR 2 - /.test(normNome(n))?"Comprador 2":g; let x=out.find(o=>o.titulo===t); if(!x){ x={titulo:t,campos:[]}; out.push(x); } x.campos.push(n); });
+    if(c2 && espC1 && !out.some(g=>g.titulo==="Comprador 1")) out.unshift({titulo:"Comprador 1",campos:[]});
+    /* 05/11: c2 = aba Compradores — o grupo Comprador 2 vai numa caixa data-comprador2 (o seletor do dossiê esconde) */
+    return out.map(g=>c2&&g.titulo==="Comprador 2"?`<div data-comprador2>${blocoTitulado(g.campos,g.titulo)}</div>`:
+      blocoTitulado(g.campos,g.titulo,c2&&g.titulo==="Comprador 1"?espC1:"")).join("");
+  };
+  sec.compradores+=porGrupo(porAba.compradores,"Compradores",true);
+  sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
+  sec.documentos+=blocoTitulado(porAba.documentos,"Dossiê — observações");
+  sec.andamento+=pnPorDepartamento(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");
 
-  // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
   // Ligações de água e energia: leitura, não edição — o cadastro continua
   // sendo feito no Notion. Só na Secretária de Vendas, que foi onde foi pedido.
   if(SETOR_ATUAL==="Secretária de Vendas"){
     const ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
     if(ligs.length){
-      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
+      sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
         ligs.map(l=>`<div class="lig">`+
           `<span class="lig-c">${esc(l.concessionaria||"—")}</span>`+
           `<span class="lig-uc">${(l.uc&&String(l.uc).trim()&&l.uc!=="-")?("UC "+esc(l.uc)):"<i>sem UC</i>"}</span>`+
           (l.status?`<span class="lig-s ${/NAO/.test(normNome(l.status))?"off":""}">${esc(l.status)}</span>`:"")+
         `</div>`).join("")+`</div></div>`;
     } else {
-      html+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">`+
+      sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">`+
         (LIG_OK ? "Nenhuma ligação cadastrada para esta casa."
                 : "Base de ligações ainda não publicada — rode o workflow 'Publicar site'.")+
         `</div></div>`;
     }
   }
 
+  // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
   // Anexos: as URLs do Notion são links assinados do S3 — não vão pro dist/
   // público. Chegam junto com os outros campos protegidos, ao abrir a obra.
-  let files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel"));
+  /* 04/11: com o dossiê no painel, os arquivos que ele já mostra (identidades, comprovantes, aprovação, matrícula,
+     alvará, habite-se, certidão mãe) não se repetem aqui — fica a lista "Outros arquivos" */
+  const NO_DOSSIE=/^(COMPRADOR [12] - (IDENTIDADE|COMPROVANTE DE ENDERECO)|APROVACAO DA CAIXA|IMOVEL - (MATRICULA|ALVARA|HABITE-SE|CERTIDAO MAE))$/;
+  let files=SCHEMA.filter(c=>c.tipo==="files" && !nomeExcluido(c.nome,"painel") && !(window.VendaBlocos && NO_DOSSIE.test(normNome(c.nome))));
   try{ if(window.PainelCasa){ const ord=window.PainelCasa.ordenarArquivos(files.map(c=>c.nome)); files=ord.map(n=>files.find(c=>c.nome===n)); } }catch(e){}
-  if(files.length){ html+=`<div class="grp">Arquivos</div>`;
+  if(files.length){ sec.documentos+=`<div class="grp">${window.VendaBlocos?"Outros arquivos":"Arquivos"}</div>`;
     files.forEach(c=>{
-      html+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
+      sec.documentos+=`<div class="campo"><label>${esc(c.nome.trim())}</label>`;
       if(sensPendente){
-        html+=`<div class="sens-ro">••• carregando anexos…</div>`;
+        sec.documentos+=`<div class="sens-ro">••• carregando anexos…</div>`;
       } else {
         const lista=getV(V,c.nome)||[];
-        if(!lista.length) html+=`<div class="arq-vazio">nenhum arquivo</div>`;
+        if(!lista.length) sec.documentos+=`<div class="arq-vazio">nenhum arquivo</div>`;
         lista.forEach(f=>{
           const nome=f.name||"arquivo", url=f.url||"#";
-          html+=`<div class="arq"><a href="${url}" target="_blank">${esc(nome)}</a>`+
+          sec.documentos+=`<div class="arq"><a href="${url}" target="_blank">${esc(nome)}</a>`+
             (visualizavel(nome,url)?` <button type="button" class="bt ghost bt-mini" onclick='visualizarArquivo(${jsArg(url)},${jsArg(nome)})'>👁 Visualizar</button>`:``)+
             `</div>`;
         });
       }
-      html+=`<input type="file" onchange='enviarArquivo(${jsArg(pageId)},${jsArg(c.nome)},this)'></div>`; });
+      sec.documentos+=`<input type="file" onchange='enviarArquivo(${jsArg(pageId)},${jsArg(c.nome)},this)'></div>`; });
   }
 
   // COMENTÁRIOS (item 3): a mesma caixa de discussão do Notion, lida e
   // escrita direto pelo painel. O conteúdo em si é carregado depois, por
   // carregarComentarios() — aqui só entra a casca (senão travaria o resto
   // do painel esperando a API de comentários responder).
-  html+=`<div class="grp">Comentários</div><div class="campo">`+
+  sec.resumo+=`<div class="grp">Comentários</div><div class="campo">`+
     `<div class="coment-lista" id="coment-lista"><div class="coment-vazio"><span class="load"></span> Carregando…</div></div>`+
     `<div class="coment-novo"><textarea id="coment-texto" placeholder="Escrever um comentário..." rows="2"></textarea>`+
     `<button type="button" class="bt az bt-mini" id="coment-btn" onclick='enviarComentario(${jsArg(pageId)})'>Enviar</button></div>`+
@@ -4068,12 +4288,14 @@ function renderPainel(V,pageId,sensPendente){
      recusaria de qualquer forma (MODO_TESTE), mas mostrar um botão vermelho
      que só dá erro é pedir pra alguém tentar. */
   if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S) && !SO_LEITURA){
-    html+=`<div class="grp">Distrato</div><div class="campo">`+
+    sec.resumo+=`<div class="grp">Distrato</div><div class="campo">`+
       `<button class="bt danger" onclick='pedirDistrato(${jsArg(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;
   }
-  if(S.tipo==="ADM"){ html+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
-  body.innerHTML=html;
+  if(S.tipo==="ADM"){ sec.resumo+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
+  /* ordem das partes = ordem das abas; sem abas (painel-casa.js não carregou) fica a coluna de antes */
+  body.innerHTML=["resumo","documentos","compradores","contrato","andamento"].map(k=>`<div data-sec="${k}">${sec[k]}</div>`).join("");
+  pnDesenharAbas();
   ligarMoedas(body);          // máscara de R$ nos campos de valor
   carregarComentarios(pageId);
 }
@@ -4166,6 +4388,7 @@ async function editar(pageId,prop,tipo,valor,el){
   }
   if(el)el.style.borderColor="#F0C36D";
   aplicarLocal(pageId,prop,valor);
+  try{ pnEspelhar(prop,valor,el); }catch(e){}   // 05/11: a outra aba do painel mostra o valor novo (mesma coluna)
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);
   if(el)el.style.borderColor=r.ok?(r.enfileirado?"#E67E22":"#4cd964"):"#C0392B";
   toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+r.erro));
@@ -4318,7 +4541,36 @@ async function confirmarDistrato(pageId){
   }
 }
 
-function fecharObra(){ OBRA_ABERTA=null; document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); }
+function fecharObra(){ const estava=document.getElementById("painel").classList.contains("on"); OBRA_ABERTA=null; document.getElementById("overlay").classList.remove("on"); document.getElementById("painel").classList.remove("on"); if(estava) pnModalFechar(); }
+/* 05/11/2026 (dono): o painel da casa de rua é um modal central (igual ao cartão do condomínio). Ao abrir: a página
+   de trás para de rolar, o foco vai para o "✕ Fechar" e o Tab fica preso dentro; Esc ou clique fora (#overlay)
+   fecham e o foco volta para quem abriu. Reabrir a casa com o painel já aberto (recarregar) não mexe em nada. */
+let _pnFocoAntes=null, _pnOverflowAntes="";
+function pnModalAbrir(){
+  if(document.getElementById("painel").classList.contains("on")) return;
+  _pnFocoAntes=document.activeElement;
+  _pnOverflowAntes=document.body.style.overflow; document.body.style.overflow="hidden";
+  setTimeout(()=>{ const b=document.getElementById("pn-fechar"); if(b&&document.getElementById("painel").classList.contains("on")) try{ b.focus({preventScroll:true}); }catch(e){ b.focus(); } },0);
+}
+function pnModalFechar(){
+  document.body.style.overflow=_pnOverflowAntes||"";
+  const v=_pnFocoAntes; _pnFocoAntes=null;
+  if(v&&v.focus&&document.contains(v)) try{ v.focus({preventScroll:true}); }catch(e){}
+}
+function pnOutraJanelaAberta(){ return !!document.querySelector(".pdfoverlay.on"); }   /* distrato/visualizador por cima: o Esc é deles */
+document.addEventListener("keydown",e=>{
+  const painel=document.getElementById("painel");
+  if(!painel||!painel.classList.contains("on")||pnOutraJanelaAberta()) return;
+  if(e.key==="Escape"){ if(e.defaultPrevented) return; e.preventDefault(); fecharObra(); return; }
+  if(e.key!=="Tab") return;
+  const foc=[...painel.querySelectorAll('a[href],button,input,select,textarea,summary,[tabindex]:not([tabindex="-1"])')]
+    .filter(el=>!el.disabled&&el.getClientRects().length&&getComputedStyle(el).visibility!=="hidden");
+  if(!foc.length){ e.preventDefault(); painel.focus(); return; }
+  const pri=foc[0], ult=foc[foc.length-1], at=document.activeElement;
+  if(!painel.contains(at)){ e.preventDefault(); (e.shiftKey?ult:pri).focus(); return; }
+  if(e.shiftKey&&(at===pri||at===painel)){ e.preventDefault(); ult.focus(); }
+  else if(!e.shiftKey&&at===ult){ e.preventDefault(); pri.focus(); }
+});
 
 /* ---------- visualizador de PDF anexado (item 2 do pedido extra) ---------- */
 /* Abre no site sem baixar: PDF vai no iframe, imagem vai num <img> (iframe com

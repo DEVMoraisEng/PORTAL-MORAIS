@@ -1,0 +1,186 @@
+# -*- coding: utf-8 -*-
+"""Escritório de Robôs (servidor/escritorio_robos.py): horários das tarefas, rodadas e o .json ao lado do PDF."""
+import datetime as dt
+import json
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "servidor"))
+import escritorio_robos as E  # noqa: E402
+
+
+def test_horario_das_tarefas_em_portugues():
+    assert E.horario_texto({"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-10-29T06:23:00", "cadaDias": 1}) == "todo dia às 06:23"
+    # seg–sáb, 07:20 a 19:20 de 2 em 2 h (medições)
+    g = {"tipo": "MSFT_TaskWeeklyTrigger", "inicio": "2026-10-29T07:20:00-03:00", "dias": 2 + 4 + 8 + 16 + 32 + 64,
+         "repetir": "PT2H", "duracao": "PT12H"}
+    assert E.horario_texto(g) == "seg a sáb, das 07:20 às 19:20, de 2 em 2 h"
+    assert E.horario_texto({"tipo": "MSFT_TaskWeeklyTrigger", "inicio": "2026-10-29T07:00:00", "dias": 2 | 32}) == "seg, sex às 07:00"
+    assert E.horario_texto({"tipo": "MSFT_TaskTimeTrigger", "inicio": "2026-10-27T10:00:00", "repetir": "PT1M"}) == "a cada minuto"
+    assert E.horario_texto({"tipo": "MSFT_TaskLogonTrigger", "inicio": ""}) == "quando o usuário do servidor entra"
+    assert E._dias_texto(127) == "todo dia" and E._dias_texto(2 | 4) == "seg e ter"
+
+
+def test_chave_da_tarefa_pelo_comando():
+    assert E.chave_da_tarefa("MoraisEng - Robo contas", ['pythonw.exe "...rodar_e_relatar.py" --robo contas']) == "contas"
+    assert E.chave_da_tarefa("MoraisEng - Robo indices", ["pythonw.exe rodar_e_relatar.py --indices"]) == "indices"
+    assert E.chave_da_tarefa("MoraisEng - Água", ['pythonw.exe rodar_e_relatar.py --nome "Água e energia" --pasta x -- python a.py']) == "agua-e-energia"
+    assert E.chave_da_tarefa("MoraisEng - Porteiro do ERP", ["python -m erp.porteiro vigiar"]) == "porteiro"
+    assert E.chave_da_tarefa("MoraisEng - Robo do portal (fila)", ['pythonw.exe "C:\\x\\servidor\\robo_fila.py"']) == "fila"
+    assert E.chave_da_tarefa("MoraisEng - Anexos da auditoria (tarde)", ["pythonw.exe robo_fila.py --robo anexos"]) == "anexos"
+
+
+def test_montar_tarefas_resultado_e_estado():
+    t = E.montar_tarefas([{"nome": "MoraisEng - Robo bases", "estado": "Running", "resultado": 267009,
+                           "acoes": ["x --robo bases"], "gatilhos": [{"tipo": "MSFT_TaskDailyTrigger",
+                                                                     "inicio": "2026-10-29T07:17:00", "ativo": True}]},
+                          {"nome": "MoraisEng - Velha", "estado": "Disabled", "resultado": -2147216609, "acoes": [],
+                           "gatilhos": []}])
+    assert t[0]["chave"] == "bases" and t[0]["estado"] == "trabalhando" and t[0]["resultado_texto"] == "trabalhando agora"
+    assert t[0]["horario"] == ["todo dia às 07:17"] and t[0]["titulo"] == "Robo bases"
+    assert t[1]["estado"] == "desligada" and t[1]["resultado"] == 2147750687 and t[1]["horario"] == ["sem horário (só à mão)"]
+
+
+def _r(ok=False):
+    return {"robo": "medicoes", "nome": "Medições de contratos", "inicio": dt.datetime(2026, 11, 3, 13, 20),
+            "fim": dt.datetime(2026, 11, 3, 13, 22), "codigo": 0 if ok else 1, "ok": ok,
+            "itens": [{"hora": "13:21:10", "parte": "robo_mc_medicoes.py", "codigo": 0 if ok else 1, "texto": "HTTP 401"}],
+            "falhas": [] if ok else [{"hora": "13:21:10", "parte": "robo_mc_medicoes.py", "codigo": 1, "texto": "HTTP 401"}],
+            "porteiro": "porteiro: logado no Mais Controle", "indices": [], "evidencias": ["a.png"],
+            "gravando": True, "saida": ["linha"], "repeticao": None}
+
+
+def test_registro_tem_o_mesmo_o_que_fazer_do_email(tmp_path):
+    explicar = lambda t: ("A sessão caiu.", "Entrar de novo.") if "401" in t else ("", "Ver o log.")
+    pdf = tmp_path / "2026-11" / "2026-11-03_1320_medicoes_FALHOU.pdf"
+    pdf.parent.mkdir()
+    pdf.write_bytes(b"%PDF")
+    js = E.salvar_rodada(_r(), pdf, explicar)
+    reg = json.loads(js.read_text(encoding="utf-8"))
+    assert reg["inicio"] == "2026-11-03T13:20:00" and reg["ok"] is False and reg["pdf"] == pdf.name
+    assert reg["atencao"] == [{"parte": "robo_mc_medicoes.py", "oque": "A sessão caiu.", "fazer": "Entrar de novo."}]
+    assert reg["evidencias"] == 1      # só a contagem, sem nome de arquivo
+
+
+def test_rodadas_junta_json_e_pdf_antigo_sem_json(tmp_path):
+    pasta = tmp_path / "2026-11"
+    pasta.mkdir()
+    pdf_novo = pasta / "2026-11-03_1320_medicoes_ok.pdf"
+    pdf_novo.write_bytes(b"%PDF")
+    E.salvar_rodada(_r(ok=True), pdf_novo)
+    (pasta / "2026-11-02_0720_medicoes_FALHOU.pdf").write_bytes(b"%PDF")
+    (pasta / "2026-09-01_0720_medicoes_ok.pdf").write_bytes(b"%PDF")       # velho demais: sai
+    (pasta / "pendentes.txt").write_text("x")
+    r = E.rodadas(tmp_path, hoje=dt.date(2026, 11, 3))
+    assert list(r) == ["medicoes"] and len(r["medicoes"]) == 2
+    novo, velho = r["medicoes"]
+    assert novo["ok"] is True and novo["itens"]
+    assert velho == {"robo": "medicoes", "inicio": "2026-11-02T07:20:00", "ok": False, "so_pdf": True,
+                     "pdf": "2026-11-02_0720_medicoes_FALHOU.pdf"}
+
+
+def test_publicar_nunca_lanca_erro(monkeypatch, tmp_path):
+    monkeypatch.setattr(E, "CONFIG", tmp_path / "nao-existe.json")
+    monkeypatch.setattr(E, "RELATORIOS", tmp_path)
+    monkeypatch.setattr(E, "SAUDE", tmp_path / "saude.json")
+    msgs = []
+    assert E.publicar(msgs.append) is False and msgs[0].startswith("escritório FALHOU")
+    pdf = tmp_path / "2026-11-03_1320_medicoes_ok.pdf"
+    pdf.write_bytes(b"%PDF")
+    E.depois_da_rodada(_r(ok=True), pdf, None, msgs.append)       # grava o .json mesmo sem conseguir subir
+    assert pdf.with_suffix(".json").exists()
+
+
+def test_rodar_de_novo_so_tarefas_morais_e_nunca_porteiro_fila_ou_teste():
+    sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent / "servidor"))
+    import robo_fila as R
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo medicoes"}, "producao") == ("MoraisEng - Robo medicoes", "")
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Anexos da auditoria (tarde)"}, "producao")[0]
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo medicoes"}, "teste")[0] is None
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Porteiro do ERP"}, "producao")[0] is None
+    assert R.tarefa_para_rodar({"tarefa": "MoraisEng - Robo do portal (fila)"}, "producao")[0] is None
+    for ruim in ("Outra tarefa", "MoraisEng - x\" & del *", "MoraisEng - a/b", "", None):
+        assert R.tarefa_para_rodar({"tarefa": ruim}, "producao")[0] is None
+
+
+def test_log_do_servidor_explica_a_rodada_e_o_porteiro_vem_dos_robos(tmp_path):
+    """04/11: o porteiro.log dizia "ok" e os robôs davam com a tela de login — vale o que os robôs viram."""
+    (tmp_path / "robos-portal-2026-11-04.log").write_text(
+        "06:30:44 [contas] robo_mc_contas.py código 1 MC: o Chrome do porteiro não responde na porta 9230\n"
+        "06:40:00 [escritorio] escritório publicado\n"
+        "07:20:14 [medicoes] robo_mc_medicoes.py código 1 MC: o Chrome do porteiro não está logado no Mais Controle\n"
+        "07:26:47 [relatorio-medicoes] antes de repetir: porteiro: PROBLEMA � fora\n"
+        "07:27:18 [relatorio-medicoes] relatório 2026-11-04_0720_medicoes_FALHOU.pdf\n"
+        "07:30:00 [producao] mc-venda abcdef12: código 0\n", encoding="utf-8")
+    pl = tmp_path / "porteiro.log"
+    pl.write_text("2026-11-04 09:29:35,452 principal: ok\n", encoding="utf-8")
+    log = E.linhas_do_log(tmp_path, hoje=dt.date(2026, 11, 4), dias=1)
+    assert set(log) == {"contas", "medicoes", "fila"} and log["medicoes"][1]["de"] == "relatório"
+    rods = {"medicoes": [{"robo": "medicoes", "inicio": "2026-11-04T07:20:00", "ok": False, "so_pdf": True}]}
+    E.anexar_log(rods, log)
+    assert [l["em"][11:] for l in rods["medicoes"][0]["log"]] == ["07:20:14", "07:26:47", "07:27:18"]
+    st = E.porteiro_estado(log, rods, pl, agora=dt.datetime(2026, 11, 4, 9, 30))
+    assert st["estado"] == "fora" and st["fonte"] == "robôs" and "07:26:47" in st["em"]
+    st2 = E.porteiro_estado({}, {}, pl, agora=dt.datetime(2026, 11, 4, 9, 30))
+    assert st2["estado"] == "ok" and st2["fonte"] == "porteiro.log"
+
+
+def test_conferencia_do_porteiro_vale_mais_que_o_log(monkeypatch, tmp_path):
+    monkeypatch.setattr(E, "RELATORIOS", tmp_path)
+    monkeypatch.setattr(E, "SAUDE", tmp_path / "saude.json")
+    monkeypatch.setattr(E, "LOGS", tmp_path)
+    monkeypatch.setattr(E, "PORTEIRO_LOG", tmp_path / "porteiro.log")
+    monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (False, "o Chrome do porteiro não está logado no Mais Controle"))
+    d = E.montar(hoje=dt.date(2026, 11, 4))
+    assert d["porteiro"]["estado"] == "fora" and d["porteiro"]["fonte"] == "conferência"
+    monkeypatch.setattr(E, "conferir_porteiro", lambda espera=45.0: (None, "sem o código do porteiro"))
+    d = E.montar(hoje=dt.date(2026, 11, 4))
+    assert d["porteiro"]["estado"] == "?" and any("não deu para conferir" in a for a in d["avisos"])
+
+
+def test_motivo_lido_do_texto_do_pdf_antigo():
+    texto = ("Robô do Mais Controle — Medições de contratos\nDEU ERRADO\n"
+             "Rodada de 04/11/2026, das 09:20 às 09:27 (6 min) · gravação LIGADA · código de saída 1\n"
+             "porteiro: PROBLEMA � o Chrome do porteiro n�o est� logado no Mais Controle � o porteiro precisa\n"
+             "entrar (python -m erp.porteiro estado, no servidor)\n"
+             "O que precisa de atenção\n"
+             "robo_mc_medicoes.py: A sessão do Mais Controle no Chrome do porteiro caiu.\n"
+             "O que fazer: Entrar no Mais Controle pela janela do Chrome central (servidor). O robô roda de novo\n"
+             "no próximo horário.\n"
+             "Porteiro: a sessão do Mais Controle está fora.\nO que fazer: entrar pela janela do Chrome central no servidor.\n"
+             "O que rodou\nHora Parte Resultado Fim da saída\n")
+    d = E.do_texto_do_pdf(texto)
+    assert d["pdf_meta"].startswith("Rodada de 04/11/2026")
+    assert d["porteiro"] == ("porteiro: PROBLEMA — o Chrome do porteiro não está logado no Mais Controle — o porteiro precisa "
+                             "entrar (python -m erp.porteiro estado, no servidor)")
+    assert d["atencao"] == [
+        {"parte": "robo_mc_medicoes.py", "oque": "A sessão do Mais Controle no Chrome do porteiro caiu.",
+         "fazer": "Entrar no Mais Controle pela janela do Chrome central (servidor). O robô roda de novo no próximo horário."},
+        {"parte": "Porteiro", "oque": "a sessão do Mais Controle está fora.", "fazer": "entrar pela janela do Chrome central no servidor."}]
+    assert E.do_texto_do_pdf("") == {"pdf_texto": ""}
+
+
+def test_horarios_do_dia_pelos_gatilhos():
+    med = [{"tipo": "MSFT_TaskWeeklyTrigger", "inicio": "2026-10-29T07:20:00-03:00", "dias": 126, "repetir": "PT2H", "duracao": "PT12H"}]
+    assert E.horarios_do_dia(med, dt.date(2026, 11, 4)) == ["07:20", "09:20", "11:20", "13:20", "15:20", "17:20", "19:20"]
+    assert E.horarios_do_dia(med, dt.date(2026, 11, 8)) == []                 # domingo
+    diario = [{"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-10-29T06:23:00", "cadaDias": 1}]
+    assert E.horarios_do_dia(diario, dt.date(2026, 11, 4)) == ["06:23"]
+    fila = [{"tipo": "MSFT_TaskTimeTrigger", "inicio": "2026-10-27T10:00:00", "repetir": "PT1M"}]
+    assert E.horarios_do_dia(fila, dt.date(2026, 11, 4)) == []
+    dois = [{"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-11-03T05:20:00"}, {"tipo": "MSFT_TaskDailyTrigger", "inicio": "2026-11-03T12:20:00"}]
+    assert E.horarios_do_dia(dois, dt.date(2026, 11, 4)) == ["05:20", "12:20"]
+    t = E.montar_tarefas([{"nome": "MoraisEng - Robo bases", "acoes": ["--robo bases"], "gatilhos": diario}])[0]
+    assert t["gat"][0]["inicio"] == "2026-10-29T06:23:00"
+
+
+def test_rodando_agora_ignora_marca_velha_e_processo_morto(tmp_path):
+    import datetime as _dt
+    import json as _json
+    import escritorio_robos as ER
+    agora = _dt.datetime(2026, 11, 4, 20, 30, tzinfo=_dt.timezone.utc)
+    (tmp_path / "anexos.json").write_text(_json.dumps({"fase": "trabalhando", "pid": 1, "desde": "2026-11-04T20:12:00+00:00"}))
+    (tmp_path / "medicoes.json").write_text(_json.dumps({"fase": "esperando a vez", "pid": 2, "desde": "2026-11-04T20:20:00+00:00"}))
+    (tmp_path / "velho.json").write_text(_json.dumps({"fase": "trabalhando", "pid": 1, "desde": "2026-11-04T10:00:00+00:00"}))
+    r = ER.rodando_agora(tmp_path, agora, vivo=lambda pid: pid == 1)
+    assert set(r) == {"anexos"} and r["anexos"]["fase"] == "trabalhando"

@@ -684,7 +684,7 @@ O que é digitado vai para a linha do cadastro:
 
 | Grupo | Linha | Se não existe |
 |---|---|---|
-| Vendedor | a de `DB_VENDEDORES` do PROPRIETARIO DOCUMENTO da obra | **não cria** (o cadastro do dono é oficial): fica o erro |
+| Vendedor | a de `DB_VENDEDORES` do PROPRIETARIO DOCUMENTO da obra | **cria** (título = PROPRIETARIO DOCUMENTO da obra) — regra nova de 05/11/2026, ver "Vendedor automático" abaixo; antes não criava |
 | Corretor | a de `DB_CORRETORES` com o nome do CORRETOR da venda | cria (título = nome do corretor da venda) |
 | Loteamento | a de `DB_LOTEAMENTOS` do SETOR da casa (condomínio: a do nome do condomínio) | cria na **1ª** base de `DB_LOTEAMENTOS`; o SETOR vai na coluna `SETOR` se a base tiver, senão no título |
 
@@ -706,6 +706,64 @@ O que é digitado vai para a linha do cadastro:
   digitado sai grifado em amarelo como todo campo preenchido pelo app). Se
   ainda faltar algo, o formulário volta só com o que falta.
 - Perfil TESTES não grava.
+
+### Vendedor automático (casa de rua, 05/11/2026)
+
+Regra do dono (05/11/2026): "o cadastro do vendedor SEMPRE tem que vir
+preenchido automático, o único dado manual é os dados bancários (nas PJ
+geralmente já tem que vir preenchido, só as PF que pode variar)". Muda a regra
+antiga "nunca cria vendedor".
+
+Na geração do contrato da **casa de rua** (o condomínio não muda), o vendedor
+é montado campo a campo por `ContratoVenda.comporVendedor` — vale o primeiro
+preenchido, nesta ordem:
+
+1. a linha do cadastro (`DB_VENDEDORES`; na produção PROPRIETARIOS_PAI) cujo
+   título = PROPRIETARIO DOCUMENTO da obra;
+2. a qualificação do proprietário **atual** lida pela IA na matrícula da casa
+   (último registro de transmissão), gravada nas colunas da VENDAS
+   `VENDEDOR - NOME`, `VENDEDOR - CPF/CNPJ`, `VENDEDOR - NACIONALIDADE`,
+   `VENDEDOR - ESTADO CIVIL`, `VENDEDOR - PROFISSÃO`, `VENDEDOR - RG`,
+   `VENDEDOR - ENDEREÇO` (texto; opcionais uma a uma — sem elas a leitura da
+   matrícula avisa uma vez só na observação e segue);
+3. a obra em DOCUMENTOS (`PROPRIETARIO DOCUMENTO`, `CPF/CNPJ`);
+4. o cliente da obra no Mais Controle, copiado pelo robô diário do servidor
+   (`robo_mc_documentos.py`) nas colunas `VENDEDOR MC - NOME`,
+   `VENDEDOR MC - CPF/CNPJ`, `VENDEDOR MC - ENDEREÇO`, `VENDEDOR MC - E-MAIL`
+   (texto, opcionais);
+5. só PJ sem representante (ou com o mesmo representante faltando campo): a
+   Propriedade **`REPRESENTANTE_PJ_PADRAO`** = JSON
+   `{"nome": "...", "cpf": "...", "rg": "...", "nacionalidade": "...", "estadoCivil": "...", "email": "..."}`
+   (as SPEs têm o mesmo representante). O valor real o dono põe nas
+   Propriedades do PORTAL-VENDA — nunca no repositório.
+
+- Matrícula e MC só entram se forem da **mesma pessoa** da obra: CPF/CNPJ igual
+  (sem documento dos dois lados, o nome). Matrícula de dono antigo é descartada
+  (log "matricula de outra pessoa"), e o campo continua faltando.
+- Tipo: `TIPO` do cadastro ou, sem ele, pelos dígitos (14 = PJ, 11 = PF).
+- O banco não sai daqui: conta escolhida/digitada → conta da obra → cadastro.
+  Por isso, numa PF sem conta na obra, o formulário mostra só a **Conta de
+  recebimento**.
+- **Grava no cadastro para as próximas vezes**, ao gerar o pré-contrato: o que
+  veio da matrícula, da obra ou do MC e a linha não tem — **só campo vazio,
+  nunca sobrescreve**; sem linha, cria uma com título = PROPRIETARIO DOCUMENTO.
+  Só colunas que a base tem (a PROPRIETARIOS_PAI não tem `TIPO`: fica de fora).
+  O representante padrão **não** vai para a linha (trocar a Propriedade
+  continua valendo para todas). Log só com contagens.
+- O formulário do vendedor cria a linha quando ela não existe (antes:
+  `VENDEDOR_SEM_CADASTRO`, que agora só aparece se a obra não tem
+  PROPRIETARIO DOCUMENTO).
+- A instrução da IA da matrícula pede os campos `proprietario_nome`,
+  `proprietario_cpf_cnpj`, `nacionalidade`, `estado_civil`, `profissao`, `rg`,
+  `endereco` (OpenAI e Claude iguais). CPF/CNPJ que não fecha o dígito não é
+  gravado (aviso na observação).
+
+**Implantar:** colunas novas na VENDAS (teste e produção, todas texto):
+as 7 `VENDEDOR - …` e as 4 `VENDEDOR MC - …`; Propriedade
+`REPRESENTANTE_PJ_PADRAO` no PORTAL-VENDA (e no TESTE, com dados inventados);
+colar `RegrasVenda`, `ContratoVenda`, `OpenAILeitor`, `ClaudeLeitor`,
+`GerarContrato`, `PortalVenda`. Matrícula já lida antes disso: clicar em
+**Ler de novo** no espaço da matrícula para preencher as colunas novas.
 
 ### Conta de recebimento (por venda)
 
@@ -1435,8 +1493,83 @@ redirecionamento (conta como falha e pode desligar o webhook). Tudo passa pela v
   `instalarVigiaAssinaturas` no editor (troca o gatilho para 15 min). Se o MailApp ainda não foi autorizado no projeto,
   o editor pede a permissão nessa hora. O site vai com `venda-dossie.js?v=64`, `venda/assinatura-ui.js?v=26` e o cache
   `portal-morais-v269`.
-- **Configurar:** Propriedade `ASSINATURA_AVISO_EMAILS`; no Notion (base do condomínio) as colunas de Texto
+- **Configurar:** os endereços vão no arquivo `AvisosConfig.gs`, que existe SÓ no Apps Script (fora deste repositório público):
+  `var ASSINATURA_AVISO_EMAILS_PADRAO = "a@empresa, b@empresa";`. A Propriedade `ASSINATURA_AVISO_EMAILS`, se existir, vence. No Notion (base do condomínio) as colunas de Texto
   `ASSINATURA - PROGRESSO` e `PRÉ-RESERVA - PROGRESSO`.
 - **Conferir:** venda de teste com envelope ENVIADO na sandbox → assinar com um signatário → em até 15 min a planilha
   mostra "1 de N"; recusar com outro → linha vermelha "recusado" e o e-mail chega; unidade com contrato gerado e sem
   termo → aba Pré-reserva mostra "Dispensada" e o Gerar termo some.
+
+## Alterar fluxo guiado pelo simulador (04/11/2026)
+
+Pedido do dono: "os fluxos que nós fazemos à mão devem seguir o princípio do simulador — tirei das primeiras parcelas
+pré-chaves, sobe automaticamente o valor do primeiro balão, ou pelo menos um campo de sugestão". Decisão: ajuste
+automático com cadeado.
+
+- **Na tela:** mexer no valor ou na quantidade de uma pré-chaves, balão ou pós-chaves trava a linha (🔒). Uns 400 ms
+  depois da última tecla, as linhas soltas (🔓) dessas três espécies são refeitas para a Diferença ficar em R$ 0,00 — as
+  que mudaram piscam e ganham "ajustado pelo simulador". O cadeado de cada linha trava/solta à mão. Sinal, entrada à
+  vista, permuta, pré-reserva, financiamento, FGTS e subsídio nunca mudam. Quando as travas não deixam fechar, cada linha
+  mostra "sugestão: R$ X" e o placar oferece **Aplicar sugestão** (a conta sem as travas; os cadeados abrem).
+  Recomeçar do fluxo da proposta e o prazo 24x/36x/48x limpam os cadeados; Distribuir e ↻ continuam como eram.
+- **A conta** (`FluxoLivre.guiar`): a diferença vai proporcional à régua do simulador — 1ª pré-chaves (por data) 860 por
+  parcela, as outras 330; 1º balão 10.000, os outros 7.000; pós-chaves 788,33 por parcela, nunca acima do teto (o da
+  proposta, se maior). Nenhuma linha abaixo de R$ 1,00 por parcela (o que não cabe vai para as outras). Quantidade e
+  datas ficam; os centavos fecham no último balão solto.
+- **Cadeados são só da tela** (não são gravados). Validações e servidor não mudaram.
+- **Implantar:** sobe com o site (FluxoLivre v13, venda-dossie v70, cache v289). No Apps Script nada é obrigatório: o
+  servidor não usa `guiar`; colar `FluxoLivre.gs` de novo só para manter a cópia igual.
+
+## Financiamento menor que a carta no Alterar fluxo (05/11/2026)
+
+Pedido do dono: "alguns preferem reduzir o valor a financiar (nunca pode ser maior que o valor da carta de aprovação)".
+
+- **Na tela:** a linha Financiamento ganha o campo de valor (sem quantidade, data, ↻ nem ✕) e a nota "até R$ X (carta de
+  aprovação)". X = o financiamento da proposta (VALOR DO CRÉDITO). Baixar o valor refaz as pré-chaves, balões e
+  pós-chaves soltos pela régua do simulador (o financiamento não trava nem é mexido pelo simulador). FGTS, subsídio e
+  pré-reserva continuam fixos.
+- **Regra (`FluxoLivre.validar`, a mesma na tela e no servidor):** financiamento > 0 e até o da proposta, na mesma
+  quantidade de linhas; acima = "O financiamento não pode passar do valor aprovado na carta: R$ X". A coluna VALOR DO
+  CRÉDITO não é regravada (continua sendo a carta).
+- **Quem lê o financiamento do fluxo alterado:** contrato (já lia a linha `fin`), robô do Mais Controle
+  (`venda/mc/condominio.py`: parcelas já saíam das linhas; agora o dado `financiado` também), cartão (quadro do pro
+  soluto e "como se chega", com a carta ao lado quando reduzido), Gerar venda (`CondominioVenda.mapear` copia o VALOR
+  FINANCIADO da linha).
+- **Implantar (teste primeiro):** no PORTAL-VENDA colar `FluxoLivre.gs` (de `venda/FluxoLivre.js`), `CondominioVenda.gs`
+  (de `venda/CondominioVenda.js`) e `PortalVenda.gs` (`venda-v24`) e publicar a MESMA implantação — sem o FluxoLivre novo
+  o servidor recusa o fluxo com financiamento reduzido. Robô: `git pull` no servidor (`venda/mc/condominio.py`). Site:
+  FluxoLivre v14, venda-dossie v71, cache v290.
+
+## Casa de rua: contrato assinado vai ao Orçamento e a venda é lançada sozinha (05/11/2026)
+
+Pedido do dono: (a) "toda vez que o contrato for finalizado (assinado por todos) ele tem que ir pro orçamento (dentro
+do Mais Controle)"; (b) "o contrato assinado por todos tem que ter a venda criada automaticamente no Mais Controle,
+sem ninguém clicar em Ver prévia e Lançar".
+
+- **Vigia** (`AssinaturaVigia.gs`): além do condomínio, relê os contratos ENVIADO da base VENDAS (Propriedade
+  `DB_VENDAS`). Quando o PDF assinado entra na casa (pela vigia ou pelo Atualizar situação), `assPosAssinatura_` roda
+  também para a casa de rua.
+- **Orçamento** (`AnexosMC.gs` + `venda/mc/anexos.py`): na hora em que o PDF entra sai um pedido `mc-anexos` (sempre,
+  com ou sem venda). O robô sobe o PDF do CONTRATO ASSINADO para Obras > Orçamento > Arquivos > **Contratos Venda** da
+  obra cujo nome é o ENDEREÇO da casa (a mesma regra do lançamento), com o nome do recebimento
+  `CONTRATO <ENDEREÇO> CASA 0N - NOME.pdf`; com venda lançada, também anexa no recebimento. Linhas da situação:
+  `Contrato no Orçamento: …` e `Contrato: …`. A pasta não é criada pelo robô: sem ela, a linha diz para criar e usar o
+  botão Anexar contrato no Mais Controle (que, na casa de rua, funciona sem venda lançada). Se a base VENDAS ganhar a
+  coluna `CONTRATOS ASSINADOS (ZIP)`, o ZIP de todos os assinados vai junto, com o nome
+  `CONTRATOS <ENDEREÇO> CASA 0N - COMPRADOR 1 e COMPRADOR 2.zip` (no condomínio continua "Un NN - NOME e NOME.zip").
+- **Lançamento sem clique** (`MaisControleVenda.gs`, só com `MC_LANCAR_AO_ASSINAR` = SIM): o PDF entrou → pede a
+  PRÉVIA pela fila (o mesmo `mcLancar_` do botão) e guarda `MC_AUTO_<página>`. A cada volta da vigia: PRÉVIA OK →
+  pede o LANÇAMENTO (com o carimbo da prévia, que o robô confere); MC - VENDA ID preenchido → acabou (pede o
+  `mc-anexos` de novo, sem repetir arquivo); RECUSADA/ERRO/JÁ EXISTE/BLOQUEADO → **para**: linha
+  `Lançamento automático: parou …` na situação e um e-mail para `ASSINATURA_AVISO_EMAILS` — nunca tenta de novo
+  sozinho; 24 h sem terminar → para igual. Venda já lançada nunca é relançada. O condomínio não mudou (continua
+  esperando a prévia do botão).
+- **Travas de gravar:** as mesmas do botão — o robô só grava com aplicar + `"pode_gravar": true` da fila +
+  `_central\VENDA_APLICAR.txt`. A fila "teste" ganhou uma terceira chave, separada: `_central\TESTE_PODE_GRAVAR.txt`
+  (ver SERVIDOR-ROBOS.md). Sem ela, a fila de teste continua só fazendo prévia (o lançamento volta BLOQUEADO e o
+  automático para com aviso).
+- **Implantar (teste primeiro):** no PORTAL-VENDA de teste colar `AssinaturaVigia.gs`, `AssinaturaVenda.gs`,
+  `MaisControleVenda.gs` e `AnexosMC.gs`; Propriedades `DB_VENDAS`, `DB_FILA_ROBO` (fila de teste),
+  `MC_LANCAR_AO_ASSINAR` = SIM e `ASSINATURA_AVISO_EMAILS`; o gatilho da vigia já instalado (`instalarVigiaAssinaturas`).
+  Robô: `git pull` no servidor (`venda/mc/anexos.py`, `servidor/robo_fila.py`). Este pedido não mexeu em versões
+  (`VERSAO_VENDA`): quem integra sobe a versão.

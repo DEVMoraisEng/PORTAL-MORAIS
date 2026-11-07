@@ -83,13 +83,17 @@ function mcAnexar_(col, sess, p) {
         assApagarProp_(MC_ZIP_PENDENTE + p.pageId);
         extra.push("guardado no Notion (" + z.arquivos + " documentos), ");
       }
-    } else if (!c.vendaId) return { ok: false, erro: "MC_SEM_VENDA" };
+    } else if (!c.vendaId && c.base !== "VENDAS") return { ok: false, erro: "MC_SEM_VENDA" };   /* 05/11: casa de rua manda ao Orçamento mesmo sem venda */
     var r = mcPedirAnexos_(p.pageId);
     if (!r.ok) {
       if (extra.length) try { mcGravarLinhas_(p.pageId, [[MC_ROTULO_ZIP, extra[0] + mcSemPedido_(r)]]); } catch (e) {}
       return r;
     }
-    try { mcGravarLinhas_(p.pageId, [[zip ? MC_ROTULO_ZIP : MC_ROTULO_CONTRATO, (extra[0] || "") + "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "")]]); }
+    var pedido = "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "");
+    try {
+      if (zip) mcGravarLinhas_(p.pageId, [[MC_ROTULO_ZIP, (extra[0] || "") + pedido]]);
+      else mcGravarLinhas_(p.pageId, mcLinhasContrato_(c.base, c.vendaId, pedido));
+    }
     catch (e) { ctrErro_("mcAnexar " + String(p.pageId).slice(0, 8) + " situação", e); }
     ctrLog_("mcAnexar " + String(p.pageId).slice(0, 8) + (zip ? " zip" : "") + " (fila)");
     return { ok: true, fila: true, semSinal: !!r.aviso };
@@ -139,8 +143,9 @@ function mcZipContratos_(pageId, pgCru, docs, nomeContrato, inicio) {
   var col = cfdCol_(pgCru, MC_COL_ZIP);
   if (!col) return { pular: "sem coluna", fim: true };
   if ((ctrValor_(pgCru.properties[col]) || []).length) return { pular: "já tem", fim: true };
-  var nomeZip = CondominioVenda.nomeZipContratos(pgCru.properties);
-  if (!nomeZip) return { erro: "não gerado (a UNIDADE da linha não tem número)", definitivo: true };
+  var rua = vendaBaseDaPagina_(pgCru) === "VENDAS";   /* 05/11: casa de rua tem o nome dela (mcNomeZipRua_) */
+  var nomeZip = rua ? mcNomeZipRua_(pgCru.properties) : CondominioVenda.nomeZipContratos(pgCru.properties);
+  if (!nomeZip) return { erro: rua ? "não gerado (a casa não tem ENDEREÇO ou número em CASA)" : "não gerado (a UNIDADE da linha não tem número)", definitivo: true };
   var links = [];
   for (var i = 0; i < docs.length; i++) {
     try { links.push(ClicksignVenda.linkAssinado(docs[i])); }
@@ -165,7 +170,7 @@ function mcZipContratos_(pageId, pgCru, docs, nomeContrato, inicio) {
 /* Lê a linha e o envelope do contrato e monta o ZIP (vigia ou botão). */
 function mcZipMontar_(pageId, inicio) {
   var pgCru = notion_("GET", "/pages/" + pageId, null);
-  if (!pgCru || vendaBaseDaPagina_(pgCru) !== "CONDOMINIO") return { pular: "outra base", fim: true };
+  if (!pgCru || !vendaBaseDaPagina_(pgCru)) return { pular: "outra base", fim: true };   /* 05/11: condomínio e casa de rua */
   var doc = assDoc_({}), pg = ctrLerPaginaVenda_(pageId), cols = assColunas_(pg, doc);
   if (assTexto_(pg, cols.SITUACAO).toUpperCase() !== ClicksignVenda.SITUACOES.ASSINADO) return { pular: "contrato não assinado", fim: true };
   var envId = assTexto_(pg, cols.ENVELOPE);
@@ -225,17 +230,68 @@ function mcAnexosPosAssinatura_(pageId, anexouContrato, zipFalta) {
     trocas.push([MC_ROTULO_ZIP, "será montado com todos os assinados em até 30 minutos"]);
   }
   if (anexouContrato) {
-    var pg, vendaId = "";
+    var pg, vendaId = "", base = "";
     try { pg = notion_("GET", "/pages/" + pageId, null); } catch (e) { ctrErro_("anexos " + id8 + " leitura", e); pg = null; }
-    if (pg && vendaBaseDaPagina_(pg) === "CONDOMINIO") {
+    base = pg ? vendaBaseDaPagina_(pg) : "";
+    if (base === "CONDOMINIO" || base === "VENDAS") {
       try { vendaId = mcLerColunas_(pageId).vendaId; } catch (e) { vendaId = ""; }
-      if (vendaId) {
+      /* condomínio: só com venda lançada (o ZIP vai ao Orçamento). 05/11, casa de rua: SEMPRE — o contrato vai para o
+         Orçamento da obra da casa mesmo antes da venda; com venda lançada, também para o recebimento */
+      if (vendaId || base === "VENDAS") {
         var r = mcPedirAnexos_(pageId);
-        trocas.push([MC_ROTULO_CONTRATO, r.ok ? "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "") : mcSemPedido_(r)]);
+        trocas = trocas.concat(mcLinhasContrato_(base, vendaId, r.ok ? "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "") : mcSemPedido_(r)));
       }
     }
   }
   if (trocas.length) {
     try { mcGravarLinhas_(pageId, trocas); } catch (e) { ctrErro_("anexos " + id8 + " situação", e); }
   }
+}
+
+/* ---- 05/11/2026 (dono, CASA DE RUA): "toda vez que o contrato for finalizado (assinado por todos) ele tem que ir pro
+ * orçamento (dentro do Mais Controle)". A casa da VENDAS manda o PDF do CONTRATO ASSINADO para Obras > Orçamento >
+ * Arquivos > "Contratos Venda" da OBRA DA CASA (no Mais Controle a obra é a de nome = ENDEREÇO, como no lançamento) e,
+ * com venda lançada, também para o recebimento. O pedido sai sozinho quando o PDF entra (mcAnexosPosAssinatura_) e de
+ * novo quando o lançamento automático termina (mcAutoPasso_); o robô (venda/mc/anexos.py) não repete o que já está lá.
+ * Se a base VENDAS ganhar a coluna CONTRATOS ASSINADOS (ZIP), o ZIP de todos os assinados vai junto, com o nome do
+ * padrão dos contratos das outras obras ("CONTRATO <obra> CASA 0N - NOME.pdf"): "CONTRATOS <ENDEREÇO> CASA 0N - A e B.zip". */
+var MC_ROTULO_ORCAMENTO = "Contrato no Orçamento";
+
+/* Linhas da situação para um pedido de contrato: casa de rua = Orçamento (+ recebimento com venda); condomínio = recebimento. */
+function mcLinhasContrato_(base, vendaId, texto) {
+  if (base !== "VENDAS") return [[MC_ROTULO_CONTRATO, texto]];
+  return vendaId ? [[MC_ROTULO_CONTRATO, texto], [MC_ROTULO_ORCAMENTO, texto]] : [[MC_ROTULO_ORCAMENTO, texto]];
+}
+
+/* Nome do ZIP da casa de rua (pura: testada no node). Sem ENDEREÇO ou sem UM número em CASA: null. */
+function mcNomeZipRua_(props) {
+  var porChave = {}, endereco = "";
+  for (var n in props) {
+    porChave[RegrasVenda.chave(n)] = props[n];
+    if (props[n] && props[n].type === "title") endereco = ctrTxt_(ctrValor_(props[n]));
+  }
+  function v(nome) { var x = ctrValor_(porChave[RegrasVenda.chave(nome)]); return x === null || x === undefined ? "" : String(x); }
+  var limpo = function (s) { return String(s || "").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, " ").replace(/\s+/g, " ").trim().toUpperCase(); };
+  endereco = limpo(endereco);
+  var casaBruta = v("CASA"), grupos = casaBruta.match(/\d+/g) || [];
+  if (!endereco || grupos.length !== 1) return null;
+  var casa = Number(grupos[0]), nomes = [], vistos = {};
+  /* 1º nome de CLIENTES pela mesma regra do robô (regras.dados_da_pagina: " E " maiúsculo, &, vírgula ou barra) */
+  [v("CLIENTES").split(/\s+E\s+|\s*[&,\/]\s*/)[0], v("COMPRADOR 2 - NOME")].forEach(function (x) {
+    var nome = limpo(x), k = RegrasVenda.chave(nome);
+    if (!nome || vistos[k]) return;
+    vistos[k] = true;
+    nomes.push(nome);
+  });
+  var base = "CONTRATOS " + endereco + " CASA " + (casa < 10 ? "0" : "") + casa + (nomes.length ? " - " + nomes.join(" e ") : "");
+  if (base.length > 150) base = base.slice(0, 150).trim();
+  return base + ".zip";
+}
+
+/* Pede o mc-anexos de uma casa de rua e escreve as linhas (lançamento automático terminou). */
+function mcAnexosRua_(pageId, vendaId) {
+  var r = mcPedirAnexos_(pageId);
+  try { mcGravarLinhas_(pageId, mcLinhasContrato_("VENDAS", vendaId, r.ok ? "pedido ao robô em " + hoje_("dd/MM HH:mm") + (r.aviso || "") : mcSemPedido_(r))); }
+  catch (e) { ctrErro_("anexos " + String(pageId).slice(0, 8) + " situação", e); }
+  return r;
 }

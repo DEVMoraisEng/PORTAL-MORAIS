@@ -129,3 +129,21 @@ def test_fechar_fecha_a_aba_do_robo_e_pode_repetir():
     erp.fechar()
     erp.fechar()
     assert fechou == [1]
+
+
+def test_guarda_a_url_do_pedido_que_a_propria_tela_fez():
+    """03/11: a lista de pagamentos exige centro de custo; o robô copia os parâmetros do pedido da tela."""
+    lista = "https://legacy-api.maiscontroleerp.com.br/maiscontrole/services/payable-installments/paginated-result?page=0&costCenterIds=a"
+    pg = PageFalsa([Req(lista, dict(LEG)), Req(lista.replace("costCenterIds=a", "costCenterIds=robo"), dict(LEG)),
+                    Req("https://prod-erp-api.maiscontroleerp.com.br/b", dict(CORE))])
+    aba = P.AbaPorteiro(pg)
+    aba.capturar(espera=1)
+    assert aba.pedido_da_tela("payable-installments/paginated-result", espera=0) == lista   # o 1º, o da tela
+    assert aba.pedido_da_tela("nao-existe", espera=0) is None
+
+
+def test_resposta_em_texto_puro_volta_como_texto():
+    """04/11: o get-url do arquivo responde o link em texto puro (a descoberta dos anexos deu JSONDecodeError)."""
+    aba = AbaFalsa([(200, "https://s3.exemplo/arquivo.pdf?X-Amz-Expires=86400\n")])
+    erp = E.ErpPeloPorteiro(aba)
+    assert erp.pedir("GET", "/file/abc/get-url") == "https://s3.exemplo/arquivo.pdf?X-Amz-Expires=86400"

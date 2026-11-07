@@ -167,6 +167,11 @@ def ajustar_dados_livre(fx: dict, dados: dict) -> None:
     livre = fx.get("livre")
     if not livre or not livre["valor"]:
         return
+    # 05/11/2026 (dono): o financiamento pode baixar no Alterar fluxo (até a carta) — o dado da venda segue a linha do
+    # fluxo, não a coluna VALOR DO CRÉDITO (as parcelas já saem das linhas em parcelas_livres)
+    fins = [l for l in livre["linhas"] if l["t"] == "fin"]
+    if fins:
+        dados["financiado"] = round(sum(_total_linha(l) for l in fins), 2)
     if livre.get("semComissao"):
         # 30/10: venda direta (isenção da comissão, só JC/JV) — comissão zero, como o contrato (valoresCondominio)
         dados["total"] = dados["aquisicao"] = livre["valor"]
@@ -299,6 +304,13 @@ def data_no_dia(iso: str, meses: int, dia: int | None) -> str:
     return _dt.date(a, m, min(max(1, alvo), calendar.monthrange(a, m)[1])).isoformat()
 
 
+# 06/11/2026 (dono): no condomínio TODO financiamento (e o FGTS, que a CAIXA libera junto) vence em 30/11/2028, a
+# entrega. Até aqui saía assinatura/data da venda + 30 dias e as 7 vendas reais (UN 04, 15, 16, 17, 18, 31, 39) foram
+# gravadas com 30/11 e 03/12/2026 — corrigidas à mão no ERP no mesmo dia. `dias_financiamento` segue na assinatura
+# só para os chamadores (lancar.py); no condomínio não muda mais a data. A casa de rua continua em regras.py (+30).
+VENCIMENTO_FINANCIAMENTO = "2028-11-30"
+
+
 def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMENTO) -> list[dict]:
     """[{tipo, rotulo, valor, data, tabela}] — `tabela` = nome da tabela de reajuste ou None.
     `dados` = dados_da_pagina da VENDAS (FGTS, financiado, subsídio e data da venda)."""
@@ -335,8 +347,7 @@ def parcelas(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMEN
     add(R.TIPO_INTERMEDIARIA, "Balão 12/27", fx.get("vB1"), fx.get("dB1"), TABELA_PRE)
     add(R.TIPO_CHAVES, "Balão entrega de chaves", fx.get("vB2"), fx.get("dB2"), TABELA_PRE)
     serie(R.TIPO_PARCELA, "Pós-chaves", fx.get("nP"), fx.get("vP"), fx.get("dP"), TABELA_POS)
-    dv = fx.get("assinatura") or dados.get("data_venda")   # no condomínio o banco entra depois da assinatura
-    prev = R._mais_dias(dv, dias_financiamento) if dv and R._RE_ISO.match(dv) else None
+    prev = VENCIMENTO_FINANCIAMENTO
     add(R.TIPO_FGTS, "FGTS", dados.get("fgts"), prev)
     fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
     add(R.TIPO_FINANCIAMENTO, "Financiamento", fin or None, prev)
@@ -368,7 +379,7 @@ _TIPO_LIVRE = {"prereserva": (R.TIPO_SINAL, None, "Pré-reserva"), "sinal": (R.T
 
 def parcelas_livres(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINANCIAMENTO) -> list[dict]:
     """29/10/2026 (etapa 3): parcelas do FLUXO PERSONALIZADO — linha a linha, como o contrato. Financiamento, FGTS e
-    subsídio continuam com o vencimento previsto (assinatura + dias), como nas gavetas. Permuta = Entrada com o bem no
+    subsídio vencem em VENCIMENTO_FINANCIAMENTO (30/11/2028), como nas gavetas. Permuta = Entrada com o bem no
     comentário da parcela (o dono lança assim e dá baixa com o dinheiro do repasse do carro)."""
     out, fin, fgts = [], 0.0, 0.0
     for l in fx["livre"]["linhas"]:
@@ -390,8 +401,7 @@ def parcelas_livres(fx: dict, dados: dict, dias_financiamento: int = R.DIAS_FINA
             if l["t"] == "prereserva":
                 rot = rotulo_pre_reserva(data)
             out.append({"tipo": t, "rotulo": rot, "valor": round(float(v), 2), "data": data, "tabela": tabela})
-    dv = fx.get("assinatura") or dados.get("data_venda")
-    prev = R._mais_dias(dv, dias_financiamento) if dv and R._RE_ISO.match(dv) else None
+    prev = VENCIMENTO_FINANCIAMENTO
     if fgts > 0:
         out.append({"tipo": R.TIPO_FGTS, "rotulo": "FGTS", "valor": round(fgts, 2), "data": prev, "tabela": None})
     if fin > 0:

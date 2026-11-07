@@ -204,7 +204,10 @@ def dados_da_pagina(props: dict) -> dict:
     clientes = ler("clientes") or ""
     nome1 = re.split(r"\s+E\s+|\s*[&,/]\s*", clientes, maxsplit=1)[0].strip() if clientes else ""
     total, comissao, na_mao = _num(ler("valor_contrato")), _num(ler("comissao")), _num(ler("valor_na_mao"))
-    paga_por = chave(ler("comissao_paga_por"))
+    # 05/11/2026 (dono): no contrato da casa de rua a comissão é SEMPRE do comprador e a coluna saiu da tela —
+    # vazia vale COMPRADOR (o mesmo cálculo de antes para vazio). VENDEDOR escrito à mão (vendas antigas) é respeitado.
+    # O condomínio não passa por aqui no que importa: lancar.py força "VENDEDOR" depois (regra de 07/10/2026).
+    paga_por = chave(ler("comissao_paga_por")) or "COMPRADOR"
     if paga_por == "VENDEDOR":
         aquisicao = total
     elif na_mao and na_mao > 0:

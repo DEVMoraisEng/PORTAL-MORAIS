@@ -79,7 +79,7 @@ test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor d
   assert.deepEqual(C.avisosContrato(d), []);
   assert.equal(d.comissao.pagaPor, "COMPRADOR");
   const m = C.marcadores(d);
-  assert.equal(m.COMPRADORES_QUADRO, "COMPRADORA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
+  assert.equal(m.COMPRADORES_QUADRO, "COMPRADORA TESTE, BRASILEIRA, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, " +
     "residente e domiciliado(a) à RUA TESTE, 10, e-mail compradora@teste.invalid, telefone (62) 90000-0000");
   assert.equal(m.CORRETOR_QUADRO, "Corretor Teste, CRECI nº 40167, CPF nº 246.813.579-28, residente e domiciliado(a) à AV. DO CORRETOR, 5, " +
     "e-mail corretor@teste.invalid, telefone (62) 91111-1111");
@@ -97,10 +97,12 @@ test("condomínio completo: sem faltas; comissão do COMPRADOR DENTRO do valor d
   assert.equal(m.SINAL_EXTENSO, "R$ 10.000,00 (dez mil reais)", "ato + 30/60/90");
   assert.equal(m.SINAL_VENCIMENTO, "07/10/2026 (R$ 1.000,00), 07/11/2026 (R$ 3.000,00), 07/12/2026 (R$ 3.000,00) e 07/01/2027 (R$ 3.000,00)");
   assert.equal(m.ENTRADA_TOTAL, "54.950,00");
-  assert.equal(m.ENTRADA_PCT, "18,02");
+  assert.equal(m.ENTRADA_PCT, "14,15", "04/11 (advogado): (entrada − comissão) ÷ preço do imóvel = 41.225 ÷ 291.275");
+  assert.equal(m.ENTRADA_IMOVEL, "41.225,00", "parte da entrada que paga o imóvel");
+  assert.equal(m.ENTRADA_COMISSAO, "13.725,00", "parte da entrada que é a comissão");
   assert.equal(m.ENTRADA_SALDO, "44.950,00", "entrada − sinal");
   assert.equal(m.FINANCIAMENTO_VALOR, "250.050,00");
-  assert.equal(m.FINANCIAMENTO_PCT, "81,98");
+  assert.equal(m.FINANCIAMENTO_PCT, "85,85", "250.050 ÷ 291.275; com a entrada do imóvel fecha 100%");
   assert.equal(m.FINANCIAMENTO_FRASE, ", incluídos os recursos do FGTS e/ou subsídio, quando houver");
   assert.equal(m.COMISSAO_PCT, "4,5");
   assert.equal(m.COMISSAO_VALOR, "13.725,00");
@@ -181,7 +183,7 @@ test("dois compradores: qualificação dos dois no quadro, CNPJ do corretor com 
     corretor: { cpfCnpj: "11.222.333/0001-81", endereco: "", telefone: "" } });
   f.meioPagamento = "boleto bancário";
   const m = C.marcadores(C.montarDadosContrato(f));
-  assert.ok(m.COMPRADORES_QUADRO.endsWith("; e COMPRADOR DOIS TESTE, brasileiro, RG nº 7654321, CPF nº 111.444.777-35, " +
+  assert.ok(m.COMPRADORES_QUADRO.endsWith("; e COMPRADOR DOIS TESTE, BRASILEIRO, RG nº 7654321, CPF nº 111.444.777-35, " +
     "residente e domiciliado(a) à RUA DOIS, 2, e-mail dois@teste.invalid"), m.COMPRADORES_QUADRO);
   assert.equal(m.CORRETOR_QUADRO, "Corretor Teste, CRECI nº 40167, CNPJ nº 11.222.333/0001-81, e-mail corretor@teste.invalid");
   assert.equal(m.CORRETOR_DOC_ROTULO, "CNPJ nº 11.222.333/0001-81");
@@ -245,4 +247,58 @@ test("31/10/2026 (dono): balão ou pré-chaves do simulador depois de 30/11/2028
     C.faltasContrato(tarde).join(" | "));
   const pre = dados({ condominio: { fluxo: { ...FLUXO, pre2Data: "2028-01-10" } } });
   assert.ok(C.faltasContrato(pre).some((f) => /pré-chaves vence em 10\/12\/2028/.test(f)));
+});
+
+/* 04/11/2026 — contrato revisto pelo advogado depois das perguntas de dois compradores: a entrada se compõe da parte
+   que paga o PREÇO DO IMÓVEL e da comissão; os percentuais são sobre o preço do imóvel e fecham 100%. Os valores são os
+   das respostas do advogado (sem nome de ninguém). */
+function caso(valorVenda, credito, fgts) {
+  /* 24x (sem pós-chaves): comissão 5% do valor de venda; a entrada é o que não é CAIXA/FGTS */
+  const entrada = Math.round((valorVenda - credito - fgts) * 100) / 100;
+  const preN = 20, sinal = 1000, preValor = Math.round((entrada - sinal) / preN * 100) / 100;
+  const ultima = Math.round((entrada - sinal - preValor * (preN - 1)) * 100) / 100;
+  return { ...FLUXO, valorVenda, credito, fgts, subsidio: 0, sinalAto: sinal, sinal30: 0, sinal60: 0, sinal90: 0,
+    pre1N: preN - 1, pre1Valor: preValor, pre2N: 1, pre2Valor: ultima, pre2Data: "2028-07-10",
+    balao1Valor: 0, balao2Valor: 0, posN: 0, posValor: 0 };
+}
+test("04/11 (advogado): 305 mil — entrada 40.036,44 = 24.786,44 do imóvel + 15.250,00 de comissão; 8,55% e 91,45%", () => {
+  const m = C.marcadores(dados({ condominio: { fluxo: caso(305000, 217833.08, 47130.48) } }));
+  assert.equal(m.VALOR_OPERACAO_EXTENSO.slice(0, 13), "R$ 305.000,00");
+  assert.equal(m.VALOR_IMOVEL_EXTENSO.slice(0, 13), "R$ 289.750,00");
+  assert.equal(m.COMISSAO_PCT, "5");
+  assert.equal(m.ENTRADA_TOTAL, "40.036,44");
+  assert.equal(m.ENTRADA_IMOVEL, "24.786,44");
+  assert.equal(m.ENTRADA_COMISSAO, "15.250,00");
+  assert.equal(m.ENTRADA_PCT, "8,55");
+  assert.equal(m.FINANCIAMENTO_VALOR, "264.963,56", "CAIXA + FGTS, sem a comissão");
+  assert.equal(m.FINANCIAMENTO_PCT, "91,45");
+});
+test("04/11 (advogado): 350 mil — entrada 96.511,27 = 79.011,27 do imóvel + 17.500,00 de comissão; 23,76% e 76,24%", () => {
+  const m = C.marcadores(dados({ condominio: { fluxo: caso(350000, 253488.73, 0) } }));
+  assert.equal(m.VALOR_IMOVEL_EXTENSO.slice(0, 13), "R$ 332.500,00");
+  assert.equal(m.ENTRADA_TOTAL, "96.511,27");
+  assert.equal(m.ENTRADA_IMOVEL, "79.011,27");
+  assert.equal(m.ENTRADA_COMISSAO, "17.500,00");
+  assert.equal(m.ENTRADA_PCT, "23,76");
+  assert.equal(m.FINANCIAMENTO_VALOR, "253.488,73");
+  assert.equal(m.FINANCIAMENTO_PCT, "76,24");
+});
+test("04/11: os dois percentuais sempre fecham 100,00% quando entrada do imóvel + saldo = preço do imóvel", () => {
+  for (let i = 0; i < 300; i++) {
+    const venda = 250000 + Math.round(Math.random() * 15000000) / 100;
+    const credito = Math.round((venda * (0.6 + Math.random() * 0.3)) * 100) / 100;
+    const fgts = Math.round(Math.random() * 3000000) / 100;
+    const m = C.marcadores(dados({ condominio: { fluxo: caso(venda, credito, fgts) } }));
+    const soma = Number(m.ENTRADA_PCT.replace(",", ".")) + Number(m.FINANCIAMENTO_PCT.replace(",", "."));
+    assert.equal(soma.toFixed(2), "100.00", JSON.stringify({ venda, credito, fgts, e: m.ENTRADA_PCT, f: m.FINANCIAMENTO_PCT }));
+  }
+});
+test("04/11: nacionalidade do comprador por extenso e em maiúsculas", () => {
+  const q = (n) => C.marcadores(dados({ venda: { COMPRADOR1: { nacionalidade: n, estadoCivil: "solteiro", profissao: "x", documento: "RG 1",
+    endereco: "RUA", email: "a@teste.invalid", telefone: "" } } })).COMPRADORES_QUADRO.split(", ")[1];
+  assert.equal(q("Brasil"), "BRASILEIRO");
+  assert.equal(q("brasileiro"), "BRASILEIRO");
+  assert.equal(q("BR"), "BRASILEIRO");
+  assert.equal(q("Brasileira"), "BRASILEIRA");
+  assert.equal(q("portuguesa"), "portuguesa");
 });

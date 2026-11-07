@@ -32,6 +32,7 @@ const PROPS = {
 
 function colunasVenda(sem = []) {
   const c = Object.assign({}, COLUNAS_REAIS, {
+    "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": "rich_text", "CONTRATO - MATRÍCULA DO LOTEAMENTO": "rich_text", "CONTRATO - CARTÓRIO DO LOTEAMENTO": "rich_text",
     " VALOR NA MÃO ": "number", "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", " COMISSÃO ": "number",
     CORRETOR: { tipo: "select", opcoes: ["Corretor Teste"] }, SETOR: { tipo: "select", opcoes: ["Setor Teste"] },
     "OBRA-AUTO": "relation", CASA: "rich_text", "Email": "email",
@@ -62,9 +63,11 @@ const VENDA = {
   "CONTRATO - FORMA DE PAGAMENTO": sel("PIX"), "CONTRATO - COMISSÃO FORMA": sel("PIX"),
   "CONTRATO - COMISSÃO VENCIMENTO": rt("na assinatura do financiamento"), "CONTRATO - COMISSÃO PAGA POR": sel("COMPRADOR"),
   "DATA DA ENTREGA": dat("2027-06-30"),
+  /* 05/11/2026: loteamento da casa (lido da matrícula pela IA) */
+  "CONTRATO - DENOMINAÇÃO DO LOTEAMENTO": rt("Residencial Teste"), "CONTRATO - MATRÍCULA DO LOTEAMENTO": rt("M-100"), "CONTRATO - CARTÓRIO DO LOTEAMENTO": rt("Cartório Teste"),
   "CONTRATO GERADO": GERADO,
 };
-const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO") };
+const OBRA_PG = { "PROPRIETARIO DOCUMENTO": rt("Construtora Teste Ltda"), "CPF/CNPJ ": sel("00.000.000/0001-00"), "OBRA FINALIZADA?": sel("NÃO"), "CIDADE ": rt("Cidade Teste") };
 const VENDEDOR = {
   NOME: tit("Construtora Teste Ltda"), TIPO: sel("PJ"), "CPF/CNPJ": rt("00.000.000/0001-00"), "ENDEREÇO / SEDE": rt("Av. Teste, 100"),
   "REPRESENTANTE NOME": rt("Beltrano Representante"), "REPRESENTANTE CPF": rt("000.000.002-72"), "REPRESENTANTE E-MAIL": rt("beltrano@teste.example"),
@@ -1189,7 +1192,7 @@ test("plano 23 A: contrato ASSINADO — o servidor recusa as ações de gravar d
   const c = assinadoPorTodos();
   for (const a of ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                    "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
-                   "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
+                   "excluirArquivoEspaco" /* 05/11 */, "assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar"])
     assert.deepEqual(c.acao(a), { ok: false, erro: "CONTRATO_ASSINADO" }, a);
   assert.equal(c.estado().ok, true);
   assert.equal(c.acao("contratoEstado").erro, undefined, "leitura segue");
@@ -1219,7 +1222,7 @@ test("plano 23 A: termo de pré-reserva ASSINADO — recusa gerar, conta, cônju
 const MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";
 const TRAVADAS_ABERTO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
                          "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
-                         "salvarFluxo", "lerCrlv", "corrigirConferencia"];
+                         "salvarFluxo", "lerCrlv", "corrigirConferencia", "excluirArquivoEspaco" /* 05/11 */];
 test("03/11: envelope do contrato ENVIADO — toda ação que muda o contrato responde ENVELOPE_ABERTO com a mensagem; leituras e o envelope seguem", () => {
   const c = cenario();
   assert.equal(c.enviar().ok, true);
@@ -1441,6 +1444,20 @@ test("vigia 03/11: envelope cancelado ou expirado na Clicksign também avisa; se
   assert.equal(s.emails.length, 0);
 });
 
+test("vigia 03/11: sem a Propriedade, os endereços vêm de ASSINATURA_AVISO_EMAILS_PADRAO (arquivo só do Apps Script, fora do repositório); a Propriedade vence", () => {
+  for (const [props, esperado] of [[{}, "cfg1@teste.example,cfg2@teste.example"], [{ ASSINATURA_AVISO_EMAILS: "prop@teste.example" }, "prop@teste.example"]]) {
+    const ev = [];
+    const c = vigiaCom({ eventos: ev, props });
+    c.g.ctx.ASSINATURA_AVISO_EMAILS_PADRAO = "cfg1@teste.example; cfg2@teste.example";
+    assert.equal(c.enviar(TOK_LONGO).ok, true);
+    c.volta();
+    ev.push(REFUSAL("beltrano@teste.example"));
+    c.volta();
+    assert.equal(c.emails.length, 1, JSON.stringify(props));
+    assert.equal(c.emails[0].to, esperado);
+  }
+});
+
 test("vigia 03/11: Atualizar situação pelo botão grava a recusa mas não manda e-mail (quem clicou já viu)", () => {
   const ev = [];
   const c = vigiaCom({ eventos: ev, props: { ASSINATURA_AVISO_EMAILS: "vendas@teste.example" } });
@@ -1543,20 +1560,24 @@ test("trocar e-mail: cria o novo com os mesmos requisitos ANTES de tirar o antig
   const r = trocar(c, velho.id, " Fulano.Certo@Teste.example ");
   assert.equal(r.ok, true, JSON.stringify(r));
   const seq = csCalls(c).filter((x) => !/^GET/.test(x));
-  const iNovo = seq.indexOf("POST /envelopes/env-1/signers"), iBulk = seq.indexOf("POST /envelopes/env-1/bulk_requirements"),
-        iDel = seq.indexOf("DELETE /envelopes/env-1/signers/" + velho.id);
-  assert.ok(iNovo >= 0 && iNovo < iBulk && iBulk < iDel, seq.join("\n"));
+  /* signatário novo → requisitos dele em lote (add) → antigo excluído (os requisitos vão junto); nenhum POST /requirements avulso
+     nem remove em lote (sandbox 03/11: 403 e 422) */
+  assert.deepEqual(seq.slice(0, 3), ["POST /envelopes/env-1/signers", "POST /envelopes/env-1/bulk_requirements",
+                                     "DELETE /envelopes/env-1/signers/" + velho.id], seq.join("\n"));
+  const lotes = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/bulk_requirements").map((x) => x.corpo["atomic:operations"].map((o) => o.op));
+  assert.deepEqual(lotes, [["add", "add"]]);
   const novo = sigDe(c, "fulano.certo@teste.example");
   assert.ok(novo && novo.id !== velho.id);
   assert.equal(novo.attributes.name, velho.attributes.name);
   assert.equal(novo.attributes.documentation, velho.attributes.documentation);
   assert.equal(novo.attributes.refusable, true);
   assert.ok(!sigDe(c, "fulano@teste.example"), "o antigo continua no envelope");
-  const novosReqs = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/requirements").map((x) => x.corpo.data);
+  const novosReqs = c.c.estado.adicionados;
   assert.deepEqual(novosReqs.map((d) => [d.attributes.action, d.relationships.signer.data.id, d.relationships.document.data.id]),
                    [["agree", novo.id, "doc-1"], ["provide_evidence", novo.id, "doc-1"]]);
   assert.equal(novosReqs[0].attributes.role, "buyer");
-  assert.deepEqual(c.c.estado.removidos, reqsVelhos);
+  assert.equal(reqsVelhos.length, 2);
+  assert.deepEqual(c.c.estado.removidos || [], []);
   assert.deepEqual(seq.filter((x) => /notifications/.test(x)), ["POST /envelopes/env-1/signers/" + novo.id + "/notifications"]);
   assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])[novo.id], "Comprador 1");
   assert.equal(JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"])[velho.id], undefined);
@@ -1594,12 +1615,11 @@ test("trocar e-mail: envelope enviado antes desta versão (sem requisitos guarda
   assert.ok(csCalls(c).every((x) => /^GET/.test(x)));
 });
 
-test("trocar e-mail: falha ao tirar o antigo desfaz o novo (requisitos e signatário); sem desfazer vira TROCA_INCOMPLETA", () => {
+test("trocar e-mail: falha ao tirar o antigo desfaz o novo (excluído); sem conseguir excluir vira TROCA_INCOMPLETA", () => {
   for (const desfazOk of [true, false]) {
-    let bulk = 0;
     const c = cenario({ cs: { falhar: (m, cam) => {
       if (m === "DELETE" && cam === "/envelopes/env-1/signers/sig-2") return { status: 403, json: { errors: [{ title: "Já assinou" }] } };
-      if (m === "POST" && cam === "/envelopes/env-1/bulk_requirements" && ++bulk > 1 && !desfazOk) return { status: 500, json: {} };
+      if (m === "DELETE" && /^\/envelopes\/env-1\/signers\/sig-(1[0-9]|[5-9])$/.test(cam) && !desfazOk) return { status: 500, json: {} };
       return null;
     } } });
     assert.equal(c.enviar().ok, true);
@@ -1625,4 +1645,56 @@ test("trocar e-mail: perfil TESTES não pode; envelope não ativo não troca; es
   assert.equal(trocar(c, vend.id, "b@teste.example").erro, "ENVELOPE_NAO_ATIVO");
   assert.equal(c.estado().situacao, "CANCELADO");
   assert.ok(!Object.keys(c.p).some((k) => /^ASSINATURA_(REQS|PAPEIS)_env-1/.test(k)), Object.keys(c.p).join(","));
+});
+
+/* ---- 05/11/2026 (dono): casa de rua também posiciona assinaturas e vistos ("ter todas as assinaturas e vistos necessários") ---- */
+const rubricatesDe = (c) => c.c.chamadas.filter((x) => x.metodo === "POST" && x.caminho === "/envelopes/env-1/requirements" &&
+                                                    x.corpo.data.attributes.action === "rubricate").map((x) => x.corpo.data);
+test("05/11 casa de rua: assinaturaPdf entrega o PDF (rua: true, sem termos nem memorial) em vez de semRubricas", () => {
+  const c = cenario({ props: { ASSINATURA_LINHAS: "1", MODELO_MEMORIAL_ID: "modelo-memorial" } });
+  const r = c.acao("assinaturaPdf");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.semRubricas, undefined);
+  assert.equal(r.rua, true);
+  assert.match(r.nome, /\[#[0-9a-f]{8}\]\.pdf$/);
+  assert.equal(Buffer.from(r.base64, "base64").toString("utf8"), PDF_GERADO);
+  assert.equal(r.linhas, true);
+  assert.deepEqual(r.termos, undefined, "termos de confissão são só do condomínio");
+  assert.equal(r.memorial, undefined, "memorial é só do condomínio");
+  assert.ok(!JSON.stringify(r).includes("https://"), "sem link do arquivo");
+  /* ASSINATURA_SEM_RUBRICAS continua desligando tudo */
+  assert.deepEqual(cenario({ props: { ASSINATURA_SEM_RUBRICAS: "SIM" } }).acao("assinaturaPdf"), { ok: true, semRubricas: true });
+});
+
+test("05/11 casa de rua: com a leitura da tela, o comprador visto nas ciências e no 6.1 e cada um assina na sua linha", () => {
+  const c = cenario({ props: { ASSINATURA_LINHAS: "1" } });
+  const nome = c.acao("assinaturaPdf").nome;
+  const rubricas = { nome, campos: [{ page: "2", position: [0.3076, 0.5059] }, { page: "3", position: [0.4, 0.2541] }],
+                     valores: { page: "2", position: [0.1025, 0.1556] },
+                     linhas: [{ page: "9", position: [0.37, 0.05], texto: "Nome: Construtora Teste Ltda\nCNPJ: 00.000.000/0001-00\nRepresentante: Beltrano Representante – CPF: 000.000.002-72\nVENDEDOR" },
+                              { page: "9", position: [0.37, 0.15], texto: "Nome: Fulano de Teste\nCPF: 000.000.001-91\nCOMPRADOR" },
+                              { page: "9", position: [0.37, 0.25], texto: "Nome: Testemunha Um Spe\nCPF: 000.000.005-15\nTESTEMUNHA 1" }] };
+  const r = chamarCom(c, "assinaturaEnviar", { rubricas });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const sig = (email) => c.c.estado.signers.find((s) => s.attributes.email === email).id;
+  const de = (email) => rubricatesDe(c).filter((q) => q.relationships.signer.data.id === sig(email)).map((q) => [q.attributes.kind, q.attributes.positions.length]);
+  assert.deepEqual(de("fulano@teste.example"), [["manuscript", 1], ["initials", 3]]);
+  assert.deepEqual(de("beltrano@teste.example"), [["manuscript", 1]]);
+  assert.deepEqual(de("t1.spe@teste.example"), [["manuscript", 1]]);
+  assert.deepEqual(de("t2.spe@teste.example"), [], "sem linha lida: assina só na página da Clicksign");
+});
+
+test("05/11 casa de rua: sem a leitura envia como antes; leitura sem campo vale; leitura de outro PDF barra", () => {
+  const a = cenario();
+  assert.equal(a.enviar().ok, true);
+  assert.equal(rubricatesDe(a).length, 0);
+  const b = cenario();
+  const nome = b.acao("assinaturaPdf").nome;
+  const r = chamarCom(b, "assinaturaEnviar", { rubricas: { nome, campos: [], valores: { page: "2", position: [0.1, 0.15] }, avisos: ["nenhum campo de ciência"] } });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(rubricatesDe(b).map((q) => [q.attributes.kind, q.attributes.positions]), [["initials", [{ page: "2", position: [0.1, 0.15] }]]]);
+  assert.ok((r.avisos || []).includes("tela: nenhum campo de ciência"), JSON.stringify(r.avisos));
+  const o = cenario();
+  assert.equal(chamarCom(o, "assinaturaEnviar", { rubricas: { nome: "OUTRO [#00000000].pdf", campos: [] } }).erro, "RUBRICAS_DE_OUTRO_PDF");
+  assert.equal(o.c.chamadas.length, 0, "nada na Clicksign");
 });

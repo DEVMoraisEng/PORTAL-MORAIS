@@ -28,6 +28,9 @@ function blob(buf, mime, nome) {
 export function criarGas({ props, rotas, extras = {} }) {
   const cache = new Map(), chamadas = [], logs = [], sleeps = [];
   const ctx = {
+    /* 07/11/2026: "hoje" do servidor nos testes (trava de vencimento no passado) — fixo e antes de todas as datas
+       inventadas, para os testes não vencerem com o calendário; o teste da trava passa o próprio em extras */
+    HOJE_VENDA_TESTE_: "2026-01-01",
     console: { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) },
     PropertiesService: { getScriptProperties: () => ({ getProperty: (n) => (n in props ? props[n] : null), getKeys: () => Object.keys(props),
                                                        setProperty: (n, v) => { props[n] = String(v); },
@@ -268,6 +271,9 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       estado.signers.push(s);
       return ok(201, s);
     }
+    /* como o sandbox (03/11): com o envelope ativo, requisito avulso é recusado (só em lote) */
+    if (metodo === "POST" && resto === "/requirements" && estado.status === "running")
+      return erro(403, "Verificação: envelope não está com status draft");
     if (metodo === "POST" && resto === "/requirements") return ok(201, { id: "req-" + (++seq), type: "requirements", attributes: corpo.data.attributes });
     /* como a API v3 de verdade (30/10): o PATCH do envelope só aceita draft/running; cancelar é por documento */
     if (metodo === "PATCH" && resto === "") {
@@ -293,8 +299,11 @@ export function clicksignFalso({ base = "https://sandbox.clicksign.com", falhar 
       return { status: 204, texto: "" };
     }
     if (metodo === "POST" && resto === "/bulk_requirements") {
-      estado.removidos = (estado.removidos || []).concat(corpo["atomic:operations"].filter((o) => o.op === "remove").map((o) => o.ref.id));
-      return { status: 200, json: {} };
+      const ops = corpo["atomic:operations"];
+      estado.removidos = (estado.removidos || []).concat(ops.filter((o) => o.op === "remove").map((o) => o.ref.id));
+      estado.adicionados = (estado.adicionados || []).concat(ops.filter((o) => o.op === "add").map((o) => o.data));
+      const res = ops.map((o) => (o.op === "add" ? { data: { id: "req-" + (++seq), type: "requirements", attributes: o.data.attributes } } : {}));
+      return { status: 200, json: ops.some((o) => o.op === "add") ? { "atomic:results": res } : {} };
     }
     if (metodo === "POST" && /^\/signers\/[^/]+\/notifications$/.test(resto)) return ok(201, { id: "not-2", type: "notifications", attributes: {} });
     if (metodo === "GET" && resto === "") return ok(200, { id: "env-1", type: "envelopes", attributes: { status: estado.status } });
@@ -330,7 +339,9 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
   const REALCE = "#FFFF00";
   const par = (t) => {
     const p = { texto: String(t), fundo: Array(String(t).length).fill(null) };
-    if (realce) for (const m of p.texto.matchAll(/\{\{[^{}]*\}\}/g)) p.fundo.fill(REALCE, m.index, m.index + m[0].length);
+    /* realce "em volta" (05/11/2026): como o modelo real, o amarelo pega também até 3 caracteres antes e depois do marcador ("nº {{X}}", "{{AREA}} m²") */
+    const folga = realce === "em volta" ? 3 : 0;
+    if (realce) for (const m of p.texto.matchAll(/\{\{[^{}]*\}\}/g)) p.fundo.fill(REALCE, Math.max(0, m.index - folga), Math.min(p.texto.length, m.index + m[0].length + folga));
     return p;
   };
   const clonar = (p) => ({ texto: p.texto, fundo: p.fundo.slice() });
@@ -386,6 +397,14 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     }
     return null;
   };
+  /* findElement(ElementType.TEXT, desde?): cada parágrafo é um elemento de texto (como o Docs) */
+  const elementos = (lista, vivo, desde) => {
+    vivo();
+    const ps = lista(), i = desde ? ps.indexOf(desde._p) + 1 : 0;
+    if (i >= ps.length) return null;
+    const p = ps[i];
+    return { _p: p, getElement: () => Texto(p, vivo) };
+  };
   /* trechos com fundo (cor não nula) de um parágrafo: [{ trecho, cor }] */
   const trechos = (p) => {
     const r = [];
@@ -403,7 +422,8 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     if (!d.cab[k]) return null;
     const vivo = () => { if (!d.aberto) throw new Error("Document is closed"); };
     return { getText: () => d.cab[k].texto, replaceText: (padrao, rep) => { vivo(); trocar(d.cab[k], padrao, rep); },
-             findText: (padrao, desde) => achar(() => [d.cab[k]], vivo, padrao, desde) };
+             findText: (padrao, desde) => achar(() => [d.cab[k]], vivo, padrao, desde),
+             findElement: (tipo, desde) => elementos(() => [d.cab[k]], vivo, desde) };
   };
   function docAberto(id) {
     const d = docs[id];
@@ -446,6 +466,7 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
           getText: () => d.pars.map((p) => p.texto).join("\n"),
           replaceText: (padrao, rep) => { vivo(); d.pars.forEach((p) => trocar(p, padrao, rep)); },
           findText: (padrao, desde) => achar(() => d.pars, vivo, padrao, desde),
+          findElement: (tipo, desde) => elementos(() => d.pars, vivo, desde),
         };
       },
       getHeader: () => secao(d, "header"),
@@ -500,7 +521,7 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
     },
   });
   const extras = {
-    DocumentApp: { openById: (id) => {
+    DocumentApp: { ElementType: { TEXT: "TEXT" }, openById: (id) => {
       if (falhaAbrir) throw new Error(falhaAbrir);
       if (!docs[id]) throw new Error("Document not found");
       docs[id].aberto = true; estado.abertos.push(id);

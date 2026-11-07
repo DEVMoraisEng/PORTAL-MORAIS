@@ -42,7 +42,13 @@
     IA_SO_OPENAI: "O Redigir com IA só funciona com a OpenAI ligada.",
     MODELO_NAO_CONFIGURADO: "O modelo do contrato do condomínio não está configurado.",
     MODELO_ILEGIVEL: "Não consegui abrir o modelo do contrato para a IA ler.",
-    LEITURA_RECUSADA: "A IA não quis redigir esse pedido — reescreva com mais detalhe."
+    LEITURA_RECUSADA: "A IA não quis redigir esse pedido — reescreva com mais detalhe.",
+    /* 05/11: Ver e Excluir cada anexo do dossiê */
+    ARQUIVO_MUDOU: "A lista de arquivos mudou (alguém anexou ou excluiu) — a tela foi atualizada; confira e tente de novo.",
+    ESPACO_DESCONHECIDO: "Documento desconhecido — atualize a página e tente de novo.",
+    CONTRATO_ASSINADO: "O contrato já foi assinado — os documentos do dossiê não podem mais ser excluídos.",
+    ENVELOPE_ABERTO: "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.",
+    NOTION_OCUPADO: "O Notion está ocupado — tente de novo em 1 minuto."
   };
 
   function esc(s) {
@@ -98,6 +104,10 @@
       return '<button type="button" data-acao="dois" data-valor="' + n + '" class="bt ghost bt-mini' +
         ((ui.dois ? "2" : "1") === n ? " on" : "") + '">' + n + "</button>";
     }).join(" ") + "</div>";
+    /* 05/11/2026: em 1, a aba Compradores esconde o comprador 2 — mas o que já está gravado dele sai no contrato.
+       Nada é apagado sozinho: só avisa. */
+    if (!ui.dois && (e.comprador2ComDados || e.doisCompradores))
+      h += '<div class="dz-aviso">O comprador 2 tem dados gravados e vai sair no contrato. Apague os dados dele para tirá-lo.</div>';
     h += htmlSoltar(e, ui);
     h += htmlLerTodos(e, ui, "topo");
     DOCS.forEach(function (d) {
@@ -111,10 +121,8 @@
       }
       h += linhaDoc(d, n, e, ui, travado, extra);
     });
-    h += '<div class="dz-linha"><span class="dz-rot">Dossiê: <b>' + esc(e.dossie || "—") + "</b></span>" +
-      '<button type="button" class="bt bt-mini" data-acao="conferir"' + dis(travado || ocupado || testes) + ">Marcar conferido</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="devolver"' + dis(travado || ocupado || testes) + ">Devolver</button></div>";
-    if (e.observacao) h += "<pre>" + esc(e.observacao) + "</pre>";
+    h += htmlSituacao("Dossiê do comprador", e.dossie, "", dis(travado || ocupado || testes));
+    h += htmlObservacao(e.observacao);
     if (ui.msg && (ui.msgGrupo || "comprador") === "comprador") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
     return h + htmlImovel(e, ui);
   }
@@ -126,14 +134,40 @@
     var ocupado = !!ui.ocupado, testes = !!ui.testes;
     var dis = function (cond) { return cond ? " disabled" : ""; };
     var novo = n > 0 && pendentesDe(e).indexOf(d.id) >= 0;
-    return '<div class="dz-linha"><span class="dz-rot">' + esc(d.rotulo) + ' <small>' +
-      (n ? n + (n === 1 ? " arquivo" : " arquivos") : "nenhum arquivo") + "</small>" +
-      (novo ? ' <small class="dz-novo">novo, não lido</small>' : "") +
+    /* 04/11/2026 (dono, "não gosto dessa visualização"): cada documento é uma linha com a situação na bolinha
+       (falta · anexado · novo para ler) e SÓ os botões que servem — sem arquivo, só Anexar; com arquivo, Trocar,
+       Ler de novo e "+ Anexar" (frente e verso). Antes eram sempre três botões, dois apagados. */
+    var st = !n ? "falta" : novo ? "novo" : "ok";
+    var txt = !n ? "falta" : (n + (n === 1 ? " arquivo" : " arquivos")) + (novo ? " · novo, não lido" : "");
+    /* 05/11/2026: o contador "N arquivos" abre a lista dos arquivos do espaço, cada um com Ver e Excluir (a exclusão
+       confirma na própria linha: Sim, excluir / Cancelar). Servidor antigo, sem os nomes: o contador fica em texto. */
+    var nomes = (e && e.arquivosNomes && Array.isArray(e.arquivosNomes[d.id])) ? e.arquivosNomes[d.id] : null;
+    var aberta = !!(nomes && nomes.length && ui.listas && ui.listas[d.id]);
+    if (n && nomes && nomes.length)
+      txt = '<button type="button" class="dz-arqs-bt" data-acao="arquivos" data-espaco="' + d.id + '" aria-expanded="' + aberta + '">' +
+        txt + (aberta ? " ▴" : " ▾") + "</button>";
+    var lista = "";
+    if (aberta) {
+      var conf = ui.excluir && ui.excluir.espaco === d.id ? Number(ui.excluir.n) : -1;
+      lista = '<ul class="dz-arqs">' + nomes.map(function (nome, i) {
+        var at = ' data-espaco="' + d.id + '" data-n="' + i + '"';
+        var acoes = conf === i
+          ? '<b class="dz-arq-conf">Excluir este arquivo?</b> <button type="button" class="bt bt-mini dz-perigo" data-acao="excluir-sim"' + at + dis(travado || ocupado || testes) + ">Sim, excluir</button> " +
+            '<button type="button" class="bt ghost bt-mini" data-acao="excluir-nao"' + at + ">Cancelar</button>"
+          : '<button type="button" class="bt ghost bt-mini" data-acao="ver-arq"' + at + dis(ocupado) + ">Ver</button> " +
+            '<button type="button" class="bt ghost bt-mini" data-acao="excluir-arq"' + at + dis(travado || ocupado || testes) + ">Excluir</button>";
+        return '<li><span class="dz-arq-nome">' + esc(nome) + "</span>" + '<span class="dz-acoes">' + acoes + "</span></li>";
+      }).join("") + "</ul>";
+    }
+    var b = !n
+      ? '<button type="button" class="bt bt-mini" data-acao="anexar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Anexar</button>"
+      : '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Trocar</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Ler de novo</button> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="anexar" data-espaco="' + d.id + '" title="Somar outro arquivo (frente e verso)"' + dis(travado || ocupado || testes) + ">+ Anexar</button>";
+    return '<div class="dz-linha dz-doc dz-doc-' + st + '"><span class="dz-rot"><i class="dz-st" aria-hidden="true"></i>' + esc(d.rotulo) +
+      ' <small class="dz-st-txt' + (novo ? " dz-novo" : "") + '">' + txt + "</small>" +
       (ui.ocupado === d.id ? " <b>" + esc(ui.ocupadoTexto || "lendo…") + "</b>" : "") + "</span>" +
-      '<button type="button" class="bt bt-mini" data-acao="anexar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes) + ">Anexar</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="trocar" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Trocar</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="reler" data-espaco="' + d.id + '"' + dis(travado || ocupado || testes || !n) + ">Ler de novo</button>" +
-      (extra || "") + "</div>";
+      '<span class="dz-acoes">' + b + (extra || "") + "</span>" + lista + "</div>";
   }
   /* botão único da casa: lê comprador e imóvel juntos (uma chamada, uma escrita). Aparece no topo do
      dossiê e no fim dos documentos do imóvel; a mensagem sai junto do botão clicado (onde). */
@@ -180,14 +214,18 @@
    * Documento de pessoa nunca é guardado sem a confirmação (regra do dono). */
   var TIPO_ROTULO = { IDENTIDADE: "identidade", COMPROVANTE: "comprovante de endereço", APROVACAO: "aprovação da Caixa",
                       MATRICULA: "matrícula", CERTIDAO_MAE: "certidão mãe", ALVARA: "alvará", HABITESE: "habite-se", OUTRO: "não reconhecido" };
-  function chavePessoa(a) { return (a.pessoa && a.pessoa.chave) || "arq:" + a.id; }
+  /* 05/11/2026 (dono): no comprovante de endereço o nome do titular não importa, só o endereço — cada comprovante
+     vira uma linha própria (não se junta à pessoa pelo nome) e já vem como Comprador 1 */
+  function ehComprovante(a) { return String(a && a.tipo || "").toUpperCase() === "COMPROVANTE"; }
+  function chavePessoa(a) { return ehComprovante(a) ? "comp:" + a.id : (a.pessoa && a.pessoa.chave) || "arq:" + a.id; }
   function pessoasDoEnvio(s) {
     var lista = [], vistas = {};
     ((s && s.arquivos) || []).forEach(function (a) {
       if (a.estado !== "pessoa") return;
-      var k = chavePessoa(a);
+      var k = chavePessoa(a), comp = ehComprovante(a);
       if (!vistas[k]) {
-        vistas[k] = { chave: k, nome: (a.pessoa && a.pessoa.nome) || "", tipos: [], arquivos: [], sugestao: a.sugestao || "" };
+        vistas[k] = { chave: k, nome: comp ? "Comprovante de endereço (" + a.nome + ")" : (a.pessoa && a.pessoa.nome) || "",
+                      tipos: [], arquivos: [], sugestao: comp ? (a.sugestao || "C1") : a.sugestao || "" };
         lista.push(vistas[k]);
       }
       var p = vistas[k];
@@ -249,7 +287,8 @@
     h += '<ul class="dz-res dz-soltos">' + s.arquivos.map(function (a) {
       var t = a.estado === "classificando" ? "identificando…" : a.estado === "erro" ? "não consegui identificar (" + (a.erro || "erro") + ")"
         : (TIPO_ROTULO[a.tipo] || a.tipo || "") +
-          (a.estado === "pessoa" ? " de " + ((a.pessoa && a.pessoa.nome) || "nome não lido") + " — confirme o comprador abaixo"
+          (a.estado === "pessoa" ? (ehComprovante(a) ? " — confirme de qual comprador abaixo"
+             : " de " + ((a.pessoa && a.pessoa.nome) || "nome não lido") + " — confirme o comprador abaixo")
            : a.estado === "desconhecido" ? " — diga o que é abaixo" : a.estado === "ignorado" ? " — ignorado"
            : a.espaco ? " → guardado em " + (ROTULOS[a.espaco] || a.espaco) : "");
       return '<li class="' + (a.estado === "erro" ? "dz-erro" : "") + '">' + esc(a.nome) + " → " + esc(t) +
@@ -315,6 +354,38 @@
     return Number(n).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) + " m²";
   }
   /* os dados do contrato já gravados na casa (só os preenchidos) */
+  /* 04/11/2026 (dono, "horrível isso aqui, organize"): a situação do dossiê numa etiqueta colorida com os botões ao
+     lado; o histórico da leitura recolhido (só o que pede atenção fica aberto) e cada linha enxuta. */
+  function classeSituacao(v) {
+    var n = String(v || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+    if (/CONFERIDO$/.test(n) && !/CONFERIR/.test(n)) return "ok";
+    if (/FALTA|DEVOLVID/.test(n)) return "falta";
+    if (/CONFERIR|LIDO/.test(n)) return "novo";
+    return "nada";
+  }
+  function htmlSituacao(rotulo, valor, grupo, dis) {
+    var g = grupo ? ' data-grupo="' + grupo + '"' : "";
+    return '<div class="dz-linha dz-situacao"><span class="dz-rot">' + esc(rotulo) + ': <b class="dz-selo dz-selo-' + classeSituacao(valor) + '">' +
+      esc(valor || "—") + "</b></span>" +
+      '<span class="dz-acoes"><button type="button" class="bt bt-mini" data-acao="conferir"' + g + dis + ">Marcar conferido</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="devolver"' + g + dis + ">Devolver</button></span></div>";
+  }
+  var RE_ATENCAO = /conferir|n[ãa]o parece|nada foi|falhou|diferente|n[ãa]o bate|ileg[íi]vel|vencid/i;
+  function linhasObservacao(texto) {
+    return String(texto || "").split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean).map(function (l) {
+      var m = /^\[([^\]]+)\]\s*([\s\S]*)$/.exec(l), quem = m ? m[1] : "", txt = m ? m[2] : l;
+      txt = txt.replace(/o campo (CONTRATO - )?(.+?) foi atualizado pelo documento mais recente/i, function (_, a, c) { return c + " atualizado"; });
+      return { quem: quem, texto: txt, atencao: RE_ATENCAO.test(txt) };
+    });
+  }
+  function htmlObservacao(texto) {
+    var ls = linhasObservacao(texto);
+    if (!ls.length) return "";
+    var item = function (x) { return '<li' + (x.atencao ? ' class="dz-atencao"' : "") + ">" + esc(x.texto) + (x.quem ? ' <small>' + esc(x.quem) + "</small>" : "") + "</li>"; };
+    var at = ls.filter(function (x) { return x.atencao; });
+    return (at.length ? '<ul class="dz-obs dz-obs-at">' + at.map(item).join("") + "</ul>" : "") +
+      '<details class="dz-hist"><summary>Histórico da leitura (' + ls.length + ")</summary><ul class=\"dz-obs\">" + ls.map(item).join("") + "</ul></details>";
+  }
   function dadosImovel(d) {
     if (!d) return [];
     var alv = [d.alvaraNumero ? "nº " + d.alvaraNumero : "", d.alvaraData ? "de " + isoBR(d.alvaraData) : ""].filter(Boolean).join(" ");
@@ -330,7 +401,7 @@
     var itens = [["Denominação", l.denominacao], ["Matrícula do loteamento", l.matricula], ["Cartório", l.cartorio]]
       .filter(function (x) { return x[1]; });
     if (!itens.length) return "";
-    return '<div class="dz-aviso">Dados do loteamento encontrados (matrícula e cartório ficam gravados na casa; o nome fica na casa quando vem da certidão mãe — se veio só da matrícula, preencher uma vez no cadastro do setor, em LOTEAMENTOS – CONTRATO):</div><ul>' +
+    return '<div class="dz-aviso">Condomínio/loteamento lido do documento (gravado na casa e usado no contrato):</div><ul>' +
       itens.map(function (x) { return "<li>" + esc(x[0]) + ": " + esc(x[1]) + "</li>"; }).join("") + "</ul>";
   }
   function htmlImovel(e, ui) {
@@ -349,19 +420,25 @@
       var n = Number((im.arquivos && im.arquivos[d.id]) || 0) || 0;
       h += linhaDoc(d, n, e, ui, travado, "");
     });
+    h += htmlSituacao("Dossiê do imóvel", im.dossie, "imovel", dis(travado || ocupado || testes));
     var dados = dadosImovel(im.dados);
-    if (dados.length) h += "<ul>" + dados.map(function (x) { return "<li>" + esc(x[0]) + ": " + esc(x[1]) + "</li>"; }).join("") + "</ul>";
-    h += '<div class="dz-linha"><span class="dz-rot">Dossiê do imóvel: <b>' + esc(im.dossie || "—") + "</b></span>" +
-      '<button type="button" class="bt bt-mini" data-acao="conferir" data-grupo="imovel"' + dis(travado || ocupado || testes) + ">Marcar conferido</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="devolver" data-grupo="imovel"' + dis(travado || ocupado || testes) + ">Devolver</button></div>";
-    if (im.observacao) h += "<pre>" + esc(im.observacao) + "</pre>";
+    /* 04/11: o que a IA leu numa tabela de duas colunas (rótulo · valor), não numa lista corrida */
+    if (dados.length) h += '<dl class="dz-dados">' + dados.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl>";
+    h += htmlObservacao(im.observacao);
     h += htmlLoteamento(ui.loteamento);
     if (ui.msg && ui.msgGrupo === "imovel") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
-    return h + htmlLerTodos(e, ui, "imovel");
+    /* 04/11: o segundo "Ler documentos" (fim do imóvel) só aparece quando há o que ler; o do topo fica sempre */
+    return h + (pendentesDe(e).length || ui.msgGrupo === "lote-imovel" ? htmlLerTodos(e, ui, "imovel") : "");
   }
   /* entrega 13: depois de gravar no Notion, o painel da casa (vendas.html) recarrega os campos ao ouvir
      window "venda:dados-gravados" com detail { pageId, gravados? } (gravados: { coluna: valor } quando há) */
   var EVENTO_GRAVADO = "venda:dados-gravados";
+  /* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê manda na aba Compradores do painel da casa de rua. O vendas.html
+     ouve window "dossie:compradores" com detail { pageId, n }: n = 1 esconde o comprador 2, 2 mostra, 0 = ainda não
+     sabe (casa trocando / estado não carregou) e o painel mostra tudo. Só o painel (#painel) ouve; o cartão do
+     condomínio não tem esse seletor. */
+  var EVENTO_COMPRADORES = "dossie:compradores";
+  function detalheCompradores(pageId, u) { return { pageId: pageId, n: u ? (u.dois ? 2 : 1) : 0 }; }
   function detalheGravado(pageId, r) {
     var d = { pageId: pageId };
     if (r && r.gravados && typeof r.gravados === "object" && Object.keys(r.gravados).length) d.gravados = r.gravados;
@@ -456,11 +533,17 @@
     if (r && r.fluxo && typeof r.fluxo === "object") o.fluxo = fluxoDoEstado(r.fluxo);
     /* 31/10/2026: o que falta de obrigatório que o cliente/corretor completa pelo link (null = o servidor não disse) */
     if (r && Array.isArray(r.faltasCliente)) o.faltasCliente = r.faltasCliente.map(String);
+    /* 05/11/2026 (dono): casa de rua — reserva de 48 h para assinar, contada do contrato gerado */
+    if (r && r.reserva && typeof r.reserva === "object" && /^\d{4}-\d{2}-\d{2}T/.test(String(r.reserva.ate || "")))
+      o.reserva = { estado: String(r.reserva.estado || ""), geradoEm: String(r.reserva.geradoEm || ""), ate: String(r.reserva.ate) };
     /* 03/11/2026 (incidente): fluxo/condições gravados depois do contrato final — o Enviar fica travado (assinatura-ui) */
     if (r && typeof r.envioDesatualizado === "boolean") o.envioDesatualizado = r.envioDesatualizado;
     /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
     var fb = fiadoresDoEstado(r && r.fiadores);
     if (fb) o.fiadores = fb;
+    /* 05/11/2026: casa de rua — bloco Pagamento da comissão (só vem fora do condomínio) */
+    var cc = comissaoDoEstado(r && r.comissaoCorretor);
+    if (cc) o.comissaoCorretor = cc;
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -553,6 +636,53 @@
     var p = { campos: campos };
     if (contaDigitada) p.conta = contaDigitada;
     return n || contaDigitada ? p : null;
+  }
+  /* ---- 05/11/2026 (dono): casa de rua — "Pagamento da comissão — <corretor>" na aba Contrato, sempre ----
+   * Quem paga é SEMPRE o comprador (texto fixo); a forma ({{COMISSAO_FORMA}}) sai do cadastro do corretor em
+   * CORRETORES – CONTRATO (chave PIX, banco, agência, conta, titular). Dá para preencher ali e salvar no cadastro
+   * (salvarCamposContrato com soSalvar). Nada aqui trava o contrato: a comissão é opcional na casa de rua. */
+  function comissaoDoEstado(x) {
+    if (!x || typeof x !== "object") return null;
+    return { pagaPor: "COMPRADOR", corretor: String(x.corretor || ""), temCadastro: !!x.temCadastro, duplicado: !!x.duplicado,
+             forma: String(x.forma || ""), formaLegada: !!x.formaLegada,
+             colunasFaltando: Array.isArray(x.colunasFaltando) ? x.colunasFaltando.map(String) : [],
+             campos: (Array.isArray(x.campos) ? x.campos : []).map(function (c) {
+               return { coluna: String(c.coluna || ""), rotulo: String(c.rotulo || c.coluna || ""), valor: String(c.valor || ""), existe: c.existe !== false };
+             }).filter(function (c) { return c.coluna; }) };
+  }
+  function htmlComissaoCorretor(cc, u, dis) {
+    if (!cc) return "";
+    u = u || {};
+    var rasc = u.rascunho || {}, nome = cc.corretor;
+    var h = '<div class="dz-linha dz-grupo"><b>Pagamento da comissão' + (nome ? " — " + esc(nome) : "") + "</b></div>";
+    h += '<div class="dz-linha"><span class="dz-rot">Comissão paga por: <b>COMPRADOR</b></span></div>';
+    if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta da comissão.</div>';
+    if (cc.duplicado) return h + '<div class="dz-aviso">O corretor tem cadastro duplicado em CORRETORES – CONTRATO — deixe uma linha só.</div>';
+    h += '<div class="dz-linha"><span class="dz-rot">No contrato: ' + (cc.forma ? esc(cc.forma) : "<i>em branco (sem dados de pagamento)</i>") +
+      (cc.formaLegada ? " <small>(da coluna antiga CONTRATO - COMISSÃO FORMA)</small>" : "") + "</span></div>";
+    if (cc.colunasFaltando.length)
+      h += '<div class="dz-aviso">A base CORRETORES – CONTRATO não tem a coluna ' + esc(cc.colunasFaltando.join(", ")) + " — avise o desenvolvedor.</div>";
+    var disB = dis || (u.ocupadoContrato === "comissao" ? " disabled" : "");
+    cc.campos.forEach(function (c) {
+      var k = "com|" + c.coluna, v = k in rasc ? rasc[k] : c.valor;
+      h += '<div class="dz-linha"><label class="dz-rot">' + esc(c.rotulo) + '</label><input type="text" maxlength="300" data-com-campo="' +
+        esc(c.coluna) + '" data-com-orig="' + esc(c.valor) + '" value="' + esc(v) + '"' + (c.existe ? disB : " disabled") + "></div>";
+    });
+    if (!cc.temCadastro) h += '<div class="dz-msg dz-nota">' + esc(nome) + " ainda não tem cadastro: o salvar cria a linha em CORRETORES – CONTRATO.</div>";
+    if (u.ocupadoContrato === "comissao") h += '<div class="dz-linha"><b>salvando no cadastro do corretor…</b></div>';
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-salvar"' + disB + ">Salvar no cadastro do corretor</button></div>";
+    h += '<div class="dz-msg dz-nota">Vale para todas as vendas deste corretor. Depois de salvar, gere o pré-contrato de novo.</div>';
+    return h;
+  }
+  /* caixas [{coluna, orig, valor}] -> { corretor: {COLUNA: valor} } só com o que mudou e não está vazio; null = nada mudou */
+  function pedidoComissao(caixas) {
+    var o = {}, n = 0;
+    (caixas || []).forEach(function (x) {
+      var v = String(x.valor === null || x.valor === undefined ? "" : x.valor).trim();
+      if (!x.coluna || !v || v === String(x.orig || "").trim()) return;
+      o[x.coluna] = v; n++;
+    });
+    return n ? { corretor: o } : null;
   }
   /* resposta FALTAM_DADOS -> { faltas (as que o formulário não cobre), campos (ou null: servidor antigo) } */
   function faltasDaResposta(r) {
@@ -686,6 +816,21 @@
   }
   /* a Assinatura só vale para o contrato FINAL (não para o que está sendo conferido) */
   function contratoFinal(e) { return !!(e && e.gerado && etapaContrato(e) === "FINAL"); }
+  /* 05/11/2026 (dono): casa de rua — depois de gerado, a casa fica reservada 48 h para todos assinarem; vencido o prazo
+     sem todas as assinaturas, ela volta a disponível no mapa (o envelope continua aberto na Clicksign: cancelar é no
+     bloco Assinatura). O vencimento é refeito aqui pela hora do navegador (a tela pode ficar aberta). */
+  var MSG_RESERVA_VENCIDA = "Prazo de 48 h para assinar venceu — casa liberada no mapa";
+  function htmlReservaContrato(rs, agoraMs) {
+    if (!rs || !rs.ate) return "";
+    if (rs.estado === "VENDIDA") return '<div class="dz-linha dz-reserva"><span class="dz-rot">Assinado por todos — casa vendida.</span></div>';
+    var ate = Date.parse(rs.ate), agora = typeof agoraMs === "number" ? agoraMs : Date.now();
+    if (isNaN(ate)) return "";
+    if (rs.estado === "LIBERADA" || agora >= ate)
+      return '<div class="dz-aviso dz-reserva" role="status"><b>' + esc(MSG_RESERVA_VENCIDA) + "</b>. O envelope continua aberto na Clicksign — " +
+        "se a venda não vai seguir, use <b>Cancelar envelope</b> no bloco Assinatura.</div>";
+    return '<div class="dz-linha dz-reserva"><span class="dz-rot">Reservada até ' + esc(dataHoraBR(rs.ate).replace(",", "")) +
+      " — 48 h para assinar</span></div>";
+  }
   function htmlContrato(e, u) {
     var ocupado = !!u.ocupadoContrato, testes = !!u.testes;
     var dis = (ocupado || testes) ? " disabled" : "";
@@ -699,6 +844,16 @@
     /* entrega 12: o que o formulário cobre sai da lista (u.faltas = só as outras); 01/11: e o que o bloco Fiadores cobre */
     var faltasLista = u.faltas;
     if (e.fiadores && faltasLista) faltasLista = faltasLista.filter(function (f) { return !RE_FALTA_FIA.test(String(f)); });
+    /* 04/11/2026 (dono): na casa de rua o que falta e é coluna da PRÓPRIA venda (comprador, imóvel, negociação) vira a
+       caixa do campo ali mesmo — mesma caixa e mesmo salvar das abas Compradores/Contrato (vendas.html, u.campoVenda);
+       grava na coluna certa do Notion. O resto continua em lista. */
+    if (faltasLista && faltasLista.length && typeof u.campoVenda === "function") {
+      var caixas = "", resto = [];
+      faltasLista.forEach(function (f) { var c = ""; try { c = u.campoVenda(f) || ""; } catch (x) { c = ""; } if (!c) resto.push(f); else if (caixas.indexOf(c) < 0) caixas += c; });
+      if (caixas) h += '<div class="dz-faltas-venda"><div class="dz-aviso">Preencha aqui o que falta — cada campo grava sozinho na venda. Depois, gere de novo.</div>' +
+        '<div class="pn-grade">' + caixas + "</div></div>";
+      faltasLista = resto;
+    }
     if (faltasLista && faltasLista.length) {
       h += '<div class="dz-aviso">Para gerar o contrato, falta:</div><ul>' +
         faltasLista.map(function (f) { return "<li>" + esc(f) + "</li>"; }).join("") + "</ul>";
@@ -722,6 +877,7 @@
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar de novo</button></div>";
+      h += htmlReservaContrato(e.reserva);
       if (e.envioDesatualizado) h += '<div class="dz-aviso">' + esc(MSG_CONTRATO.CONTRATO_DESATUALIZADO) + "</div>";
       (e.confissao || []).forEach(function (x) {
         h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
@@ -731,6 +887,7 @@
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
     h += htmlConta(e.conta, u, dis);
+    h += htmlComissaoCorretor(e.comissaoCorretor, u, dis);   /* 05/11/2026: casa de rua */
     h += htmlTestemunhas(e.testemunhas, dis);
     h += htmlFluxo(e.fluxo, u, dis, e);
     h += htmlCondicoes(e.condicoes, u, dis);
@@ -772,6 +929,7 @@
     if (e.gerado) {
       h += '<div class="dz-linha"><span class="dz-rot">Contrato enviado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver"' + dis + ">Visualizar</button></div>";
+      h += htmlReservaContrato(e.reserva);
       (e.confissao || []).forEach(function (x) {
         h += '<div class="dz-linha"><span class="dz-rot">Termo de confissão ' + (x.tipo === "POS" ? "pós-chaves" : "pré-chaves") + ": " + esc(x.nome) + "</span>" +
           '<button type="button" class="bt ghost bt-mini" data-acao="c-ver-cfd-' + (x.tipo === "POS" ? "pos" : "pre") + '"' + dis + ">Visualizar</button></div>";
@@ -779,6 +937,9 @@
     }
     var conta = textoConta(e.conta);
     if (conta) h += '<div class="dz-linha"><span class="dz-rot">Conta de recebimento: ' + esc(conta) + "</span></div>";
+    /* 05/11/2026: casa de rua — comissão paga pelo comprador e a forma que foi para o contrato (só texto) */
+    if (e.comissaoCorretor) h += '<div class="dz-linha"><span class="dz-rot">Comissão paga por: COMPRADOR' +
+      (e.comissaoCorretor.forma ? " · " + esc(e.comissaoCorretor.forma) : "") + "</span></div>";
     var test = nomesTestemunhas(e.testemunhas);
     if (test) h += '<div class="dz-linha"><span class="dz-rot">Testemunhas da assinatura: ' + esc(test) + "</span></div>";
     var f = e.fluxo;
@@ -883,6 +1044,9 @@
         ? "alterado no portal" + (f.por ? " por " + esc(f.por) : "") + (f.em ? " em " + esc(dataHoraBR(f.em)) : "") + "."
         : "o da proposta (simulador).") + (lancada ? " Já lançado no Mais Controle com este fluxo; não muda mais por aqui." : "") + "</span>" +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-ver">Ver fluxo</button>' +
+        /* 04/11 (dono): PDF do fluxo salvo para mandar ao cliente, antes do pré-contrato (o mesmo do quadro do cartão) */
+        (typeof window !== "undefined" && typeof window.condPdfFluxo === "function"
+          ? ' <button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-pdf">📄 PDF do fluxo para o cliente</button>' : "") +
         (lancada ? "" : ' <button type="button" class="bt bt-mini" data-acao="c-fluxo-abrir"' + (dis || (f.trava ? " disabled" : "")) + ">Alterar fluxo</button>") + "</div>";
       if (f.trava && TRAVA_FLUXO[f.trava] && !lancada) h += '<div class="dz-msg">' + esc(MSG_CONTRATO[f.trava]) + "</div>";
       if (fluxoDepoisDoContrato(f, ec)) h += '<div class="dz-aviso">Fluxo alterado depois do contrato: gere o contrato de novo.</div>';
@@ -908,21 +1072,41 @@
       "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
+      /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca maior que a carta de aprovação)" — o
+         financiamento ganha o campo de valor (só o valor; até o da proposta); FGTS, subsídio e pré-reserva seguem fixos */
+      var carta = l.t === "fin" ? F.tetoFinanciamento(ed.padrao) : 0;
+      if (tp.fixo && carta > 0) {
+        h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">até ' + esc(F.moeda(carta)) + " (carta de aprovação)</div></td><td></td>" +
+          '<td><input type="text" inputmode="decimal" data-fx="v" data-k="' + k + '" value="' + esc(numBR(l.v)) + '"' + dis + ' style="width:7.5em;text-align:right"' +
+          ' aria-label="Valor do financiamento, até ' + esc(F.moeda(carta)) + '">' +
+          "</td><td>" + esc(l.n) + "</td><td>—</td><td></td><td></td>" +
+          '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
+        return;
+      }
       if (tp.fixo) {
         h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "fixo — vem da proposta") + '</div></td><td></td>' +
           '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
           '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
         return;
       }
-      h += '<tr data-fx-linha="' + k + '"><td><select data-fx="t" data-k="' + k + '"' + dis + ">" +
+      var guiada = ajustavelFx(l), trav = guiada && !!(ed.travadas || {})[k];
+      h += '<tr data-fx-linha="' + k + '"' + (guiada && (ed.ajustadas || {})[k] ? ' data-fx-ajustada="1"' : "") +
+        '><td><select data-fx="t" data-k="' + k + '"' + dis + ">" +
         ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === l.t ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
         '</select><div class="dz-nota">' + (tp.reajuste ? "reajuste " + esc(tp.reajuste) : "sem correção") + "</div></td>" +
         /* 30/10 (arquivo 17, item 2): o Redistribuir virou ícone, entre o tipo e o valor */
         '<td><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-red" data-k="' + k + '"' + dis +
         ' title="Redistribuir: joga a diferença inteira nesta linha" aria-label="Redistribuir a diferença nesta linha">↻</button></td>' +
         '<td><input type="text" inputmode="decimal" data-fx="v" data-k="' + k + '" value="' + esc(numBR(l.v)) + '"' + dis + ' style="width:7.5em;text-align:right">' +
-        (l.u && l.n > 1 ? '<div class="dz-nota">última: ' + esc(numBR(l.u)) + "</div>" : "") + "</td>" +
-        '<td><input type="number" min="1" data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em"></td>' +
+        '<div class="dz-nota vb-fx-ult" data-k="' + k + '"' + (l.u && l.n > 1 ? ">última: " + esc(numBR(l.u)) : ' style="display:none">') + "</div>" +
+        /* 04/11 (dono): "ajustado pelo simulador" ou a sugestão do que esta linha precisaria para fechar */
+        (guiada ? '<div class="vb-fx-guia" data-k="' + k + '">' + htmlGuiaLinha(ed, k) + "</div>" : "") + "</td>" +
+        /* 07/11 (dono): pré-chaves mês a mês — o campo não passa do que cabe até out/2028 sem cair no mês da outra parte */
+        (function () {
+          var cab = l.t === "pre" ? F.cabemPre({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k) : null;
+          return '<td><input type="number" min="1"' + (cab ? ' max="' + cab + '"' : "") + ' data-fx="n" data-k="' + k + '" value="' + esc(l.n) + '"' + dis + ' style="width:4.5em">' +
+            (cab !== null ? '<div class="dz-nota vb-fx-cab" data-k="' + k + '">cabem ' + cab + "</div>" : "") + "</td>";
+        })() +
         '<td><input type="date" data-fx="d" data-k="' + k + '" value="' + esc(l.d) + '"' + dis + "></td>" +
         '<td><input type="number" min="1" max="24" data-fx="i" data-k="' + k + '" value="' + esc(l.i || 1) + '"' + dis + ' style="width:4em"></td>' +
         /* 03/11: na permuta, a descrição é o resumo do bem (formulário "Dados do bem") */
@@ -932,9 +1116,11 @@
         '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td>" +
         '<td style="white-space:nowrap">' +
         (l.t === "permuta" ? '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-bem" data-k="' + k + '"' + dis + ">Dados do bem</button> " : "") +
+        (guiada ? htmlTrava(k, trav, dis) + " " : "") +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-del" data-k="' + k + '"' + dis + ' aria-label="Apagar linha">✕</button></td></tr>';
     });
     h += "</tbody></table></div>";
+    h += '<div class="dz-nota">Mexeu no valor ou na quantidade de uma pré-chaves, balão ou pós-chaves: a linha trava (🔒) e o simulador ajusta as outras soltas (🔓) para a conta fechar.</div>';
     h += htmlFluxoBem(ed, dis);
     h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-add"' + dis + ">+ linha</button> " +
       '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-padrao"' + dis + ">Recomeçar do fluxo da proposta</button></div>";
@@ -955,6 +1141,71 @@
     }
     return h;
   }
+  /* ---- 04/11/2026 (dono): "os fluxos que fazemos à mão devem seguir o princípio do simulador — tirei das primeiras
+     parcelas pré-chaves, sobe automaticamente o valor do primeiro balão, ou pelo menos um campo de sugestão". Decisão:
+     ajuste automático com cadeado. Estado só da tela (não é gravado): ed.travadas { k: true } = linhas que a pessoa
+     mexeu ou travou; ed.ajustadas { k: true } = o que o simulador mudou na última conta; ed.sugestao { k: valor de cada }
+     = o que cada linha precisaria quando as travas não deixam fechar. A conta mora em FluxoLivre.guiar. ---- */
+  function ajustavelFx(l) { return !!l && (l.t === "pre" || l.t === "balao" || l.t === "pos"); }
+  function htmlTrava(k, trav, dis) {
+    return '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-trava" data-k="' + k + '" aria-pressed="' + trav + '"' + dis +
+      ' title="' + (trav ? "Travada: o simulador não mexe nesta linha (clique para soltar)" : "Solta: o simulador ajusta esta linha (clique para travar)") +
+      '" aria-label="' + (trav ? "Destravar a linha " : "Travar a linha ") + (k + 1) + '">' + (trav ? "🔒" : "🔓") + "</button>";
+  }
+  function htmlGuiaLinha(ed, k) {
+    var s = ed.sugestao;
+    var su = ed.sugestaoU || {};
+    if (s && Object.prototype.hasOwnProperty.call(s, k))
+      return '<div class="dz-nota vb-fx-sug">sugestão: ' + esc(FL().moeda(s[k])) + (su[k] ? " (última " + esc(FL().moeda(su[k])) + ")" : "") + "</div>";
+    if ((ed.ajustadas || {})[k]) return '<div class="dz-nota vb-fx-ok">ajustado pelo simulador</div>';
+    return "";
+  }
+  /* a linha k foi mexida (valor ou quantidade): trava ela e refaz as soltas. Devolve os índices que mudaram. */
+  function guiarEditor(ed, k) {
+    ed.travadas = ed.travadas || {};
+    if (k !== null && k !== undefined && ajustavelFx(ed.linhas[k])) ed.travadas[k] = true;
+    var r = FL().guiar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.travadas, ed.padrao);
+    ed.ajustadas = {};
+    ed.sugestao = r.sugestao || null;
+    ed.sugestaoU = r.sugestaoUltima || null;
+    ed.guiaErro = r.erro || "";
+    var mudou = r.mudou || [];
+    mudou.forEach(function (j) { ed.linhas[j] = r.linhas[j]; ed.ajustadas[j] = true; });
+    return mudou;
+  }
+  /* cadeado clicado: trava/solta e refaz (soltar devolve a linha à conta) */
+  function travarLinha(ed, k) {
+    if (!ajustavelFx(ed.linhas[k])) return [];
+    ed.travadas = ed.travadas || {};
+    if (ed.travadas[k]) delete ed.travadas[k]; else ed.travadas[k] = true;
+    return guiarEditor(ed, null);
+  }
+  /* "Aplicar sugestão": a conta do simulador sem as travas; os cadeados abrem */
+  function aplicarSugestao(ed) {
+    var r = FL().guiar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, [], ed.padrao);
+    if (r.erro || !r.linhas) { ed.guiaErro = r.erro || ""; return []; }
+    limparGuia(ed);
+    r.mudou.forEach(function (j) { ed.linhas[j] = r.linhas[j]; ed.ajustadas[j] = true; });
+    return r.mudou;
+  }
+  function limparGuia(ed) { ed.travadas = {}; ed.ajustadas = {}; ed.sugestao = null; ed.sugestaoU = null; ed.guiaErro = ""; }
+  /* revisão 04/11: a pessoa mexeu no campo `campo` da linha k. Valor, quantidade ou tipo que vira pré-chaves/balão/
+     pós-chaves: trava a linha e pede a conta (true). Tipo que vira fixo: o cadeado sai. O resto não mexe na conta. */
+  function fxMexeu(ed, k, campo) {
+    var l = ed.linhas[k];
+    if (!l || (campo !== "v" && campo !== "n" && campo !== "t")) return false;
+    ed.travadas = ed.travadas || {};
+    if (l.t === "fin" && campo === "v") return true;   /* 05/11: financiamento baixou — o simulador refaz as soltas; ele não trava */
+    if (!ajustavelFx(l)) { delete ed.travadas[k]; return false; }
+    ed.travadas[k] = true;
+    return true;
+  }
+  /* linha k apagada: os cadeados de baixo sobem uma posição */
+  function travasAoApagar(ed, k) {
+    var t = {};
+    Object.keys(ed.travadas || {}).forEach(function (j) { j = Number(j); if (j < k) t[j] = true; else if (j > k) t[j - 1] = true; });
+    ed.travadas = t; ed.ajustadas = {}; ed.sugestao = null; ed.guiaErro = "";
+  }
   /* ---- 03/11/2026 (dono): "quando tiver permuta, hora que salvar, pede para quem tiver preenchendo colocar as
      informações da permuta". O formulário abre no próprio cartão (ed.bemK = índice da linha), em grade que vira uma
      coluna no celular. As regras do bem moram em venda/FluxoLivre.js (normalizarBem/faltasBem), as mesmas do servidor.
@@ -971,9 +1222,18 @@
              ["onus", "Ônus (hipoteca, penhora…)", { max: 300, ph: "nenhum" }]],
     outro: []
   };
+  /* 07/11/2026 (dono): "sempre que a data do vencimento for anterior à data atual, trava e calcula o fluxo certo" —
+     a conferência da tela recebe hoje (São Paulo); Corrigir datas leva as linhas para o 1º mês que pode */
+  function hojeFluxo() {
+    if (typeof HOJE_VENDA_TESTE_ === "string") return HOJE_VENDA_TESTE_;   /* testes: hoje fixo (fluxo-ui.test.mjs) */
+    try {
+      var p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+      return /^\d{4}-\d{2}-\d{2}$/.test(p) ? p : "";
+    } catch (e) { return ""; }
+  }
   /* primeira linha de permuta sem os dados do bem completos (o que o Salvar pede), ou -1 */
   function permutaSemBem(ed) {
-    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao, ed.anterior || null);
+    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null);
     var ks = Object.keys(r.porBem || {}).map(Number).sort(function (a, b) { return a - b; });
     return ks.length ? ks[0] : -1;
   }
@@ -1111,7 +1371,7 @@
   }
   /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
   function htmlFluxoVivo(ed, dis) {
-    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
+    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
     /* 03/11: o que falta no bem da permuta não trava o botão — o Salvar abre o formulário do bem */
     var errosBem = r.errosBem || [];
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
@@ -1127,9 +1387,23 @@
           ? "<span>Comissão pela regra: <b>" + esc(F.moeda(Math.round(ed.valor * ed.desconto.comissao.pct * 100) / 100)) + "</b></span>" : "") +
       htmlPrazoPlacar(ed) + "</div>";
     /* 31/10: sugestão para fechar a conta sem fazer na mão */
+    /* 04/11: as travas não deixam fechar — a sugestão aparece em cada linha; um clique aplica (abre os cadeados) */
+    if (!bate && ed.sugestao && Object.keys(ed.sugestao).length)
+      h += '<div class="dz-linha" style="display:flex;flex-wrap:wrap;gap:6px 10px;align-items:center"><span class="dz-nota">' +
+        esc(ed.guiaErro || "As linhas travadas não deixam fechar a conta") + ".</span>" +
+        '<button type="button" class="bt bt-mini" data-acao="c-fluxo-sug"' + dis + ' title="Põe em cada linha o valor da sugestão (conta do simulador) e solta os cadeados">Aplicar sugestão</button></div>';
+    else if (!bate && ed.guiaErro) h += '<div class="dz-nota">' + esc(ed.guiaErro) + ".</div>";
     if (!bate) h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-dist"' + dis +
       ' title="Espalha a diferença nas pré-chaves e balões, proporcional ao total de cada">Distribuir ' + esc(F.moeda(Math.abs(dif))) +
       " nas pré-chaves e balões</button></div>";
+    /* 07/11: vencimento no passado — um clique leva as linhas para o 1º mês que pode (mesmo dia; o total não muda) */
+    /* 07/11: duas parcelas pré-chaves no mesmo mês ou depois de out/2028 — um clique encaixa as partes (o total de cada uma não muda) */
+    if (r.erros.some(function (x) { return /uma por mês|as parcelas terminam em outubro\/2028/.test(x); }))
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-encaixar"' + dis +
+        ' title="Cada parte da pré-chaves termina antes da próxima e até outubro/2028; o total da linha não muda">Encaixar as pré-chaves</button></div>';
+    if (r.erros.some(function (x) { return /use Corrigir datas/.test(x); }))
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-datas"' + dis +
+        ' title="Leva cada parcela que venceria no passado para o 1º mês que pode, no mesmo dia; o total da linha não muda">Corrigir datas</button></div>';
     var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x) && errosBem.indexOf(x) < 0; });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";
@@ -1187,6 +1461,16 @@
     return { titulo: s, itens: [] };
   }
   /* e = {situacao, vendaId}; u = {ocupado, msg, testes} */
+  /* "<rótulo>: pedido ao robô em dd/mm hh:mm" com mais de 10 minutos (o robô já devia ter respondido) */
+  function pedidoParado(situacao, rotulo, agora) {
+    var r = String(rotulo).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");   /* rótulo literal, ex.: "Contratos (ZIP)" */
+    var m = new RegExp("(^|\\n)" + r + ": pedido ao rob[ôo] em (\\d{2})/(\\d{2}) (\\d{2}):(\\d{2})", "i").exec(String(situacao || ""));
+    if (!m) return false;
+    var hoje = agora ? new Date(agora) : new Date();
+    var quando = new Date(hoje.getFullYear(), Number(m[3]) - 1, Number(m[2]), Number(m[4]), Number(m[5]));
+    if (quando > hoje) quando.setFullYear(quando.getFullYear() - 1);   /* virada de ano */
+    return hoje - quando > 10 * 60 * 1000;
+  }
   function htmlMC(e, u) {
     /* PROCESSANDO com mais de 15 min (carimbo [t=ms]) = o robô não respondeu: libera pedir de novo */
     var tProc = e && /\[t=(\d+)\]/.exec(e.situacao || "");
@@ -1219,18 +1503,24 @@
     /* 03/11: o contrato não entrou no recebimento (venda criada antes do PDF assinado) ou o ZIP não foi para o Orçamento:
        o botão pede de novo ao robô do servidor (ele não repete o que já está lá) */
     var linhasSit = String(e.situacao || "");
-    if (e.vendaId && /(^|\n)Contrato: n[ãa]o (anexado|pedido)/i.test(linhasSit))
+    /* 03/11 (casa 31): pedido recusado pelo robô (código antigo) não muda a situação — "pedido ao robô em dd/mm hh:mm"
+       há mais de 10 minutos também libera o botão de novo */
+    if (e.vendaId && (/(^|\n)Contrato: n[ãa]o (anexado|pedido)/i.test(linhasSit) || pedidoParado(linhasSit, "Contrato")))
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar"' + d(ocupado) + ">Anexar contrato no Mais Controle</button> ";
-    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o (enviado|gerado|guardado)|.*N[ÃA]O pedido)/i.test(linhasSit))
+    else if (/(^|\n)Contratos \(ZIP\): (n[ãa]o (enviado|gerado|guardado)|.*N[ÃA]O pedido)/i.test(linhasSit) || pedidoParado(linhasSit, "Contratos (ZIP)"))
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar-zip"' + d(ocupado) + ">Enviar ZIP ao Mais Controle</button> ";
     h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-atualizar"' + (u.ocupado ? " disabled" : "") + ">Atualizar</button></div>";
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
 
-  /* ---- entrega 14: bloco "Recebimentos" (Sinal, Entrada, Financiamento) ----
-   * e = { itens: [{ id, rotulo, esperado, data, comprovantes, por, confirmado }], emailConfigurado } (recebimentoEstado);
-   * u = { ocupado: id|null, msg, testes, rascunho: { id: data digitada }, arquivos: { id: File escolhido } }. */
+  /* ---- entrega 14: bloco "Recebimentos" (Sinal, Entrada, Financiamento; 05/11/2026: + FGTS, outros, vários pagamentos,
+   * valor esperado editável, contrato de financiamento e a situação no Mais Controle) ----
+   * e = { itens: [{ id, rotulo, esperado, editavel, modo ("lista"|"antigo"|""), pagamentos: [{id, data, valor, por, arquivo, mc}],
+   *       soma, falta, situacao, data, comprovantes, por, confirmado, erro?, aviso?, mc? }], outros: [mesmo formato],
+   *       outrosColuna, contratoFin: {coluna, arquivos}, vendaLancada, filaLigada, mc: {situacao, texto, em}, emailConfigurado };
+   * u = { ocupado: id|null, msg, testes, rascunho: { id: data }, valores: { id: valor }, esperados: { id: valor }, editando: id,
+   *       novo: { rotulo, valor }, arquivos: { id: File } (FIN = contrato de financiamento), finMsg }. */
   var MSG_REC = {
     COMPROVANTE_OBRIGATORIO: "Escolha o comprovante (foto ou PDF) antes de confirmar.",
     DATA_INVALIDA: "Data do recebimento inválida (não pode ser depois de hoje).",
@@ -1238,25 +1528,105 @@
     SO_CASA: "Recebimentos só existem na casa da VENDAS.",
     RECEBIMENTO_OCUPADO: "Outro recebimento está sendo salvo — tente de novo em instantes.",
     SEM_PERMISSAO_TESTES: "O perfil TESTES só consulta; não confirma recebimento.",
-    ACAO_DESCONHECIDA: "Os recebimentos ainda não foram ligados neste ambiente (falta atualizar o PORTAL-VENDA)."
+    ACAO_DESCONHECIDA: "Os recebimentos ainda não foram ligados neste ambiente (falta atualizar o PORTAL-VENDA).",
+    VALOR_INVALIDO: "Informe o valor recebido (ex.: 3.000,00).",
+    PAGAMENTO_NAO_ENCONTRADO: "Esse pagamento não existe mais — recarregue a página.",
+    JA_BAIXADO_NO_MC: "Esse pagamento já foi baixado no Mais Controle: corrija lá primeiro (o portal não desfaz a baixa).",
+    ROTULO_INVALIDO: "Dê um nome ao recebimento (de 2 a 40 letras).",
+    OUTROS_DEMAIS: "Já são 10 recebimentos extras nesta casa — use um dos que existem.",
+    SO_COM_LISTA: "Este item ainda está no jeito antigo (sem a coluna de pagamentos) — confirme de novo para corrigir.",
+    MC_SEM_VENDA: "A venda ainda não está no Mais Controle: lance a venda antes.",
+    FILA_NAO_CONFIGURADA: "O robô do servidor não está ligado neste ambiente (DB_FILA_ROBO).",
+    MC_DISPARO_FALHOU: "Não consegui pôr o pedido na fila do servidor — tente de novo.",
+    SEM_ARQUIVO: "Escolha o contrato de financiamento (PDF ou foto)."
+  };
+  var MC_PEDIDO = {
+    NA_FILA: " O robô vai conferir no Mais Controle em instantes.",
+    NA_FILA_SEM_SINAL: " O pedido ao Mais Controle está na fila, mas o servidor não está dando sinal.",
+    SEM_VENDA: " A venda ainda não está no Mais Controle: a baixa sai depois do lançamento.",
+    FILA_NAO_CONFIGURADA: "",
+    FILA_FALHOU: " Não consegui pedir a baixa no Mais Controle — use “Conferir no Mais Controle”."
   };
   function dataRec(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || "")); return m ? m[3] + "/" + m[2] + "/" + m[1] : ""; }
   function moedaRec(n) {
     if (typeof n !== "number" || !isFinite(n)) return "";
     return "R$ " + n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
+  function numRec(n) { return typeof n === "number" && isFinite(n) ? n.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ""; }
   /* rotulo = o item confirmado (mensagem de sucesso) */
   function mensagemRec(r, rotulo) {
     r = r || {};
     var e = String(r.erro || "");
     if (!e) {
-      var feito = "Recebimento" + (rotulo ? " do " + rotulo : "") + " confirmado";
-      if (r.aviso === "EMAIL_NAO_CONFIGURADO") return feito + ", mas o e-mail de aviso não está configurado (RECEBIMENTO_EMAILS) — avise o administrador.";
-      if (r.aviso === "EMAIL_FALHOU") return feito + ", mas o e-mail de aviso não saiu — avise o administrador.";
-      return feito + (r.emails ? " — e-mail de aviso enviado." : ".");
+      var feito = "Recebimento" + (rotulo ? " do " + rotulo : "") + " confirmado", mc = MC_PEDIDO[r.mcPedido] || "";
+      if (r.aviso === "EMAIL_NAO_CONFIGURADO") return feito + ", mas o e-mail de aviso não está configurado (RECEBIMENTO_EMAILS) — avise o administrador." + mc;
+      if (r.aviso === "EMAIL_FALHOU") return feito + ", mas o e-mail de aviso não saiu — avise o administrador." + mc;
+      return feito + (r.emails ? " — e-mail de aviso enviado." : ".") + mc;
     }
     if (e === "GRAVACAO_FALHOU" && r.arquivoGuardado) return "O comprovante foi guardado, mas a data não — confirme de novo.";
     return MSG_REC[e] || mensagemDeErro(e);
+  }
+  /* situação do robô (por item ou por pagamento): "baixado no Mais Controle", "prévia: …", "recusado: …" */
+  var MC_SIT = { BAIXADO: "baixado no Mais Controle", PREVIA: "prévia", AGUARDANDO: "aguardando", PENDENTE: "aguardando",
+                 RECUSADO: "recusado", ERRO: "erro", ALTERADO: "alterado no Mais Controle", OK: "conferido no Mais Controle",
+                 SEM_PARCELA: "sem parcela no Mais Controle", PROCESSANDO: "robô trabalhando…" };
+  function textoMC(x) {
+    if (!x || !x.situacao) return "";
+    var s = MC_SIT[x.situacao] || String(x.situacao).toLowerCase(), t = String(x.texto || "");
+    if (!t || x.situacao === "OK" || x.situacao === "PENDENTE") return s;
+    return x.situacao === "BAIXADO" || x.situacao === "ALTERADO" ? t : s + ": " + t;
+  }
+  function linhaSituacaoRec(it) {
+    var pags = it.pagamentos || [];
+    if (it.modo !== "lista" || pags.length <= 1) {
+      if (it.confirmado) return '<span class="rec-ok">✓ Recebido em ' + esc(dataRec(it.data)) + "</span>" + (it.por ? " por " + esc(it.por) : "") +
+        " · " + (it.comprovantes ? it.comprovantes + (it.comprovantes === 1 ? " comprovante" : " comprovantes") : "sem comprovante");
+      if (it.situacao === "PARCIAL") return '<span class="rec-parc">Recebido ' + esc(moedaRec(it.soma)) + " — falta " + esc(moedaRec(it.falta)) + "</span>";
+      return '<span class="rec-pend">Aguardando confirmação</span>';
+    }
+    if (it.situacao === "RECEBIDO") return '<span class="rec-ok">✓ Recebido ' + esc(moedaRec(it.soma)) + " em " + pags.length + " pagamentos</span>";
+    if (it.situacao === "SOBRA") return '<span class="rec-sobra">Recebido ' + esc(moedaRec(it.soma)) + " — passa " + esc(moedaRec(-it.falta)) + " do esperado</span>";
+    if (it.situacao === "PARCIAL") return '<span class="rec-parc">Recebido ' + esc(moedaRec(it.soma)) + " em " + pags.length + " pagamentos — falta " + esc(moedaRec(it.falta)) + "</span>";
+    return '<span class="rec-pend">Aguardando confirmação</span>';
+  }
+  function htmlItemRec(it, u, dis) {
+    var id = esc(it.id), esperado = moedaRec(it.esperado), lista = it.modo === "lista", h = "";
+    var rasc = u.rascunho || {}, arqs = u.arquivos || {}, vals = u.valores || {}, esps = u.esperados || {};
+    h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>' + esc(it.rotulo) + "</b> — valor esperado: " +
+      (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") + "</span>" +
+      (it.editavel && lista ? ' <button type="button" class="bt ghost bt-mini" data-acao="r-editar" data-item="' + id + '"' + dis + ">" +
+        (u.editando === it.id ? "Cancelar" : "Mudar valor") + "</button>" : "") + "</div>";
+    if (u.editando === it.id) {
+      var ve = it.id in esps ? esps[it.id] : numRec(it.esperado);
+      h += '<div class="dz-linha"><label class="dz-campo">Novo valor esperado <input type="text" inputmode="decimal" data-rec-esp="' + id + '" value="' + esc(ve) + '"' + dis + "></label> " +
+        '<button type="button" class="bt bt-mini" data-acao="r-valor" data-item="' + id + '"' + dis + ">Salvar valor</button>" +
+        (/^(SINAL|FINANCIAMENTO|FGTS)$/.test(it.id) ? ' <small class="rec-arq">o robô acerta a parcela no Mais Controle</small>' : "") + "</div>";
+    }
+    if (it.erro) return h + '<div class="dz-aviso">' + esc(mensagemDeErro(it.erro)) + " — este item não grava até a coluna existir.</div>";
+    h += '<div class="dz-linha"><span class="dz-rot">' + linhaSituacaoRec(it) + "</span></div>";
+    if (it.mc && textoMC(it.mc)) h += '<div class="dz-linha rec-mc"><span class="dz-rot">Mais Controle: ' + esc(textoMC(it.mc)) + "</span></div>";
+    if (lista && (it.pagamentos || []).length) {
+      h += '<ul class="rec-pags">';
+      it.pagamentos.forEach(function (p) {
+        var mc = textoMC(p.mc);
+        h += "<li><span>" + esc(dataRec(p.data)) + " · " + (typeof p.valor === "number" ? esc(moedaRec(p.valor)) : "valor não informado") +
+          (p.por ? " · por " + esc(p.por) : "") + " · " + (p.arquivo ? "com comprovante" : "sem comprovante") +
+          (mc ? ' · <span class="rec-mc-p">' + esc(mc) + "</span>" : "") + "</span>" +
+          (p.mc && p.mc.situacao === "BAIXADO" ? "" : ' <button type="button" class="bt ghost bt-mini" data-acao="r-remover" data-item="' + id + '" data-pag="' + esc(p.id) + '"' + dis + ">Tirar</button>") + "</li>";
+      });
+      h += "</ul>";
+    }
+    var data = it.id in rasc ? rasc[it.id] : (lista ? "" : (it.data || ""));
+    var escolhido = arqs[it.id] && arqs[it.id].name ? ' <small class="rec-arq">escolhido: ' + esc(arqs[it.id].name) + "</small>" : "";
+    h += '<div class="dz-linha"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
+      (lista ? '<label class="dz-campo">Valor recebido <input type="text" inputmode="decimal" data-rec-valor="' + id + '" value="' + esc(vals[it.id] || "") +
+        '" placeholder="' + esc(typeof it.falta === "number" && it.falta > 0 ? numRec(it.falta) : "") + '"' + dis + "></label> " : "") +
+      (it.aceitaArquivo !== false ? '<label class="dz-campo">Comprovante <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="' + id + '"' + dis + "></label>" + escolhido + " " : "") +
+      '<button type="button" class="bt bt-mini" data-acao="r-confirmar" data-item="' + id + '"' + dis + ">" +
+      (lista ? ((it.pagamentos || []).length ? "Registrar outro pagamento" : "Confirmar recebimento") : (it.confirmado ? "Confirmar de novo (corrigir)" : "Confirmar recebimento")) + "</button>" +
+      (u.ocupado === it.id ? " <b>salvando…</b>" : "") + "</div>";
+    if (it.aviso) h += '<div class="dz-msg dz-nota">Comprovante: ' + esc(mensagemDeErro(it.aviso)) + "</div>";
+    return h;
   }
   function htmlRecebimentos(e, u) {
     u = u || {};
@@ -1264,45 +1634,62 @@
     var h = '<div class="grp">Recebimentos</div>';
     if (testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
-    var dis = (ocupado || testes) ? " disabled" : "", rasc = u.rascunho || {}, arqs = u.arquivos || {};
-    (e.itens || []).forEach(function (it) {
-      var id = esc(it.id), esperado = moedaRec(it.esperado);
-      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>' + esc(it.rotulo) + "</b> — valor esperado: " +
-        (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") + "</span></div>";
-      h += '<div class="dz-linha"><span class="dz-rot">' + (it.confirmado
-        ? '<span class="rec-ok">✓ Recebido em ' + esc(dataRec(it.data)) + "</span>" + (it.por ? " por " + esc(it.por) : "") +
-          " · " + (it.comprovantes ? it.comprovantes + (it.comprovantes === 1 ? " comprovante" : " comprovantes") : "sem comprovante")
-        : '<span class="rec-pend">Aguardando confirmação</span>') + "</span></div>";
-      var data = it.id in rasc ? rasc[it.id] : (it.data || "");
-      var escolhido = arqs[it.id] && arqs[it.id].name ? ' <small class="rec-arq">escolhido: ' + esc(arqs[it.id].name) + "</small>" : "";
-      h += '<div class="dz-linha"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
-        '<label class="dz-campo">Comprovante <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="' + id + '"' + dis + "></label>" + escolhido + " " +
-        '<button type="button" class="bt bt-mini" data-acao="r-confirmar" data-item="' + id + '"' + dis + ">" +
-        (it.confirmado ? "Confirmar de novo (corrigir)" : "Confirmar recebimento") + "</button>" +
-        (u.ocupado === it.id ? " <b>salvando…</b>" : "") + "</div>";
-    });
+    var dis = (ocupado || testes) ? " disabled" : "";
+    (e.itens || []).forEach(function (it) { h += htmlItemRec(it, u, dis); });
+    (e.outros || []).forEach(function (it) { h += htmlItemRec(it, u, dis); });
+    if (e.outrosColuna) {
+      var nv = u.novo || {};
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Outro recebimento</b> (ex.: parcela combinada à parte)</span></div>' +
+        '<div class="dz-linha"><label class="dz-campo">Nome <input type="text" maxlength="40" data-rec-novo="rotulo" value="' + esc(nv.rotulo || "") + '"' + dis + "></label> " +
+        '<label class="dz-campo">Valor esperado <input type="text" inputmode="decimal" data-rec-novo="valor" value="' + esc(nv.valor || "") + '"' + dis + "></label> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="r-novo"' + dis + ">Acrescentar</button>" + (u.ocupado === "NOVO" ? " <b>salvando…</b>" : "") + "</div>";
+    }
+    if (e.contratoFin && e.contratoFin.coluna) {
+      var af = (u.arquivos || {}).FIN, n = e.contratoFin.arquivos || 0;
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Contrato de financiamento</b> — ' +
+        (n ? n + (n === 1 ? " arquivo guardado" : " arquivos guardados") : "nenhum arquivo") + "</span></div>" +
+        '<div class="dz-linha"><label class="dz-campo">Arquivo <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="FIN"' + dis + "></label>" +
+        (af && af.name ? ' <small class="rec-arq">escolhido: ' + esc(af.name) + "</small>" : "") + " " +
+        '<button type="button" class="bt bt-mini" data-acao="r-fin"' + dis + ">" + (af || !n ? "Ler e atualizar os valores" : "Ler de novo") + "</button>" +
+        (u.ocupado === "FIN" ? " <b>lendo…</b>" : "") + "</div>" +
+        '<div class="dz-msg dz-nota">A leitura troca o VALOR FINANCIADO e, se o contrato mostrar, o FGTS e o subsídio; depois o robô acerta as parcelas no Mais Controle.</div>';
+      if (u.finMsg) h += '<div class="dz-msg">' + esc(u.finMsg) + "</div>";
+    }
+    if (e.vendaLancada) {
+      var mc = e.mc || {};
+      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Mais Controle</b> — ' +
+        esc(mc.situacao ? textoMC(mc) + (mc.em && mc.situacao !== "PROCESSANDO" ? " (" + mc.em + ")" : "") : "ainda não conferido pelo robô") + "</span> " +
+        '<button type="button" class="bt ghost bt-mini" data-acao="r-mc"' + ((dis || !e.filaLigada) ? " disabled" : "") + ">Conferir no Mais Controle</button></div>";
+      (mc.avisos || []).forEach(function (a) { h += '<div class="dz-msg dz-nota">' + esc(a) + "</div>"; });
+    } else if (e.vendaLancada === false) {
+      h += '<div class="dz-msg dz-nota">A venda ainda não foi lançada no Mais Controle: as baixas saem depois do lançamento.</div>';
+    }
     if (e.emailConfigurado === false) h += '<div class="dz-msg dz-nota">O e-mail de aviso ainda não está configurado: o recebimento grava, mas ninguém é avisado.</div>';
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     return h;
   }
 
   var exportar = { URL_PORTAL_VENDA: URL_PORTAL_VENDA, DOCS: DOCS, html: html, mensagemDeErro: mensagemDeErro,
-                   htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec,
+                   htmlRecebimentos: htmlRecebimentos, mensagemRec: mensagemRec, textoMC: textoMC,
                    htmlConferencia: htmlConferencia, htmlCorrigir: htmlCorrigir, htmlFinanceiro: htmlFinanceiro,
                    htmlAntecipacao: htmlAntecipacao, htmlAntResultado: htmlAntResultado, mensagemAnt: mensagemAnt, antCalcular: antCalcular,
                    DOCS_IMOVEL: DOCS_IMOVEL, htmlImovel: htmlImovel, dadosImovel: dadosImovel, htmlLoteamento: htmlLoteamento,
                    grupoDoEspaco: grupoDoEspaco,
                    linhaDoc: linhaDoc, htmlLerTodos: htmlLerTodos, resultadosLote: resultadosLote, resumoLote: resumoLote,
                    detalheGravado: detalheGravado, EVENTO_GRAVADO: EVENTO_GRAVADO,
+                   detalheCompradores: detalheCompradores, EVENTO_COMPRADORES: EVENTO_COMPRADORES,
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
-                   rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2 };
+                   rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2,
+                   comissaoDoEstado: comissaoDoEstado, htmlComissaoCorretor: htmlComissaoCorretor, pedidoComissao: pedidoComissao,
+
+                   htmlPreReserva: htmlPreReserva, htmlPreReservaRapida: htmlPreReservaRapida, sugestaoLimitePR: sugestaoLimitePR, mensagemPR: mensagemPR };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
 
   /* ---------------- navegador ---------------- */
@@ -1330,6 +1717,9 @@
     "border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit;max-width:100%;box-sizing:border-box}" +
     ".vb-blocos .dz-linha>input{flex:1 1 220px}.vb-blocos .dz-campo{display:inline-flex;gap:4px;align-items:center;flex-wrap:wrap}" +
     ".vb-blocos .dz-grupo{margin-top:12px}.vb-blocos .dz-nota{font-weight:400;color:var(--text3,#555)}" +
+    /* 04/11: Alterar fluxo guiado — translúcido serve no tema claro e no escuro; o texto usa as cores do tema */
+    ".vb-blocos tr[data-fx-ajustada]{background:rgba(255,193,7,.14);transition:background .8s}.vb-blocos tr.vb-fx-pisca{background:rgba(255,193,7,.34)}" +
+    ".vb-blocos .dz-nota.vb-fx-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-blocos .dz-nota.vb-fx-sug{font-style:italic}" +
     emCada(">.dz-linha") + "{margin:6px 22px}" + emCada(">.dz-aviso") + "{margin:6px 22px}" +
     emCada(">.dz-msg") + "{margin:8px 22px 0}" + emCada(">pre") + "{margin:4px 22px}" +
     emCada(">ul") + "{margin:4px 22px;padding-left:18px}" +
@@ -1345,6 +1735,10 @@
     /* entrega 14: Recebimentos */
     ".vb-rec .rec-ok{color:var(--verde,#2a9d5c);font-weight:700}.vb-rec .rec-pend{color:#B45309;font-weight:700}" +
     ".vb-rec .rec-item{margin-top:12px}.vb-rec .rec-arq{color:var(--text3,#555)}" +
+    /* 05/11: vários pagamentos por item e a situação no Mais Controle */
+    ".vb-rec .rec-parc{color:#B45309;font-weight:700}.vb-rec .rec-sobra{color:#C0392B;font-weight:700}" +
+    ".vb-rec .rec-pags{list-style:none;padding-left:0;margin:4px 0}.vb-rec .rec-pags li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0}" +
+    ".vb-rec .rec-pags li>span{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}.vb-rec .rec-mc,.vb-rec .rec-mc-p{color:var(--text3,#555)}" +
     ".vb-blocos input[type=date]{padding:6px 8px;border:1px solid var(--border,#d6dee3);border-radius:6px;font:inherit}" +
     /* no cartão do condomínio os títulos não têm o recuo do painel da casa */
     ".cd-cardbox .vb-blocos .grp{margin:14px 0 8px}.cd-cardbox .vb-blocos .vazio{padding:10px}" +
@@ -1364,7 +1758,7 @@
     ".vb-blocos .vb-conf table.dz-tab td>div.ass-data{display:block}" +
     ".vb-blocos .vb-conf table.dz-tab .bt{white-space:normal;max-width:100%;margin:0}" +
     ".vb-blocos .vb-conf>div[style*=\"overflow-x\"]{overflow-x:visible!important}" +
-    ".vb-blocos .dz-pr-pag{align-items:flex-end;gap:12px}" +
+    ".vb-blocos .dz-pr-pag{align-items:flex-end;gap:12px;flex-wrap:wrap}" +
     ".vb-blocos .dz-pr-pag label{display:flex;flex-direction:column;gap:3px;flex:0 0 auto;margin:0}" +
     ".vb-blocos .dz-pr-pag label span{font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
     ".vb-blocos .dz-pr-pag input{height:36px;box-sizing:border-box;padding:6px 9px;border:1.5px solid var(--border,#d6dee3);border-radius:7px;font:inherit;margin:0}" +
@@ -1376,7 +1770,33 @@
     ".vb-blocos .dz-fia label{display:flex;flex-direction:column;gap:3px;flex:1 1 200px;min-width:0;margin:0}" +
     ".vb-blocos .dz-fia label span{font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
     ".vb-blocos .dz-fia input,.vb-blocos .dz-fia select{width:100%;box-sizing:border-box}" +
-    "@media (max-width:600px){.vb-blocos .dz-fia{flex-direction:column;align-items:stretch}.vb-blocos .dz-fia label{flex:0 0 auto;width:100%}}";
+    "@media (max-width:600px){.vb-blocos .dz-fia{flex-direction:column;align-items:stretch}.vb-blocos .dz-fia label{flex:0 0 auto;width:100%}}" +
+    /* 04/11/2026: documentos do dossiê em linhas com a situação na bolinha e os botões à direita */
+    "#dossie-wrap>.dz-doc{margin:0 22px;padding:9px 2px;border-bottom:1px solid var(--border2,#d0e4ec)}" +
+    "#dossie-wrap .dz-st{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:9px;vertical-align:1px;background:#C0392B}" +
+    "#dossie-wrap .dz-doc-ok .dz-st{background:#2a9d5c}#dossie-wrap .dz-doc-novo .dz-st{background:#E67E22}" +
+    "#dossie-wrap .dz-st-txt{color:var(--text3,#5a8099);font-weight:600}#dossie-wrap .dz-doc-falta .dz-st-txt{color:#C0392B}" +
+    "#dossie-wrap .dz-acoes{display:flex;gap:6px;flex-wrap:wrap;justify-content:flex-end}" +
+    "#dossie-wrap>.grp+.dz-doc{border-top:0}" +
+    /* 05/11/2026: lista dos arquivos do espaço (Ver / Excluir) aberta pelo contador */
+    "#dossie-wrap .dz-arqs-bt{border:0;background:none;padding:0;font:inherit;color:var(--azul,#1d4f63);text-decoration:underline;cursor:pointer}" +
+    "#dossie-wrap .dz-arqs{flex:1 1 100%;list-style:none;margin:6px 0 0;padding:0 0 0 18px}" +
+    "#dossie-wrap .dz-arqs li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:4px 0;font-size:13px}" +
+    "#dossie-wrap .dz-arq-nome{flex:1 1 180px;min-width:0;overflow-wrap:anywhere}" +
+    "#dossie-wrap .dz-arq-conf{color:#a12a22}#dossie-wrap .bt.dz-perigo{background:#c0392b;border-color:#c0392b;color:#fff}" +
+    /* 04/11: o que falta para gerar o contrato da casa, com a caixa do campo ali mesmo */
+    ".vb-blocos .dz-faltas-venda{margin:8px 22px 4px;padding:10px 0 4px;border:1.5px solid #E67E22;border-radius:10px;background:rgba(230,126,34,.05)}" +
+    ".vb-blocos .dz-faltas-venda>.dz-aviso{margin:0 14px 6px;font-weight:700}" +
+    "#dossie-wrap .dz-selo{display:inline-block;padding:2px 9px;border-radius:9px;font-size:12px;font-weight:800;letter-spacing:.2px;background:#eef2f4;color:#5a8099}" +
+    "#dossie-wrap .dz-selo-ok{background:#dff5e6;color:#1a6b40}#dossie-wrap .dz-selo-novo{background:#fff1d6;color:#8a5a00}#dossie-wrap .dz-selo-falta{background:#fde2e1;color:#a12a22}" +
+    "#dossie-wrap>.dz-situacao{margin:12px 22px 6px;padding:10px 12px;border:1.5px solid var(--border2,#d0e4ec);border-radius:10px;background:var(--sup,#fff)}" +
+    "#dossie-wrap .dz-dados{display:grid;grid-template-columns:max-content 1fr;gap:4px 14px;margin:6px 22px 8px;font-size:13px}" +
+    "#dossie-wrap .dz-dados dt{color:var(--text3,#5a8099);font-weight:700}#dossie-wrap .dz-dados dd{margin:0;overflow-wrap:anywhere}" +
+    "#dossie-wrap .dz-obs{margin:4px 0;padding-left:18px;font-size:12.5px}#dossie-wrap .dz-obs li{margin:2px 0}#dossie-wrap .dz-obs small{color:var(--text4,#8aacbb)}" +
+    "#dossie-wrap>.dz-obs-at{margin:6px 22px;padding:8px 12px 8px 30px;border-left:4px solid #E67E22;background:rgba(230,126,34,.07);border-radius:6px}" +
+    "#dossie-wrap .dz-atencao{color:#8a5a00;font-weight:600}" +
+    "#dossie-wrap>.dz-hist{margin:4px 22px 10px;font-size:12.5px;color:var(--text3,#5a8099)}#dossie-wrap>.dz-hist summary{cursor:pointer;font-weight:700}" +
+    "@media (max-width:600px){#dossie-wrap>.dz-doc .dz-acoes{width:100%;justify-content:flex-start}#dossie-wrap .dz-dados{grid-template-columns:1fr}#dossie-wrap .dz-dados dd{margin-bottom:6px}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -1411,6 +1831,7 @@
     if (!mesmaCasa(pageId)) return;
     if (r.ok) {
       estado = r; if (r.doisCompradores) ui.dois = true;
+      avisarCompradores(pageId);
       if (r.tipoCasaPelaObra) avisarGravado(pageId, { ok: true, gravados: { "TIPO DE CASA": r.tipoCasa } });   // gravado pela obra ao abrir
     }
     else ui.msg = mensagemDeErro(r.erro);
@@ -1476,6 +1897,10 @@
       inp.click();
     });
   }
+  function avisarCompradores(pageId, desconhecido) {
+    try { window.dispatchEvent(new CustomEvent(EVENTO_COMPRADORES, { detail: detalheCompradores(pageId, desconhecido ? null : ui) })); }
+    catch (e) { /* sem CustomEvent: o painel mostra os dois compradores */ }
+  }
   function avisarGravado(pageId, r) {
     try { window.dispatchEvent(new CustomEvent(EVENTO_GRAVADO, { detail: detalheGravado(pageId, r) })); }
     catch (e) { /* navegador sem CustomEvent: o painel só atualiza ao reabrir a casa */ }
@@ -1496,8 +1921,18 @@
     var b = ev.target.closest("[data-acao]"); if (!b || b.disabled) return;
     var pageId = obraAberta(), acao = b.getAttribute("data-acao"), r;
     if (!pageId) return;
-    if (acao === "dois") { ui.dois = b.getAttribute("data-valor") === "2"; pintar(); return; }
+    if (acao === "dois") { ui.dois = b.getAttribute("data-valor") === "2"; avisarCompradores(pageId); pintar(); return; }
+    /* 05/11: lista dos arquivos do espaço e a confirmação da exclusão (só a tela; nada vai ao servidor) */
+    if (acao === "arquivos") {
+      var ea = b.getAttribute("data-espaco"); ui.listas = ui.listas || {};
+      ui.listas[ea] = !ui.listas[ea]; if (!ui.listas[ea] && ui.excluir && ui.excluir.espaco === ea) ui.excluir = null;
+      pintar(); return;
+    }
+    if (acao === "excluir-nao") { ui.excluir = null; pintar(); return; }
     if (ui.ocupado) return;
+    if (acao === "excluir-arq") { ui.excluir = { espaco: b.getAttribute("data-espaco"), n: Number(b.getAttribute("data-n")) }; pintar(); return; }
+    if (acao === "ver-arq") return verArquivo(pageId, b.getAttribute("data-espaco"), Number(b.getAttribute("data-n")));
+    if (acao === "excluir-sim") return excluirArquivo(pageId, b.getAttribute("data-espaco"), Number(b.getAttribute("data-n")));
     if (acao === "tipo") {
       ui.ocupado = "tipo"; pintar();
       r = await chamarVenda({ action: "tipoCasa", pageId: pageId, valor: b.getAttribute("data-valor") });
@@ -1549,6 +1984,47 @@
       r = await chamarVenda({ action: "devolver", pageId: pageId, motivo: motivo, grupo: grupo });
       return depoisDeGravar(pageId, r, nomeDossie + " devolvido.", false, grupo);
     }
+  }
+  /* 05/11/2026: Ver um anexo — a janela abre antes da espera (senão o navegador bloqueia o pop-up), como o
+     "Abrir documento" da conferência; o arquivo chega em base64 e vira um blob na janela nova. */
+  function nomeDoArquivo(espaco, n) {
+    var l = estado && estado.arquivosNomes && estado.arquivosNomes[espaco];
+    return l && l[n] !== undefined ? l[n] : null;
+  }
+  async function verArquivo(pageId, espaco, n) {
+    var w = window.open("about:blank", "_blank"), grupo = grupoDoEspaco(espaco), nome = nomeDoArquivo(espaco, n);
+    var pedido = { action: "verArquivoEspaco", pageId: pageId, espaco: espaco, n: n };
+    if (nome !== null) pedido.nome = nome;
+    ui.ocupado = espaco; ui.ocupadoTexto = "abrindo…"; ui.msg = ""; ui.msgGrupo = grupo; pintar();
+    var r = await chamarVenda(pedido, 90000);
+    if (!mesmaCasa(pageId)) { if (w) { try { w.close(); } catch (e) {} } return; }
+    ui.ocupado = null; ui.ocupadoTexto = "";
+    if (r.ok && r.base64) {
+      var bin = atob(r.base64), bytes = new Uint8Array(bin.length);
+      for (var k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+      var url = URL.createObjectURL(new Blob([bytes], { type: r.mime || "application/pdf" }));
+      if (w) { try { w.opener = null; } catch (e) {} w.location.href = url; }
+      else ui.msg = "O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo.";
+      pintar();
+      return;
+    }
+    if (w) { try { w.close(); } catch (e) {} }
+    ui.msg = r.mensagem || mensagemDeErro(r.erro);
+    if (r.erro === "ARQUIVO_MUDOU") return carregarEstado(pageId);
+    pintar();
+  }
+  /* Excluir (depois do "Sim, excluir" na linha): manda o índice e o nome — o servidor recusa se a lista mudou */
+  async function excluirArquivo(pageId, espaco, n) {
+    var nome = nomeDoArquivo(espaco, n), grupo = grupoDoEspaco(espaco);
+    ui.excluir = null;
+    if (nome === null) { ui.msg = mensagemDeErro("ARQUIVO_MUDOU"); ui.msgGrupo = grupo; return carregarEstado(pageId); }
+    ui.ocupado = espaco; ui.ocupadoTexto = "excluindo…"; ui.msg = ""; ui.msgGrupo = grupo; ui.resultados = null; pintar();
+    var r = await chamarVenda({ action: "excluirArquivoEspaco", pageId: pageId, espaco: espaco, n: n, nome: nome }, 90000);
+    if (r.ok && !r.total && ui.listas) ui.listas[espaco] = false;
+    var texto = r.ok ? "Arquivo " + nome + " excluído." + (r.dossie ? " Dossiê voltou a " + r.dossie + "." : "") : "";
+    await depoisDeGravar(pageId, r, texto, false, grupo);
+    /* ENVELOPE_ABERTO volta com a frase pronta do servidor */
+    if (!r.ok && r.mensagem && mesmaCasa(pageId)) { ui.msg = r.mensagem; pintar(); }
   }
   /* ---- "Soltar todos os documentos": identifica cada arquivo (3 de cada vez), guarda o que é do imóvel,
    * pergunta quem é quem para os documentos de pessoa e, confirmado, guarda e lê tudo numa leitura só ---- */
@@ -1604,7 +2080,7 @@
     s.arquivos.forEach(function (a) { porId[a.id] = a; });
     pessoasDoEnvio(s).forEach(function (p) {
       if (p.escolha === "NAO") s.arquivos.forEach(function (a) { if (a.estado === "pessoa" && chavePessoa(a) === p.chave) a.estado = "ignorado"; });
-      if (p.escolha === "C2") ui.dois = true;
+      if (p.escolha === "C2") { ui.dois = true; avisarCompradores(pageId); }
     });
     s.arquivos.forEach(function (a) { if (a.estado === "desconhecido" && a.escolha === "IGNORAR") a.estado = "ignorado"; });
     for (var i = 0; i < destinos.length; i++) {
@@ -2093,7 +2569,9 @@
     } else {
       var dq = new Date(e.em || ""), quando = isNaN(dq) ? "" : dq.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });   /* hora local, não UTC */
       h += '<div class="dz-linha"><span class="dz-rot">Conferido em ' + esc(quando) + (e.por ? " por " + esc(e.por) : "") + "</span></div>";
-      if (!e.atual) h += '<div class="dz-aviso">Os dados mudaram depois desta conferência — confira de novo.</div>';
+      /* 03/11/2026: documentos que chegaram (ou saíram) depois dela também a deixam velha */
+      if (e.anexosMudaram) h += '<div class="dz-aviso">Os documentos anexados mudaram depois desta conferência — confira de novo.</div>';
+      else if (!e.atual) h += '<div class="dz-aviso">Os dados mudaram depois desta conferência — confira de novo.</div>';
       h += '<div style="overflow-x:auto"><table class="dz-tab" style="width:100%;border-collapse:collapse;font-size:13px">' +
         "<tr><th>Pessoa · documento</th><th>Campo</th><th>No contrato</th><th>No documento</th><th>Situação</th></tr>" +
         (e.linhas || []).map(function (l, i) {
@@ -2120,11 +2598,42 @@
     return h;
   }
   /* 01/11/2026: max = hoje no campo da data — só conveniência; quem barra de verdade é o servidor (hora de São Paulo) */
-  function maxHojePR() {
+  function hojePR() {
     try {
       var p = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
-      return /^\d{4}-\d{2}-\d{2}$/.test(p) ? ' max="' + p + '"' : "";
+      return /^\d{4}-\d{2}-\d{2}$/.test(p) ? p : "";
     } catch (e) { return ""; }
+  }
+  function maxHojePR() { var p = hojePR(); return p ? ' max="' + p + '"' : ""; }
+  function minHojePR() { var p = hojePR(); return p ? ' min="' + p + '"' : ""; }
+  /* 06/11/2026 (dono): a DATA LIMITE vem sugerida como hoje + 5 dias corridos (o prazo da reserva); dá para mudar */
+  function sugestaoLimitePR() {
+    var DIAS = 5;   /* dentro da função: o módulo do node sai antes de as var lá de baixo receberem valor */
+    var h = hojePR(); if (!h) return "";
+    var d = new Date(Date.UTC(+h.slice(0, 4), +h.slice(5, 7) - 1, +h.slice(8, 10) + DIAS));
+    return d.toISOString().slice(0, 10);
+  }
+  /* 06/11: os três campos do termo (valor, data do pagamento e data limite) — no cartão e na pergunta do Reservar */
+  function camposPagPR(pg, dis) {
+    return '<label><span>Valor da pré-reserva (R$)</span>' +
+      '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
+      '<label><span>Data do pagamento</span>' +
+      '<input type="date" data-pr-p="data"' + maxHojePR() + ' value="' + esc(pg.data || "") + '"' + dis + "></label>" +
+      '<label><span>Data limite do termo</span>' +
+      '<input type="date" data-pr-p="limite"' + minHojePR() + ' value="' + esc(pg.limite || "") + '"' + dis + "></label>";
+  }
+  /* 06/11/2026 (dono): a janela que abre depois do Reservar — os três campos e "Gerar termo" (salva e gera de uma vez) */
+  function htmlPreReservaRapida(e, u) {
+    var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
+    var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || hojePR(), limite: e.dataLimiteDigitada || sugestaoLimitePR() };
+    var h = '<div class="grp">Termo de pré-reserva</div>' +
+      '<div class="dz-linha dz-rot">Sem contrato gerado até a data limite, a reserva cai sozinha no fim desse dia.</div>' +
+      '<div class="dz-linha dz-pr-pag">' + camposPagPR(pg, dis) + "</div>";
+    if (u.ocupado === "rapido") h += '<div class="dz-linha"><b>salvando e gerando o termo… (até 1 minuto)</b></div>';
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="pr-rapido-gerar"' + dis + ">Gerar termo</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="pr-rapido-fechar"' + (u.ocupado ? " disabled" : "") + ">Agora não</button></div>";
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
   }
   /* 01/11/2026 (dono): "na pré-reserva não precisa do cônjuge, pode deixar a opção de incluir" — caixa desmarcada por
      padrão, só quando o comprador é casado/união estável (e.temConjuge). Sem largura fixa: cabe em 375 px. */
@@ -2140,17 +2649,16 @@
     if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
     var trava = u.testes || !!u.ocupado, dis = trava ? " disabled" : "";
     /* 31/10 (dono): valor e data do pagamento de cada venda; prazo para decidir = pagamento + 7 dias corridos */
-    var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || "" };
+    /* 06/11: a data limite gravada; sem ela e sem termo gerado, a sugestão (hoje + 5); termo antigo sem ela fica em branco */
+    var pg = u.pagDigitado || { valor: brl(e.valor), data: e.dataPagamento || "", limite: e.dataLimiteDigitada || (e.gerado ? "" : sugestaoLimitePR()) };
     /* 31/10/2026 (dono): valor, data e botão numa linha só, campos na mesma altura e o botão pela base (.dz-pr-pag, CSS
        abaixo — vale no cartão do condomínio e na janela da pré-reserva das Propostas); no celular empilha */
-    h += '<div class="dz-linha dz-pr-pag">' +
-      '<label><span>Valor da pré-reserva (R$)</span>' +
-      '<input type="text" data-pr-p="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(pg.valor || "") + '"' + dis + "></label>" +
-      '<label><span>Data do pagamento</span>' +
-      '<input type="date" data-pr-p="data"' + maxHojePR() + ' value="' + esc(pg.data || "") + '"' + dis + "></label>" +
-      '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e data</button></div>";
-    h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimite ? "Prazo para decidir a compra: " + esc(dataBRpr(e.dataLimite)) + " (pagamento + 7 dias corridos)"
-      : "Informe a data do pagamento para calcular o prazo (pagamento + 7 dias corridos).") + "</span></div>";
+    h += '<div class="dz-linha dz-pr-pag">' + camposPagPR(pg, dis) +
+      '<button type="button" class="bt ghost bt-mini" data-acao="pr-salvar-pag"' + dis + ">Salvar valor e datas</button></div>";
+    h += '<div class="dz-linha"><span class="dz-rot">' + (e.dataLimiteDigitada
+      ? "O termo garante a unidade até " + esc(dataBRpr(e.dataLimiteDigitada)) + ". Sem contrato gerado até lá, a reserva cai no fim desse dia."
+      : e.dataLimite ? "Prazo para decidir a compra: " + esc(dataBRpr(e.dataLimite)) + " (pagamento + 7 dias corridos — termo de antes da data limite)"
+      : "Informe a data limite e salve.") + "</span></div>";
     if (u.ocupado === "pag") h += '<div class="dz-linha"><b>salvando valor e data…</b></div>';
     if (e.historico) h += '<details class="dz-linha"><summary class="dz-rot">Histórico de alterações</summary><pre style="white-space:pre-wrap;margin:4px 0">' + esc(e.historico) + "</pre></details>";
     /* 27/10 (dono): PIX (chave + banco) ou dados bancários (banco com busca, agência, conta e tipo) */
@@ -2201,6 +2709,8 @@
               PR_VALOR_INVALIDO: "Valor da pré-reserva inválido.", PR_DATA_INVALIDA: "Informe a data do pagamento.",
               PR_DATA_FUTURA: "A data do pagamento não pode ser depois de hoje. Informe o dia em que o cliente pagou.",
               PR_VALOR_MAIOR_QUE_SINAL: "O valor da pré-reserva não pode passar do sinal da venda. Confira o valor.",
+              PR_LIMITE_INVALIDA: "Informe a data limite do termo.", PR_LIMITE_PASSADA: "A data limite não pode ser antes de hoje.",
+              PR_LIMITE_ANTES_DO_PAGAMENTO: "A data limite não pode ser antes da data do pagamento.",
               SEM_PERMISSAO_TESTES: "Perfil TESTES não gera nem grava.", SEM_RESPOSTA: "O servidor não respondeu — tente de novo." };
     if (e.indexOf("COLUNA_FALTANDO: ") === 0) return "A base não tem a coluna " + e.slice(17) + " — avise o desenvolvedor.";
     return M[e] || (e ? mensagemContrato(r) : "");
@@ -2208,7 +2718,8 @@
 
   function novoCtxA() { return { estado: null, ocupado: null, msg: "", faltas: null, testes: perfilTestes() }; }
 
-  function novoUiR() { return { ocupado: null, msg: "", testes: perfilTestes(), rascunho: {}, arquivos: {} }; }
+  function novoUiR() { return { ocupado: null, msg: "", testes: perfilTestes(), rascunho: {}, arquivos: {}, valores: {}, esperados: {},
+                               editando: null, novo: {}, finMsg: "", voltas: 0 }; }
   /* um PDF em base64 (vindo pela sessão do portal) vira um endereço blob: local para a janela aberta no clique */
   function urlDoPdf(base64) {
     var bin = atob(base64), bytes = new Uint8Array(bin.length);
@@ -2227,20 +2738,26 @@
     if (s !== "ENVIADO" && s !== "ASSINADO") return;
     try { window.dispatchEvent(new CustomEvent("venda:contrato-enviado", { detail: { pageId: pageId, situacao: s } })); } catch (e) {}
   }
+  /* 03/11/2026 (dono): contrato FINAL gerado já é venda — proposta VENDIDA, mapa VENDIDA = SIM e o e-mail de venda ao
+   * corretor. Usa o mesmo aviso do enviado (vendas.html só age na linha do condomínio). */
+  function avisarContratoGerado(pageId, estado) {
+    if (!estado || !(estado.gerado || estado.etapa === "FINAL")) return;
+    try { window.dispatchEvent(new CustomEvent("venda:contrato-enviado", { detail: { pageId: pageId, situacao: "GERADO" } })); } catch (e) {}
+  }
 
   /* opts.recebimentos: o bloco Recebimentos (só a casa da VENDAS; o cartão do condomínio não tem) */
   function criarBlocosVenda(pageId, ativo, opts) {
     var eu = { pageId: pageId }, comRec = !!(opts && opts.recebimentos);
     var raiz = null, seqC = 0, carregandoC = false, estadoC = null, uiC = novoUiC();
     var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
-    var estadoR = null, uiR = novoUiR();
+    var estadoR = null, uiR = novoUiR(), esperaR = null;
     var estadoF = null, uiF = { filtro: "todas", todas: false, msg: "", carregando: false };   /* 31/10: aba Financeiro */
     var estadoA = null, uiA = novoUiA(), esperaA = null;   /* 31/10: Antecipação de parcelas (aba Financeiro) */
     /* 27/10/2026: termo de pré-reserva (condomínio) */
     /* 28/10: soPR = só os blocos da pré-reserva (a janela do "Pagou preferência" na tela de propostas) */
     var soPR = !!(opts && opts.soPreReserva);
     var estadoD = null, uiD = { ocupado: null, msg: "", testes: perfilTestes() };   /* 28/10: conferência dos documentos */
-    var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes() };
+    var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes(), rapido: !!(opts && opts.rapido) };
     var ctxP = novoCtxA(); ctxP.doc = "PRE_RESERVA";
     function vivo() { return !!ativo(eu); }
     function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
@@ -2263,6 +2780,8 @@
     function enviadoA() { var VA = window.VendaAssinatura; return !!(VA && VA.envelopeAberto && VA.envelopeAberto(ctxA)); }
     function htmlCt() {
       if (assinadoA()) return htmlHistorico(estadoC && estadoC.historico);
+      /* 04/11: só a casa de rua (painel com Recebimentos) abre as caixas do que falta; o vendas.html desenha o campo */
+      uiC.campoVenda = comRec && typeof window.PainelFaltaCampo === "function" ? function (f) { return window.PainelFaltaCampo(pageId, f); } : null;
       return enviadoA() ? htmlContratoLeitura(estadoC, uiC) : htmlContrato(estadoC, uiC);
     }
     /* 03/11 (dono): contrato gerado direto, termo nunca enviado = pré-reserva dispensada (o servidor também recusa).
@@ -2274,6 +2793,7 @@
     }
     function htmlPR() {
       if (assinadoP()) return "";
+      if (uiP.rapido && estadoP && !estadoP.gerado && !assinadoA() && !dispensadaP()) return htmlPreReservaRapida(estadoP, uiP);   /* 06/11 */
       if (assinadoA()) return '<div class="grp">Pré-reserva</div><div class="vazio">O contrato já foi assinado por todos — a pré-reserva não muda mais.</div>';
       if (dispensadaP()) return '<div class="grp">Pré-reserva</div><div class="vazio">Dispensada — o contrato desta unidade foi gerado direto, sem a pré-reserva.</div>';
       return htmlPreReserva(estadoP, uiP);
@@ -2297,6 +2817,7 @@
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
+      raiz.querySelectorAll("[data-com-campo]").forEach(function (x) { uiC.rascunho["com|" + x.getAttribute("data-com-campo")] = x.value; });   /* 05/11/2026 */
       rascunhoFia(uiC.rascunho, caixasFia());   /* 01/11: bloco Fiadores — só o que foi mexido */
     }
     function caixasFia() {
@@ -2490,30 +3011,68 @@
       if (m) { uiF.filtro = m[1]; uiF.todas = false; pintarF(); return; }
       if (acao === "f-todas") { uiF.todas = true; pintarF(); }
     }
-    /* entrega 14: Recebimentos — a data digitada sobrevive ao redesenho; o arquivo escolhido fica em uiR.arquivos */
+    /* entrega 14: Recebimentos — o que se digita sobrevive ao redesenho; o arquivo escolhido fica em uiR.arquivos.
+       05/11: valor por pagamento, valor esperado, outros, contrato de financiamento e o retorno do Mais Controle */
     function guardarRascunhoR() {
       if (!raiz || !raiz.querySelectorAll) return;
       raiz.querySelectorAll("[data-rec-data]").forEach(function (x) { uiR.rascunho[x.getAttribute("data-rec-data")] = x.value; });
+      raiz.querySelectorAll("[data-rec-valor]").forEach(function (x) { uiR.valores[x.getAttribute("data-rec-valor")] = x.value; });
+      raiz.querySelectorAll("[data-rec-esp]").forEach(function (x) { uiR.esperados[x.getAttribute("data-rec-esp")] = x.value; });
+      raiz.querySelectorAll("[data-rec-novo]").forEach(function (x) { uiR.novo[x.getAttribute("data-rec-novo")] = x.value; });
     }
     function pintarR() { var w = dentro(".vb-rec"); if (w) { guardarRascunhoR(); w.innerHTML = htmlRecebimentos(estadoR, uiR); } }
+    function itemR(id) {
+      return [].concat((estadoR && estadoR.itens) || [], (estadoR && estadoR.outros) || []).filter(function (x) { return x.id === id; })[0] || null;
+    }
+    function aplicarR(r) {
+      if (!estadoR || !r) return;
+      if (r.itens) estadoR.itens = r.itens;
+      if (r.outros) estadoR.outros = r.outros;
+      if ("mc" in r) estadoR.mc = r.mc;
+      if (r.contratoFinEstado) estadoR.contratoFin = r.contratoFinEstado;
+    }
+    /* o robô do servidor devolve o resultado em MC - RECEBIMENTOS: a tela relê a cada 20 s enquanto ele trabalha (até 10 min) */
+    function acompanharR(r) {
+      if (r && /^NA_FILA/.test(String(r.mcPedido || ""))) uiR.voltas = 0;
+      if (esperaR || !estadoR || !estadoR.mc || estadoR.mc.situacao !== "PROCESSANDO" || uiR.voltas >= 30) return;
+      esperaR = setTimeout(function () { esperaR = null; uiR.voltas++; if (vivo() && !uiR.ocupado) carregarRec(); }, 20000);
+    }
     async function carregarRec() {
       var r = await chamarVenda({ action: "recebimentoEstado", pageId: pageId });
       if (!vivo()) return;
-      if (r.ok) { estadoR = { itens: r.itens || [], emailConfigurado: !!r.emailConfigurado }; uiR.msg = ""; }
-      else uiR.msg = mensagemRec(r);
+      if (r.ok) {
+        estadoR = { itens: r.itens || [], outros: r.outros || [], outrosColuna: !!r.outrosColuna, contratoFin: r.contratoFin || null,
+                    vendaLancada: r.vendaLancada, filaLigada: !!r.filaLigada, mc: r.mc || null, emailConfigurado: !!r.emailConfigurado };
+        if (!uiR.ocupado && uiR.msg === "carregando…") uiR.msg = "";
+      } else uiR.msg = mensagemRec(r);
       pintarR();
+      acompanharR(null);
+    }
+    /* fim comum das ações que gravam: estado novo, mensagem, acompanha o robô */
+    function depoisR(r, ok) {
+      uiR.ocupado = null;
+      if (r.ok) aplicarR(r);
+      uiR.msg = ok(r);
+      pintarR();
+      if (r.ok) { avisarDadosGravados(pageId); acompanharR(r); }
+      else if (r.erro === "SEM_RESPOSTA") carregarRec();   // o servidor pode ter gravado mesmo assim
     }
     async function confirmarRec(b) {
       if (uiR.ocupado || !estadoR) return;
-      var id = b.getAttribute("data-item"), it = (estadoR.itens || []).filter(function (x) { return x.id === id; })[0];
+      var id = b.getAttribute("data-item"), it = itemR(id);
       if (!it) return;
       guardarRascunhoR();
-      var data = String(uiR.rascunho[id] || "").trim(), f = uiR.arquivos[id] || null;
+      var data = String(uiR.rascunho[id] || "").trim(), f = uiR.arquivos[id] || null, valor = String(uiR.valores[id] || "").trim();
       if (!data) { uiR.msg = "Informe a data do recebimento do " + it.rotulo + "."; pintarR(); return; }
-      if (!window.confirm("Confirmar o recebimento do " + it.rotulo + " em " + dataRec(data) + "?" +
-                          (estadoR.emailConfigurado ? " Um e-mail de aviso será enviado." : ""))) return;
+      var lista = it.modo === "lista";
+      if (lista && !valor && !(typeof it.falta === "number" && it.falta > 0)) { uiR.msg = mensagemRec({ erro: "VALOR_INVALIDO" }); pintarR(); return; }
+      var quanto = lista ? (valor ? "R$ " + valor : moedaRec(it.falta)) + " " : "";
+      if (!window.confirm("Confirmar o recebimento de " + quanto + "do " + it.rotulo + " em " + dataRec(data) + "?" +
+                          (estadoR.emailConfigurado ? " Um e-mail de aviso será enviado." : "") +
+                          (it.baixaMC && estadoR.vendaLancada ? " O robô dá baixa no Mais Controle." : ""))) return;
       uiR.ocupado = id; uiR.msg = ""; pintarR();
       var payload = { action: "recebimentoConfirmar", pageId: pageId, item: id, data: data };
+      if (lista && valor) payload.valor = valor;
       if (f) {
         var arq = await prepararArquivo(f);
         if (arq.erro) { if (vivo()) { uiR.ocupado = null; uiR.msg = mensagemDeErro(arq.erro); pintarR(); } return; }
@@ -2521,15 +3080,77 @@
       }
       var r = await chamarVenda(payload, 150000);
       if (!vivo()) return;
-      uiR.ocupado = null;
-      if (r.ok) {
-        if (r.itens) estadoR.itens = r.itens;
-        delete uiR.arquivos[id]; delete uiR.rascunho[id];
-        uiR.msg = mensagemRec(r, it.rotulo);
-      } else uiR.msg = mensagemRec(r);
+      if (r.ok) { delete uiR.arquivos[id]; delete uiR.rascunho[id]; delete uiR.valores[id]; }
+      depoisR(r, function (x) { return mensagemRec(x, x.ok ? it.rotulo : ""); });
+    }
+    async function removerRec(b) {
+      if (uiR.ocupado || !estadoR) return;
+      var id = b.getAttribute("data-item"), pag = b.getAttribute("data-pag"), it = itemR(id);
+      if (!it || !window.confirm("Tirar este pagamento do " + it.rotulo + "? (só do portal)")) return;
+      uiR.ocupado = id; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoRemover", pageId: pageId, item: id, pagamento: pag });
+      if (!vivo()) return;
+      depoisR(r, function (x) { return x.ok ? "Pagamento tirado do " + it.rotulo + "." : mensagemRec(x); });
+    }
+    function editarRec(b) {
+      var id = b.getAttribute("data-item");
+      guardarRascunhoR();
+      uiR.editando = uiR.editando === id ? null : id;
+      delete uiR.esperados[id];
       pintarR();
-      if (r.ok) avisarDadosGravados(pageId);
-      else if (r.erro === "SEM_RESPOSTA") carregarRec();   // o servidor pode ter gravado mesmo assim
+    }
+    async function valorRec(b) {
+      if (uiR.ocupado || !estadoR) return;
+      guardarRascunhoR();
+      var id = b.getAttribute("data-item"), it = itemR(id), v = String(uiR.esperados[id] || "").trim();
+      if (!it) return;
+      if (!v) { uiR.msg = "Informe o novo valor esperado do " + it.rotulo + " (0 para zerar)."; pintarR(); return; }
+      if (!window.confirm("Mudar o valor esperado do " + it.rotulo + " para R$ " + v + "?" +
+                          (/^(SINAL|FINANCIAMENTO|FGTS)$/.test(id) && estadoR.vendaLancada ? " O robô acerta a parcela no Mais Controle." : ""))) return;
+      uiR.ocupado = id; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoValor", pageId: pageId, item: id, valor: v, rotulo: it.outro ? it.rotulo : undefined });
+      if (!vivo()) return;
+      if (r.ok) { uiR.editando = null; delete uiR.esperados[id]; }
+      depoisR(r, function (x) { return x.ok ? "Valor esperado do " + it.rotulo + " salvo." + (MC_PEDIDO[x.mcPedido] || "") : mensagemRec(x); });
+    }
+    async function novoRec() {
+      if (uiR.ocupado || !estadoR) return;
+      guardarRascunhoR();
+      var rot = String(uiR.novo.rotulo || "").trim(), v = String(uiR.novo.valor || "").trim();
+      if (!rot) { uiR.msg = mensagemRec({ erro: "ROTULO_INVALIDO" }); pintarR(); return; }
+      uiR.ocupado = "NOVO"; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoValor", pageId: pageId, item: "OUTRO", rotulo: rot, valor: v });
+      if (!vivo()) return;
+      if (r.ok) uiR.novo = {};
+      depoisR(r, function (x) { return x.ok ? "Recebimento “" + rot + "” acrescentado." : mensagemRec(x); });
+    }
+    async function finRec() {
+      if (uiR.ocupado || !estadoR) return;
+      var f = uiR.arquivos.FIN || null, n = (estadoR.contratoFin && estadoR.contratoFin.arquivos) || 0;
+      if (!f && !n) { uiR.finMsg = mensagemRec({ erro: "SEM_ARQUIVO" }); pintarR(); return; }
+      if (!window.confirm((f ? "Guardar e ler o contrato de financiamento " + f.name : "Ler de novo o último contrato de financiamento guardado") +
+                          "? O valor financiado (e o FGTS e o subsídio, se o contrato mostrar) será trocado pelo do contrato.")) return;
+      uiR.ocupado = "FIN"; uiR.finMsg = ""; pintarR();
+      var payload = { action: "recebimentoLerContratoFin", pageId: pageId };
+      if (f) {
+        var arq = await prepararArquivo(f);
+        if (arq.erro) { if (vivo()) { uiR.ocupado = null; uiR.finMsg = mensagemDeErro(arq.erro); pintarR(); } return; }
+        payload.arquivo = arq;
+      }
+      var r = await chamarVenda(payload, 150000);
+      if (!vivo()) return;
+      if (r.ok) delete uiR.arquivos.FIN;
+      uiR.finMsg = r.ok ? ((r.preenchidos || []).length ? "Atualizado pelo contrato: " + r.preenchidos.join(", ") + "." : "Nada mudou.") +
+                          ((r.observacoes || []).length ? " " + r.observacoes.join(" · ") : "") + (MC_PEDIDO[r.mcPedido] || "")
+                        : mensagemRec(r);
+      depoisR(r, function () { return ""; });
+    }
+    async function mcRec() {
+      if (uiR.ocupado || !estadoR) return;
+      uiR.ocupado = "MC"; uiR.msg = ""; pintarR();
+      var r = await chamarVenda({ action: "recebimentoMC", pageId: pageId });
+      if (!vivo()) return;
+      depoisR(r, function (x) { return x.ok ? "Pedido ao Mais Controle na fila." + (MC_PEDIDO[x.mcPedido] || "") : mensagemRec(x); });
     }
     /* entrega 14: "Ver contrato assinado" — o PDF vem pela sessão do portal, como o pré-contrato */
     async function verAssinado() {
@@ -2678,7 +3299,7 @@
       var r = await chamarVenda({ action: "preReservaEstado", pageId: pageId });
       if (!vivo()) return;
       if (r.ok) { estadoP = { conta: r.conta || "", contaCampos: r.contaCampos || null, gerado: !!r.gerado, nome: r.nome || "", valor: r.valor,
-                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", historico: r.historico || "",
+                              dataPagamento: r.dataPagamento || "", dataLimite: r.dataLimite || "", dataLimiteDigitada: r.dataLimiteDigitada || "", historico: r.historico || "",
                               incluirConjuge: !!r.incluirConjuge, temConjuge: !!r.temConjuge }; uiP.msg = ""; }
       else uiP.msg = mensagemPR(r);
       pintarP();
@@ -2715,6 +3336,16 @@
       } else uiP.msg = rj.mensagem || mensagemPR(rj);   /* a caixa volta ao que estava: pintarP redesenha de estadoP */
       pintarP();
     }
+    /* 06/11: grava valor, pagamento e data limite e atualiza o estado da tela */
+    async function salvarPagPR(pd) {
+      var rp = await chamarVenda({ action: "salvarPagamentoPreReserva", pageId: pageId, valor: lerNumBR(pd.valor), data: pd.data || "", limite: pd.limite || "" });
+      if (rp.ok && estadoP) {
+        estadoP.valor = rp.valor; estadoP.dataPagamento = rp.dataPagamento; estadoP.dataLimite = rp.dataLimite;
+        estadoP.dataLimiteDigitada = rp.dataLimiteDigitada || ""; estadoP.historico = rp.historico || "";
+        uiP.pagDigitado = undefined;
+      }
+      return rp;
+    }
     async function aoClicarPR(acao) {
       if (uiP.ocupado || !estadoP) return;
       if (acao === "pr-ver") {
@@ -2729,15 +3360,31 @@
         guardarPagPR();
         var pd = uiP.pagDigitado || {};
         uiP.ocupado = "pag"; uiP.msg = ""; pintarP();
-        var rp = await chamarVenda({ action: "salvarPagamentoPreReserva", pageId: pageId, valor: lerNumBR(pd.valor), data: pd.data || "" });
+        var rp = await salvarPagPR(pd);
         if (!vivo()) return;
         uiP.ocupado = null;
-        if (rp.ok) {
-          estadoP.valor = rp.valor; estadoP.dataPagamento = rp.dataPagamento; estadoP.dataLimite = rp.dataLimite; estadoP.historico = rp.historico || "";
-          uiP.pagDigitado = undefined;
-          uiP.msg = !rp.mudou ? "Nada mudou." : "Valor e data salvos." + (estadoP.gerado ? " Gere o termo de novo para valer." : "");
-        } else uiP.msg = mensagemPR(rp);
+        if (rp.ok) uiP.msg = !rp.mudou ? "Nada mudou." : "Valor e datas salvos." + (estadoP.gerado ? " Gere o termo de novo para valer." : "");
+        else uiP.msg = mensagemPR(rp);
         pintarP();
+        return;
+      }
+      /* 06/11/2026 (dono): pergunta do Reservar — salva valor, pagamento e data limite e já gera o termo */
+      if (acao === "pr-rapido-fechar") { if (typeof window.propFecharPreReserva === "function") window.propFecharPreReserva(); return; }
+      if (acao === "pr-rapido-gerar") {
+        guardarPagPR();
+        var pr = uiP.pagDigitado || {};
+        uiP.ocupado = "rapido"; uiP.msg = ""; uiP.faltas = null; pintarP();
+        var rs = await salvarPagPR(pr);
+        if (!vivo()) return;
+        if (!rs.ok) { uiP.ocupado = null; uiP.msg = mensagemPR(rs); pintarP(); return; }
+        var rq = await chamarVenda({ action: "gerarTermoPreReserva", pageId: pageId }, 150000);
+        if (!vivo()) return;
+        uiP.ocupado = null; uiP.rapido = false;   /* daqui em diante, a tela inteira do termo (ver, conta, cônjuge, Clicksign) */
+        if (rq.ok) { estadoP.gerado = true; estadoP.nome = rq.nome || ""; uiP.msg = "Termo gerado — confira em Visualizar termo e envie para assinatura."; }
+        else if (rq.erro === "FALTAM_DADOS") { uiP.faltas = rq.faltas || []; uiP.msg = "Valor e datas salvos. O termo sai quando o cadastro estiver completo — use Gerar termo de pré-reserva."; }
+        else uiP.msg = "Valor e datas salvos, mas o termo não foi gerado: " + mensagemPR(rq);
+        pintarP();
+        if (!rq.ok && rq.erro === "SEM_RESPOSTA") carregarPR();
         return;
       }
       if (acao === "pr-salvar-conta") {
@@ -2917,6 +3564,7 @@
       if (r.ok) { estadoC = estadoContrato(r); uiC.msg = ""; }
       else uiC.msg = mensagemContrato(r);
       pintar();
+      if (r.ok) avisarContratoGerado(pageId, estadoC);
       /* 31/10/2026: o cartão do condomínio mostra o quadro do link só quando falta algo (vendas.html escuta) */
       if (r.ok) try { window.dispatchEvent(new CustomEvent("venda:faltas-cliente", { detail: { pageId: pageId, faltas: estadoC.faltasCliente || null } })); } catch (e) {}
     }
@@ -2925,6 +3573,10 @@
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
       if (/^pr-/.test(acao)) return aoClicarPR(acao);
+      if (acao === "c-fluxo-pdf") {   /* 04/11: o PDF do quadro do cartão, com o fluxo que está salvo */
+        if (typeof window.condPdfFluxo === "function") window.condPdfFluxo(pageId);
+        return;
+      }
       if (acao === "c-fluxo-ver") {
         /* 31/10/2026: abre o Quadro do pro soluto do cartão (aba Contrato) */
         var box = raiz && raiz.closest ? raiz.closest(".cd-cardbox") : null, dd = box && box.querySelector("details.cd-dobra");
@@ -2940,6 +3592,12 @@
       if (acao === "a-ver-assinado") return verAssinado();
       if (/^a-/.test(acao)) return aoClicarAss(acao, b);
       if (acao === "r-confirmar") return confirmarRec(b);
+      if (acao === "r-remover") return removerRec(b);       /* 05/11: vários pagamentos, valor esperado, outros, contrato, MC */
+      if (acao === "r-editar") return editarRec(b);
+      if (acao === "r-valor") return valorRec(b);
+      if (acao === "r-novo") return novoRec();
+      if (acao === "r-fin") return finRec();
+      if (acao === "r-mc") return mcRec();
       if (uiC.ocupadoContrato) return;
       if (acao === "c-ver") {
         /* abre a janela AGORA, dentro do clique (antes de qualquer await), senão o
@@ -3031,6 +3689,28 @@
         if (r.conta && estadoC) { estadoC.conta = contaDoEstado(r.conta); uiC.contaDigitar = undefined; limparRascunhoConta(); }
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
+      }
+      if (acao === "c-com-salvar") {
+        /* 05/11/2026: grava só os dados de pagamento no cadastro do corretor (não gera pré-contrato) */
+        guardarRascunho();
+        var caixasCom = [];
+        raiz.querySelectorAll("[data-com-campo]").forEach(function (x) {
+          if (!x.disabled) caixasCom.push({ coluna: x.getAttribute("data-com-campo"), orig: x.getAttribute("data-com-orig"), valor: x.value });
+        });
+        var pedCom = pedidoComissao(caixasCom);
+        if (!pedCom) { uiC.msg = "Nada mudou — preencha ou corrija um campo antes de salvar."; pintar(); return; }
+        uiC.ocupadoContrato = "comissao"; uiC.msg = ""; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "salvarCamposContrato", pageId: pageId, soSalvar: true, campos: pedCom }, 60000);
+        if (seq !== seqC || !vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) {
+          Object.keys(uiC.rascunho).forEach(function (k) { if (/^com\|/.test(k)) delete uiC.rascunho[k]; });
+          await carregarContrato();   /* relê o bloco e o aviso de pré-contrato desatualizado */
+          uiC.msg = "Dados de pagamento salvos no cadastro do corretor.";
+        } else uiC.msg = mensagemContrato(r);
+        pintar();
+        return;
       }
       if (acao === "c-fia-salvar" || acao === "c-fia-conjuge") return aoClicarFia(acao);
       if (acao === "c-condesp-ia" || acao === "c-condesp-salvar") return aoClicarCondEsp(acao);
@@ -3149,6 +3829,8 @@
     }
     async function aoClicarFluxo(acao, b) {
       var ed = uiC.fluxoEd, k = Number(b.getAttribute("data-k"));
+      /* 04/11: conta do simulador pendente (digitou e clicou logo): faz agora, antes do botão */
+      if (esperaG) { clearTimeout(esperaG); esperaG = null; if (ed) guiarEditor(ed, null); }
       if (acao === "c-fluxo-abrir") {
         uiC.ocupadoContrato = "fluxo"; uiC.msg = ""; pintar();
         var r = await chamarVenda({ action: "fluxoEditar", pageId: pageId });
@@ -3168,7 +3850,7 @@
       if (!ed) return;
       if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
       if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
-      if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) { ed.linhas.splice(k, 1); ed.bemK = null; ed.salvarDepois = false; } pintar(); return; }
+      if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) { ed.linhas.splice(k, 1); ed.bemK = null; ed.salvarDepois = false; travasAoApagar(ed, k); } pintar(); return; }
       /* 03/11 (dono): CRLV da permuta — escolhe a foto/PDF, a IA lê no servidor (lerCrlv) e a tela preenche só o vazio */
       if (acao === "c-fluxo-crlv") {
         var lv = ed.linhas[k];
@@ -3217,29 +3899,51 @@
         if (depois) return aoClicarFluxo("c-fluxo-salvar", b);
         return;
       }
-      if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; pintar(); return; }
-      if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); pintar(); return; }
+      if (acao === "c-fluxo-padrao") { ed.linhas = copiaLinhas(ed.padrao.linhas); ed.valor = ed.padrao.valor; ed.semComissao = false; ed.descontos = []; limparGuia(ed); pintar(); return; }
+      if (acao === "c-fluxo-desconto") { aplicarDescontoTela(ed); ed.ajustadas = {}; ed.sugestao = null; ed.guiaErro = ""; pintar(); return; }
+      /* 04/11: cadeado da linha e "Aplicar sugestão" (fluxo guiado pelo simulador) */
+      if (acao === "c-fluxo-trava") { travarLinha(ed, k); pintar(); return; }
+      if (acao === "c-fluxo-sug") {
+        var ms = aplicarSugestao(ed);
+        uiC.msg = ms.length ? "Sugestão aplicada: cadeados abertos — confira as linhas e salve." : (ed.guiaErro || "");
+        pintar();
+        return;
+      }
       if (acao === "c-fluxo-prazo") {
         var pz = Number(b.getAttribute("data-p")), mp = FL().mudarPrazo({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, pz, ed.padrao);   /* a data dos pós-chaves vem da proposta */
         if (mp.erro) uiC.msg = mp.erro;
         else {
-          ed.linhas = mp.linhas;
+          ed.linhas = mp.linhas; limparGuia(ed);
           if (!String(ed.motivo || "").trim()) ed.motivo = "Cliente mudou o prazo da entrada para " + pz + "x";
           uiC.msg = "Fluxo refeito para " + pz + "x — confira as datas e salve.";
         }
         pintar();
         return;
       }
+      if (acao === "c-fluxo-encaixar") {
+        var en = FL().encaixarPre({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, null);
+        ed.linhas = en.linhas;
+        uiC.msg = en.mudou.length ? "Pré-chaves encaixadas em " + en.mudou.length + " linha(s) — confira e salve." : "As pré-chaves já estão mês a mês.";
+        pintar();
+        return;
+      }
+      if (acao === "c-fluxo-datas") {
+        var cd = FL().corrigirDatas({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao);
+        if (cd.erro) uiC.msg = cd.erro;
+        else { ed.linhas = cd.linhas; uiC.msg = cd.mudou.length ? "Datas corrigidas em " + cd.mudou.length + " linha(s) — confira e salve." : "Nenhuma data para corrigir."; }
+        pintar();
+        return;
+      }
       if (acao === "c-fluxo-dist") {
         var ds = FL().distribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas });
-        if (ds.erro) uiC.msg = ds.erro; else { ed.linhas = ds.linhas; uiC.msg = ""; }
+        if (ds.erro) uiC.msg = ds.erro; else { ed.linhas = ds.linhas; ed.ajustadas = {}; ed.sugestao = null; ed.guiaErro = ""; uiC.msg = ""; }
         pintar();
         return;
       }
       if (acao === "c-fluxo-red") {
         if ((FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) return;
         var rd = FL().redistribuir({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);
-        if (rd.erro) uiC.msg = rd.erro; else { ed.linhas = rd.linhas; uiC.msg = ""; }
+        if (rd.erro) uiC.msg = rd.erro; else { ed.linhas = rd.linhas; ed.ajustadas = {}; ed.sugestao = null; ed.guiaErro = ""; uiC.msg = ""; }
         pintar();
         return;
       }
@@ -3301,10 +4005,58 @@
         else if (campo === "t") l.t = alvo.value;
         var tot = raiz.querySelector('.vb-fx-tot[data-k="' + alvo.getAttribute("data-k") + '"]');
         if (tot) tot.textContent = FL().moeda(FL().totalLinha(l));
+        /* 04/11: valor ou quantidade de pré-chaves/balão/pós-chaves — a linha trava na hora; o simulador refaz as soltas
+           depois de uma pausa na digitação */
+        var kk = Number(alvo.getAttribute("data-k"));
+        if (fxMexeu(ed, kk, campo)) {
+          var bt = raiz.querySelector('button[data-acao="c-fluxo-trava"][data-k="' + kk + '"]');
+          if (bt) bt.outerHTML = htmlTrava(kk, true, "");
+          guiarDepois(ed);
+        }
       }
+      if (campo === "valor") guiarDepois(ed);
       var viva = dentro(".vb-fx-viva"), mp = dentro(".vb-fx-mp");
       if (viva) viva.innerHTML = htmlFluxoVivo(ed, "");
       if (mp) mp.style.display = Math.round(ed.valor * 100) === Math.round(ed.valorOriginal * 100) ? "none" : "block";
+    }
+    /* 04/11: o simulador refaz as linhas soltas ~400 ms depois da última tecla, sem redesenhar a tabela (o campo que a
+       pessoa digita não é tocado): troca só os valores, totais, notas e cadeados das linhas de pré-chaves/balão/pós-chaves */
+    var esperaG = null;
+    function guiarDepois(ed) {
+      if (esperaG) clearTimeout(esperaG);
+      esperaG = setTimeout(function () {
+        esperaG = null;
+        if (!raiz || !vivo() || uiC.fluxoEd !== ed) return;
+        guiarEditor(ed, null);
+        pintarGuia(ed);
+      }, 400);
+    }
+    function pintarGuia(ed) {
+      var F = FL(), foco = typeof document !== "undefined" ? document.activeElement : null;
+      ed.linhas.forEach(function (l, k) {
+        if (!ajustavelFx(l)) return;
+        var q = function (s) { return raiz.querySelector(s + '[data-k="' + k + '"]'); };
+        var inp = q('input[data-fx="v"]');
+        if (inp && inp !== foco) inp.value = numBR(l.v);
+        var ult = q(".vb-fx-ult");
+        if (ult) { ult.textContent = l.u && l.n > 1 ? "última: " + numBR(l.u) : ""; ult.style.display = l.u && l.n > 1 ? "" : "none"; }
+        var tot = q(".vb-fx-tot");
+        if (tot) tot.textContent = F.moeda(F.totalLinha(l));
+        var g = q(".vb-fx-guia");
+        if (g) g.innerHTML = htmlGuiaLinha(ed, k);
+        var bt = q('button[data-acao="c-fluxo-trava"]');
+        if (bt) bt.outerHTML = htmlTrava(k, !!(ed.travadas || {})[k], "");
+        var tr = raiz.querySelector('tr[data-fx-linha="' + k + '"]');
+        if (tr) {
+          /* destaque breve nas linhas que o simulador mudou (cores no CSS, claro e escuro) */
+          if ((ed.ajustadas || {})[k]) {
+            tr.setAttribute("data-fx-ajustada", "1"); tr.classList.add("vb-fx-pisca");
+            setTimeout(function () { tr.classList.remove("vb-fx-pisca"); }, 1200);
+          } else tr.removeAttribute("data-fx-ajustada");
+        }
+      });
+      var viva = dentro(".vb-fx-viva");
+      if (viva) viva.innerHTML = htmlFluxoVivo(ed, "");
     }
     /* resposta de gerarPreContrato / aprovarPreContrato / salvarCamposContrato */
     function tratarGeracao(r, aprovar) {
@@ -3321,6 +4073,7 @@
         if (antes.condicoes) estadoC.condicoes = antes.condicoes;  /* especiais não somem depois de gerar */
         uiC.faltas = null; uiC.campos = null;
         var feito = aprovar ? "Contrato gerado." : "Pré-contrato gerado — abra, confira o que está grifado e clique em Conferi.";
+        if (aprovar) avisarContratoGerado(pageId, estadoC);
         /* condomínio: campos que saíram em branco ("____") não travam, mas avisam */
         uiC.msg = r.avisos && r.avisos.length ? feito + " Atenção: " + r.avisos.join("; ") + "." : feito;
       } else if (r.erro === "PRECONTRATO_DESATUALIZADO" || r.erro === "PRECONTRATO_FALTANDO" || r.erro === "PRECONTRATO_REFAZER") {
@@ -3406,20 +4159,29 @@
       if (raiz && raiz !== el) { guardarRascunho(); guardarRascunhoR(); if (comPR) guardarContaPR(); }
       raiz = el;
       if (el.classList) el.classList.add("vb-blocos");
-      if (!el.__vbLigado) {
-        el.__vbLigado = true;
-        el.addEventListener("click", function (ev) { if (raiz === el) aoClicar(ev); });
+      /* 06/11/2026: o mesmo elemento pode receber outro conjunto de blocos (a janela do termo nas Propostas, reaberta
+         para outra venda ou pela pergunta do Reservar). Os ouvintes são de cada conjunto: o novo liga os seus e os do antigo
+         ficam mudos (el.__vbLigado aponta o dono). Antes o antigo continuava ligado, o novo não, e o clique não fazia nada. */
+      if (el.__vbLigado !== eu) {
+        el.__vbLigado = eu;
+        el.addEventListener("click", function (ev) { if (raiz === el && el.__vbLigado === eu) aoClicar(ev); });
         /* 29/10: o que se digita nas condições especiais sobrevive a um redesenho do bloco */
         el.addEventListener("input", function (ev) {
-          if (raiz !== el || !ev.target.classList) return;
+          if (raiz !== el || el.__vbLigado !== eu || !ev.target.classList) return;
           if (ev.target.hasAttribute("data-an")) { aoDigitarAnt(ev.target); return; }
           if (ev.target.hasAttribute("data-fxb")) { aoDigitarBem(ev.target); return; }   /* 03/11: formulário do bem */
           if (ev.target.hasAttribute("data-fx")) { aoDigitarFluxo(ev.target); return; }
           if (ev.target.classList.contains("vb-condesp")) uiC.condRasc = ev.target.value;
           else if (ev.target.classList.contains("vb-condesp-pedido")) uiC.condPedido = ev.target.value;
         });
+        /* revisão 04/11: o simulador não mexe no campo com foco (o cursor); ao sair dele, mostra o valor da conta */
+        el.addEventListener("focusout", function (ev) {
+          if (raiz !== el || el.__vbLigado !== eu || !uiC.fluxoEd || !ev.target.getAttribute || ev.target.getAttribute("data-fx") !== "v") return;
+          var lf = uiC.fluxoEd.linhas[Number(ev.target.getAttribute("data-k"))];
+          if (lf && ajustavelFx(lf)) ev.target.value = numBR(lf.v);
+        });
         el.addEventListener("change", function (ev) {
-          if (raiz !== el) return;
+          if (raiz !== el || el.__vbLigado !== eu) return;
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
           /* 03/11 (dono): data limite para assinar sobrevive a um redesenho do bloco */
@@ -3429,7 +4191,22 @@
           var fxb = ev.target.getAttribute("data-fxb");
           if (fxb === "tipo" || fxb === "situacao") { aoDigitarBem(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* 03/11: muda os campos do formulário */
           var fx = ev.target.getAttribute("data-fx");
-          if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
+          if (fx === "t" || fx === "dmodo") { aoDigitarFluxo(ev.target); if (uiC.fluxoEd) pintar(); return; }
+          if (fx === "n" || fx === "d") {
+            aoDigitarFluxo(ev.target);
+            /* 07/11 (dono): "se eu tenho 2 pré-chaves de 12, não pode deixar eu aumentar uma para 13" — a parte mexida fica,
+               as outras andam/encurtam mês a mês (o total de cada uma não muda) e o simulador refaz as soltas */
+            var edx = uiC.fluxoEd, kx = Number(ev.target.getAttribute("data-k"));
+            if (edx && edx.linhas[kx] && edx.linhas[kx].t === "pre") {
+              var enx = FL().encaixarPre({ valor: edx.valor, entrega: edx.entrega, linhas: edx.linhas }, kx);
+              if (enx.mudou.length) {
+                edx.linhas = enx.linhas;
+                uiC.msg = "As outras pré-chaves foram encaixadas mês a mês (" + enx.mudou.map(function (j) { return "linha " + (j + 1); }).join(", ") + ").";
+                pintar();
+              }
+            }
+            return;
+          }   /* revisão 04/11: setas do número também travam e pedem a conta */   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }
           if (fx === "v" || fx === "valor") {
             /* sai formatado ao sair do campo — sem repintar: repintar no blur engoliria o clique num botão */
@@ -3442,6 +4219,7 @@
           else if (ev.target.hasAttribute("data-rec-arq")) {
             var fl = ev.target.files && ev.target.files[0], k = ev.target.getAttribute("data-rec-arq");
             if (fl) uiR.arquivos[k] = fl; else delete uiR.arquivos[k];
+            if (k === "FIN") pintarR();   /* o botão passa a "Ler e atualizar" */
           }
         });
       }
@@ -3461,7 +4239,7 @@
     };
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPRVisivel(); } };
-    eu.parar = function () { if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; };
+    eu.parar = function () { if (esperaG) clearTimeout(esperaG); esperaG = null; if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; if (esperaR) clearTimeout(esperaR); esperaR = null; };
     /* 31/10: o Financeiro lê as parcelas só ao abrir; o Antecipar confere a data e, se a simulação já estava aberta, o estado */
     eu.abrirAba = function (aba) {
       if (aba !== "financeiro" || !comPR || soPR) return;
@@ -3512,14 +4290,16 @@
   /* 28/10/2026: só o termo de pré-reserva (conta de devolução, gerar, ver, Clicksign) — a tela de propostas
    *   VendaBlocos.montarPreReserva(elemento, pageIdDaLinhaDaVenda)  depois do "Pagou preferência"           */
   var blocosPR = null;
-  function montarPreReserva(el, pageId) {
+  /* 06/11/2026: o = { rapido: true } abre a pergunta do Reservar (valor, pagamento, data limite e Gerar termo) */
+  function montarPreReserva(el, pageId, o) {
     if (!el || !REGEX_ID.test(String(pageId || ""))) return;
-    if (!blocosPR || blocosPR.pageId !== pageId) {
+    var rapido = !!(o && o.rapido);
+    if (!blocosPR || blocosPR.pageId !== pageId || rapido) {
       if (blocosPR) blocosPR.parar();
       blocosPR = criarBlocosVenda(pageId, function (b) {
         var r = b.raiz();
         return blocosPR === b && !!r && r.isConnected !== false;
-      }, { soPreReserva: true });
+      }, { soPreReserva: true, rapido: rapido });
     }
     blocosPR.anexar(el);
   }
@@ -3532,14 +4312,14 @@
     var id = obraAberta();
     if (!id) {
       /* painel fechado: zera para a mesma casa recarregar o estado ao reabrir */
-      if (paginaDoBloco !== null) { paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
+      if (paginaDoBloco !== null) { avisarCompradores(paginaDoBloco, true); paginaDoBloco = null; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: false }; }
       if (blocosCasa) { blocosCasa.parar(); blocosCasa = null; }
       return;
     }
     if (painelCarregando(body.children.length, body.firstElementChild ? body.firstElementChild.className : "",
         !!(body.firstElementChild && body.firstElementChild.querySelector(".load")))) return;
     if (!wrap()) {
-      if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; }
+      if (paginaDoBloco !== id) { paginaDoBloco = id; estado = null; ui = { dois: false, ocupado: null, msg: "", testes: perfilTestes() }; avisarCompradores(id, true); }
       var w = document.createElement("div"); w.id = "dossie-wrap";
       w.addEventListener("click", aoClicar);
       /* entrega 13: soltar vários arquivos na área "Soltar todos os documentos aqui" */
@@ -3565,8 +4345,8 @@
     /* o bloco de assinatura mora em arquivo próprio; vendas.html continua com uma linha só.
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
-    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=8"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=28";
+    var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=9"; document.head.appendChild(sr);
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=30";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

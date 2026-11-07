@@ -116,7 +116,9 @@ test("03/11 permuta de veículo: inciso VI com a identificação inteira e as ob
     assert.match(ob, m);
   assert.equal(C.negritoDaLinha(ob), 0, "o parágrafo das obrigações não é título");
   const G = C.gruposFluxo({ ...co, livre: comBem(carro) });
-  assert.match(C.textoPreChaves(G), /bem dado em pagamento \(permuta\): Hyundai HB20 2019\/2020 placa ABC1D23, identificado no item 6\.1, VI, pelo valor de R\$ 12\.200,00/);
+  /* 04/11: o modelo do advogado não tem o 6.1 com incisos — a identificação inteira vai na alínea c) do quadro */
+  assert.match(C.textoPreChaves(G), /bem dado em pagamento \(permuta\): veículo marca Hyundai, modelo HB20, .*placa ABC1D23, .*pelo valor de R\$ 12\.200,00 \(doze mil e duzentos reais\), com entrega em 15\/11\/2026, sem correção monetária;/);
+  assert.doesNotMatch(C.textoPreChaves(G), /item 6\.1, VI/);
   assert.doesNotMatch(C.textoPreChaves(G, true), /permuta/, "termo de confissão sem a permuta");
 });
 
@@ -133,4 +135,13 @@ test("03/11 permuta quitada, imóvel e outro: texto de cada tipo; fluxo antigo (
   assert.ok(to.includes("a) Trator agrícola de teste, ano 2015, em uso, recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026."), to.join("\n"));
   const velho = C.formaPagamentoCondominio(fluxo, livre).split("\n");
   assert.equal(velho.at(-1), "a) veículo marca/modelo/ano/placa, recebido pelo valor de R$ 12.200,00 (doze mil e duzentos reais), com entrega em 15/11/2026.");
+});
+
+test("04/11: quadro-resumo do modelo do advogado — permuta com dados do bem liga {{#COM_PERMUTA}} e traz as obrigações", () => {
+  const b = (c) => C.blocos({ vendedor: {}, negociacao: { intermediariaValor: null }, comissao: {}, condominio: { fiadores: [], ...c } });
+  assert.equal(b({ ...co, livre: comBem(carro) }).COM_PERMUTA, true);
+  assert.equal(b(co).COM_PERMUTA, false, "permuta antiga, só com a descrição: sem o parágrafo novo");
+  assert.equal(b({ ...co, livre: F.normalizar({ ...livre, linhas: livre.linhas.filter((l) => l.t !== "permuta") }) }).COM_PERMUTA, false);
+  const ob = C.obrigacoesPermuta(C.gruposFluxo({ ...co, livre: comBem(carro) }).permutas);
+  assert.match(ob, /^Quanto ao bem dado em pagamento, o COMPRADOR se obriga/);
 });

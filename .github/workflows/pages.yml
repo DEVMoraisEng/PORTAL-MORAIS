@@ -93,6 +93,11 @@ jobs:
           NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
         run: python fetch_pos_obra.py
 
+      # 05/11/26 — dist/medidores_mc.json NÃO é mais gerado aqui: vem do robô do
+      # servidor (robo_mc_medidores.py, solicitações/OC do Mais Controle, de hora
+      # em hora), que publica o arquivo direto no repositório. O medidores_mc.py
+      # (Orçado x Realizado) saiu — gerar aqui sobrescreveria a leitura do servidor.
+
       # Gera dist/docs.json (base DOCUMENTOS + atividades de documentação).
       # Step SEPARADO pelo mesmo motivo do Pós Obra: se a leitura desta base
       # falhar, o que os steps anteriores já gravaram continua sendo publicado

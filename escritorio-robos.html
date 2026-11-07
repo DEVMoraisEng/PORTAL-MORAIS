@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Escritório de Robôs · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--vermelho:#c0392b;--laranja:#e2a03a;
+  --sombra:rgba(20,40,55,.16);
+  --piso1:#dfe9ed;--piso2:#d4e1e6;--madeira1:#c99a6b;--madeira2:#a87a4f;--moldura:#24313b;
+  --st-ok:#2a9d5c;--st-erro:#d64534;--st-trab:#2f80c2;--st-off:#8aacbb;
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--vermelho:#e0604f;--sombra:rgba(0,0,0,.45);
+  --piso1:#16252f;--piso2:#132029;--madeira1:#8a6544;--madeira2:#6d4e33;--moldura:#0a1117;
+  --st-ok:#3cbf5d;--st-erro:#e8604f;--st-trab:#4a9ee0;--st-off:#5d7a8c;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;min-height:100vh}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
+  padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+.hbtn:disabled{opacity:.55;cursor:wait}
+main{max-width:1240px;margin:0 auto;padding:18px 16px 48px;display:flex;flex-direction:column;gap:18px}
+.hide{display:none!important}
+.muted{color:var(--text3)}
+
+/* faixa de resumo */
+.kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:860px){.kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;min-width:0}
+.kpi .lab{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text3)}
+.kpi .val{font-family:'Barlow Condensed';font-weight:800;font-size:28px;line-height:1.1;margin-top:2px;overflow-wrap:anywhere}
+.kpi .sub{font-size:12px;color:var(--text3);margin-top:2px}
+.kpi.ok .val{color:var(--st-ok)} .kpi.erro .val{color:var(--st-erro)}
+.barra{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.chip{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:var(--text3);background:var(--sup);border:1px solid var(--border2);border-radius:999px;padding:5px 11px}
+.chip i{width:8px;height:8px;border-radius:50%;background:var(--st-ok)}
+.chip.velho i{background:var(--laranja)}
+.chk{display:inline-flex;align-items:center;gap:7px;font-size:13px;font-weight:600;color:var(--text3);cursor:pointer;user-select:none}
+.aviso{padding:11px 13px;border-left:4px solid var(--vermelho);background:rgba(192,57,43,.08);border-radius:6px;font-size:13px;line-height:1.5}
+.aviso.amarelo{border-left-color:var(--laranja);background:rgba(226,160,58,.1)}
+.aviso b{font-weight:700}
+
+/* salão */
+.sala{background:
+   linear-gradient(90deg,rgba(255,255,255,.0) 0 49.6%,rgba(0,0,0,.035) 49.6% 50.4%,rgba(255,255,255,0) 50.4%) 0 0/72px 72px,
+   linear-gradient(0deg,rgba(255,255,255,.0) 0 49.6%,rgba(0,0,0,.035) 49.6% 50.4%,rgba(255,255,255,0) 50.4%) 0 0/72px 72px,
+   linear-gradient(180deg,var(--piso1),var(--piso2));
+  border:1px solid var(--border2);border-radius:16px;padding:14px 14px 16px;position:relative}
+.sala h2{margin:2px 4px 12px;font-family:'Barlow Condensed';font-weight:800;font-size:18px;letter-spacing:.6px;text-transform:uppercase;color:var(--azul-esc);display:flex;align-items:center;gap:8px}
+html[data-tema="escuro"] .sala h2{color:var(--teal)}
+.sala h2 small{font-family:Inter;font-weight:600;font-size:12px;letter-spacing:0;text-transform:none;color:var(--text3)}
+.mesas{display:grid;grid-template-columns:repeat(auto-fill,minmax(270px,1fr));gap:14px}
+@media (max-width:420px){.mesas{grid-template-columns:minmax(0,1fr)}}
+
+.mesa{background:var(--sup);border:1px solid var(--border2);border-radius:14px;overflow:hidden;cursor:pointer;display:flex;flex-direction:column;
+  box-shadow:0 6px 18px var(--sombra);transition:transform .15s,box-shadow .15s;text-align:left;font:inherit;color:inherit;padding:0;min-width:0}
+.mesa:hover{transform:translateY(-2px);box-shadow:0 12px 26px var(--sombra)}
+.mesa:focus-visible{outline:3px solid var(--teal);outline-offset:2px}
+.mesa.st-erro{border-color:color-mix(in srgb,var(--st-erro) 55%,var(--border2))}
+
+/* a cena: parede, mesa, monitor e o robô */
+.cena{position:relative;height:150px;overflow:hidden;
+  background:linear-gradient(180deg,color-mix(in srgb,var(--rc) 14%,var(--bg2)) 0 62%,color-mix(in srgb,var(--rc) 6%,var(--bg3)) 62%)}
+.cena .quadro{position:absolute;left:14px;top:12px;width:34px;height:26px;border:3px solid var(--moldura);border-radius:3px;background:linear-gradient(160deg,var(--teal),var(--rc));opacity:.55}
+.cena .planta{position:absolute;right:12px;bottom:28px;width:22px;height:40px}
+.robo{position:absolute;right:16%;bottom:40px;width:78px;height:96px;color:var(--rc)}
+.robo .olho{fill:var(--olho);transition:fill .3s}
+.robo .antena{fill:var(--olho)}
+.robo .braco{transform-origin:12px 62px}
+.tampo{position:absolute;left:5%;right:5%;bottom:28px;height:14px;border-radius:5px;background:linear-gradient(180deg,var(--madeira1),var(--madeira2));box-shadow:0 3px 0 rgba(0,0,0,.18);z-index:3}
+.tampo::before,.tampo::after{content:"";position:absolute;top:14px;width:8px;height:22px;background:var(--madeira2);border-radius:0 0 3px 3px}
+.tampo::before{left:12px}.tampo::after{right:12px}
+.teclado{position:absolute;left:41%;bottom:40px;width:44px;height:7px;border-radius:2px;background:var(--moldura);opacity:.85;z-index:4}
+.caneca{position:absolute;left:9%;bottom:41px;width:12px;height:13px;border-radius:2px 2px 4px 4px;background:var(--rc);z-index:4}
+.caneca::after{content:"";position:absolute;right:-5px;top:3px;width:5px;height:6px;border:2px solid var(--rc);border-left:0;border-radius:0 4px 4px 0}
+.monitor{position:absolute;left:17%;bottom:52px;width:118px;height:76px;border:6px solid var(--moldura);border-radius:8px;z-index:5;
+  background:#0f1d26;display:flex;flex-direction:column;justify-content:center;align-items:center;gap:3px;overflow:hidden}
+.monitor::after{content:"";position:absolute;left:50%;bottom:-18px;width:12px;height:12px;margin-left:-6px;background:var(--moldura)}
+.pe{position:absolute;left:calc(17% + 59px - 22px);bottom:42px;width:44px;height:6px;border-radius:3px;background:var(--moldura);z-index:4}
+.tela-ico{font-size:22px;line-height:1}
+.tela-st{font-family:'Barlow Condensed';font-weight:800;font-size:15px;letter-spacing:.06em;color:#fff;line-height:1;text-transform:uppercase;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+.tela-hr{font-size:10.5px;font-weight:600;color:rgba(255,255,255,.75)}
+.lamp{position:absolute;right:5px;top:5px;width:8px;height:8px;border-radius:50%;background:var(--olho);box-shadow:0 0 8px var(--olho)}
+.linhas{position:absolute;inset:6px 8px;display:none;flex-direction:column;gap:5px}
+.linhas span{height:4px;border-radius:2px;background:rgba(143,220,210,.75)}
+.st-ok{--olho:var(--verde-btn)} .st-ok .monitor{background:linear-gradient(180deg,#123826,#0f2a1f)}
+.st-erro{--olho:#ff5b4f} .st-erro .monitor{background:linear-gradient(180deg,#4a1712,#2e0f0c)}
+.st-trab{--olho:#8FDCD2} .st-trab .monitor{background:linear-gradient(180deg,#10314a,#0c2234)}
+.st-off{--olho:#5d6d78} .st-off .monitor{background:#121a20} .st-off .tela-st{color:#8aa0ad}
+.st-sem{--olho:#9fb4c0} .st-sem .monitor{background:#1a2731}
+.st-off .olho{transform:scaleY(.18);transform-box:fill-box;transform-origin:center}
+.st-trab .linhas{display:flex}.st-trab .tela-ico,.st-trab .tela-hr{opacity:.0}
+.st-trab .tela-st{position:relative;z-index:1;background:#0c2234;padding:2px 5px;border-radius:3px}
+@media (prefers-reduced-motion:no-preference){
+  .st-erro .lamp{animation:pisca 1s steps(2) infinite}
+  .st-trab .linhas{animation:rola 1.6s linear infinite}
+  .st-trab .braco{animation:digita .35s ease-in-out infinite alternate}
+  .st-ok .robo .cabeca{animation:respira 4s ease-in-out infinite}
+  .st-off .zzz{animation:zzz 2.4s ease-in-out infinite}
+}
+@keyframes pisca{50%{opacity:.15}}
+@keyframes rola{from{transform:translateY(0)}to{transform:translateY(-9px)}}
+@keyframes digita{from{transform:rotate(0)}to{transform:rotate(-9deg)}}
+@keyframes respira{50%{transform:translateY(-1.5px)}}
+@keyframes zzz{0%{opacity:0;transform:translate(0,4px)}40%{opacity:1}100%{opacity:0;transform:translate(6px,-8px)}}
+.zzz{display:none;position:absolute;right:9%;top:16px;font-family:'Barlow Condensed';font-weight:800;font-size:18px;color:var(--text4)}
+.st-off .zzz{display:block}
+
+.corpo{padding:11px 14px 13px;display:flex;flex-direction:column;gap:6px;flex:1}
+.placa{display:flex;align-items:baseline;justify-content:space-between;gap:8px}
+.placa b{font-family:'Barlow Condensed';font-weight:800;font-size:19px;letter-spacing:.2px;line-height:1.1}
+.cargo{font-size:10.5px;font-weight:700;letter-spacing:.7px;text-transform:uppercase;color:var(--text4);white-space:nowrap}
+.faz{margin:0;font-size:12.5px;color:var(--text3);line-height:1.45}
+.lin{display:flex;gap:7px;font-size:12.5px;line-height:1.4;align-items:flex-start}
+.lin .k{flex:none;width:62px;color:var(--text4);font-weight:600}
+.lin .v{min-width:0;overflow-wrap:anywhere}
+.ok-t{color:var(--st-ok);font-weight:700}.erro-t{color:var(--st-erro);font-weight:700}.trab-t{color:var(--st-trab);font-weight:700}
+.tira{display:flex;gap:3px;margin-top:4px;align-items:center}
+.tira span{width:13px;height:13px;border-radius:3px;background:var(--st-ok)}
+.tira span.f{background:var(--st-erro)}
+.tira em{font-style:normal;font-size:11px;color:var(--text4);margin-left:4px}
+
+/* gaveta do robô */
+.veu{position:fixed;inset:0;background:rgba(8,16,22,.45);z-index:40}
+.gaveta{position:fixed;top:0;right:0;bottom:0;width:min(640px,100%);background:var(--bg);z-index:41;overflow:auto;box-shadow:-10px 0 30px rgba(0,0,0,.25);display:flex;flex-direction:column}
+.g-top{position:sticky;top:0;z-index:2;background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:14px 16px;display:flex;gap:12px;align-items:center}
+.g-top .t{font-family:'Barlow Condensed';font-weight:800;font-size:22px;line-height:1}
+.g-top .s{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-top:3px}
+.g-top .x{margin-left:auto}
+.g-ico{width:44px;height:44px;border-radius:12px;background:var(--rc);display:grid;place-items:center;font-size:22px;flex:none;border:2px solid rgba(255,255,255,.35)}
+.g-corpo{padding:16px;display:flex;flex-direction:column;gap:14px}
+.box{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px 16px}
+.box h3{margin:0 0 9px;font-family:'Barlow Condensed';font-weight:800;font-size:16px;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .box h3{color:var(--teal)}
+.box p{margin:0;line-height:1.5}
+.tarefa{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:13px}
+.tarefa + .tarefa{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border2)}
+.tarefa .k{color:var(--text4);font-weight:600}
+.rods{display:flex;flex-direction:column;gap:6px}
+.dia{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--text4);margin:8px 2px 0}
+.rod{border:1px solid var(--border2);border-radius:10px;background:var(--bg2);overflow:hidden}
+.rod > button{all:unset;box-sizing:border-box;width:100%;display:flex;align-items:center;gap:10px;padding:9px 12px;cursor:pointer;font-size:13px}
+.rod > button:focus-visible{outline:2px solid var(--teal)}
+.rod .selo{font-family:'Barlow Condensed';font-weight:800;font-size:13px;letter-spacing:.05em;color:#fff;border-radius:4px;padding:2px 8px;flex:none}
+.selo.ok{background:var(--st-ok)}.selo.erro{background:var(--st-erro)}
+.rod .h{font-weight:700;flex:none}
+.rod .r{color:var(--text3);min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+.rod .seta{color:var(--text4);flex:none;transition:transform .15s}
+.rod.aberta .seta{transform:rotate(90deg)}
+.rel{display:none;padding:2px 14px 14px;border-top:1px solid var(--border2);background:var(--sup)}
+.rod.aberta .rel{display:block}
+.rel h4{margin:14px 0 6px;font-size:13px}
+.rel .meta{font-size:12.5px;color:var(--text3);margin:10px 0 0;line-height:1.5}
+.rel ul{margin:0;padding-left:18px;line-height:1.5;font-size:13px}
+.rel li{margin-bottom:6px}
+.rel .fazer{color:var(--text3)}
+.tbl{overflow-x:auto}
+.rel table{border-collapse:collapse;width:100%;font-size:12px}
+.rel th,.rel td{border:1px solid var(--border2);padding:5px 7px;text-align:left;vertical-align:top}
+.rel th{background:var(--bg2);font-weight:700}
+.rel td.txt{white-space:pre-wrap;overflow-wrap:anywhere;min-width:180px}
+.rel pre{font-size:11.5px;white-space:pre-wrap;overflow-wrap:anywhere;background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:8px;margin:0;max-height:320px;overflow:auto}
+.vazio{padding:30px;text-align:center;color:var(--text3)}
+.carregando{padding:40px;text-align:center;color:var(--text3)}
+.rodape{font-size:11.5px;color:var(--text4);text-align:center}
+
+/* estado "pedido" (pediram Rodar de novo) na lista */
+.st-pedido{--olho:#f5c542} .st-pedido .monitor{background:linear-gradient(180deg,#3d3210,#241d08)}
+.ped-t{color:#b8860b;font-weight:700}
+
+/* vista: sala 3D × lista */
+.salas{display:flex;gap:8px;flex-wrap:wrap}
+.salas button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:12px;border:1px solid var(--border2);background:var(--sup);font-weight:700;font-size:14px;color:var(--text2,var(--text3))}
+.salas button[aria-pressed="true"]{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(30,63,88,.25)}
+.salas button .n{font-family:'Barlow Condensed';font-weight:800;font-size:13px;background:var(--st-erro);color:#fff;border-radius:999px;padding:0 7px;line-height:18px}
+.salas button:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+#kpis.kpis-agua{display:block}
+.kpis5{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
+@media (max-width:1100px){.kpis5{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media (max-width:640px){.kpis5{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.kpi-bt{all:unset;box-sizing:border-box;cursor:pointer;background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;min-width:0;display:block;transition:transform .12s,box-shadow .12s}
+.kpi-bt:hover{transform:translateY(-1px);box-shadow:0 6px 16px rgba(30,63,88,.12)}.kpi-bt:focus-visible{outline:2px solid var(--azul);outline-offset:2px}
+.kpi-bt.aten .val{color:#b8860b}
+.pa-barra{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.pa-chips{display:flex;gap:6px;flex-wrap:wrap}
+.pa-chip{all:unset;cursor:pointer;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:999px;border:1px solid var(--border2);background:var(--sup);color:var(--text3)}
+.pa-chip b{font-family:'Barlow Condensed';margin-left:4px}
+.pa-chip[aria-pressed="true"]{background:var(--azul);color:#fff;border-color:transparent}
+#pa-busca{flex:1;min-width:180px;max-width:320px;padding:7px 11px;border-radius:9px;border:1px solid var(--border2);background:var(--sup);color:inherit;font:inherit;font-size:13px}
+.pa-sub{font-size:12px;margin:2px 0 10px}
+.pa-grupo{background:var(--sup);border:1px solid var(--border2);border-left:4px solid #e0b11f;border-radius:10px;margin:0 0 10px;padding:0 12px 8px}
+.pa-grupo.erro{border-left-color:var(--st-erro)}.pa-grupo.aviso{border-left-color:#9aa7b0}
+.pa-cab{display:flex;justify-content:space-between;gap:10px;align-items:baseline;flex-wrap:wrap;padding:10px 0 4px;cursor:pointer;font-size:14px}
+.pa-cab span{font-size:12px;color:var(--text3)}
+.pa-fazer{font-size:12.5px;color:var(--text3);margin:0 0 6px}
+.pa-t{width:100%;border-collapse:collapse;font-size:13px}.pa-t th{font-size:10.5px;letter-spacing:.5px;text-transform:uppercase;color:var(--text3);text-align:left;padding:5px 6px}
+.pa-t td{border-top:1px solid var(--border2);padding:6px;vertical-align:top}.pa-t .mono{font-family:ui-monospace,Consolas,monospace;font-size:12.5px}
+.pa-l{white-space:nowrap}.lk{display:inline-block;font-size:12px;font-weight:700;padding:3px 8px;border-radius:7px;background:rgba(41,87,120,.1);color:var(--azul);text-decoration:none;margin:0 4px 3px 0}
+.lk.mc{background:rgba(42,157,92,.12);color:var(--verde-esc)}.lk:hover{filter:brightness(.92)}
+.ctag{white-space:nowrap;font-size:12px;font-weight:700}
+.gaveta .pa-t th:nth-child(4),.gaveta .pa-t td:nth-child(4){display:none}.gaveta .pa-l{white-space:normal}.gaveta .pa-grupo{padding:0 8px 6px}
+@media (max-width:700px){.pa-t th:nth-child(4),.pa-t td:nth-child(4){display:none}.pa-l{white-space:normal}}
+.passos{width:100%;border-collapse:collapse;font-size:13px}.passos td{padding:5px 6px;border-top:1px solid var(--border2);vertical-align:top}
+.passos td:first-child{white-space:nowrap;font-weight:700}
+.lista-cad{margin:6px 0 0;padding-left:18px;font-size:13px;line-height:1.55}
+.vistas{display:inline-flex;border:1px solid var(--border2);border-radius:999px;overflow:hidden;background:var(--sup)}
+.vistas button{all:unset;cursor:pointer;padding:6px 14px;font-size:12.5px;font-weight:700;color:var(--text3)}
+.vistas button[aria-pressed="true"]{background:var(--azul);color:#fff}
+.vistas button:focus-visible{outline:2px solid var(--teal)}
+.sala3d{position:relative;height:min(74vh,760px);min-height:440px;border-radius:16px;overflow:hidden;border:1px solid var(--border2);background:var(--bg2);touch-action:none}
+.sala3d canvas{display:block;cursor:grab}
+.sala3d canvas:active{cursor:grabbing}
+.dica3d{position:absolute;left:12px;bottom:10px;font-size:11.5px;font-weight:600;color:var(--text3);background:color-mix(in srgb,var(--sup) 85%,transparent);border:1px solid var(--border2);border-radius:999px;padding:4px 10px;pointer-events:none}
+.dica3d-mouse{position:absolute;display:none;pointer-events:none;font-size:12px;font-weight:700;background:var(--azul-esc);color:#fff;padding:4px 9px;border-radius:6px;white-space:nowrap;z-index:3}
+.baloes{position:absolute;inset:0;pointer-events:none;z-index:2}
+.balao{position:absolute;left:0;top:0;pointer-events:auto;width:min(230px,58vw);background:var(--sup);border:2px solid var(--st-erro);border-radius:12px;padding:9px 11px 10px;
+  box-shadow:0 10px 26px rgba(0,0,0,.28);font-size:12px;line-height:1.4;display:flex;flex-direction:column;gap:4px}
+.balao::after{content:"";position:absolute;left:50%;bottom:-9px;margin-left:-8px;border:8px solid transparent;border-top-color:var(--st-erro);border-bottom:0}
+.balao b{color:var(--st-erro);font-size:12.5px}
+.balao span{color:var(--text);display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.balao.pedido{border-color:#e0b11f}.balao.pedido::after{border-top-color:#e0b11f}.balao.pedido b{color:#b8860b}
+.bb{display:flex;gap:6px;margin-top:3px;flex-wrap:wrap}
+.bb button,.bt{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:7px;padding:5px 9px;font:inherit;font-weight:700;font-size:11.5px;cursor:pointer}
+.bb button.rodar,.bt.rodar{background:var(--st-erro);border-color:var(--st-erro);color:#fff}
+.bb button:disabled,.bt:disabled{opacity:.6;cursor:wait}
+.pino{position:absolute;left:0;top:0;pointer-events:auto;border:2px solid #fff;border-radius:999px;min-width:30px;height:28px;padding:0 8px;
+  font:800 13px/24px Inter,sans-serif;color:#fff;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.3)}
+.pino.erro{background:var(--st-erro)}.pino.ped{background:#d9a514}
+@media (prefers-reduced-motion:no-preference){.pino.erro{animation:pulo 1.4s ease-in-out infinite}}
+@keyframes pulo{50%{margin-top:-4px}}
+.sala3d-linha{display:flex;gap:12px;align-items:flex-start}
+.sala3d-linha>.sala3d{flex:1 1 auto;min-width:0}
+.avisos3d{flex:0 0 300px;position:sticky;top:10px;max-height:min(74vh,760px);display:flex}
+.avisos3d:empty,.sala3d.hide+.avisos3d{display:none}
+.avisos3d .quadro-avisos{position:static;width:100%;max-height:100%}
+@media (max-width:900px){.sala3d-linha{flex-direction:column;align-items:stretch}.avisos3d{flex:none;position:static;max-height:none}}
+.quadro-avisos{position:absolute;right:10px;top:10px;z-index:3;width:min(320px,calc(100% - 20px));max-height:calc(100% - 60px);display:flex;flex-direction:column;
+  background:color-mix(in srgb,var(--sup) 96%,transparent);border:1px solid var(--border);border-left:4px solid var(--st-erro);border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.22);font-size:12px}
+.qa-top{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;border-bottom:1px solid var(--border2)}
+.qa-top b{color:var(--st-erro);font-size:12.5px}
+.qa-top button{all:unset;cursor:pointer;color:var(--text3);font-weight:700;font-size:11.5px}
+.qa-corpo{overflow:auto;padding:6px 10px 10px;display:flex;flex-direction:column;gap:8px}
+.quadro-avisos.fechado .qa-corpo{display:none}
+.qa-it{display:flex;flex-direction:column;gap:3px;padding-bottom:8px;border-bottom:1px dashed var(--border2)}
+.qa-it span{color:var(--text);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.qa-fila{color:#b8860b;font-weight:600}
+@media (max-width:600px){.quadro-avisos{top:auto;bottom:44px;max-height:45%}}
+.causa{border-left:4px solid var(--st-erro);background:color-mix(in srgb,var(--st-erro) 8%,var(--sup))}
+.causa h3{color:var(--st-erro)!important}
+.causa .acoes{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
+.causa .acoes small{color:var(--text3);font-size:12px;line-height:1.4;flex:1;min-width:200px}
+.logs{display:flex;flex-direction:column;gap:2px;font-size:11.8px;max-height:340px;overflow:auto;border:1px solid var(--border2);border-radius:6px;background:var(--bg2);padding:6px}
+.lg{display:grid;grid-template-columns:64px 74px 1fr;gap:6px;padding:3px 4px;border-radius:4px;align-items:start}
+.lg span{color:var(--text4);font-variant-numeric:tabular-nums}.lg i{font-style:normal;color:var(--text3);font-weight:600;overflow:hidden;text-overflow:ellipsis}
+.lg b{font-weight:500;overflow-wrap:anywhere}.lg.ruim{background:color-mix(in srgb,var(--st-erro) 10%,transparent)}.lg.ruim b{color:var(--st-erro)}
+@media (max-width:520px){.lg{grid-template-columns:56px 1fr}.lg i{display:none}}
+details summary{cursor:pointer;font-size:12.5px;color:var(--text3);font-weight:600;margin-bottom:6px}
+.pdfbox{margin-top:14px;border:1px solid var(--border2);border-radius:8px;overflow:hidden;background:var(--bg2)}
+.pdfbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12.5px;flex-wrap:wrap}
+iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#fff}
+.pdflink{display:block;padding:7px 10px;font-size:12px;font-weight:600;color:var(--azul)}
+.agenda{display:flex;flex-direction:column;gap:8px}
+.ag-l{display:grid;grid-template-columns:190px 1fr;gap:10px;align-items:center;padding:6px 0;border-bottom:1px dashed var(--border2)}
+.ag-l b{font-size:13px}
+.ag-h{display:flex;flex-wrap:wrap;gap:6px}
+.ag-c{font-size:12.5px;font-weight:700;border:2px solid;border-radius:8px;padding:3px 8px;font-variant-numeric:tabular-nums}
+.ag-ok{color:var(--st-ok);border-color:var(--st-ok);background:color-mix(in srgb,var(--st-ok) 10%,transparent)}
+.ag-erro{color:var(--st-erro);border-color:var(--st-erro);background:color-mix(in srgb,var(--st-erro) 10%,transparent)}
+.ag-rodando{color:var(--st-trab);border-color:var(--st-trab)}
+.ag-pendente{color:var(--text3);border-color:var(--border)}
+.ag-sem{color:var(--text4);border-color:var(--border2);border-style:dotted}
+.ag-x{border-style:dashed}
+@media (max-width:520px){.ag-l{grid-template-columns:1fr}}
+.toast{position:fixed;left:50%;bottom:22px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;font-weight:600;font-size:13px;padding:10px 16px;border-radius:10px;box-shadow:0 10px 26px rgba(0,0,0,.3);z-index:60;max-width:calc(100% - 32px)}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle">Escritório de Robôs</div>
+      <div class="hsub">Morais Engenharia · quem trabalha no servidor</div>
+    </div>
+    <div class="hspace"></div>
+    <button class="hbtn" id="bt-recarregar" type="button" title="Buscar de novo">↻ Atualizar</button>
+    <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
+    <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+
+<main>
+  <nav class="salas" id="salas" aria-label="Salas">
+    <button type="button" id="s-mc" aria-pressed="true">🏢 Robôs do Mais Controle</button>
+    <button type="button" id="s-agua" aria-pressed="false">💧 Água e Energia <span class="n hide" id="s-agua-n"></span></button>
+  </nav>
+  <div id="avisos"></div>
+  <div class="kpis" id="kpis"></div>
+  <div class="barra" style="width:100%">
+    <span class="chip" id="chip-gerado"><i></i><span>Buscando o servidor…</span></span>
+    <label class="chk"><input type="checkbox" id="so-problema"> Só quem precisa de atenção</label>
+    <span class="hspace"></span>
+    <button type="button" class="bt" id="bt-agenda" title="Horários de hoje e o que já rodou">📅 Agenda de hoje</button>
+    <span class="vistas" role="group" aria-label="Como ver"><button type="button" id="v-3d" aria-pressed="true">Sala 3D</button><button type="button" id="v-lista" aria-pressed="false">Lista</button></span>
+  </div>
+  <div class="sala3d-linha">
+    <section class="sala3d hide" id="sala3d" aria-label="Sala 3D do escritório de robôs">
+      <span class="dica3d">Arraste para girar · role ou pince para aproximar · clique num robô</span>
+    </section>
+    <!-- 04/11 (dono): os avisos ficam FORA da sala, no canto, para não cobrir as mesas -->
+    <aside class="avisos3d" id="avisos3d" aria-label="Quem precisa de atenção"></aside>
+  </div>
+  <div id="carregando" class="carregando">Chamando os robôs para a reunião…</div>
+  <section class="sala hide" id="sala-recepcao">
+    <h2>Recepção <small>quem abre a porta do Mais Controle e atende o portal</small></h2>
+    <div class="mesas" id="mesas-recepcao"></div>
+  </section>
+  <section class="sala hide" id="sala-salao">
+    <h2>Salão <small>cada robô na sua mesa — clique para ver o horário e os relatórios</small></h2>
+    <div class="mesas" id="mesas-salao"></div>
+  </section>
+  <section class="sala hide" id="painel-agua" aria-label="Pendências e erros da Água e Energia">
+    <h2>Pendências e erros <small>casa por casa, com a UC/matrícula e o link para o Notion e o Mais Controle</small></h2>
+    <div id="painel-agua-corpo"></div>
+  </section>
+  <div class="rodape" id="rodape"></div>
+</main>
+
+<div class="veu hide" id="veu"></div>
+<aside class="gaveta hide" id="gaveta" role="dialog" aria-modal="true" aria-labelledby="g-titulo"></aside>
+
+<script src="app.js?v=46"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="escritorio-3d.js?v=6"></script>
+<script>
+/* ===== ESCRITÓRIO DE ROBÔS (03/11/26) =======================================
+ * Uma mesa por robô do servidor do escritório. Os dados vêm do próprio
+ * servidor (_portal\servidor\escritorio_robos.py), que sobe o arquivo
+ * robos/escritorio.json para o bucket PRIVADO "analise" do Supabase depois de
+ * cada rodada e a cada 5 min. Esta página pede ao Apps Script (escritorioBoot,
+ * apps-script/EscritorioRobos.gs) um link assinado de 15 min e baixa o arquivo.
+ * Acesso: "ESCRITÓRIO DE ROBÔS" na coluna ACESSOS do LOGINS (ADM/MASTER veem).
+ * ========================================================================== */
+const S = exigirSessao();
+const $ = id => document.getElementById(id);
+const CACHE_LOCAL = "morais_escritorio_v1";
+const RECARREGAR_MS = 3 * 60 * 1000;
+const VELHO_MIN = 30;                   // dados mais velhos que isto: o servidor pode estar desligado
+
+/* O que cada robô faz (a chave vem do comando da tarefa agendada: --robo X, --indices, --nome "X"). */
+const CATALOGO = {
+  porteiro: { nome: "Porteiro do ERP", cargo: "Portaria", ico: "🔑", cor: "#2A285F", recepcao: true,
+    faz: "Mantém o Chrome central logado no Mais Controle. Todos os outros robôs entram pela sessão dele — ninguém mais faz login." },
+  fila:     { nome: "Atendente da fila", cargo: "Balcão do portal", ico: "🛎️", cor: "#1B5173", recepcao: true,
+    faz: "De minuto em minuto atende os pedidos feitos no portal (lançar venda, distrato, anexar contrato, ZIP) pela aba do porteiro." },
+  coordenador: { nome: "Coordenador da fila", cargo: "Gerência", ico: "🧭", cor: "#c27c0e", recepcao: true,
+    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos → medidores → documentos), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
+  contas:   { nome: "Contas, clientes e obras", cargo: "Cadastro", ico: "🏦", cor: "#3f7cac",
+    faz: "Espelha as contas bancárias do Mais Controle no Notion, confere os proprietários (nome e CPF/CNPJ) e cria no MC as obras marcadas “Criar”." },
+  bases:    { nome: "Bases no Notion", cargo: "Arquivo", ico: "🗂️", cor: "#6c5ce7",
+    faz: "Copia do Mais Controle para o Notion as obras ativas e os fornecedores (MC - OBRAS ATIVAS e MC - FORNECEDORES)." },
+  medicoes: { nome: "Medições de contratos", cargo: "Engenharia", ico: "📐", cor: "#d9952b",
+    faz: "Lê no Mais Controle os contratos e a última medição de cada obra e atualiza o Mapa de Obras." },
+  indices:  { nome: "Índices de reajuste", cargo: "Financeiro", ico: "📈", cor: "#2a9d5c",
+    faz: "Busca o INCC-M e o IPCA no Banco Central e lança os meses novos nas tabelas de reajuste do Mais Controle." },
+  retratos: { nome: "Retrato das vendas", cargo: "Vendas", ico: "🧾", cor: "#b5567a",
+    faz: "Lê no Mais Controle cada venda do condomínio e guarda o retrato financeiro (pagas, a vencer, em atraso) para a aba Financeiro." },
+  anexos:   { nome: "Anexos da auditoria", cargo: "Auditoria", ico: "📎", cor: "#3aa79a",
+    faz: "Traz do Mais Controle boleto, NF, recibo e comprovante dos pagamentos com alerta para o 📎 da Auditoria Financeira." },
+  medidores: { nome: "Medidores", cargo: "Compras", ico: "📟", cor: "#8e6bbf",
+    faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
+  documentos: { nome: "Documentos do Orçamento", cargo: "Vendas", ico: "📂", cor: "#a0784a",
+    faz: "Todo dia cedo procura em Obras › Orçamento do Mais Controle a matrícula, a certidão mãe, o alvará e o habite-se de cada casa de rua vendida e anexa no dossiê do imóvel o que for novo (fica como “novo, não lido”). Só lê o ERP." },
+  agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
+    faz: "Coleta as contas de água e energia das obras." }
+};
+function ehAgua(chave) { return /agua|energia/.test(String(chave || "")); }
+function catDe(chave, titulo) {
+  if (CATALOGO[chave]) return CATALOGO[chave];
+  if (/agua|energia/.test(chave)) return CATALOGO.agua;
+  return { nome: titulo || chave, cargo: "Automação", ico: "🤖", cor: "#5a8099", faz: "Automação do servidor do escritório." };
+}
+
+let DADOS = null, ABERTO = null, CARREGANDO = false;
+const PEDIDOS = {};                       // chave -> hora (ms) em que pediram "Rodar de novo" nesta tela
+const PEDIDO_VALE_MS = 12 * 60 * 1000;
+const PODE_RODAR = ["ADM", "MASTER"].includes(String((S && S.tipo) || "").toUpperCase());
+
+/* ---------------- datas ---------------- */
+function dataDe(iso) { if (!iso) return null; const d = new Date(iso); return isNaN(d) ? null : d; }
+function mesmoDia(a, b) { return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate(); }
+const DSEM = ["dom", "seg", "ter", "qua", "qui", "sex", "sáb"];
+function hhmm(d) { return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); }
+function ddmm(d) { return String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0"); }
+function quando(iso) {
+  const d = dataDe(iso); if (!d) return "—";
+  const hoje = new Date(), ontem = new Date(hoje), amanha = new Date(hoje);
+  ontem.setDate(hoje.getDate() - 1); amanha.setDate(hoje.getDate() + 1);
+  if (mesmoDia(d, hoje)) return "hoje " + hhmm(d);
+  if (mesmoDia(d, ontem)) return "ontem " + hhmm(d);
+  if (mesmoDia(d, amanha)) return "amanhã " + hhmm(d);
+  return DSEM[d.getDay()] + " " + ddmm(d) + " " + hhmm(d);
+}
+function ha(d) {
+  const m = Math.round((Date.now() - d.getTime()) / 60000);
+  if (m < 1) return "agora há pouco";
+  if (m < 60) return "há " + m + " min";
+  const h = Math.floor(m / 60); if (h < 48) return "há " + h + " h" + (m % 60 && h < 6 ? " " + (m % 60) + " min" : "");
+  return "há " + Math.floor(h / 24) + " dias";
+}
+function diaTitulo(d) {
+  const hoje = new Date(), ontem = new Date(); ontem.setDate(hoje.getDate() - 1);
+  if (mesmoDia(d, hoje)) return "Hoje";
+  if (mesmoDia(d, ontem)) return "Ontem";
+  return ["Domingo", "Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado"][d.getDay()] + ", " + ddmm(d);
+}
+
+/* ---------------- junta tarefas e rodadas por robô ---------------- */
+function montarRobos(D) {
+  const mapa = new Map();
+  const pega = ch => { if (!mapa.has(ch)) mapa.set(ch, { chave: ch, tarefas: [], rodadas: [] }); return mapa.get(ch); };
+  (D.tarefas || []).forEach(t => pega(t.chave).tarefas.push(t));
+  Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
+  /* 04/11: todo robô conhecido tem mesa, mesmo sem tarefa agendada ainda (ex.: anexos da auditoria) */
+  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos"].forEach(pega);
+  const PL = D.coordenador, plAtivo = !!(PL && !["terminado", "cancelado"].includes(PL.status));
+  mapa.forEach(r => { r.log = ((D.log || {})[r.chave]) || []; });
+  /* porteiro: a linha "porteiro: …" mais nova de qualquer rodada */
+  let ultP = null;
+  for (const lista of Object.values(D.rodadas || {})) for (const r of lista || []) {
+    if (r.porteiro && (!ultP || (r.inicio || "") > (ultP.inicio || ""))) ultP = r;
+  }
+  /* 04/11: o de água e energia tem sala própria (montarRobosAgua) */
+  [...mapa.keys()].forEach(ch => { if (ehAgua(ch)) mapa.delete(ch); });
+  const robos = [...mapa.values()].map(r => {
+    const cat = catDe(r.chave, (r.tarefas[0] || {}).titulo);
+    const ult = r.rodadas[0] || null;
+    /* 04/11: o servidor diz quem está no Mais Controle agora — também o que foi rodado por um .bat, que o
+       Agendador não mostra (o anexos das 17:12 aparecia "deu errado" com a rodada nova no meio) */
+    const agoraR = (D.rodando || {})[r.chave];
+    const rodando = r.tarefas.some(t => t.estado === "trabalhando") || !!agoraR;
+    const desligado = r.tarefas.length && r.tarefas.every(t => t.estado === "desligada");
+    const proximas = r.tarefas.map(t => t.proxima).filter(Boolean).sort();
+    const res = r.tarefas.map(t => t.resultado).filter(x => x != null);
+    const resRuim = res.some(x => ![0, 267009, 267011, 267014].includes(x));
+    let st = "sem", stTexto = "sem notícias", stHora = "";
+    if (r.chave === "porteiro") {
+      const P = D.porteiro;          // 04/11: o servidor diz o que os ROBÔS viram por último (o porteiro.log mentia)
+      if (P && P.estado && P.estado !== "?") { st = P.estado === "ok" ? "ok" : "erro"; stTexto = P.estado === "ok" ? "logado" : "fora do Mais Controle"; stHora = quando(P.em); }
+      else if (ultP) { const logado = /^porteiro: logado/.test(ultP.porteiro || ""); st = logado ? "ok" : "erro"; stTexto = logado ? "logado" : "fora"; stHora = quando(ultP.fim || ultP.inicio); }
+      else { stTexto = "esperando a conferência do servidor (a cada 5 min)"; }
+    } else if (r.chave === "coordenador") {
+      if (plAtivo) {
+        const feitos = PL.fila.filter(i => i.estado === "feito" || i.estado === "falhou").length;
+        st = "trab"; stTexto = (PL.msg || "reorganizando") ; stHora = feitos + " de " + PL.fila.length;
+      } else if (PL && PL.status) {
+        st = PL.status === "cancelado" ? "erro" : "ok"; stTexto = (PL.status === "cancelado" ? "cancelou: " : "terminou: ") + (PL.msg || ""); stHora = quando(PL.fim || PL.criado);
+      } else { st = "ok"; stTexto = "pronto para reorganizar"; }
+    } else if (r.chave === "fila") {
+      const em = dataDe((D.saude || {}).em);
+      const filas = Object.values((D.saude || {}).filas || {});
+      const erros = filas.reduce((a, f) => a + (Number(f.erros) || 0), 0);
+      if (em) {
+        /* 04/11: o sinal da fila conta a partir da PUBLICAÇÃO (D.gerado), não de agora — o arquivo sobe a cada
+           5–10 min e a mesa ficava "sem sinal" só porque a página foi aberta depois (o chip mostra se está velho) */
+        const ref = dataDe(D.gerado) || new Date();
+        const min = (ref.getTime() - em.getTime()) / 60000;
+        st = min > 10 ? "erro" : (erros ? "erro" : "ok");
+        stTexto = min > 10 ? "sem sinal" : (erros ? erros + " erro" + (erros > 1 ? "s" : "") : "atendendo");
+        stHora = hhmm(em);
+      }
+    } else if (rodando) { st = "trab"; stTexto = "trabalhando"; }
+    else if (!r.tarefas.length && !r.rodadas.length) {
+      const ul = [...r.log].reverse().find(l => l.de === r.chave && / código -?\d+/.test(l.texto));
+      if (ul) { const ruim = / código [1-9]/.test(ul.texto); st = ruim ? "erro" : "ok"; stTexto = (ruim ? "deu errado" : "deu certo") + " (rodado à mão)"; stHora = quando(ul.em); }
+      else { st = "off"; stTexto = "sem tarefa agendada"; }
+    }
+    else if (desligado) { st = "off"; stTexto = "desligado"; }
+    else if (ult) { st = ult.ok ? "ok" : "erro"; stTexto = ult.ok ? "deu certo" : "deu errado"; stHora = quando(ult.inicio); }
+    else if (res.length) { st = resRuim ? "erro" : "ok"; stTexto = resRuim ? "deu errado" : "deu certo"; stHora = quando(r.tarefas[0].ultima); }
+    /* 05/11: a tarefa que nem começou (0x8007010B às 05:20 e 22:00) não deixa relatório — a mesa ficava "deu certo"
+       pela rodada à mão da véspera. Resultado ruim da tarefa MAIS NOVO que a última rodada manda na mesa. */
+    if (!["porteiro", "fila", "coordenador"].includes(r.chave)) {
+      const ruim = r.tarefas.filter(t => t.resultado != null && ![0, 267009, 267011, 267014].includes(t.resultado) && t.ultima
+                                   && (!ult || !dataDe(ult.inicio) || dataDe(t.ultima) > dataDe(ult.inicio)))
+                            .sort((a, b) => String(b.ultima).localeCompare(String(a.ultima)))[0];
+      if (ruim) { st = "erro"; stTexto = /NÃO COMEÇOU/.test(ruim.resultado_texto || "") ? "a tarefa não começou" : "deu errado"; stHora = quando(ruim.ultima); }
+    }
+    if (rodando && r.chave !== "porteiro" && r.chave !== "fila") {
+      st = "trab"; stTexto = agoraR && agoraR.fase === "esperando a vez" ? "esperando a vez no Mais Controle" : "trabalhando";
+      if (agoraR && agoraR.desde) stHora = "desde " + hhmm(dataDe(agoraR.desde));
+    }
+    if (st === "sem" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
+    const noPlano = plAtivo && PL.fila.find(i => i.chave === r.chave && (i.estado === "esperando" || i.estado === "rodando"));
+    if (noPlano && noPlano.estado === "esperando" && st !== "trab") { st = "pedido"; stTexto = "na fila do coordenador (" + (PL.fila.indexOf(noPlano) + 1) + "º)"; }
+    const ped = PEDIDOS[r.chave];
+    if (ped && Date.now() - ped < PEDIDO_VALE_MS && st !== "trab" && !(ult && dataDe(ult.inicio) && dataDe(ult.inicio).getTime() > ped - 60000)) {
+      st = "pedido"; stTexto = "na fila para rodar de novo";
+    } else if (ped && (st === "trab" || Date.now() - ped >= PEDIDO_VALE_MS)) delete PEDIDOS[r.chave];
+    return Object.assign(r, { cat, ult, st, stTexto, stHora, proxima: proximas[0] || null, ultP: r.chave === "porteiro" ? ultP : null });
+  });
+  const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
+  robos.sort((a, b) => {
+    const ia = ordem.indexOf(a.chave), ib = ordem.indexOf(b.chave);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
+  });
+  return robos;
+}
+
+/* ===== SALA DA ÁGUA E ENERGIA (04/11/26) ====================================
+ * O robô das contas de água e energia é outro programa (pasta agua_energia, tarefa às 07:30 seg–sex) e não roda
+ * pelo rodar_e_relatar: ganha sala própria, uma mesa por PASSO da rodada, com o resumo que ele mesmo grava
+ * (servidor/sala_agua.py → D.agua). Rodar de novo pelo portal fica DESLIGADO para ele: lança contas e cria
+ * recorrências no Mais Controle, e rodar fora de hora pode lançar em dobro.
+ * ========================================================================== */
+const CAT_AGUA = {
+  coletor:      { nome: "Coletor das contas", cargo: "Recepção · a rodada inteira", ico: "💧", cor: "#2d8fd5", recepcao: true,
+    faz: "Todo dia útil às 07:30 roda a rodada inteira: lê a base do Notion, monta as filas do mês, emite as faturas na Equatorial e as guias na Sanesc, lança no Mais Controle, cuida das ligações novas e das recorrências e manda o relatório por e-mail (com o PDF)." },
+  cadastro:     { nome: "Cadastro no Notion", cargo: "Pendências e repetidas", ico: "🗂️", cor: "#6c5ce7", recepcao: true,
+    faz: "Junta o que a rodada achou de errado na base LIGAÇÕES DE ÁGUA E ENERGIA: casa sem UC/matrícula, CPF/CNPJ vazio e linhas REPETIDAS (a mesma casa duas vezes, ou a mesma UC/matrícula em mais de uma casa). UC repetida não lança nem cria recorrência até a equipe corrigir no Notion." },
+  notion:       { nome: "Base do Notion", cargo: "Leitura", ico: "📒", cor: "#3f7cac",
+    faz: "Lê a base LIGAÇÕES DE ÁGUA E ENERGIA do Notion (só leitura — o robô nunca grava no Notion) e regrava a base mestre." },
+  filas:        { nome: "Filas do mês", cargo: "Planejamento", ico: "📋", cor: "#5a8099",
+    faz: "Separa, para cada concessionária, as ligações que precisam de conta no mês." },
+  equatorial:   { nome: "Equatorial (energia)", cargo: "Coleta", ico: "⚡", cor: "#d9952b",
+    faz: "Entra no portal da Equatorial pelo Chrome real e emite as faturas do mês de cada UC. Não resolve CAPTCHA: se o portal não liberar o login, para e tenta no dia seguinte." },
+  sanesc:       { nome: "Sanesc (água)", cargo: "Coleta", ico: "🚰", cor: "#2a9d8f",
+    faz: "Consulta cada matrícula no portal da Sanesc, pega as guias em aberto e a data da leitura. Guia emitida só volta a ser consultada 7 dias depois." },
+  lancar:       { nome: "Lançar no Mais Controle", cargo: "Financeiro", ico: "🧾", cor: "#2a9d5c",
+    faz: "Lança no Mais Controle as faturas coletadas (Equatorial + Sanesc). Fatura do cliente (depois da entrega das chaves) não se paga." },
+  contas:       { nome: "Ligações novas", cargo: "Cadastro no ERP", ico: "🔌", cor: "#b5567a",
+    faz: "Para cada casa recém-ligada: lança os atrasados e cria as 12 recorrências no Mais Controle." },
+  recorrencias: { nome: "Recorrências", cargo: "Renovação", ico: "🔁", cor: "#8e6bbf",
+    faz: "Renova as recorrências que estão acabando, sem duplicar as que já foram renovadas." },
+  email:        { nome: "E-mail do relatório", cargo: "Correio", ico: "✉️", cor: "#c27c0e",
+    faz: "Manda o relatório da rodada (com o PDF) por e-mail. Se a GoDaddy recusar, tenta 3 vezes e as tarefas de reenvio das 10:00 e 14:00 mandam o que faltou." }
+};
+const ORDEM_AGUA = ["coletor", "cadastro", "notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias", "email"];
+const PASSOS_AGUA = ["notion", "filas", "equatorial", "sanesc", "lancar", "contas", "recorrencias"];
+function estadoEmail(x) {
+  if (x && x.email_enviado) return "ok";        // 04/11: saiu (na rodada ou no reenvio das 10:00/14:00)
+  const e = String((x && x.email) || ""); return /NÃO enviado|nao enviado/i.test(e) ? "erro" : /enviado/i.test(e) ? "ok" : "off";
+}
+function textoEmail(x) {
+  const e = String((x && x.email) || "");
+  if (x && x.email_enviado) return /NÃO enviado|nao enviado/i.test(e) ? "enviado depois, pela tarefa de reenvio (na rodada: " + e + ")" : (e || "e-mail enviado");
+  return e || "a rodada não escreveu nada sobre o e-mail";
+}
+function estadoAgua(k, x) {
+  if (!x) return { st: "off", texto: "" };
+  if (PASSOS_AGUA.includes(k)) return (x.estados || {})[k] || { st: "off", texto: "não rodou nesta rodada" };
+  if (k === "email") return { st: estadoEmail(x), texto: textoEmail(x) };
+  if (k === "cadastro") {
+    const d = (x.duplicados || []).length, p = (x.problemas || []).length;
+    return { st: d ? "erro" : "ok", texto: d ? d + " linha(s) repetida(s) no Notion" + (p ? " · " + p + " pendência(s) de cadastro" : "") : p ? p + " pendência(s) de cadastro" : "base sem pendências" };
+  }
+  return { st: x.ok ? "ok" : "erro", texto: x.ok ? "rodada completa" : ((x.alertas || [])[0] || ((x.erros || [])[0] || {}).texto || "deu errado") };
+}
+function montarRobosAgua(D) {
+  const A = D.agua || {}, rods = A.rodadas || [], ult = rods[0] || null;
+  const tarefas = (D.tarefas || []).filter(t => ehAgua(t.chave) || ehAgua(t.nome));
+  const rodando = tarefas.some(t => t.estado === "trabalhando");
+  const proxima = tarefas.map(t => t.proxima).filter(Boolean).sort()[0] || null;
+  const horarioTxt = "seg–sex 07:30 (a rodada inteira)";
+  return ORDEM_AGUA.map(k => {
+    const cat = CAT_AGUA[k], e = estadoAgua(k, ult);
+    const hist = rods.map(x => { const h = estadoAgua(k, x); return { inicio: x.inicio, ok: h.st !== "erro", st: h.st, texto: h.texto, x }; });
+    let st = e.st === "erro" ? "erro" : e.st === "ok" ? "ok" : (ult ? "off" : "sem");
+    let stTexto = !ult ? "sem rodada ainda" : e.st === "erro" ? "deu errado" : e.st === "ok" ? (k === "cadastro" ? e.texto : "deu certo") : "não rodou";
+    if (k === "cadastro" && A.duplicadas) {        /* 04/11: as repetidas vêm da base inteira do Notion (servidor) */
+      const nd = A.duplicadas.length, np = itensPend(A).filter(i => /sem_uc|sem_cpf|uc_titular|nao_ligado|repetida/.test(i.grupo.chave)).length;
+      st = nd ? "erro" : (ult ? "ok" : st); e.texto = nd ? nd + " linha(s) repetida(s) na base do Notion" + (np ? " · " + np + " pendência(s) de cadastro" : "") : np + " pendência(s) de cadastro";
+      stTexto = e.texto;
+    } else if (k === "cadastro" && e.st === "erro") stTexto = e.texto;
+    if (rodando && k === "coletor") { st = "trab"; stTexto = "rodando agora"; }
+    return { chave: "agua:" + k, passo: k, cat, st, stTexto, stHora: ult ? quando(ult.inicio) : "", causa: e.texto,
+             tarefas: k === "coletor" ? tarefas : [], rodadas: hist, ult: hist[0] || null, log: [], proxima, horarioTxt };
+  });
+}
+function oQueFazerAgua(k, texto) {
+  const t = String(texto || "");
+  if (k === "cadastro") return "Corrigir no Notion: cada casa uma vez só, cada UC/matrícula numa casa só, e preencher a UC/matrícula que falta. A próxima rodada já lê o certo.";
+  if (k === "email") return "A GoDaddy recusou a conexão. As tarefas de reenvio (10:00 e 14:00) mandam o que faltou — o PDF está aqui na sala.";
+  if (/BOTAO_NAO_LIBERADO|bloquead|não liberou/i.test(t)) return "O portal da Equatorial não liberou o login (o robô não resolve CAPTCHA). Ele tenta sozinho no próximo dia útil; se passar de 5 dias úteis, emitir à mão no portal.";
+  if (/sem emitir/i.test(t)) return "A Equatorial está há dias sem emitir. Conferir no portal da Equatorial se o login abre; se não abrir, emitir à mão.";
+  if (/autentica|login|Timeout|payable-installments|sessão/i.test(t)) return "O Mais Controle estava fora (o porteiro sem login, como hoje de manhã). Com o porteiro logado, a próxima rodada das 07:30 faz este passo — nada se perde.";
+  return "";
+}
+/* ---- 04/11 (2ª versão, pedido do dono): por concessionária, e as pendências casa a casa com o link da casa no
+   Notion e da parcela no Mais Controle — tiradas pelo servidor das regras do próprio robô (email_rodada +
+   relatorio_pdf). Filtro por concessionária, busca e "Gerar PDF" (impressão do que está filtrado). ---- */
+const CONCS = { EQUATORIAL: { nome: "Equatorial", ico: "⚡", tipo: "energia" }, SANESC: { nome: "Sanesc", ico: "🚰", tipo: "água" },
+                SANEAGO: { nome: "Saneago", ico: "💧", tipo: "água · esgoto" } };
+let FILTRO_AGUA = { conc: "", busca: "" };
+function pendDe(A) { return ((A.rodadas || []).find(r => r.pend) || {}).pend || null; }
+function itensPend(A) {
+  const p = pendDe(A), out = [];
+  ((p && p.grupos) || []).forEach(g => g.itens.forEach(i => out.push(Object.assign({ grupo: g }, i))));
+  return out;
+}
+function kpisAgua(robos, D) {
+  const A = D.agua || {}, ult = (A.rodadas || [])[0], S = A.saude || {}, eq = S.equatorial || {}, sa = S.sanesc || {};
+  const p = pendDe(A), its = itensPend(A).filter(i => !i.grupo.so_aviso), dups = A.duplicadas || [];
+  const base = (ult && ult.conc && ult.conc.base) || {}, fila = (ult && ult.conc && ult.conc.fila) || {};
+  const nC = c => its.filter(i => i.conc === c).length + dups.filter(d => d.conc === c).length;
+  const card = (lab, val, sub, cls, f) => `<button type="button" class="kpi kpi-bt ${cls || ""}"${f != null ? ` data-conc="${f}"` : ""}><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub || ""}</div></button>`;
+  const ruins = robos.filter(r => r.st === "erro" && PASSOS_AGUA.includes(r.passo));
+  const passoRuim = k => ruins.some(r => r.passo === k);
+  return `<div class="kpis kpis5">`
+    + card("Última rodada", ult ? esc(quando(ult.inicio)) : "—", ult ? (ult.ok ? `<span class="ok-t">completa</span>` : `<span class="erro-t">${ruins.length} passo(s) com problema</span>`) + (ult.duracao ? " · " + esc(ult.duracao) : "") : "o servidor ainda não mandou", ult ? (ult.ok ? "ok" : "erro") : "", "")
+    + card("⚡ Equatorial · energia", nC("EQUATORIAL") + " pend.", `${esc(base.EQUATORIAL || "—")} na base · ${esc(fila.EQUATORIAL != null ? fila.EQUATORIAL : "—")} na fila do mês${eq.dias_uteis_sem_emissao != null ? ` · <span class="${eq.dias_uteis_sem_emissao >= 3 ? "erro-t" : ""}">${esc(eq.dias_uteis_sem_emissao)} dia(s) útil(eis) sem emitir</span>` : ""}`, passoRuim("equatorial") ? "erro" : nC("EQUATORIAL") ? "aten" : "ok", "EQUATORIAL")
+    + card("🚰 Sanesc · água", nC("SANESC") + " pend.", `${esc(base.SANESC || "—")} na base · ${esc(fila.SANESC != null ? fila.SANESC : "—")} na fila do mês${p ? " · " + esc((p.baixadas_por || {}).SANESC || 0) + " guia(s) baixada(s)" : ""}${sa.cadastro_divergente ? " · " + esc(sa.cadastro_divergente) + " cadastro divergente" : ""}`, passoRuim("sanesc") ? "erro" : nC("SANESC") ? "aten" : "ok", "SANESC")
+    + card("💧 Saneago · água/esgoto", nC("SANEAGO") + " pend.", `${esc((base.SANEAGO || 0) + (base["SANEAGO ESGOTO"] || 0) || "—")} na base · <b>coleta à mão</b> (o robô não entra no portal da Saneago)`, nC("SANEAGO") ? "aten" : "", "SANEAGO")
+    + card("🗂️ Cadastro no Notion", dups.length ? dups.length + " repetida" + (dups.length > 1 ? "s" : "") : (its.length ? its.length + " pend." : "em dia"), `${its.filter(i => /sem_uc|sem_cpf|uc_titular|nao_ligado|repetida/.test(i.grupo.chave)).length} pendência(s) de cadastro · clique para ver`, dups.length ? "erro" : "", "")
+    + `</div>`;
+}
+function linksHtml(i) {
+  const ns = i.notion || [], mesmaCasa = new Set(ns.map(l => l.obra)).size === 1;
+  const n = ns.map((l, k) => `<a class="lk" href="${esc(l.url)}" target="_blank" rel="noopener" title="Abrir ${esc(l.obra)} no Notion">Notion${ns.length > 1 ? (mesmaCasa ? " " + (k + 1) : " · " + esc(String(l.obra).replace(/^.*?(LT\s*\S+\s*CS\s*\d+).*$/, "$1"))) : ""} ↗</a>`);
+  const m = (i.mc || []).map((u, k) => `<a class="lk mc" href="${esc(u)}" target="_blank" rel="noopener" title="Abrir a parcela no Mais Controle">Mais Controle${(i.mc || []).length > 1 ? " " + (k + 1) : ""} ↗</a>`);
+  return n.concat(m).join(" ") || `<span class="muted">—</span>`;
+}
+function concTag(c) { const x = CONCS[c]; return x ? `<span class="ctag c-${c.toLowerCase()}">${x.ico} ${x.nome}</span>` : `<span class="ctag">—</span>`; }
+function passaFiltro(i) {
+  const f = FILTRO_AGUA;
+  if (f.conc === "-") { if (i.conc) return false; } else if (f.conc && i.conc !== f.conc) return false;
+  if (f.busca) { const t = (i.obra + " " + (i.chave || i.uc || "") + " " + (i.detalhe || "") + " " + (i.texto || "")).toLowerCase(); if (!t.includes(f.busca.toLowerCase())) return false; }
+  return true;
+}
+function painelAguaHtml(D, paraPdf) {
+  const A = D.agua || {}, p = pendDe(A), rod = (A.rodadas || []).find(r => r.pend);
+  if (!A.rodadas) return `<p class="muted">O servidor ainda não mandou a sala da Água e Energia.</p>`;
+  const todos = itensPend(A).concat((A.duplicadas || []).map(d => ({ dup: true, obra: d.obra, conc: d.conc, chave: d.uc, detalhe: d.tipo === "uc" ? "a mesma UC/matrícula em mais de uma casa" : "a casa tem " + d.notion.length + " linhas de " + (d.ligacao || d.conc) + " na base", notion: d.notion, mc: [] })));
+  const cont = c => todos.filter(i => (c === "-" ? !i.conc : !c || i.conc === c) && !(i.grupo && i.grupo.so_aviso)).length;
+  let h = "";
+  if (!paraPdf) {
+    h += `<div class="pa-barra"><div class="pa-chips">${[["", "Todas"], ["EQUATORIAL", "⚡ Equatorial"], ["SANESC", "🚰 Sanesc"], ["SANEAGO", "💧 Saneago"], ["-", "Sem concessionária"]].map(([c, t]) =>
+        `<button type="button" class="pa-chip" data-conc="${c}" aria-pressed="${FILTRO_AGUA.conc === c}">${t} <b>${cont(c)}</b></button>`).join("")}</div>
+      <input type="search" id="pa-busca" placeholder="Buscar casa, UC, matrícula…" value="${esc(FILTRO_AGUA.busca)}">
+      <button type="button" class="bt" id="pa-pdf">📄 Gerar PDF</button>${rod && rod.pdf_caminho ? `<button type="button" class="bt" id="pa-pdf-robo">PDF do e-mail</button>` : ""}</div>
+      <p class="muted pa-sub">Rodada de ${rod ? esc(quando(rod.inicio)) : "?"} · o mesmo que o robô manda no e-mail, casa por casa. “Notion” abre a casa na base Ligações; “Mais Controle” abre a parcela (quando o robô já leu a grade do ERP).</p>`;
+  }
+  const falhas = (p && p.falhas) || [];
+  if (falhas.length && !FILTRO_AGUA.conc && !FILTRO_AGUA.busca) h += `<div class="pa-grupo erro"><div class="pa-cab"><b>⛔ Passos que pararam (${falhas.length})</b><span>Quem resolve: suporte do robô / porteiro</span></div><table class="pa-t"><tr><th>Passo</th><th>O que aconteceu</th><th>O que fazer</th></tr>${falhas.map(f =>
+    `<tr><td><b>${esc(f.passo)}</b></td><td>${esc(f.causa)}${f.causa !== f.texto ? `<br><small class="muted">${esc(f.texto)}</small>` : ""}</td><td>${esc(/login|autentica|Timeout/i.test(f.texto + f.causa) ? "O Mais Controle estava fora (porteiro sem login). Com o porteiro logado, a próxima rodada das 07:30 refaz este passo." : f.fazer)}</td></tr>`).join("")}</table></div>`;
+  const grupos = [];
+  const dups = todos.filter(i => i.dup && passaFiltro(i));
+  if (dups.length) grupos.push({ titulo: "Linha repetida na base do Notion", quem: "Cadastro (Notion)", fazer: "Deixar uma linha só por casa e concessionária, e cada UC/matrícula numa casa só. Enquanto estiver repetida, o robô não lança nem cria recorrência.", itens: dups, cls: "erro" });
+  ((p && p.grupos) || []).forEach(g => { const it = g.itens.filter(passaFiltro); if (it.length) grupos.push({ titulo: g.titulo, quem: g.quem, fazer: g.fazer, itens: it, aviso: g.so_aviso, cls: g.so_aviso ? "aviso" : "" }); });
+  if (!grupos.length && !falhas.length) h += `<p class="muted" style="padding:10px 4px">${FILTRO_AGUA.conc || FILTRO_AGUA.busca ? "Nada com esse filtro." : "Nenhuma pendência na última rodada. 🎉"}</p>`;
+  grupos.forEach(g => {
+    h += `<${paraPdf ? "div" : "details" + (g.aviso ? "" : " open")} class="pa-grupo ${g.cls}"><${paraPdf ? "div" : "summary"} class="pa-cab"><b>${esc(g.titulo)} (${g.itens.length})</b><span>Quem resolve: ${esc(g.quem)}</span></${paraPdf ? "div" : "summary"}>
+      <p class="pa-fazer">O que fazer: ${esc(g.fazer)}</p>
+      <table class="pa-t"><tr><th>Casa</th><th>Concessionária</th><th>UC / matrícula</th><th>Detalhe</th><th>${paraPdf ? "Links" : "Abrir"}</th></tr>${g.itens.map(i =>
+        `<tr><td><b>${esc(i.obra)}</b></td><td>${concTag(i.conc)}</td><td class="mono">${esc(i.chave || (i.notion || []).map(l => l.uc).filter(Boolean).join(", ") || "—")}</td><td>${esc(i.detalhe || "")}</td><td class="pa-l">${linksHtml(i)}</td></tr>`).join("")}</table></${paraPdf ? "div" : "details"}>`;
+  });
+  return h;
+}
+function ligarPainelAgua(raiz) {
+  raiz.querySelectorAll(".pa-chip").forEach(b => b.addEventListener("click", () => { FILTRO_AGUA.conc = b.dataset.conc; pintarPainelAgua(); }));
+  const bs = raiz.querySelector("#pa-busca");
+  if (bs) bs.addEventListener("input", () => { FILTRO_AGUA.busca = bs.value.trim(); clearTimeout(bs._t); bs._t = setTimeout(() => { pintarPainelAgua(); const n = $("pa-busca"); if (n) { n.focus(); n.setSelectionRange(n.value.length, n.value.length); } }, 250); });
+  const bp = raiz.querySelector("#pa-pdf"); if (bp) bp.addEventListener("click", gerarPdfAgua);
+  const br = raiz.querySelector("#pa-pdf-robo"); if (br) br.addEventListener("click", () => abrirAgua("agua:coletor"));
+}
+function pintarPainelAgua() {
+  const box = $("painel-agua-corpo"); if (!box || !DADOS) return;
+  box.innerHTML = painelAguaHtml(DADOS, false); ligarPainelAgua(box);
+}
+function gerarPdfAgua() {
+  const D = DADOS || {}, A = D.agua || {}, rod = (A.rodadas || []).find(r => r.pend);
+  const f = FILTRO_AGUA, filtro = [f.conc ? (f.conc === "-" ? "sem concessionária" : CONCS[f.conc].nome) : "todas as concessionárias", f.busca ? "busca “" + f.busca + "”" : ""].filter(Boolean).join(" · ");
+  const w = window.open("", "_blank");
+  if (!w) { aviso("O navegador bloqueou a janela do PDF — permita pop-ups para o portal."); return; }
+  w.document.write(`<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Água e Energia — pendências ${rod ? esc(ddmm(dataDe(rod.inicio))) : ""}</title>
+    <style>body{font:12px/1.45 Arial,Helvetica,sans-serif;color:#1a2b38;margin:18px}h1{font-size:18px;margin:0 0 2px;color:#1e3f58}.sub{color:#5a7080;margin:0 0 14px}
+    .pa-grupo{border:1px solid #cfdbe2;border-left:4px solid #e0b11f;border-radius:6px;margin:0 0 12px;padding:8px 10px;break-inside:avoid-page}.pa-grupo.erro{border-left-color:#d64534}.pa-grupo.aviso{border-left-color:#9aa7b0}
+    .pa-cab{display:flex;justify-content:space-between;gap:10px;font-size:13px}.pa-cab span{color:#5a7080}.pa-fazer{margin:4px 0 6px;color:#33536a}
+    table{width:100%;border-collapse:collapse}th,td{border-top:1px solid #e3eaee;padding:4px 5px;text-align:left;vertical-align:top}th{font-size:10.5px;text-transform:uppercase;color:#5a7080}
+    .mono{font-family:Consolas,monospace}a{color:#1f6fb2;text-decoration:none;margin-right:6px}.ctag{white-space:nowrap}.muted{color:#7a8b96}
+    @page{size:A4 landscape;margin:12mm}</style></head><body>
+    <h1>Água e Energia — pendências e erros</h1><p class="sub">Rodada de ${rod ? esc(quando(rod.inicio)) : "?"} · ${esc(filtro)} · gerado ${esc(quando(new Date().toISOString()))} pelo Escritório de Robôs</p>
+    ${painelAguaHtml(D, true)}<script>setTimeout(function(){window.print()},400)<\/script></body></html>`);
+  w.document.close();
+}
+function agendaAgua(robos) {
+  return robos.filter(r => r.passo !== "coletor").map(r => ({ chave: r.chave, nome: r.cat.nome, ico: r.cat.ico,
+    itens: r.rodadas.slice(0, 7).reverse().map(h => { const d = dataDe(h.inicio); return { h: d ? ddmm(d) : "?", e: h.st === "erro" ? "erro" : h.st === "ok" ? "ok" : "sem" }; }) }));
+}
+const ST_SELO = { ok: ["ok", "DEU CERTO"], erro: ["erro", "DEU ERRADO"], off: ["", "NÃO RODOU"] };
+function seloAgua(st) { const s = ST_SELO[st] || ST_SELO.off; return `<span class="selo ${s[0]}"${s[0] ? "" : ' style="background:#8a9aa5"'}>${s[1]}</span>`; }
+function relatorioAgua(x) {
+  const i0 = dataDe(x.inicio);
+  let h = `<p class="meta">Rodada de ${i0 ? ddmm(i0) + "/" + i0.getFullYear() + " às " + hhmm(i0) : "?"}${x.duracao ? " · durou " + esc(x.duracao) : ""}${x.mes ? " · mês " + esc(x.mes) : ""}</p>`;
+  if (x.email) h += `<p class="meta">${esc(x.email)}</p>`;
+  if ((x.alertas || []).length) h += `<h4>Alertas da rodada</h4><ul>${x.alertas.map(a => `<li>${esc(a)}</li>`).join("")}</ul>`;
+  h += `<h4>Passo a passo</h4><div class="tbl"><table class="passos">${PASSOS_AGUA.map(k => { const e = (x.estados || {})[k] || { st: "off", texto: "" };
+    return `<tr><td>${esc(CAT_AGUA[k].ico)} ${esc(CAT_AGUA[k].nome)}</td><td>${seloAgua(e.st)}</td><td class="txt">${esc(e.texto)}</td></tr>`; }).join("")}
+    <tr><td>${esc(CAT_AGUA.email.ico)} E-mail</td><td>${seloAgua(estadoEmail(x))}</td><td class="txt">${esc(textoEmail(x))}</td></tr></table></div>`;
+  const dup = x.duplicados || [], prob = x.problemas || [];
+  if (dup.length || prob.length) h += `<h4>Cadastro no Notion</h4><p class="meta" style="margin-top:0">${dup.length} repetida(s) · ${prob.length} pendência(s) — detalhes na mesa “Cadastro no Notion”.</p>`;
+  h += pdfHtml(x);
+  if (x.texto) h += `<details style="margin-top:12px"><summary>Resumo completo da rodada (o mesmo do e-mail)</summary><pre>${esc(x.texto)}</pre></details>`;
+  return h;
+}
+function cadastroHtml(x) {
+  if (!x) return `<p class="muted">Sem rodada ainda.</p>`;
+  const dup = x.duplicados || [], prob = x.problemas || [];
+  let h = `<h4 style="margin-top:0">Repetidas (${dup.length})</h4>` + (dup.length
+    ? `<ul class="lista-cad">${dup.map(d => `<li>${d.casa ? `<b>${esc(d.casa)}</b>${d.conc ? " (" + esc(d.conc) + ")" : ""} — ` : ""}${esc(d.motivo)}</li>`).join("")}</ul>`
+    : `<p class="meta" style="margin-top:0">Nenhuma linha repetida nesta rodada.</p>`);
+  const grupos = {};
+  prob.forEach(p => { (grupos[p.motivo] = grupos[p.motivo] || []).push(p); });
+  h += `<h4>Pendências de cadastro (${prob.length})</h4>` + (prob.length
+    ? Object.entries(grupos).map(([m, l]) => `<details${Object.keys(grupos).length < 3 ? " open" : ""}><summary><b>${esc(m)}</b> — ${l.length} casa(s)</summary><ul class="lista-cad">${l.map(p => `<li>${esc(p.casa)} (${esc(p.conc)})${p.n > 1 ? ` <span class="erro-t">· ${p.n}× na base</span>` : ""}</li>`).join("")}</ul></details>`).join("")
+    : `<p class="meta" style="margin-top:0">Nada pendente.</p>`);
+  return h;
+}
+function abrirAgua(chave, manterAbertas) {
+  const D = DADOS || {}, A = D.agua || {};
+  const robos = montarRobosAgua(D), r = robos.find(x => x.chave === chave); if (!r) return;
+  const abertas = manterAbertas ? [...document.querySelectorAll("#gaveta .rod.aberta")].map(e => e.dataset.i) : null;
+  ABERTO = chave;
+  const c = r.cat, g = $("gaveta"), k = r.passo, ult = (A.rodadas || [])[0];
+  g.style.setProperty("--rc", c.cor);
+  let causa = "";
+  if (r.st === "erro") {
+    const linhas = k === "coletor" && ult ? [...(ult.alertas || []), ...(ult.erros || []).map(e => CAT_AGUA[e.passo] ? CAT_AGUA[e.passo].nome + ": " + e.texto : e.texto)] : [r.causa];
+    const ruins = k === "coletor" ? PASSOS_AGUA.concat("cadastro", "email").map(p => [p, estadoAgua(p, ult)]).filter(([, e]) => e.st === "erro") : [[k, { texto: r.causa }]];
+    const fazer = [...new Set(ruins.map(([p, e]) => oQueFazerAgua(p, e.texto)).filter(Boolean))];
+    causa = `<div class="box causa"><h3>⚠ O que deu errado</h3>${linhas.length > 1 ? `<ul>${[...new Set(linhas)].map(l => `<li>${esc(l)}</li>`).join("")}</ul>` : `<p>${esc(linhas[0] || "")}</p>`}
+      ${fazer.map(f => `<p class="muted" style="margin-top:6px">O que fazer: ${esc(f)}</p>`).join("")}
+      <div class="acoes"><small>Rodar de novo pelo portal fica desligado para este robô: ele lança contas e cria recorrências no Mais Controle, e rodar fora de hora pode lançar em dobro. Ele roda sozinho seg–sex às 07:30.</small></div></div>`;
+  }
+  let quandoTrab = "";
+  if (k === "coletor") {
+    quandoTrab = r.tarefas.map(t => `<div class="tarefa">
+      <span class="k">Tarefa</span><span>${esc(t.nome)}</span>
+      <span class="k">Horário</span><span>${(t.horario || []).map(esc).join("<br>")}</span>
+      <span class="k">Situação</span><span>${esc(t.estado)}${t.resultado_texto && t.estado !== "trabalhando" ? " · última vez " + esc(t.resultado_texto) : ""}</span>
+      <span class="k">Última</span><span>${esc(quando(t.ultima))}</span>
+      <span class="k">Próxima</span><span>${esc(quando(t.proxima))}</span></div>`).join("") || `<p class="muted">Roda pela tarefa “MoraisEng - Coleta Agua e Energia (diaria)”, seg–sex 07:30.</p>`;
+  }
+  let corpo = "";
+  if (k === "cadastro") corpo = A.duplicadas || pendDe(A)
+    ? `<div class="box"><h3>Repetidas e pendências de cadastro</h3><p class="muted" style="font-size:12.5px;margin:0 0 8px">A lista completa, com filtro e PDF, fica embaixo da sala (Pendências e erros).</p>${(() => {
+        const keep = FILTRO_AGUA; FILTRO_AGUA = { conc: "", busca: "" };
+        const D2 = Object.assign({}, D, { agua: Object.assign({}, A, { rodadas: (A.rodadas || []).map(r => r.pend ? Object.assign({}, r, { pend: Object.assign({}, r.pend, { falhas: [], grupos: r.pend.grupos.filter(g => /sem_uc|sem_cpf|uc_titular|nao_ligado|repetida/.test(g.chave)) }) }) : r) }) });
+        const h = painelAguaHtml(D2, true); FILTRO_AGUA = keep; return h; })()}</div>`
+    : `<div class="box"><h3>Na última rodada${ult ? " · " + esc(quando(ult.inicio)) : ""}</h3>${cadastroHtml(ult)}</div>`;
+  else if (k !== "coletor" && k !== "email") {
+    const cc = { equatorial: "EQUATORIAL", sanesc: "SANESC" }[k];
+    const its = cc ? itensPend(A).filter(i => i.conc === cc && !i.grupo.so_aviso) : [];
+    if (its.length) corpo += `<div class="box"><h3>Pendências da ${esc(CONCS[cc].nome)} (${its.length})</h3><table class="pa-t"><tr><th>Casa</th><th>UC / matrícula</th><th>O quê</th><th>Abrir</th></tr>${its.map(i =>
+      `<tr><td><b>${esc(i.obra)}</b></td><td class="mono">${esc(i.chave || (i.notion || []).map(l => l.uc).filter(Boolean).join(", ") || "—")}</td><td>${esc(i.grupo.titulo)}${i.detalhe ? "<br><small class='muted'>" + esc(i.detalhe) + "</small>" : ""}</td><td class="pa-l">${linksHtml(i)}</td></tr>`).join("")}</table></div>`;
+    const p = ult && (ult.passos || {})[k];
+    if (p && (p.linhas || []).length) corpo += `<div class="box"><h3>O que escreveu na última rodada · ${esc(quando(ult.inicio))}</h3><pre style="max-height:340px;overflow:auto">${esc(p.linhas.join("\n"))}</pre></div>`;
+  }
+  let rods = "", diaAnt = "";
+  r.rodadas.forEach((h, i) => {
+    const d = dataDe(h.inicio), dt = d ? diaTitulo(d) : "";
+    if (dt !== diaAnt) { rods += `<div class="dia">${esc(dt)}</div>`; diaAnt = dt; }
+    const p = (h.x.passos || {})[k];
+    const rel = k === "coletor" || k === "email" ? relatorioAgua(h.x) : k === "cadastro" ? cadastroHtml(h.x) + pdfHtml(h.x)
+      : `<p class="meta">${esc(h.texto)}</p>${p && (p.linhas || []).length ? `<pre style="max-height:300px;overflow:auto">${esc(p.linhas.join("\n"))}</pre>` : ""}${pdfHtml(h.x)}`;
+    rods += `<div class="rod" data-i="${i}"><button type="button" aria-expanded="false">${seloAgua(h.st)}
+        <span class="h">${d ? hhmm(d) : "?"}</span><span class="r">${esc(h.texto)}</span><span class="seta">›</span>
+      </button><div class="rel">${rel}</div></div>`;
+  });
+  g.innerHTML = `<div class="g-top"><div class="g-ico">${c.ico}</div><div style="min-width:0"><div class="t" id="g-titulo">${esc(c.nome)}</div><div class="s">Água e Energia · ${esc(c.cargo)} · ${esc(r.stTexto)}</div></div>
+      <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
+    <div class="g-corpo">${causa}
+      <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
+      ${quandoTrab ? `<div class="box"><h3>Quando trabalha</h3>${quandoTrab}</div>` : ""}
+      ${corpo}
+      <div class="box"><h3>${k === "coletor" ? "Relatórios das rodadas" : "Nas últimas rodadas"}</h3>${r.rodadas.length ? `<p class="muted" style="font-size:12.5px;margin-bottom:6px">${k === "coletor" ? "O mesmo resumo do e-mail, com o PDF. Clique numa rodada para abrir." : "Clique numa rodada para ver o que este passo escreveu."}</p><div class="rods">${rods}</div>` : `<p class="muted">O servidor ainda não mandou as rodadas deste robô (publica a cada 5 min).</p>`}</div>
+      ${(A.avisos || []).length ? `<div class="box"><h3>Avisos do servidor</h3><ul>${A.avisos.map(a => `<li>${esc(a)}</li>`).join("")}</ul></div>` : ""}
+    </div>`;
+  g.querySelectorAll(".rod > button").forEach(b => b.addEventListener("click", () => {
+    const el = b.parentNode; el.classList.toggle("aberta"); b.setAttribute("aria-expanded", el.classList.contains("aberta"));
+  }));
+  g.querySelectorAll('.pdfbox button[data-a="pdf"]').forEach(b => b.addEventListener("click", () => mostrarPdf(b.closest(".pdfbox"))));
+  const abrirIdx = abertas || (k === "coletor" && r.rodadas[0] && r.rodadas[0].st === "erro" ? ["0"] : []);
+  abrirIdx.forEach(i => { const el = g.querySelector(`.rod[data-i="${i}"]`); if (el) { el.classList.add("aberta"); el.querySelector("button").setAttribute("aria-expanded", "true"); } });
+  $("g-fechar").addEventListener("click", fechar);
+  if (!manterAbertas) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; $("g-fechar").focus(); }
+}
+
+/* ---------------- desenho ---------------- */
+function roboSvg() {
+  return `<svg class="robo" viewBox="0 0 78 96" aria-hidden="true">
+    <g class="cabeca">
+      <line x1="39" y1="5" x2="39" y2="15" stroke="currentColor" stroke-width="3" stroke-linecap="round"/>
+      <circle class="antena" cx="39" cy="5" r="4.5"/>
+      <rect x="11" y="14" width="56" height="40" rx="13" fill="currentColor"/>
+      <rect x="17" y="22" width="44" height="23" rx="9" fill="#0d1a22"/>
+      <circle class="olho" cx="30" cy="33.5" r="4.6"/>
+      <circle class="olho" cx="48" cy="33.5" r="4.6"/>
+      <rect x="6" y="28" width="6" height="12" rx="3" fill="currentColor" opacity=".75"/>
+      <rect x="66" y="28" width="6" height="12" rx="3" fill="currentColor" opacity=".75"/>
+    </g>
+    <rect x="21" y="56" width="36" height="34" rx="10" fill="currentColor" opacity=".88"/>
+    <rect x="31" y="63" width="16" height="9" rx="3" fill="#fff" opacity=".35"/>
+    <g class="braco"><rect x="6" y="58" width="9" height="26" rx="4.5" fill="currentColor" opacity=".8"/></g>
+    <rect x="63" y="58" width="9" height="24" rx="4.5" fill="currentColor" opacity=".8"/>
+  </svg>`;
+}
+function planta() {
+  return `<svg class="planta" viewBox="0 0 22 40" aria-hidden="true"><path d="M11 22 C4 18 2 9 6 4 C10 9 11 15 11 22 Z" fill="#3f8f5a"/><path d="M11 22 C18 17 20 8 16 3 C12 8 11 15 11 22 Z" fill="#4fae6c"/><rect x="5" y="22" width="12" height="16" rx="2" fill="#b7653f"/></svg>`;
+}
+/* rótulo curto que cabe na tela do monitor */
+function telaTexto(r) {
+  if (r.chave === "porteiro") return r.st === "ok" ? "logado" : r.st === "erro" ? "fora" : r.st === "trab" ? "vigiando" : "—";
+  if (r.chave === "fila") return r.st === "ok" ? "atendendo" : r.st === "erro" ? (r.stTexto === "sem sinal" ? "sem sinal" : "erro") : "—";
+  return { ok: "ok", erro: "erro", trab: "rodando", off: "desligado", sem: "—", pedido: "na fila" }[r.st] || "—";
+}
+function mesaHtml(r) {
+  const c = r.cat;
+  const horario = [...new Set(r.tarefas.flatMap(t => t.horario || []))];
+  const tira = r.rodadas.slice(0, 12).reverse();
+  const ultTxt = r.chave === "fila"
+    ? (r.stHora ? `último sinal ${r.stHora}` : "sem sinal da fila")
+    : r.chave === "porteiro"
+      ? (r.ultP ? `<span class="${r.st === "ok" ? "ok-t" : "erro-t"}">${esc(r.stTexto)}</span> · conferido ${esc(r.stHora)}` : "—")
+      : r.ult ? `${esc(quando(r.ult.inicio))} · <span class="${r.ult.ok ? "ok-t" : "erro-t"}">${r.ult.ok ? "deu certo" : "deu errado"}</span>`
+        : (r.tarefas[0] && r.tarefas[0].ultima ? `${esc(quando(r.tarefas[0].ultima))} · ${esc(r.tarefas[0].resultado_texto || "")}` : "ainda não rodou");
+  const proxTxt = r.st === "trab" ? `<span class="trab-t">trabalhando agora</span>` : r.st === "pedido" ? `<span class="ped-t">pedido para rodar de novo</span>` : r.proxima ? esc(quando(r.proxima)) : (r.tarefas.length ? "—" : "sem tarefa agendada");
+  return `<button type="button" class="mesa st-${r.st}" data-chave="${esc(r.chave)}" style="--rc:${c.cor}" aria-label="${esc(c.nome)}: ${esc(r.stTexto)}">
+    <div class="cena">
+      <div class="quadro"></div>${planta()}<span class="zzz">z z</span>
+      ${roboSvg()}
+      <div class="monitor"><span class="lamp"></span>
+        <div class="linhas"><span style="width:80%"></span><span style="width:55%"></span><span style="width:70%"></span><span style="width:40%"></span><span style="width:65%"></span><span style="width:85%"></span><span style="width:50%"></span></div>
+        <div class="tela-ico">${c.ico}</div><div class="tela-st">${esc(telaTexto(r))}</div><div class="tela-hr">${esc(r.stHora || "")}</div>
+      </div>
+      <div class="pe"></div><div class="teclado"></div><div class="caneca"></div><div class="tampo"></div>
+    </div>
+    <div class="corpo">
+      <div class="placa"><b>${esc(c.nome)}</b><span class="cargo">${esc(c.cargo)}</span></div>
+      <p class="faz">${esc(c.faz)}</p>
+      <div class="lin"><span class="k">Trabalha</span><span class="v">${horario.length ? horario.map(esc).join("<br>") : r.horarioTxt ? esc(r.horarioTxt) : (r.chave === "fila" ? "a cada minuto" : "sem tarefa agendada")}</span></div>
+      <div class="lin"><span class="k">Última</span><span class="v">${ultTxt}</span></div>
+      <div class="lin"><span class="k">Próxima</span><span class="v">${proxTxt}</span></div>
+      ${tira.length ? `<div class="tira" title="Últimas rodadas (a mais nova à direita)">${tira.map(x => `<span class="${x.ok ? "" : "f"}" title="${esc(quando(x.inicio))} · ${x.ok ? "deu certo" : "deu errado"}"></span>`).join("")}<em>${r.rodadas.filter(x => x.ok).length}/${r.rodadas.length} ok</em></div>` : ""}
+    </div>
+  </button>`;
+}
+
+function kpisHtml(robos, D) {
+  const hoje = new Date();
+  const rodHoje = Object.values(D.rodadas || {}).flat().filter(x => { const d = dataDe(x.inicio); return d && mesmoDia(d, hoje); });
+  const okHoje = rodHoje.filter(x => x.ok).length, errHoje = rodHoje.length - okHoje;
+  const comProblema = robos.filter(r => r.st === "erro").length;
+  const port = robos.find(r => r.chave === "porteiro");
+  const card = (lab, val, sub, cls) => `<div class="kpi ${cls || ""}"><div class="lab">${lab}</div><div class="val">${val}</div><div class="sub">${sub || ""}</div></div>`;
+  return card("Robôs no escritório", robos.length, robos.filter(r => r.st === "trab").length ? robos.filter(r => r.st === "trab").length + " trabalhando agora" : "nenhum trabalhando agora")
+    + card("Rodadas hoje", rodHoje.length, `<span class="ok-t">${okHoje} deram certo</span> · <span class="${errHoje ? "erro-t" : ""}">${errHoje} deram errado</span>`, errHoje ? "erro" : (rodHoje.length ? "ok" : ""))
+    + card("Precisam de atenção", comProblema, (comProblema ? robos.filter(r => r.st === "erro").map(r => esc(r.cat.nome)).join(", ") : "todo mundo em dia")
+        + (quemFalhou().length >= 2 && PODE_RODAR ? `<br><button type="button" class="bt rodar" style="margin-top:6px" onclick="abrir('coordenador')">🔁 Reorganizar a fila</button>` : ""), comProblema ? "erro" : "ok")
+    + card("Porteiro", port && port.ultP ? (port.st === "ok" ? "Logado" : "Fora") : "—", port && port.ultP ? "conferido " + esc(port.stHora) : "sem conferência ainda", port && port.ultP ? (port.st === "ok" ? "ok" : "erro") : "");
+}
+
+function pintar() {
+  const D = DADOS; if (!D) return;
+  const agua = SALA === "agua";
+  const robos = agua ? montarRobosAgua(D) : montarRobos(D);
+  const so = $("so-problema").checked;
+  const vis = robos.filter(r => !so || r.st === "erro");
+  $("kpis").innerHTML = agua ? kpisAgua(robos, D) : kpisHtml(robos, D);
+  $("kpis").classList.toggle("kpis-agua", agua);
+  $("painel-agua").classList.toggle("hide", !agua);
+  if (agua) pintarPainelAgua();
+  $("bt-agenda").classList.toggle("hide", agua);
+  $("sala-recepcao").querySelector("h2").innerHTML = agua ? "Recepção <small>o coletor das 07:30 e o cadastro do Notion</small>" : "Recepção <small>quem abre a porta do Mais Controle e atende o portal</small>";
+  $("sala-salao").querySelector("h2").innerHTML = agua ? "Passos da rodada <small>uma mesa por passo, na ordem em que o robô roda — clique para ver o relatório</small>" : "Salão <small>cada robô na sua mesa — clique para ver o horário e os relatórios</small>";
+  const nAgua = montarRobosAgua(D).filter(r => r.st === "erro").length;
+  $("s-agua-n").textContent = nAgua; $("s-agua-n").classList.toggle("hide", !nAgua);
+  const rec = vis.filter(r => r.cat.recepcao), sal = vis.filter(r => !r.cat.recepcao);
+  $("mesas-recepcao").innerHTML = rec.map(mesaHtml).join("");
+  $("mesas-salao").innerHTML = sal.map(mesaHtml).join("") || `<div class="vazio">${so ? "Ninguém precisa de atenção agora. 🎉" : "Nenhum robô no salão ainda."}</div>`;
+  const em3d = VISTA === "3d" && SALA3D;
+  $("sala-recepcao").classList.toggle("hide", em3d || !rec.length);
+  $("sala-salao").classList.toggle("hide", em3d);
+  $("sala3d").classList.toggle("hide", !em3d);
+  $("carregando").classList.add("hide");
+  if (em3d) Escritorio3D.atualizar(vis.length ? vis : robos, agua
+    ? { abrir, rodar: () => {}, podeRodar: () => false, causa: r => r.causa, agenda: agendaAgua(robos),
+        titulo: "ÁGUA E ENERGIA", sub: "SALA DO COLETOR · SEG–SEX 07:30", agendaTitulo: "ÚLTIMAS RODADAS",
+        agendaLegenda: "✓ deu certo   ✗ deu errado   ? não rodou   — um quadrinho por dia de rodada (o mais novo à direita)" }
+    : { abrir, rodar: pedirRodar, podeRodar, causa: causaDe, agenda: agendaDoDia(robos) });
+  const g = dataDe(D.gerado);
+  const chip = $("chip-gerado");
+  const velho = g && (Date.now() - g.getTime()) / 60000 > VELHO_MIN;
+  chip.className = "chip" + (velho ? " velho" : "");
+  chip.querySelector("span").textContent = g ? `Notícias do servidor de ${quando(D.gerado)} (${ha(g)})` : "Sem data";
+  const av = [];
+  const P = D.porteiro;
+  if (P && P.estado === "fora") av.push(`<div class="aviso"><b>🚨 O porteiro está fora do Mais Controle (visto ${esc(quando(P.em))}).</b> Enquanto isso, nenhum robô consegue entrar no ERP. O que fazer: no servidor, entrar no Mais Controle pela janela do Chrome central (a do porteiro) e deixar aberta. Depois, Rodar de novo nos robôs que falharam.<br><span class="muted">${esc(P.texto || "")}</span></div>`);
+  if (velho) av.push(`<div class="aviso amarelo"><b>O servidor não manda notícias ${esc(ha(g))}.</b> Ele publica depois de cada rodada e a cada 5 min — pode estar desligado, sem internet, ou a tarefa “MoraisEng - Robo do portal (fila)” parou.</div>`);
+  (D.avisos || []).forEach(a => av.push(`<div class="aviso amarelo">Servidor: ${esc(a)}</div>`));
+  if (agua && !D.agua) av.push(`<div class="aviso amarelo"><b>O servidor ainda não mandou a sala da Água e Energia.</b> Ela aparece na próxima publicação (a cada 5 min), depois que o servidor receber a versão nova.</div>`);
+  if (!agua && nAgua) av.push(`<div class="aviso amarelo">💧 <b>Água e Energia:</b> ${nAgua} mesa${nAgua > 1 ? "s" : ""} com problema na última rodada. <button type="button" class="bt" onclick="trocarSala('agua')">Ver a sala</button></div>`);
+  $("avisos").innerHTML = av.join("");
+  if (ABERTO) abrir(ABERTO, true);
+}
+
+/* ---------------- causa do erro e "Rodar de novo" ---------------- */
+/* linha do log que explica o erro (a 1ª com código ≠ 0, FALHOU ou o porteiro fora) */
+const RE_ERRO_LOG = /código [1-9]|FALHOU|não está logado|não responde|PROBLEMA|ERRO|erro\b/;
+function linhaDoErro(linhas) { return (linhas || []).find(l => RE_ERRO_LOG.test(l.texto) && !/^e-mail enviado|^relatório /.test(l.texto)) || null; }
+function causaDe(r) {
+  if (r.chave === "porteiro") {
+    const P = (DADOS || {}).porteiro;
+    return "A sessão do Mais Controle no Chrome central caiu" + (P && P.texto ? " — o último robô viu: “" + P.texto + "”" : "") + ". Quem entra é o dono, pela janela do Chrome central no servidor.";
+  }
+  if (r.chave === "fila") return r.stTexto === "sem sinal" ? "A fila do portal não dá sinal: o servidor pode estar desligado, sem internet, ou a tarefa da fila parou." : "Algum pedido do portal deu erro — veja a coluna RESULTADO na FILA DO ROBÔ.";
+  if (r.stTexto === "a tarefa não começou") {
+    const t = r.tarefas.filter(t => /NÃO COMEÇOU/.test(t.resultado_texto || "")).sort((a, b) => String(b.ultima).localeCompare(String(a.ultima)))[0];
+    if (t) return t.titulo + " (" + quando(t.ultima) + "): " + t.resultado_texto.replace(/^NÃO COMEÇOU: /, "o Agendador não conseguiu começar — ") + ".";
+  }
+  const u = r.ult;
+  if (u && !u.ok) {
+    const a = (u.atencao || [])[0];
+    if (a) return a.parte + ": " + a.oque;
+    const f = (u.itens || []).find(i => i.codigo);
+    if (f) return f.parte + ": " + String(f.texto || "falhou").split("\n")[0];
+    const l = linhaDoErro(u.log);
+    if (l) return l.texto;
+    if (u.so_pdf) return "Deu errado — o relatório desta rodada está no PDF (abra a rodada abaixo).";
+    return "Deu errado na última rodada.";
+  }
+  const l = linhaDoErro([...(r.log || [])].reverse());
+  if (l) return "Último erro no log (" + quando(l.em) + "): " + l.texto;
+  const t = r.tarefas.find(x => x.resultado_texto);
+  return t ? "A tarefa " + t.titulo + " " + t.resultado_texto + "." : "Deu errado na última rodada.";
+}
+function oQueFazer(r) {
+  const a = r.ult && !r.ult.ok && (r.ult.atencao || [])[0];
+  if (a && a.fazer) return a.fazer;
+  const txt = r.chave === "porteiro" ? "não está logado" : ((linhaDoErro((r.ult && r.ult.log) || [...(r.log || [])].reverse()) || {}).texto || "");
+  if (/não está logado|PROBLEMA/.test(txt)) return "Entrar no Mais Controle pela janela do Chrome central, no servidor. Depois use Rodar de novo nos robôs que falharam.";
+  if (/não responde na porta/.test(txt)) return "O Chrome central estava fechado. Conferir a tarefa “MoraisEng - Porteiro do ERP” no servidor.";
+  return "";
+}
+/* 04/11: só os robôs que entram pelo porteiro podem ser disparados pelo portal (o de água e energia ainda pode
+   logar sozinho no ERP e derrubar a sessão de todo mundo) */
+const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
+function tarefaParaRodar(r) {
+  if (!ROBOS_PELO_PORTEIRO.includes(r.chave)) return null;
+  return r.tarefas.find(t => t.estado !== "desligada" && /^MoraisEng - /.test(t.nome) && !/porteiro|\(fila\)/i.test(t.nome)) || null;
+}
+function podeRodar(r) { return PODE_RODAR && r.st !== "trab" && r.st !== "pedido" && !!tarefaParaRodar(r); }
+function aviso(txt) {
+  const d = document.createElement("div"); d.className = "toast"; d.textContent = txt; document.body.appendChild(d);
+  setTimeout(() => d.remove(), 5200);
+}
+const ERROS_RODAR = {
+  APENAS_ADM: "Só ADM e MASTER podem mandar rodar de novo.",
+  TAREFA_INVALIDA: "Essa tarefa não pode ser disparada pelo portal.",
+  FILA_NAO_CONFIGURADA: "Falta a Propriedade DB_FILA_ROBO no Apps Script (PORTAL-LEITURA) — veja o EscritorioRobos.gs.",
+  FILA_FALHOU: "Não consegui pôr o pedido na fila do Notion. Tente de novo em instantes."
+};
+async function pedirRodar(r, botao) {
+  const t = tarefaParaRodar(r); if (!t) return;
+  if (botao && botao.dataset.confirmar !== "1") {           // 1º clique pede confirmação no próprio botão
+    botao.dataset.confirmar = "1"; botao.textContent = "Confirmar: rodar agora?";
+    setTimeout(() => { if (botao.isConnected && botao.dataset.confirmar === "1") { botao.dataset.confirmar = ""; botao.textContent = "▶ Rodar de novo"; } }, 5000);
+    return;
+  }
+  if (botao) { botao.disabled = true; botao.textContent = "Enviando…"; }
+  let res = null;
+  try { res = await chamar({ action: "escritorioRodar", tarefa: t.nome }, 45000); } catch (e) { res = { ok: false, erro: e.message || String(e) }; }
+  if (!res || !res.ok) {
+    const er = String((res && res.erro) || "");
+    if (er === "NAO_AUTORIZADO") { sair(); return; }
+    aviso(/ACAO_DESCONHECIDA/.test(er) ? "Falta atualizar o EscritorioRobos.gs no Apps Script (versão e2)." : (ERROS_RODAR[er] || "Não deu para pedir: " + er));
+    if (botao && botao.isConnected) { botao.disabled = false; botao.dataset.confirmar = ""; botao.textContent = "▶ Rodar de novo"; }
+    return;
+  }
+  PEDIDOS[r.chave] = Date.now();
+  aviso("Pedido enviado: " + r.cat.nome + " roda de novo assim que o servidor pegar (até 1 min). O resultado chega aqui e no e-mail.");
+  pintar();
+  [50, 100, 160, 260].forEach(s => setTimeout(() => carregar(), s * 1000));     // acompanha mais de perto
+}
+
+/* ---------------- Agenda de hoje (04/11): horários do dia × o que já rodou ---------------- */
+function agendaDoDia(robos) {
+  const hoje = new Date(), agora = Date.now(), lista = [];
+  (robos || montarRobos(DADOS || {})).forEach(r => {
+    if (["porteiro", "fila", "coordenador"].includes(r.chave)) return;
+    const horas = [...new Set(r.tarefas.flatMap(t => t.hoje || []))].sort();
+    const rods = r.rodadas.map(x => ({ d: dataDe(x.inicio), ok: x.ok })).filter(x => x.d && mesmoDia(x.d, hoje));
+    const logs = (r.log || []).filter(l => l.de === r.chave && / código -?\d+/.test(l.texto))
+      .map(l => ({ d: dataDe(l.em), ok: !/ código [1-9]/.test(l.texto) })).filter(x => x.d && mesmoDia(x.d, hoje));
+    const fonte = (rods.length ? rods : logs).sort((a, b) => a.d - b.d);
+    if (!horas.length && !fonte.length) return;
+    const usados = new Set();
+    const itens = horas.map(h => {
+      const t = new Date(hoje); t.setHours(+h.slice(0, 2), +h.slice(3, 5), 0, 0);
+      const i = fonte.findIndex((x, k) => !usados.has(k) && x.d >= t.getTime() - 10 * 60000 && x.d < t.getTime() + 100 * 60000);
+      if (i >= 0) { usados.add(i); return { h, e: fonte[i].ok ? "ok" : "erro" }; }
+      if (r.st === "trab" && agora >= t && agora < t.getTime() + 100 * 60000) return { h, e: "rodando" };
+      if (t.getTime() > agora) return { h, e: "pendente" };
+      const tk = r.tarefas.find(x => x.ultima && dataDe(x.ultima) && dataDe(x.ultima).getTime() >= t.getTime() - 60000);
+      if (tk && !fonte.length) return { h, e: tk.resultado === 0 ? "ok" : "erro" };
+      return { h, e: "sem" };
+    });
+    fonte.forEach((x, k) => { if (!usados.has(k)) itens.push({ h: hhmm(x.d), e: x.ok ? "ok" : "erro", extra: true }); });   // rodou de novo
+    itens.sort((a, b) => a.h.localeCompare(b.h));
+    lista.push({ chave: r.chave, nome: r.cat.nome, ico: r.cat.ico, itens });
+  });
+  return lista;
+}
+const AG_TXT = { ok: ["✓", "deu certo", "ok-t"], erro: ["✗", "deu errado", "erro-t"], rodando: ["●", "rodando", "trab-t"], pendente: ["⏳", "ainda vai rodar", "muted"], sem: ["?", "não achei a rodada", "muted"] };
+function abrirAgenda(manter) {
+  ABERTO = "__agenda__";
+  const ag = agendaDoDia(), g = $("gaveta"), d = new Date();
+  g.style.setProperty("--rc", "#1e3f58");
+  const feitos = ag.reduce((a, l) => a + l.itens.filter(i => i.e === "ok" || i.e === "erro").length, 0);
+  const total = ag.reduce((a, l) => a + l.itens.filter(i => !i.extra).length, 0);
+  g.innerHTML = `<div class="g-top"><div class="g-ico">📅</div><div style="min-width:0"><div class="t" id="g-titulo">Agenda de hoje</div><div class="s">${esc(diaTitulo(d))} · ${feitos} de ${total} já rodaram</div></div>
+      <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
+    <div class="g-corpo"><div class="box"><h3>Horários dos robôs</h3>${ag.length ? `<div class="agenda">${ag.map(l => `<div class="ag-l"><b>${esc(l.ico)} ${esc(l.nome)}</b><div class="ag-h">${l.itens.map(i =>
+        `<span class="ag-c ag-${i.e}${i.extra ? " ag-x" : ""}" title="${esc(AG_TXT[i.e][1])}${i.extra ? " (rodou de novo)" : ""}">${esc(i.h)} ${AG_TXT[i.e][0]}</span>`).join("")}</div></div>`).join("")}</div>`
+      : `<p class="muted">Nenhum robô com horário hoje.</p>`}
+      <p class="muted" style="font-size:12px;margin-top:10px">✓ rodou e deu certo · ✗ deu errado · ● rodando · ⏳ ainda vai rodar · ? passou do horário e não achei a rodada · borda tracejada = rodou de novo (Rodar de novo ou Coordenador). Clique no robô na sala para ver o relatório.</p></div></div>`;
+  $("g-fechar").addEventListener("click", fechar);
+  if (!manter) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; }
+}
+
+/* ---------------- Coordenador da fila (04/11) ---------------- */
+function quemFalhou() { return montarRobos(DADOS || {}).filter(r => r.st === "erro" && ROBOS_PELO_PORTEIRO.includes(r.chave)); }
+async function pedirReorganizar(botao) {
+  if (botao && botao.dataset.confirmar !== "1") {
+    botao.dataset.confirmar = "1"; botao.textContent = "Confirmar: reorganizar agora?";
+    setTimeout(() => { if (botao.isConnected && botao.dataset.confirmar === "1") { botao.dataset.confirmar = ""; botao.textContent = "🔁 Reorganizar a fila"; } }, 5000);
+    return;
+  }
+  if (botao) { botao.disabled = true; botao.textContent = "Enviando…"; }
+  let res = null;
+  try { res = await chamar({ action: "escritorioRodar", tarefa: "MoraisEng - Reorganizar" }, 45000); } catch (e) { res = { ok: false, erro: e.message || String(e) }; }
+  if (!res || !res.ok) {
+    const er = String((res && res.erro) || "");
+    if (er === "NAO_AUTORIZADO") { sair(); return; }
+    aviso(ERROS_RODAR[er] || "Não deu para pedir: " + er);
+    if (botao && botao.isConnected) { botao.disabled = false; botao.dataset.confirmar = ""; botao.textContent = "🔁 Reorganizar a fila"; }
+    return;
+  }
+  PEDIDOS.coordenador = Date.now();
+  aviso("Pedido enviado: o Coordenador monta a fila em até 1 min e solta um robô de cada vez.");
+  pintar();
+  [50, 110, 200, 320].forEach(s => setTimeout(() => carregar(), s * 1000));
+}
+function planoHtml(PL) {
+  if (!PL || !PL.fila) return "";
+  const rot = { esperando: "na fila", rodando: "rodando agora", feito: "deu certo", falhou: "deu errado", pulado: "fora da fila" };
+  const cls = { esperando: "ped-t", rodando: "trab-t", feito: "ok-t", falhou: "erro-t", pulado: "muted" };
+  return `<p class="muted" style="font-size:12.5px;margin:0 0 8px">Pedido ${esc(quando(PL.criado))}${PL.quem ? " por " + esc(PL.quem) : ""} · ${esc(PL.status)}${PL.msg ? " — " + esc(PL.msg) : ""}</p>
+    <div class="tbl"><table class="plano"><tr><th>#</th><th>Robô</th><th>Situação</th><th>Começou</th><th>Resultado</th></tr>${PL.fila.map((i, n) =>
+      `<tr><td>${n + 1}</td><td>${esc(catDe(i.chave).nome)}</td><td class="${cls[i.estado] || ""}">${esc(rot[i.estado] || i.estado)}</td><td>${esc(i.inicio ? quando(i.inicio) : "—")}</td><td>${esc(i.resultado || "")}</td></tr>`).join("")}</table></div>`;
+}
+
+/* ---------------- gaveta: horário + relatórios ---------------- */
+function logHtml(linhas, titulo) {
+  if (!(linhas || []).length) return "";
+  return `<h4>${titulo || "O que o robô escreveu no log do servidor"}</h4><div class="logs">${linhas.map(l =>
+    `<div class="lg${RE_ERRO_LOG.test(l.texto) && !/^e-mail enviado|^relatório /.test(l.texto) ? " ruim" : ""}"><span>${esc(String(l.em).slice(11, 19))}</span><i>${esc(l.de)}</i><b>${esc(l.texto)}</b></div>`).join("")}</div>`;
+}
+function pdfHtml(x) {
+  if (!x.pdf_caminho) return x.pdf ? `<p class="meta">📄 O PDF desta rodada (${esc(x.pdf)}) entra aqui na próxima atualização do servidor (a cada 5 min).</p>` : "";
+  return `<div class="pdfbox" data-pdf="${esc(x.pdf_caminho)}"><div class="pdfbar"><b>📄 Relatório em PDF (o mesmo do e-mail)</b><button type="button" class="bt" data-a="pdf">Mostrar o PDF aqui</button></div></div>`;
+}
+function relatorioHtml(x) {
+  if (x.so_pdf) {
+    let h = x.pdf_meta ? `<p class="meta">${esc(x.pdf_meta)}</p>` : "";
+    if (x.porteiro) h += `<p class="meta">${esc(x.porteiro)}</p>`;
+    if ((x.atencao || []).length) h += `<h4>O que deu errado (do relatório do e-mail)</h4><ul>${x.atencao.map(a => `<li><b>${esc(a.parte)}:</b> ${esc(a.oque)}${a.fazer ? `<br><span class="fazer">O que fazer: ${esc(a.fazer)}</span>` : ""}</li>`).join("")}</ul>`;
+    else if (!x.ok && !(x.log || []).length) h += `<p class="meta">O motivo aparece aqui na próxima atualização do servidor (a cada 5 min), lido do log e do PDF desta rodada.</p>`;
+    h += logHtml(x.log);
+    if (x.pdf_texto) h += `<details style="margin-top:12px"><summary>Texto completo do relatório</summary><pre>${esc(x.pdf_texto)}</pre></details>`;
+    return h + pdfHtml(x);
+  }
+  const i0 = dataDe(x.inicio), f0 = dataDe(x.fim);
+  const dur = i0 && f0 ? Math.max(0, Math.round((f0 - i0) / 60000)) : null;
+  const grav = x.gravando == null ? "" : " · gravação " + (x.gravando ? "LIGADA" : "desligada (só simulação)");
+  let h = `<p class="meta">Rodada de ${i0 ? ddmm(i0) + "/" + i0.getFullYear() : "?"}, das ${i0 ? hhmm(i0) : "?"} às ${f0 ? hhmm(f0) : "?"}${dur != null ? " (" + dur + " min)" : ""}${grav} · código de saída ${esc(x.codigo)}</p>`;
+  if (x.porteiro) h += `<p class="meta">${esc(x.porteiro)}</p>`;
+  if (x.repeticao) {
+    h += `<h4>Precisou repetir</h4><p class="meta" style="margin-top:0">A 1ª tentativa falhou por um problema passageiro; o robô esperou o porteiro e rodou de novo. <b>O resultado abaixo é o da 2ª tentativa.</b></p>`;
+    const it = x.repeticao.itens || [];
+    h += `<ul>${it.length ? it.map(i => `<li>${esc(i.hora)} ${esc(i.parte)}: ${esc(i.texto)}</li>`).join("") : `<li>${esc(x.repeticao.motivo)}</li>`}</ul>`;
+  }
+  h += `<h4>O que precisa de atenção</h4>`;
+  h += (x.atencao || []).length
+    ? `<ul>${x.atencao.map(a => `<li><b>${esc(a.parte)}:</b> ${esc(a.oque)}${a.fazer ? `<br><span class="fazer">O que fazer: ${esc(a.fazer)}</span>` : ""}</li>`).join("")}</ul>`
+    : `<p class="meta" style="margin-top:0">Nada. Rodada completa.</p>`;
+  h += `<h4>O que rodou</h4><div class="tbl"><table><tr><th>Hora</th><th>Parte</th><th>Resultado</th><th>Fim da saída</th></tr>`;
+  h += (x.itens || []).length
+    ? x.itens.map(i => `<tr><td>${esc(i.hora)}</td><td>${esc(i.parte)}</td><td class="${i.codigo ? "erro-t" : "ok-t"}">${i.codigo ? "FALHOU (código " + esc(i.codigo) + ")" : "OK"}</td><td class="txt">${esc(i.texto)}</td></tr>`).join("")
+    : `<tr><td colspan="4" class="erro-t">Nenhuma linha desta rodada no log — o robô nem começou.</td></tr>`;
+  h += `</table></div>`;
+  if ((x.indices || []).length) {
+    h += `<h4>Índices depois da rodada</h4><div class="tbl"><table><tr><th>Tabela</th><th>Situação</th><th>Meses ainda por lançar</th></tr>`
+      + x.indices.map(t => `<tr><td>${esc(t.tabela)}</td><td>${esc(t.situacao)}</td><td>${esc((t.meses_novos || []).join(", ") || "nenhum")}</td></tr>`).join("") + `</table></div>`;
+  }
+  if (x.evidencias) h += `<p class="meta">${x.evidencias} print${x.evidencias > 1 ? "s" : ""} salvo${x.evidencias > 1 ? "s" : ""} pelo robô no servidor (_portal\\mc_evidencias).</p>`;
+  if ((x.saida || []).length) h += `<h4>Fim da saída (últimas linhas)</h4><pre>${esc(x.saida.join("\n"))}</pre>`;
+  return h + logHtml(x.log) + pdfHtml(x);
+}
+async function mostrarPdf(box, auto) {
+  if (!box || box.dataset.carregado) return;
+  box.dataset.carregado = "1";
+  const bt = box.querySelector("button"); if (bt) { bt.disabled = true; bt.textContent = "Carregando…"; }
+  let r = null;
+  try { r = await chamar({ action: "escritorioPdf", caminho: box.dataset.pdf }, 45000); } catch (e) { r = { ok: false, erro: e.message || String(e) }; }
+  if (!r || !r.ok || !r.url) {
+    box.dataset.carregado = "";
+    if (bt) { bt.disabled = false; bt.textContent = "Mostrar o PDF aqui"; }
+    const er = String((r && r.erro) || "");
+    if (!auto) aviso(/ACAO_DESCONHECIDA|PDF_INVALIDO/.test(er) && !/PDF_NAO/.test(er) ? "Falta publicar a versão e3 do EscritorioRobos.gs no Apps Script." : er === "PDF_NAO_ACHADO" ? "O PDF ainda não está no portal." : "Não consegui abrir o PDF: " + er);
+    return;
+  }
+  if (bt) bt.remove();
+  box.insertAdjacentHTML("beforeend", `<iframe class="pdf" src="${esc(r.url)}#view=FitH" title="Relatório em PDF"></iframe><a class="pdflink" href="${esc(r.url)}" target="_blank" rel="noopener">Abrir o PDF em outra aba ↗</a>`);
+}
+function resumoRodada(x) {
+  if (x.so_pdf) {
+    const a = (x.atencao || [])[0]; if (a && !x.ok) return a.parte + ": " + a.oque;
+    const l = linhaDoErro(x.log); return l && !x.ok ? l.texto : (x.ok ? "deu certo" : "deu errado — motivo na próxima atualização do servidor");
+  }
+  const f = (x.atencao || [])[0];
+  if (!x.ok && f) return f.parte + ": " + f.oque;
+  const ult = (x.itens || []).filter(i => i.texto).slice(-1)[0];
+  return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
+}
+function abrir(chave, manterAbertas) {
+  if (chave === "__agenda__" && SALA === "agua") return abrirAgua("agua:coletor", manterAbertas);
+  if (chave === "__agenda__") return abrirAgenda(manterAbertas);
+  if (String(chave).startsWith("agua:")) return abrirAgua(chave, manterAbertas);
+  const robos = montarRobos(DADOS || {});
+  const r = robos.find(x => x.chave === chave); if (!r) return;
+  const abertas = manterAbertas ? [...document.querySelectorAll("#gaveta .rod.aberta")].map(e => e.dataset.i) : null;
+  ABERTO = chave;
+  const c = r.cat, g = $("gaveta");
+  g.style.setProperty("--rc", c.cor);
+  let tarefas = r.tarefas.map(t => `<div class="tarefa">
+      <span class="k">Tarefa</span><span>${esc(t.nome)}</span>
+      <span class="k">Horário</span><span>${(t.horario || []).map(esc).join("<br>")}</span>
+      <span class="k">Situação</span><span>${esc(t.estado)}${t.resultado_texto && t.estado !== "trabalhando" ? " · última vez " + esc(t.resultado_texto) : ""}</span>
+      <span class="k">Última</span><span>${esc(quando(t.ultima))}</span>
+      <span class="k">Próxima</span><span>${esc(quando(t.proxima))}</span>
+    </div>`).join("");
+  if (!tarefas) tarefas = `<p class="muted">${r.chave === "fila" ? "Roda pela tarefa da fila do portal." : "Sem tarefa agendada no servidor com este robô."}</p>`;
+  if (r.chave === "fila" && DADOS.saude) {
+    const s = DADOS.saude, fl = Object.entries(s.filas || {});
+    tarefas += `<div class="tarefa"><span class="k">Último sinal</span><span>${esc(quando(s.em))}</span>${fl.map(([n, f]) => `<span class="k">Fila ${esc(n)}</span><span>${esc(f.feitos || 0)} atendidos · ${esc(f.erros || 0)} com erro</span>`).join("")}</div>`;
+  }
+  if (r.chave === "porteiro" && DADOS.porteiro && DADOS.porteiro.em) tarefas += `<div class="tarefa"><span class="k">Visto por último</span><span>${esc(quando(DADOS.porteiro.em))} (${esc(DADOS.porteiro.fonte)}) — ${esc(DADOS.porteiro.texto)}</span>${DADOS.porteiro.porteiro_log ? `<span class="k">porteiro.log</span><span>${esc(DADOS.porteiro.porteiro_log)}</span>` : ""}</div>`;
+  else if (r.chave === "porteiro" && r.ultP) tarefas += `<div class="tarefa"><span class="k">Conferido</span><span>${esc(quando(r.ultP.fim || r.ultP.inicio))} — ${esc(r.ultP.porteiro)}</span></div>`;
+  let rods = "", diaAnt = "";
+  r.rodadas.forEach((x, i) => {
+    const d = dataDe(x.inicio); const dt = d ? diaTitulo(d) : "";
+    if (dt !== diaAnt) { rods += `<div class="dia">${esc(dt)}</div>`; diaAnt = dt; }
+    rods += `<div class="rod" data-i="${i}"><button type="button" aria-expanded="false">
+        <span class="selo ${x.ok ? "ok" : "erro"}">${x.ok ? "DEU CERTO" : "DEU ERRADO"}</span>
+        <span class="h">${d ? hhmm(d) : "?"}</span><span class="r">${esc(resumoRodada(x))}</span><span class="seta">›</span>
+      </button><div class="rel">${relatorioHtml(x)}</div></div>`;
+  });
+  g.innerHTML = `<div class="g-top"><div class="g-ico">${c.ico}</div><div style="min-width:0"><div class="t" id="g-titulo">${esc(c.nome)}</div><div class="s">${esc(c.cargo)} · ${esc(r.stTexto)}</div></div>
+      <button class="hbtn x" type="button" id="g-fechar">✕ Fechar</button></div>
+    <div class="g-corpo">
+      ${r.st === "erro" ? `<div class="box causa"><h3>⚠ O que deu errado</h3><p>${esc(causaDe(r))}</p>${oQueFazer(r) ? `<p class="muted" style="margin-top:6px">O que fazer: ${esc(oQueFazer(r))}</p>` : ""}
+        <div class="acoes">${podeRodar(r) ? `<button type="button" class="bt rodar" id="g-rodar">▶ Rodar de novo</button><small>Roda a mesma tarefa do horário agora (relatório e e-mail inclusos). Se já estiver rodando, o servidor não abre outra.</small>`
+          : `<small>${r.chave === "porteiro" ? "O porteiro não se roda pelo portal: quem entra no Mais Controle é o dono, pela janela do Chrome central." : tarefaParaRodar(r) ? (PODE_RODAR ? "" : "Só ADM e MASTER podem mandar rodar de novo.") : (/agua|energia/.test(r.chave) ? "Esse robô ainda não entra pelo porteiro (pode logar sozinho no Mais Controle e derrubar a sessão dos outros) — por isso não é disparado pelo portal nem pelo Coordenador." : "Este robô não tem tarefa que dê para rodar pelo portal.")}</small>`}</div></div>`
+      : r.st === "pedido" ? `<div class="box causa" style="border-left-color:#e0b11f"><h3 style="color:#b8860b!important">⏳ Na fila para rodar de novo</h3><p>O servidor pega o pedido em até 1 min e roda a tarefa. A mesa muda para “rodando” e o relatório novo aparece aqui.</p></div>` : ""}
+      <div class="box"><h3>O que faz</h3><p>${esc(c.faz)}</p></div>
+      ${r.chave === "coordenador" ? (() => {
+        const PL = DADOS.coordenador, at = PL && !["terminado", "cancelado"].includes(PL.status), qf = quemFalhou();
+        return `<div class="box"><h3>Reorganizar agora</h3>${at ? `<p>Já tem uma reorganização andando — acompanhe abaixo.</p>`
+          : `<p>${qf.length ? "Vão entrar na fila, nesta ordem: <b>" + qf.map(x => esc(x.cat.nome)).join(" → ") + "</b>." : "Ninguém com erro agora — não há o que reorganizar."}</p>
+             <div class="acoes" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:10px">${PODE_RODAR ? `<button type="button" class="bt rodar" id="g-reorg"${qf.length ? "" : " disabled"}>🔁 Reorganizar a fila</button>` : `<small class="muted">Só ADM e MASTER podem reorganizar.</small>`}
+             <small class="muted" style="flex:1;min-width:200px">O servidor confere de novo quem falhou nas últimas 26 h, espera o porteiro estar logado e nenhum robô rodando, e solta um de cada vez (as mesmas tarefas do horário, com relatório e e-mail).</small></div>`}</div>
+          ${PL ? `<div class="box"><h3>${at ? "Andamento" : "Última reorganização"}</h3>${planoHtml(PL)}</div>` : ""}`;
+      })() : `<div class="box"><h3>Quando trabalha</h3>${tarefas}</div>`}
+      ${r.chave === "coordenador" ? "" : `<div class="box"><h3>Relatórios das rodadas</h3>${r.rodadas.length ? `<p class="muted" style="font-size:12.5px;margin-bottom:6px">O mesmo relatório que chega por e-mail, com o log do servidor e o PDF. Clique numa rodada para abrir.</p><div class="rods">${rods}</div>` : `<p class="muted">${r.chave === "porteiro" || r.chave === "fila" ? "Este robô não manda relatório por e-mail — a situação dele aparece acima e no log abaixo." : !r.tarefas.length ? "Ainda sem tarefa agendada no servidor: a mesa fica aqui esperando a primeira rodada." : "Este robô não manda relatório por e-mail (roda sem o rodar_e_relatar) — o que ele fez está no log abaixo."}</p>`}</div>`}
+      ${(r.log || []).length ? `<div class="box"><h3>Log do servidor · últimos 3 dias</h3><details${r.rodadas.length ? "" : " open"}><summary>${r.log.length} linha(s) — a mais nova em cima</summary>${logHtml([...r.log].reverse(), " ")}</details></div>` : ""}
+    </div>`;
+  g.querySelectorAll(".rod > button").forEach(b => b.addEventListener("click", () => {
+    const el = b.parentNode; el.classList.toggle("aberta"); b.setAttribute("aria-expanded", el.classList.contains("aberta"));
+  }));
+  g.querySelectorAll('.pdfbox button[data-a="pdf"]').forEach(b => b.addEventListener("click", () => mostrarPdf(b.closest(".pdfbox"))));
+  const abrirIdx = abertas || (r.rodadas[0] && !r.rodadas[0].ok ? ["0"] : []);
+  abrirIdx.forEach(i => { const el = g.querySelector(`.rod[data-i="${i}"]`); if (el) { el.classList.add("aberta"); el.querySelector("button").setAttribute("aria-expanded", "true"); } });
+  if (!manterAbertas && r.rodadas[0] && !r.rodadas[0].ok) mostrarPdf(g.querySelector('.rod[data-i="0"] .pdfbox'), true);   // erro: o PDF já abre
+  $("g-fechar").addEventListener("click", fechar);
+  const gr = $("g-rodar"); if (gr) gr.addEventListener("click", () => pedirRodar(r, gr));
+  const go = $("g-reorg"); if (go) go.addEventListener("click", () => pedirReorganizar(go));
+  if (!manterAbertas) { g.classList.remove("hide"); $("veu").classList.remove("hide"); g.scrollTop = 0; $("g-fechar").focus(); }
+}
+function fechar() {
+  const ch = ABERTO; ABERTO = null;
+  $("gaveta").classList.add("hide"); $("veu").classList.add("hide");
+  const m = ch && document.querySelector(`.mesa[data-chave="${CSS.escape(ch)}"]`); if (m) m.focus();
+}
+$("veu").addEventListener("click", fechar);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && ABERTO) fechar(); });
+document.addEventListener("click", e => { const m = e.target.closest && e.target.closest(".mesa"); if (m) abrir(m.dataset.chave); });
+$("so-problema").addEventListener("change", pintar);
+$("bt-agenda").addEventListener("click", () => abrirAgenda());
+
+/* ---------------- sala: Mais Controle ou Água e Energia (04/11) ---------------- */
+let SALA = "mc";
+try { if (localStorage.getItem("morais_escritorio_sala") === "agua") SALA = "agua"; } catch (e) {}
+function trocarSala(s) {
+  SALA = s === "agua" ? "agua" : "mc";
+  $("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+  try { localStorage.setItem("morais_escritorio_sala", SALA); } catch (e) {}
+  if (ABERTO) fechar();
+  pintar();
+}
+$("kpis").addEventListener("click", e => {
+  const b = e.target.closest && e.target.closest(".kpi-bt"); if (!b || SALA !== "agua") return;
+  FILTRO_AGUA.conc = b.dataset.conc || ""; pintarPainelAgua();
+  $("painel-agua").scrollIntoView({ behavior: "smooth", block: "start" });
+});
+$("s-mc").addEventListener("click", () => trocarSala("mc"));
+$("s-agua").addEventListener("click", () => trocarSala("agua"));
+$("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+
+/* ---------------- vista: sala 3D (padrão) ou lista ---------------- */
+let VISTA = "3d", SALA3D = false;
+try { if (localStorage.getItem("morais_escritorio_vista") === "lista") VISTA = "lista"; } catch (e) {}
+function trocarVista(v) {
+  VISTA = v;
+  if (v === "3d" && !SALA3D) {
+    $("sala3d").classList.remove("hide");
+    SALA3D = !!(window.Escritorio3D && Escritorio3D.iniciar($("sala3d")));
+    if (!SALA3D) { VISTA = "lista"; $("sala3d").classList.add("hide"); $("v-3d").disabled = true; $("v-3d").title = "Este aparelho não abre 3D (WebGL)"; }
+  }
+  $("v-3d").setAttribute("aria-pressed", VISTA === "3d"); $("v-lista").setAttribute("aria-pressed", VISTA === "lista");
+  try { localStorage.setItem("morais_escritorio_vista", VISTA); } catch (e) {}
+  pintar();
+}
+$("v-3d").addEventListener("click", () => trocarVista("3d"));
+$("v-lista").addEventListener("click", () => trocarVista("lista"));
+new MutationObserver(() => { if (SALA3D && VISTA === "3d") pintar(); }).observe(document.documentElement, { attributes: true, attributeFilter: ["data-tema"] });
+
+/* ---------------- carga ---------------- */
+function erroTela(html) {
+  $("carregando").classList.add("hide");
+  $("avisos").innerHTML = `<div class="aviso">${html}</div>` + (DADOS ? `<div class="aviso amarelo">Mostrando a última leitura guardada neste navegador.</div>` : "");
+}
+async function carregar(manual) {
+  if (CARREGANDO) return; CARREGANDO = true;
+  const bt = $("bt-recarregar"); bt.disabled = true;
+  try {
+    let r;
+    try { r = await chamar({ action: "escritorioBoot" }, 45000); }
+    catch (e) { return erroTela(`<b>O Apps Script não respondeu.</b> ${esc(e.message || e)}`); }
+    if (!r || !r.ok) {
+      const er = String((r && r.erro) || "");
+      if (er === "NAO_AUTORIZADO") { sair(); return; }
+      if (er === "SEM_PERMISSAO") return erroTela(`<b>Sem acesso ao Escritório de Robôs.</b> Peça ao ADM a opção <b>ESCRITÓRIO DE ROBÔS</b> na coluna ACESSOS do LOGINS.`);
+      if (/ACAO_DESCONHECIDA/.test(er)) return erroTela(`<b>Falta instalar o EscritorioRobos.gs no Apps Script</b> (projeto PORTAL-LEITURA) e o gancho de uma linha no Melhorias.gs — o passo a passo está no começo do arquivo apps-script/EscritorioRobos.gs.`);
+      return erroTela(`<b>Não consegui ler o escritório.</b> ${esc(er || "sem resposta do servidor")}`);
+    }
+    $("rodape").textContent = "Apps Script " + String(r.versao || "?").split(" ").pop() + " · atualiza sozinho a cada 3 min";
+    if (!r.url) return erroTela(`<b>${esc(r.aviso || "O servidor ainda não publicou o escritório.")}</b> Ele publica depois da próxima rodada de qualquer robô, ou rode no servidor: <code>python servidor\\escritorio_robos.py</code>.`);
+    const resp = await fetch(r.url, { cache: "no-store" });
+    if (!resp.ok) return erroTela(`<b>Supabase respondeu HTTP ${resp.status}</b> ao baixar o arquivo do escritório.`);
+    DADOS = await resp.json();
+    try { localStorage.setItem(CACHE_LOCAL, JSON.stringify(DADOS)); } catch (e) {}
+    pintar();
+    if (manual) { const c = $("chip-gerado"); c.animate && c.animate([{ transform: "scale(1.06)" }, { transform: "none" }], { duration: 300 }); }
+  } catch (e) {
+    erroTela(`<b>Não consegui carregar.</b> ${esc(e.message || e)}`);
+  } finally { CARREGANDO = false; bt.disabled = false; }
+}
+$("bt-recarregar").addEventListener("click", () => carregar(true));
+try { const c = JSON.parse(localStorage.getItem(CACHE_LOCAL) || "null"); if (c && c.versao) { DADOS = c; } } catch (e) {}
+trocarVista(VISTA);
+carregar();
+setInterval(() => { if (!document.hidden) carregar(); }, RECARREGAR_MS);
+setInterval(() => { if (DADOS && !document.hidden && !ABERTO) pintar(); }, 60000);   // "há X min" anda sozinho
+</script>
+</body>
+</html>

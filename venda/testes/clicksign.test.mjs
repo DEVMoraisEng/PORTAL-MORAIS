@@ -457,7 +457,7 @@ test("plano 23 C: autenticações — token por e-mail sempre; selfie + document
   /* regra do dono: selfie quando o VENDEDOR é empresa (PJ → PF); vendedor pessoa física (PF → PF), não */
   const PJ = { vendedor: { tipo: "PJ", cpfCnpj: "00.000.000/0001-91" } }, PF = { vendedor: { tipo: "PF", cpfCnpj: "529.982.247-25" } };
   const COND = { condominio: { nome: "X" }, vendedor: { tipo: "PJ" } }, CNPJ_SEM_TIPO = { vendedor: { cpfCnpj: "00000000000191" } };
-  for (const origem of ["comprador1", "comprador2", "conjugeComprador1", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"]) {
+  for (const origem of ["comprador1", "comprador2", "conjugeComprador1"]) {
     assert.deepEqual(CS.autenticacoes({ origem }, liga, PJ), ["email", "selfie"], origem);
     assert.deepEqual(CS.autenticacoes({ origem }, liga, COND), ["email", "selfie"], origem + " (condomínio)");
     assert.deepEqual(CS.autenticacoes({ origem }, liga, CNPJ_SEM_TIPO), ["email", "selfie"], origem + " (CNPJ)");
@@ -465,7 +465,8 @@ test("plano 23 C: autenticações — token por e-mail sempre; selfie + document
     assert.deepEqual(CS.autenticacoes({ origem }, liga), ["email"], origem + " (sem os dados: não liga)");
     assert.deepEqual(CS.autenticacoes({ origem }, desl, PJ), ["email"], origem + " (desligado)");
   }
-  for (const origem of ["vendedor", "representante", "testemunha", "corretor"])
+  /* 03/11/2026 (dono): fiadores e cônjuges dos fiadores só com o token, mesmo com a vendedora empresa */
+  for (const origem of ["vendedor", "representante", "testemunha", "corretor", "fiador1", "fiador2", "conjugeFiador1", "conjugeFiador2"])
     assert.deepEqual(CS.autenticacoes({ origem }, liga, PJ), ["email"], origem);
   assert.deepEqual(CS.corpoAutenticacao("d", "s").data.attributes, { action: "provide_evidence", auth: "email" });
   assert.deepEqual(CS.corpoAutenticacao("d", "s", "selfie").data.attributes, { action: "provide_evidence", auth: "selfie" });

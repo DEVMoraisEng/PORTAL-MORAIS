@@ -290,7 +290,7 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
 .lista-ed .ln{display:grid;grid-template-columns:1fr 1fr 30px;gap:6px}
 .lista-ed input{padding:6px 9px;border:1px solid var(--border);border-radius:7px;background:var(--sup);font-size:12.5px}
 @media print{header,.crumb,.tabs-outer,.gfil{display:none}}
-.anxs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.anx{display:inline-block;font:700 11px 'Barlow',sans-serif;padding:2px 8px;border-radius:12px;border:1px solid rgba(41,87,120,.35);background:rgba(41,87,120,.07);color:var(--azul,#295778);text-decoration:none;white-space:nowrap}a.anx:hover{background:var(--azul,#295778);color:#fff}.anx.venc{opacity:.55;cursor:help}.anx0{color:#b9770e;margin-top:4px}html[data-tema="escuro"] .anx{color:#8fdcd2;border-color:rgba(143,220,210,.4);background:rgba(143,220,210,.08)}
+.anxs{display:flex;flex-wrap:wrap;gap:4px;margin-top:4px}.anx{display:inline-block;font:700 11px 'Barlow',sans-serif;padding:2px 8px;border-radius:12px;border:1px solid rgba(41,87,120,.35);background:rgba(41,87,120,.07);color:var(--azul,#295778);text-decoration:none;white-space:nowrap}a.anx:hover{background:var(--azul,#295778);color:#fff}.anx.venc{opacity:.55;cursor:help}.anx0{color:#b9770e;margin-top:4px}.anx.mc{border-color:rgba(42,157,92,.45);background:rgba(42,157,92,.08);color:#1f7a46}a.anx.mc:hover{background:#2a9d5c;color:#fff}html[data-tema="escuro"] .anx{color:#8fdcd2;border-color:rgba(143,220,210,.4);background:rgba(143,220,210,.08)}
 </style>
 </head>
 <body>
@@ -340,8 +340,10 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
         <span class="tit">Filtros</span>
         <div class="fcampo"><label for="g-base">Período por</label>
           <select id="g-base"><option value="dp">Data de pagamento</option><option value="dc">Competência</option></select></div>
-        <div class="fcampo"><label for="g-de">De</label><input type="month" id="g-de"></div>
-        <div class="fcampo"><label for="g-ate">Até</label><input type="month" id="g-ate"></div>
+        <!-- 06/11/26: De/Até com o DIA (antes só mês); "Mês" preenche o mês inteiro -->
+        <div class="fcampo"><label for="g-mes">Mês</label><input type="month" id="g-mes" title="Escolhe o mês inteiro (preenche De e Até)"></div>
+        <div class="fcampo"><label for="g-de">De</label><input type="date" id="g-de"></div>
+        <div class="fcampo"><label for="g-ate">Até</label><input type="date" id="g-ate"></div>
         <div class="fcampo w2"><label for="g-cc">Centro de custo / obra</label><input id="g-cc" list="dl-cc" placeholder="Digite o endereço ou CC" autocomplete="off"></div>
         <div class="fcampo"><label for="g-cb">Conta bancária</label><select id="g-cb"></select></div>
         <div class="fcampo"><label for="g-ro">Responsável da obra</label><select id="g-ro"></select></div>
@@ -410,7 +412,7 @@ html[data-tema="escuro"] .tag.gen{color:#E3AE4B}html[data-tema="escuro"] .tag.de
   </aside>
   <div id="modais"></div>
 
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
 <script>
 /* ============ AUDITORIA FINANCEIRA · PORTAL-MORAIS · 22/10/26 ============
    ACESSO: "FINANCEIRO" (vê tudo) ou "GFINANCEIRO" (vê + valida + edita o
@@ -611,8 +613,11 @@ async function afMarcarCorrigido(chaves){
 const AF_G={base:"dp",de:"",ate:"",cc:"",cb:"",ro:"",pl:""};
 function afGlobalOk(i){
   const g=AF_G;
-  if(g.de||g.ate){ const d=(g.base==="dc"?AF_C.dc[i]:AF_C.dp[i])||""; const m=d.slice(0,7);
-    if(!m) return false; if(g.de&&m<g.de) return false; if(g.ate&&m>g.ate) return false; }
+  if(g.de||g.ate){ const d=String((g.base==="dc"?AF_C.dc[i]:AF_C.dp[i])||"").slice(0,10);
+    if(!d) return false;
+    if(d.length<10){   // data só com o mês (competência): compara pelo mês
+      if(g.de&&d<g.de.slice(0,7)) return false; if(g.ate&&d>g.ate.slice(0,7)) return false; }
+    else { if(g.de&&d<g.de) return false; if(g.ate&&d>g.ate) return false; } }
   if(g.cc){ const c=afNz(ccv(i)); if(g._ccExato ? c!==g._ccN : c.indexOf(g._ccN)<0) return false; }
   if(g.cb && cbv(i)!==g.cb) return false;
   if(g.ro && rov(i)!==g.ro) return false;
@@ -622,24 +627,35 @@ function afGlobalOk(i){
 function afAplicarGlobais(){
   AF_G.base=document.getElementById("g-base").value;
   AF_G.de=document.getElementById("g-de").value; AF_G.ate=document.getElementById("g-ate").value;
+  const gm=document.getElementById("g-mes"), mi=afMesInteiro(AF_G.de,AF_G.ate); if(gm.value!==mi) gm.value=mi;
   AF_G.cc=document.getElementById("g-cc").value.trim(); AF_G._ccN=afNz(AF_G.cc);
   AF_G._ccExato=AF_DIC.cc.some(c=>afNz(c)===AF_G._ccN);
   AF_G.cb=document.getElementById("g-cb").value; AF_G.ro=document.getElementById("g-ro").value; AF_G.pl=document.getElementById("g-pl").value;
   AF_BASE=[]; for(let i=0;i<AF_N;i++) if(afGlobalOk(i)) AF_BASE.push(i);
   const at=[];
   const add=(rot,val,campo)=>at.push(`<span class="ativo">${esc(rot)}: <b>${esc(val)}</b><button title="Tirar" onclick="afTirarGlobal('${campo}')">×</button></span>`);
-  if(AF_G.de||AF_G.ate) add(AF_G.base==="dc"?"Competência":"Pagamento",(AF_G.de?fMl(AF_G.de):"…")+" a "+(AF_G.ate?fMl(AF_G.ate):"…"),"per");
+  if(AF_G.de||AF_G.ate) add(AF_G.base==="dc"?"Competência":"Pagamento",afPerTxt(),"per");
   if(AF_G.cc) add("CC",AF_G.cc,"cc"); if(AF_G.cb) add("Conta",AF_G.cb,"cb");
   if(AF_G.ro) add("Responsável",AF_G.ro,"ro"); if(AF_G.pl) add("Plano",AF_G.pl,"pl");
   document.getElementById("g-ativos").innerHTML=at.length?at.join("")+`<span class="small" style="align-self:center">${fN(AF_BASE.length)} de ${fN(AF_N)} pagamentos</span>`:"";
   afSalvarHash(); afSel.clear(); afLancPg=0; afRender();
 }
+/* 06/11/26: período por dia. Mês inteiro (1º ao último dia) aparece como "out/2026" */
+const afUltDia=m=>{ const [a,b]=m.split("-").map(Number); return m+"-"+String(new Date(a,b,0).getDate()).padStart(2,"0"); };
+function afMesInteiro(de,ate){ return de&&ate&&de.slice(0,7)===ate.slice(0,7)&&de.slice(8)==="01"&&ate===afUltDia(de.slice(0,7))?de.slice(0,7):""; }
+function afPerTxt(){ const de=AF_G.de, ate=AF_G.ate, mi=afMesInteiro(de,ate);
+  if(mi) return fMl(mi); if(de&&ate&&de===ate) return fD(de);
+  return (de?fD(de):"…")+" a "+(ate?fD(ate):"…"); }
+function afEscolherMes(){ const m=document.getElementById("g-mes").value;
+  if(m){ document.getElementById("g-de").value=m+"-01"; document.getElementById("g-ate").value=afUltDia(m); }
+  else { document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; }
+  afAplicarGlobais(); }
 function afTirarGlobal(c){
-  if(c==="per"){ document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; }
+  if(c==="per"){ document.getElementById("g-de").value=""; document.getElementById("g-ate").value=""; document.getElementById("g-mes").value=""; }
   else document.getElementById("g-"+c).value="";
   afAplicarGlobais();
 }
-function afLimparGlobais(){ ["g-de","g-ate","g-cc","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).value=""); afAplicarGlobais(); }
+function afLimparGlobais(){ ["g-mes","g-de","g-ate","g-cc","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).value=""); afAplicarGlobais(); }
 function afSalvarHash(){
   const p=new URLSearchParams(); p.set("aba",AF_TAB);
   Object.entries(AF_G).forEach(([k,v])=>{ if(!k.startsWith("_")&&v&&!(k==="base"&&v==="dp")) p.set(k,v); });
@@ -648,7 +664,9 @@ function afSalvarHash(){
 function afLerHash(){
   const p=new URLSearchParams(location.hash.slice(1));
   const map={base:"g-base",de:"g-de",ate:"g-ate",cc:"g-cc",cb:"g-cb",ro:"g-ro",pl:"g-pl"};
-  Object.entries(map).forEach(([k,id])=>{ if(p.get(k)) document.getElementById(id).value=p.get(k); });
+  Object.entries(map).forEach(([k,id])=>{ let v=p.get(k); if(!v) return;
+    if(/^\d{4}-\d{2}$/.test(v)&&(k==="de"||k==="ate")) v=k==="de"?v+"-01":afUltDia(v);   // link antigo, só com o mês
+    document.getElementById(id).value=v; });
   return p.get("aba");
 }
 function afOpcoes(id, valores, todos){
@@ -881,14 +899,33 @@ function afAnexoTipo(a){ const n=(a.n||"").toUpperCase(), t=(a.t||"").toLowerCas
   if(a.o==="P") return "Comprovante";
   if(/BOLETO|BLT/.test(n)) return "Boleto"; if(/\bNF|NOTA|DANFE|NFS/.test(n)) return "NF"; if(/RECIBO/.test(n)) return "Recibo"; if(/COMPROV/.test(n)) return "Comprovante";
   return t.includes("pdf")?"PDF":t.includes("image")?"Imagem":"Arquivo"; }
-function afAnexosHtml(i,compacto){
-  const A=((AF_D&&AF_D.anexos)||{}).itens; if(!A) return "";
-  const it=A[String(AF_C.id[i])]; if(!it) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos: este pagamento ainda não foi lido do Mais Controle (o robô lê os pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).</div>`;
+function afAnexosHtml(i,compacto){ return afAnexosId(AF_C.id[i],compacto); }
+function afAnexosId(id,compacto){
+  const A=((AF_D&&AF_D.anexos)||{}).itens;
+  if(!A) return compacto?"":`<div class="small muted" style="margin:0 0 12px">📎 Anexos do Mais Controle: o robô do servidor ainda não fez a primeira leitura. Assim que rodar, os arquivos (boleto, NF, recibo, comprovante) aparecem aqui e na lista.</div>`;
+  const it=A[String(id)];
+  /* 05/11 (dono): toda linha diz em que pé está o anexo, e o lançamento abre direto no Mais Controle */
+  const mcUrl=afUrlMc(it), mcLk=mcUrl?`<a class="anx mc" href="${esc(mcUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="Abrir este lançamento no Mais Controle">↗ Mais Controle</a>`:"";
+  if(!it||!it.v){
+    const fora=!it, na=it&&it.nao_achado;
+    const curto=fora?((AF_D.anexos||{}).escopo==="todos"?"📎 ainda não lido":"📎 fora da leitura dos anexos"):na?"📎 não achado no Mais Controle":"📎 ainda não lido";
+    const longo=fora?((AF_D.anexos||{}).escopo==="todos"?"o robô ainda vai chegar neste pagamento — ele está lendo todos, os com alerta primeiro.":`este pagamento não está na leitura do robô (ele lê os alertas da Fiscalização dos últimos ${Math.round(((AF_D.anexos||{}).dias_fiscal||90)/30)} meses e os demais pagamentos com alerta dos últimos ${(AF_D.anexos||{}).dias||90} dias).`)
+      :na?`o robô procurou na lista de pagamentos do Mais Controle em ${fD(String(na).slice(0,10))} e não achou este lançamento (data/valor diferentes ou parecido com outro). Ele procura de novo em 3 dias.`
+      :"o robô já achou o lançamento no Mais Controle e abre os arquivos na próxima rodada.";
+    return compacto?`<div class="anxs"><span class="small anx0">${curto}</span>${mcLk}</div>`:`<div class="small muted" style="margin:0 0 12px">📎 Anexos: ${longo} ${mcLk}</div>`;
+  }
   const ls=it.a||[], agora=new Date().toISOString().slice(0,16);
-  if(!ls.length) return compacto?`<div class="small anx0">📎 sem anexo no Mais Controle</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}.</p></div>`;
-  const lk=a=>{ const venc=a.x&&a.x<agora; return venc||!a.u?`<span class="anx venc" title="Link vencido — o robô renova na próxima rodada">📎 ${esc(afAnexoTipo(a))}</span>`:`<a class="anx" href="${esc(a.u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")}">📎 ${esc(afAnexoTipo(a))}</a>`; };
-  if(compacto) return `<div class="anxs">${ls.slice(0,4).map(lk).join("")}${ls.length>4?`<span class="small muted">+${ls.length-4}</span>`:""}</div>`;
-  return `<div class="vbox" style="margin:0 0 12px"><h4>📎 Anexos do Mais Controle (${ls.length})</h4>${ls.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--borda,#e3e9ee)">${lk(a)}<span class="small" style="flex:1">${esc(a.n||"")}</span><span class="small muted">${a.o==="P"?"no pagamento":"no lançamento"}${a.s?" · "+Math.max(1,Math.round(a.s/1024))+" KB":""}</span></div>`).join("")}<div class="small muted" style="margin-top:6px">Lido em ${fD((it.v||"").slice(0,10))}. Os links valem por alguns dias e são renovados pelo robô.</div></div>`;
+  if(!ls.length) return compacto?`<div class="anxs"><span class="small anx0">📎 sem anexo no Mais Controle</span>${mcLk}</div>`:`<div class="callout r" style="margin:0 0 12px"><h4>📎 Anexos</h4><p>Nenhum arquivo neste lançamento nem no pagamento, no Mais Controle${it.v?` (lido em ${fD(it.v.slice(0,10))})`:""}. ${mcLk}</p></div>`;
+  const lk=a=>{ if(a.sl) return mcUrl?`<a class="anx" href="${esc(mcUrl)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")} — abre no Mais Controle">📎 ${esc(afAnexoTipo(a))}</a>`:`<span class="anx" title="${esc(a.n||"")} — está no Mais Controle">📎 ${esc(afAnexoTipo(a))}</span>`;
+    const venc=a.x&&a.x<agora; return venc||!a.u?`<span class="anx venc" title="Link vencido — o robô renova na próxima rodada">📎 ${esc(afAnexoTipo(a))}</span>`:`<a class="anx" href="${esc(a.u)}" target="_blank" rel="noopener" onclick="event.stopPropagation()" title="${esc(a.n||"")}">📎 ${esc(afAnexoTipo(a))}</a>`; };
+  if(compacto) return `<div class="anxs">${ls.slice(0,4).map(lk).join("")}${ls.length>4?`<span class="small muted">+${ls.length-4}</span>`:""}${mcLk}</div>`;
+  return `<div class="vbox" style="margin:0 0 12px"><h4>📎 Anexos do Mais Controle (${ls.length})</h4>${ls.map(a=>`<div style="display:flex;gap:10px;align-items:center;padding:4px 0;border-bottom:1px solid var(--borda,#e3e9ee)">${lk(a)}<span class="small" style="flex:1">${esc(a.n||"")}</span><span class="small muted">${a.o==="P"?"no pagamento":"no lançamento"}${a.s?" · "+Math.max(1,Math.round(a.s/1024))+" KB":""}</span></div>`).join("")}<div class="small muted" style="margin-top:6px">Lido em ${fD((it.v||"").slice(0,10))}. Os links valem por alguns dias e são renovados pelo robô. ${mcLk}</div></div>`;
+}
+/* 05/11: o link do lançamento no Mais Controle — a parcela que o robô achou (o mesmo endereço que o robô de água e
+   energia usa nos e-mails dele). Sem a parcela, nada: link errado é pior que nenhum. */
+function afUrlMc(it){
+  const m=(it&&it.mc)||{}, p=(m.parcelas||[])[0];
+  return p&&/^[0-9a-f-]{36}$/i.test(p)?"https://acessar.maiscontroleerp.com.br/#/payable-installments/"+p:"";
 }
 
 function afAbrirDrawer(i){
@@ -1006,7 +1043,7 @@ function afRenderCorr(){
   document.getElementById("c-lista").innerHTML=grupos.map(gr=>`<div class="card"><h3>${esc(gr.nome||"—")}</h3><p class="desc">${fN(gr.itens.length)} lançamento${gr.itens.length>1?"s":""} · ${fR(gr.itens.reduce((a,r)=>a+r.valor,0))}</p>
     <div class="tbl-wrap baixa"><table><thead><tr><th>Pagamento</th><th>Lançamento</th><th>Como está</th><th>O que corrigir</th><th class="num">Valor</th><th>Status</th>${g?"<th></th>":""}</tr></thead><tbody>
     ${gr.itens.map(r=>`<tr${r.i!==null?` class="clk" onclick="afAbrirDrawer(${r.i})"`:""}><td class="small nw">${fD(r.dp)}</td>
-      <td class="desc-c">${esc(r.desc||"—")}<div class="small">${esc(r.forn||"—")} · ID ${esc(r.id||"")}${(AF_G.cc||document.getElementById("c-ag").value==="cc")?"":" · "+esc(r.cc)}</div></td>
+      <td class="desc-c">${esc(r.desc||"—")}<div class="small">${esc(r.forn||"—")} · ID ${esc(r.id||"")}${(AF_G.cc||document.getElementById("c-ag").value==="cc")?"":" · "+esc(r.cc)}</div>${r.id?afAnexosId(r.id,true):""}</td>
       <td>${esc(r.cat)}<div class="pl">${esc(r.tipo)}</div></td>
       <td>${r.v.obs?esc(r.v.obs):r.sug?`<span class="sug">${esc(r.sug)}</span>`:'<span class="muted">ver motivo</span>'}<div class="vquem">${esc(r.v.por||"")} · ${fD((r.v.em||"").slice(0,10))}</div></td>
       <td class="num">${fR(r.valor)}</td><td>${afVlBadge(r.v.status)}${r.v.corrigido_em?`<div class="vquem">${fD(r.v.corrigido_em.slice(0,10))} · ${esc(r.v.corrigido_por||"")}</div>`:""}</td>
@@ -1141,7 +1178,7 @@ function afRenderJuros(){
   const G=AF_BASE.filter(i=>AF_C.dp[i]&&janela.has(AF_C.dp[i].slice(0,7))&&fis.has(afNz(cat(i)))&&(afDias(AF_C.dv[i],AF_C.dp[i])||0)>0)
     .sort((x,y)=>AF_C.jm[y]-AF_C.jm[x]);
   document.getElementById("j-fisc").innerHTML=G.length?`<div class="tbl-wrap baixa"><table><thead><tr><th>Pagamento</th><th>Guia</th><th>Categoria</th><th>Centro de custo</th><th class="num">Dias de atraso</th><th class="num">Valor</th><th class="num">Juros/multa</th></tr></thead><tbody>
-    ${G.slice(0,300).map(i=>`<tr class="clk" onclick="afAbrirDrawer(${i})"><td class="small nw">${fD(AF_C.dp[i])}<div class="muted">venc. ${fD(AF_C.dv[i])}</div></td><td class="desc-c">${esc(AF_C.d[i]||"—")}</td><td>${esc(cat(i))}</td><td class="small">${esc(ccv(i))}</td><td class="num">${afDias(AF_C.dv[i],AF_C.dp[i])}</td><td class="num">${fR(AF_C.v[i])}</td><td class="num">${AF_C.jm[i]?fR(AF_C.jm[i]):"—"}</td></tr>`).join("")}
+    ${G.slice(0,300).map(i=>`<tr class="clk" onclick="afAbrirDrawer(${i})"><td class="small nw">${fD(AF_C.dp[i])}<div class="muted">venc. ${fD(AF_C.dv[i])}</div></td><td class="desc-c">${esc(AF_C.d[i]||"—")}${afAnexosHtml(i,true)}</td><td>${esc(cat(i))}</td><td class="small">${esc(ccv(i))}</td><td class="num">${afDias(AF_C.dv[i],AF_C.dp[i])}</td><td class="num">${fR(AF_C.v[i])}</td><td class="num">${AF_C.jm[i]?fR(AF_C.jm[i]):"—"}</td></tr>`).join("")}
     </tbody></table></div>`:`<div class="vazio">Nenhuma guia fiscal paga em atraso no período.</div>`;
   // contas a pagar
   const jan=document.getElementById("p-jan").value, q=afNz(document.getElementById("p-q").value);
@@ -1199,7 +1236,7 @@ function afRenderFisc(){
   document.getElementById("f-tab").innerHTML=L.length?`<p class="small" style="margin:0 0 8px">${fN(L.length)} alertas · ${fR(L.reduce((a,f)=>a+AF_C.v[f[1]],0))}</p>
     <div class="tbl-wrap"><table><thead><tr><th>Alerta</th><th>Pagamento</th><th>Lançamento</th><th>Categoria</th><th class="num">Valor</th><th>Detalhe</th><th>Validação</th></tr></thead><tbody>
     ${L.slice(0,400).map((f,ix)=>{ const i=f[1], v=AF_VAL.get(f[0]+":"+AF_C.k[i]); return `<tr class="clk" onclick="afAbrirDrawer(${i})"><td><b>${esc((T[f[0]]||{}).t||f[0])}</b></td><td class="small nw">${fD(AF_C.dp[i])}</td>
-      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div></td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}</td>
+      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div>${afAnexosHtml(i,true)}</td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}</td>
       <td onclick="event.stopPropagation()">${afVlBadge(v?v.status:"PENDENTE")}${v&&v.por?`<div class="vquem">${esc(v.por)} · ${fD((v.em||"").slice(0,10))}</div>`:""}
         ${g?`<div class="vacts"><button class="vbt ok" onclick="afPerguntarVal([${i}],'CONFORME','${f[0]}')">✓ Conforme</button><button class="vbt cx" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">✎ Corrigir</button></div>`:""}</td></tr>`; }).join("")}
     </tbody></table></div>${L.length>400?`<p class="small">Mostrando 400 de ${fN(L.length)} — use o Excel (CSV) para ver todos.</p>`:""}`:`<div class="vazio">Nenhum alerta com estes filtros.</div>`;
@@ -1558,7 +1595,7 @@ function afJanelaPdf(titulo, corpo, paisagem){
   w.document.close();
 }
 function afFiltrosTexto(){
-  const t=[]; if(AF_G.de||AF_G.ate) t.push((AF_G.base==="dc"?"Competência ":"Pagamento ")+(AF_G.de?fMl(AF_G.de):"…")+" a "+(AF_G.ate?fMl(AF_G.ate):"…"));
+  const t=[]; if(AF_G.de||AF_G.ate) t.push((AF_G.base==="dc"?"Competência ":"Pagamento ")+afPerTxt());
   if(AF_G.cc) t.push("CC: "+AF_G.cc); if(AF_G.cb) t.push("Conta: "+AF_G.cb); if(AF_G.ro) t.push("Responsável: "+AF_G.ro); if(AF_G.pl) t.push("Plano: "+AF_G.pl);
   return t.length?"Filtros: "+t.join(" · "):"Sem filtros (todos os pagamentos)";
 }
@@ -1700,6 +1737,7 @@ function afIniciar(){
   document.querySelectorAll("#conteudo > section").forEach(s=>s.classList.toggle("hide",s.id!=="tab-"+AF_TAB));
   document.getElementById("gfil").classList.toggle("hide",AF_TAB==="man");
   ["g-base","g-de","g-ate","g-cb","g-ro","g-pl"].forEach(id=>document.getElementById(id).addEventListener("change",afAplicarGlobais));
+  document.getElementById("g-mes").addEventListener("change",afEscolherMes);
   const gcc=document.getElementById("g-cc");
   gcc.addEventListener("change",afAplicarGlobais);
   gcc.addEventListener("keydown",e=>{ if(e.key==="Enter") afAplicarGlobais(); });

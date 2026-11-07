@@ -275,6 +275,45 @@ def schema_da_base(db_id, com_titulo=False):
     return {"ok": True, "campos": campos}
 
 
+# --------------------------------------------------------------------------
+# 04/11/26 — DESFALQUES nos andamentos de evento (do serviço e de cada retorno)
+# --------------------------------------------------------------------------
+DESFALQUES = ["CLIENTE AUSENTE", "PRESTADOR NÃO COMPARECEU"]
+
+
+def eh_andamento_evento(nome):
+    n = norm(nome)
+    return ("ANDAMENTO" in n and "SOLICITACAO" not in n
+            and ("SERVICO" in n or eh_retorno(n)))
+
+
+def garantir_desfalques(db_id):
+    """Cria CLIENTE AUSENTE e PRESTADOR NÃO COMPARECEU em toda coluna select de
+    andamento de EVENTO (ANDAMENTO DO SERVIÇO, ANDAMENTO RETORNO N...). Só
+    acrescenta o que falta — nunca mexe nas opções que já existem. Coluna de
+    retorno nova no Notion ganha as opções sozinha na próxima publicação.
+    Falhar aqui não derruba a publicação."""
+    try:
+        r = api("GET", "/databases/" + db_id)
+        patch = {}
+        for nome, d in (r.get("properties") or {}).items():
+            if d.get("type") != "select" or not eh_andamento_evento(nome):
+                continue
+            atuais = (d.get("select") or {}).get("options", [])
+            tem = {norm(o.get("name")) for o in atuais}
+            falta = [x for x in DESFALQUES if norm(x) not in tem]
+            if not falta:
+                continue
+            ops = [{"id": o["id"], "name": o["name"], "color": o.get("color", "default")} for o in atuais]
+            ops += [{"name": x, "color": "red"} for x in falta]
+            patch[nome] = {"select": {"options": ops}}
+        if patch:
+            api("PATCH", "/databases/" + db_id, {"properties": patch})
+            print("  desfalques criados em: " + ", ".join(sorted(patch)), flush=True)
+    except BaseException as e:      # api() sai com SystemExit em erro
+        print(f"  ! não consegui criar as opções de desfalque: {e}", flush=True)
+
+
 def campo_do_schema(schema, nome):
     alvo = norm(nome)
     for c in schema.get("campos", []):
@@ -436,6 +475,7 @@ def main():
     print(f"  {len(obras)} obras com cliente ({sem_cliente} sem cliente, ignoradas).", flush=True)
 
     # ---- 3. SCHEMAS -------------------------------------------------------
+    garantir_desfalques(DB_ATV)
     print("Lendo schema das duas bases…", flush=True)
     schema_atv = schema_da_base(DB_ATV, com_titulo=True)
     schema_obra = schema_da_base(DB_POS)

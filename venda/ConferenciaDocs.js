@@ -165,6 +165,21 @@ var ConferenciaDocs = (function () {
   /* linhas guardadas antes do semArquivo existir só têm o motivo escrito */
   function naoAnexado(l) { return !!(l && (l.semArquivo || l.motivo === "documento não anexado")); }
 
+  /* 03/11/2026 (dono): a conferência rodou antes de a fila copiar os documentos da proposta para a venda e ficou
+     "não anexado" com os arquivos já na linha. A conferência guarda quantos arquivos havia em cada coluna;
+     se a conta de agora for outra, ela ficou velha. `contar(coluna)` = quantos arquivos a coluna tem agora. */
+  function contagemArquivos(contar) {
+    var o = {};
+    COLUNAS.forEach(function (c) { o[c] = Number(contar(c)) || 0; });
+    return o;
+  }
+  function anexosMudaram(o, agora) {
+    if (!o || !agora) return false;
+    if (o.arquivos) return COLUNAS.some(function (c) { return (o.arquivos[c] || 0) !== (agora[c] || 0); });
+    /* conferência guardada antes da contagem: só o que estava "não anexado" e agora tem arquivo */
+    return (o.linhas || []).some(function (l) { return naoAnexado(l) && (agora[l.coluna] || 0) > 0; });
+  }
+
   /* Resumo para o aviso do pré-contrato: "" quando está tudo conferido. */
   function resumo(linhas, confirmados) {
     confirmados = confirmados || {};
@@ -182,7 +197,7 @@ var ConferenciaDocs = (function () {
 
   var api = { COL: COL, COLUNAS: COLUNAS, plano: plano, comparar: comparar, lidoDe: lidoDe, resultado: resultado, resumo: resumo,
               nomeConfere: nomeConfere, enderecoConfere: enderecoConfere, civilConfere: civilConfere,
-              camposParaCorrigir: camposParaCorrigir };
+              camposParaCorrigir: camposParaCorrigir, contagemArquivos: contagemArquivos, anexosMudaram: anexosMudaram };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();

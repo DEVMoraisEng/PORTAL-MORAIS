@@ -213,6 +213,49 @@ var ContratoVenda = (function () {
     return txt(v);
   }
 
+  /* 05/11/2026 (dono): casa de rua — dados de pagamento da comissão vêm do cadastro do CORRETOR (CORRETORES – CONTRATO),
+     não mais da coluna CONTRATO - COMISSÃO FORMA da venda. Colunas texto do cadastro, todas opcionais. */
+  var CAMPOS_PAGAMENTO_CORRETOR = [
+    { coluna: "CHAVE PIX", rotulo: "Chave PIX", tipo: "texto", chave: "pix" },
+    { coluna: "BANCO", rotulo: "Banco", tipo: "texto", chave: "banco" },
+    { coluna: "AGÊNCIA", rotulo: "Agência", tipo: "texto", chave: "agencia" },
+    { coluna: "CONTA", rotulo: "Conta", tipo: "texto", chave: "conta" },
+    { coluna: "TITULAR DA CONTA", rotulo: "Titular da conta", tipo: "texto", chave: "titular" }
+  ];
+  /* {{COMISSAO_FORMA}} montado dos dados do corretor: "PIX, chave X", "transferência para B, agência A, conta C" ou os dois
+     ("…, ou transferência…"), + ", em nome de <titular ou nome do corretor>". Sem chave nem banco/agência/conta: "". */
+  function formaComissaoCorretor(k) {
+    k = k || {};
+    var pix = txt(k.pix), banco = txt(k.banco), ag = txt(k.agencia), conta = txt(k.conta);
+    var partes = [];
+    if (pix) partes.push("PIX, chave " + pix);
+    if (banco || ag || conta) {
+      var t = banco ? "transferência para " + banco : "transferência";
+      if (ag) t += ", agência " + ag;
+      if (conta) t += ", conta " + conta;
+      partes.push(t);
+    }
+    if (!partes.length) return "";
+    var titular = txt(k.titular) || txt(k.nome);
+    return partes.join(", ou ") + (titular ? ", em nome de " + titular : "");
+  }
+  /* Bloco "Pagamento da comissão" da aba Contrato (casa de rua). linha = { COLUNA: valor } do cadastro do corretor ou null
+     (sem cadastro); colunas = nomes das colunas que a base tem (null = não se sabe). formaAntiga = CONTRATO - COMISSÃO FORMA. */
+  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga) {
+    var nome = txt(nomeCorretor), k = { nome: nome }, faltando = [];
+    var campos = CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
+      var v = linha ? txt(linha[c.coluna]) : "";
+      k[c.chave] = v;
+      var existe = colunas ? colunas.map(function (x) { return R().chave(x); }).indexOf(R().chave(c.coluna)) >= 0 : true;
+      if (!existe) faltando.push(c.coluna);
+      return { coluna: c.coluna, rotulo: c.rotulo, valor: v, existe: existe };
+    });
+    var forma = formaComissaoCorretor(k), legado = false;
+    if (!forma && txt(formaAntiga)) { forma = formaPorExtenso(formaAntiga); legado = true; }
+    return { pagaPor: "COMPRADOR", corretor: nome, temCadastro: !!linha, campos: campos, colunasFaltando: faltando,
+             forma: forma, formaLegada: legado };
+  }
+
   /* ---- condomínio ---- */
   function R() { return typeof RegrasVenda !== "undefined" ? RegrasVenda : require("./RegrasVenda.js"); }
   function so2(n) { return Math.round(n * 100) / 100; }
@@ -448,10 +491,14 @@ var ContratoVenda = (function () {
        sinal incluído (como o texto do advogado: o saldo da entrada é a entrada menos o sinal). */
     var sinal = so2(G.sinais.reduce(function (s, x) { return s + x.v; }, 0));
     var entrada = preco === null ? null : so2(preco - financiamento);
+    /* 04/11 (advogado): a entrada se compõe da parte que paga o PREÇO DO IMÓVEL e da comissão (4.1.4); o saldo
+       devedor (CAIXA + FGTS + subsídio) é o preço do imóvel menos essa parte — a comissão não entra no financiamento. */
+    var imovel = preco !== null && comissao !== null ? so2(preco - comissao) : null;
+    var entradaImovel = entrada === null || comissao === null ? null : so2(entrada - comissao);
     return {
       preco: preco, financiamento: financiamento, temFgtsSubsidio: G.fgts + G.subsidio > 0,
       plano: plano, pctRegra: pctRegra, comissao: comissao, operacao: preco, precoMudou: precoMudou, semComissao: semComissao,
-      imovel: preco !== null && comissao !== null ? so2(preco - comissao) : null,
+      imovel: imovel, entradaImovel: entradaImovel,
       sinal: sinal, entrada: entrada, saldoEntrada: entrada === null ? null : so2(entrada - sinal)
     };
   }
@@ -548,8 +595,9 @@ var ContratoVenda = (function () {
         : a.d && a.d === G.assinatura ? ", na assinatura deste contrato" : ", com vencimento em " + dataBR(a.d)) ;
     });
     var perm = semAvista ? [] : G.permutas.map(function (p) {
-      return "bem dado em pagamento (permuta): " + (txt(p.x) || "bem descrito em instrumento próprio") + (p.b && FLV().TIPOS_BEM.hasOwnProperty(p.b.tipo) ? ", identificado no item 6.1, VI" : "") +
-        ", pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d);
+      /* 04/11: o modelo do advogado não tem o 6.1 com incisos (lá o 6.1 é a correção) — o bem é identificado aqui */
+      return "bem dado em pagamento (permuta): " + (identificacaoBem(p.b) || txt(p.x) || "bem descrito em instrumento próprio") +
+        ", pelo valor de " + valorExtenso(p.v) + ", com entrega em " + dataBR(p.d) + ", sem correção monetária";
     });
     G.pre.forEach(function (s) { itens.push(serieQuadro(s)); total += s.n; });
     G.baloes.forEach(function (b) {
@@ -585,8 +633,16 @@ var ContratoVenda = (function () {
   /* item 1 do quadro: "[Nome], [nacionalidade], [estado civil], [profissão], RG nº, CPF nº, residente …, e-mail, telefone" */
   function qualificacaoQuadro(c, conj) {
     c = c || {};
-    return semVazios([txt(c.nome), txt(c.nacionalidade), conj ? fraseConjuge(conj) : txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
+    return semVazios([txt(c.nome), nacionalidadeQuadro(c.nacionalidade), conj ? fraseConjuge(conj) : txt(c.estadoCivil), txt(c.profissao), documentoComRotulo(c.documento),
       txt(c.cpf) ? "CPF nº " + txt(c.cpf) : "", txt(c.endereco) ? "residente e domiciliado(a) à " + txt(c.endereco) : ""].concat(contato(c)));
+  }
+  /* 04/11 (advogado, contrato do condomínio revisto): a nacionalidade do comprador sai por extenso e em maiúsculas —
+     "BRASILEIRO" (ou "BRASILEIRA", se foi digitada no feminino); "Brasil", "BR" e "brasileiro(a)" viram "BRASILEIRO".
+     Outra nacionalidade sai como foi digitada. */
+  function nacionalidadeQuadro(v) {
+    var t = txt(v), k = semAcento(t).toLowerCase().replace(/\s+/g, "");
+    if (k === "brasileira") return "BRASILEIRA";
+    return /^(br|brasil|brasileiro|brasileiro\(a\)|brasileiro\/a|brasileira\(o\)|brasileiro\(a\)nato\(a\))$/.test(k) ? "BRASILEIRO" : t;
   }
   function docRotulo(doc) {
     var d = txt(doc);
@@ -742,6 +798,9 @@ var ContratoVenda = (function () {
     return out;
   }
 
+  /* 05/11/2026 (dono): itens 9.8/9.9 do contrato da casa pronta — "posse em até 20 (vinte) dias" e "chaves em até 02 (dois)
+     dias úteis", iguais em todos os contratos assinados; não aparecem na tela nem vêm de cadastro */
+  var PRAZO_POSSE_RUA = "20 (vinte)", PRAZO_CHAVES_RUA = "02 (dois)";
   function montarDadosContrato(f) {
     f = f || {};
     var v = f.venda || {}, o = f.obra || {};
@@ -750,7 +809,9 @@ var ContratoVenda = (function () {
     var cond = f.condominio ? montarCondominio(f.condominio) : null;
     /* condomínio (contrato do advogado, 21/10/2026): a comissão é paga pelo COMPRADOR, por fora do preço
        do imóvel (valor da operação = VALOR DE VENDA + comissão). Antes (07/10) era paga pela incorporadora. */
-    var pagaPor = cond ? "COMPRADOR" : up(v.COMISSAO_PAGA_POR);
+    /* 05/11/2026 (dono): na CASA DE RUA também é SEMPRE o comprador — a coluna CONTRATO - COMISSÃO PAGA POR não manda mais
+       (saiu da tela). O ERP (venda/mc/regras.py) trata a coluna vazia como COMPRADOR; o condomínio no ERP segue VENDEDOR. */
+    var pagaPor = "COMPRADOR";
     var total = cond && cond.fluxo.valorVenda !== null ? cond.fluxo.valorVenda : num(v.VALOR_CONTRATO);
     var comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
     var aquisicao, intermediacao;
@@ -762,8 +823,9 @@ var ContratoVenda = (function () {
       aquisicao = total;
       intermediacao = "paga pelo VENDEDOR";
     } else {
+      /* 05/11/2026: a comissão é opcional na casa de rua — vazia conta como zero (antes dava "valor de aquisição inválido") */
       aquisicao = naMao !== null && naMao > 0 ? naMao
-        : (total !== null && comissao !== null ? total - comissao : null);
+        : (total !== null ? so2(total - (comissao || 0)) : null);
       intermediacao = comissao;
     }
     var vend = f.vendedor || null;
@@ -797,7 +859,9 @@ var ContratoVenda = (function () {
       loteamento: f.loteamento ? {
         denominacao: txt(v.DENOMINACAO_LOTEAMENTO) || txt(f.loteamento.denominacao), municipioUf: txt(f.loteamento.municipioUf),
         matricula: txt(f.loteamento.matricula), cartorio: txt(f.loteamento.cartorio),
-        prazoPosseDias: txt(f.loteamento.prazoPosseDias), prazoChavesDias: txt(f.loteamento.prazoChavesDias)
+        /* 05/11/2026 (dono): casa de rua — prazos fixos do modelo, iguais aos 41 contratos assinados que trazem a cláusula */
+        prazoPosseDias: cond ? txt(f.loteamento.prazoPosseDias) : PRAZO_POSSE_RUA,
+        prazoChavesDias: cond ? txt(f.loteamento.prazoChavesDias) : PRAZO_CHAVES_RUA
       } : null,
       imovel: {
         endereco: txt(v.ENDERECO), lote: lq ? lq.lote : "", quadra: lq ? lq.quadra : "",
@@ -815,7 +879,9 @@ var ContratoVenda = (function () {
         formaPagamento: txt(v.FORMA_PAGAMENTO)
       },
       comissao: {
-        valor: comissao, forma: txt(v.COMISSAO_FORMA), vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
+        /* 05/11/2026: casa de rua — a forma sai do cadastro do corretor (chave PIX / conta); sem dados lá, a coluna antiga */
+        valor: comissao, forma: (!cond && formaComissaoCorretor(f.corretor)) || txt(v.COMISSAO_FORMA),
+        vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
       },
       corretor: f.corretor ? {
         nome: txt(f.corretor.nome), creci: txt(f.corretor.creci), cpfCnpj: txt(f.corretor.cpfCnpj),
@@ -899,16 +965,14 @@ var ContratoVenda = (function () {
        o cadastro em LOTEAMENTOS não é mais exigido */
     var l = d.loteamento;
     if (d.condominio) { /* nada a exigir */ }
-    else if (!l) faltas.push("Loteamento: cadastro em LOTEAMENTOS – CONTRATO");
     else {
-      exige(!vazio(l.denominacao), "Loteamento", "denominação");
-      exige(!vazio(l.municipioUf), "Loteamento", "município/UF");
-      exige(!vazio(l.matricula), "Loteamento", "matrícula do loteamento");
-      exige(!vazio(l.cartorio), "Loteamento", "cartório");
-      if (pronto) {
-        exige(!vazio(l.prazoPosseDias), "Loteamento", "prazo de posse (dias)");
-        exige(!vazio(l.prazoChavesDias), "Loteamento", "prazo de entrega das chaves (dias)");
-      }
+      /* 05/11/2026 (dono): casa de rua — sem cadastro de loteamento; o que falta sai da matrícula da casa (IA) ou da obra */
+      var LER = " — anexe a matrícula da casa e clique em Ler";
+      l = l || {};
+      exige(!vazio(l.denominacao), "Imóvel", "denominação do loteamento" + LER);
+      exige(!vazio(l.matricula), "Imóvel", "matrícula-mãe do loteamento" + LER);
+      exige(!vazio(l.cartorio), "Imóvel", "cartório do loteamento" + LER);
+      exige(!vazio(l.municipioUf), "Imóvel", "município (CIDADE na ficha da obra)");
     }
 
     if (d.condominio) faltasCondominio(d, faltas);
@@ -953,7 +1017,7 @@ var ContratoVenda = (function () {
     }
     if (co.livre) {
       /* 29/10: fluxo alterado no portal — as regras da lista (a soma fecha com o valor da casa da própria lista) */
-      FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, linhas: co.livre.linhas }).erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
+      FLV().validar({ valor: co.livre.valor, entrega: fl.entrega, assinatura: fl.assinatura, hoje: d.hoje, linhas: co.livre.linhas })   /* 07/11: nada vence antes da assinatura nem de hoje */.erros.forEach(function (e) { faltas.push(g + " (alterado): " + e); });
     } else {
     if (co.preReserva && FLV().abaterSinal([fl.sinalAto, fl.sinal30, fl.sinal60, fl.sinal90], co.preReserva.valor).abatido < co.preReserva.valor)
       faltas.push(g + ": a pré-reserva paga (R$ " + moedaBR(co.preReserva.valor) + ") passa do sinal — confira o valor da pré-reserva");
@@ -971,6 +1035,19 @@ var ContratoVenda = (function () {
       var ult = FLV().maisMeses(l.d, (Math.max(1, l.n) - 1) * (l.i || 1));
       if (ult > FLV().LIMITE_PRE_CHAVES)
         faltas.push(g + ": " + FLV().TIPOS[l.t].nome.toLowerCase() + " vence em " + FLV().dataBR(ult) + " — pré-chaves e balões terminam até 30/11/2028 (refaça o fluxo na Planilha Casas)");
+    });
+    /* 07/11/2026 (dono): "sempre que a data do vencimento for anterior à data atual, trava" — sinais a partir de hoje;
+       pré-chaves, balões e pós-chaves depois da assinatura e de hoje. O fluxo certo sai do recálculo da venda
+       (SIMULADOR r97n) quando a DATA DE ASSINATURA é atualizada. d.hoje vem de quem gera (GerarContrato.gs). */
+    var refV = FLV().refVencimento({ assinatura: fl.assinatura, hoje: d.hoje });
+    if (d.hoje && !semAss && fl.assinatura < d.hoje)
+      faltas.push(g + ": a data de assinatura (" + FLV().dataBR(fl.assinatura) + ") já passou — atualize na Planilha Casas e o fluxo é refeito");
+    else if (refV.d) FLV().doPadrao(fl, 0).linhas.forEach(function (l) {
+      if (!l.d) return;
+      if ((l.t === "pre" || l.t === "balao" || l.t === "pos") && l.d <= refV.d)
+        faltas.push(g + ": " + FLV().TIPOS[l.t].nome.toLowerCase() + " vence em " + FLV().dataBR(l.d) + " — tem de vencer depois " + refV.de + " (" + FLV().dataBR(refV.d) + "); atualize a data de assinatura ou o dia de pagamento na Planilha Casas e o fluxo é refeito");
+      else if (d.hoje && l.t === "sinal" && l.d < d.hoje)
+        faltas.push(g + ": sinal vence em " + FLV().dataBR(l.d) + ", antes de hoje — atualize a data de assinatura");
     });
     }
     if (positivo(fl.valorVenda) && !co.livre) {
@@ -1065,11 +1142,10 @@ var ContratoVenda = (function () {
       exige(!vazio(n.intermediariaVencimento), "Negociação", "intermediária (vencimento)");
     }
     exige(!vazio(n.formaPagamento), "Negociação", "forma de pagamento");
-    exige(c.valor !== null && c.valor > 0, "Negociação", "comissão (valor)");
-    exige(!vazio(c.forma), "Negociação", "comissão (forma)");
-    /* comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
+    /* 05/11/2026 (dono): comissão do corretor OPCIONAL na casa de rua por enquanto (ele vai acertar com a Juliana).
+       Nos 47 contratos assinados ela sempre existe (R$ 8 a 27 mil), paga pelo comprador, quase sempre fora do preço.
+       comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
        contrato e as letras seguintes sobem (PARAGRAFOS_SE_VAZIO) */
-    exige(c.pagaPor === "COMPRADOR" || c.pagaPor === "VENDEDOR", "Negociação", "comissão paga por");
   }
 
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
@@ -1179,7 +1255,8 @@ var ContratoVenda = (function () {
     "CASA_MODELO_FRASE", "AREA_PRIVATIVA_CONSTRUIDA", "AREA_TOTAL_CONSTRUIDA", "FRACAO_IDEAL_M2", "FRACAO_IDEAL_PCT",
     "VALOR_OPERACAO_EXTENSO", "VALOR_IMOVEL_EXTENSO", "COMISSAO_EXTENSO", "SINAL_EXTENSO", "SINAL_VENCIMENTO",
     "ENTRADA_TOTAL", "ENTRADA_PCT", "ENTRADA_SALDO", "PARCELAS_PRE_CHAVES", "PARCELAS_POS_CHAVES", "MEIO_PAGAMENTO",
-    "FINANCIAMENTO_VALOR", "FINANCIAMENTO_PCT", "FINANCIAMENTO_FRASE", "COMISSAO_PCT"];
+    "FINANCIAMENTO_VALOR", "FINANCIAMENTO_PCT", "FINANCIAMENTO_FRASE", "COMISSAO_PCT",
+    "ENTRADA_IMOVEL", "ENTRADA_COMISSAO", "PERMUTA_CONDICOES"];
   function marcadoresQuadro(d) {
     var co = d.condominio, m = {};
     if (!co) { CHAVES_QUADRO.forEach(function (k) { m[k] = ""; }); return m; }
@@ -1204,16 +1281,34 @@ var ContratoVenda = (function () {
     /* 31/10: a pré-reserva paga é a 1ª parcela da lista (vencimentosSinal), já abatida do sinal */
     m.SINAL_VENCIMENTO = vencimentosSinal(G);
     m.ENTRADA_TOTAL = moedaOuVazio(va.entrada);
-    m.ENTRADA_PCT = va.entrada === null ? "" : pct2(va.entrada, va.preco);
+    /* 04/11 (advogado): percentuais sobre o PREÇO DO IMÓVEL (4.1.1) — entrada que paga o imóvel + saldo = 100%
+       (exemplo: 24.786,44 + 264.963,56 = 289.750,00 → 8,55% e 91,45%). A comissão não entra no percentual. */
+    var pcts = pctsSobreImovel(va);
+    m.ENTRADA_PCT = pcts.entrada;
+    m.ENTRADA_IMOVEL = moedaOuVazio(va.entradaImovel);
+    m.ENTRADA_COMISSAO = va.semComissao ? "" : moedaOuVazio(va.comissao);
     m.ENTRADA_SALDO = moedaOuVazio(va.saldoEntrada);
     m.PARCELAS_PRE_CHAVES = textoPreChaves(G);
     m.PARCELAS_POS_CHAVES = textoPosChaves(G);
     m.MEIO_PAGAMENTO = d.meioPagamento || MEIO_PAGAMENTO_PADRAO;
     m.FINANCIAMENTO_VALOR = moedaBR(va.financiamento);
-    m.FINANCIAMENTO_PCT = pct2(va.financiamento, va.preco);
+    m.FINANCIAMENTO_PCT = pcts.financiamento;
     m.FINANCIAMENTO_FRASE = va.temFgtsSubsidio ? ", incluídos os recursos do FGTS e/ou subsídio, quando houver" : "";
     m.COMISSAO_PCT = va.pctRegra === null || va.semComissao ? "" : pctBR(va.pctRegra);
+    /* 04/11: condições da permuta no quadro-resumo (parágrafo próprio, bloco COM_PERMUTA) — o modelo do advogado
+       não tem o 6.1 com incisos, então a identificação do bem vai na alínea c) e as obrigações logo abaixo */
+    m.PERMUTA_CONDICOES = obrigacoesPermuta(G.permutas);
     return m;
+  }
+  /* percentuais do 4.2.1 a) e do 4.2.2 a) sobre o preço do imóvel; quando as duas partes fecham o preço ao centavo,
+     o do financiamento é o complemento (100 − entrada), para nunca somar 99,99% ou 100,01% no contrato */
+  function pctsSobreImovel(va) {
+    if (!positivo(va.imovel)) return { entrada: "", financiamento: "" };
+    var e = va.entradaImovel === null ? null : Math.round(va.entradaImovel / va.imovel * 10000);
+    var f = Math.round(va.financiamento / va.imovel * 10000);
+    if (e !== null && Math.round((va.entradaImovel + va.financiamento) * 100) === Math.round(va.imovel * 100)) f = 10000 - e;
+    function br(x) { return (x / 100).toFixed(2).replace(".", ","); }
+    return { entrada: e === null ? "" : br(e), financiamento: br(f) };
   }
 
   /* 30/10 (dono, parecer do 24x): o plano é "com pós-chaves" quando o fluxo (gavetas ou Alterar fluxo) tem parcela depois das
@@ -1244,7 +1339,11 @@ var ContratoVenda = (function () {
       TEM_FIADOR1: fis.length > 0,
       TEM_FIADOR2: fis.length > 1
     };
-    if (d.condominio) { b.COM_POS = pos; b.SEM_POS = !pos; }
+    if (d.condominio) {
+      b.COM_POS = pos; b.SEM_POS = !pos;
+      /* 04/11: parágrafo das obrigações da permuta no quadro-resumo, só quando algum bem tem os dados (FluxoLivre l.b) */
+      b.COM_PERMUTA = obrigacoesPermuta(gruposFluxo(d.condominio).permutas) !== "";
+    }
     return b;
   }
 
@@ -1278,7 +1377,10 @@ var ContratoVenda = (function () {
       { coluna: "NACIONALIDADE", rotulo: "Nacionalidade", tipo: "texto" },
       { coluna: "ENDEREÇO PROFISSIONAL", rotulo: "Endereço profissional", tipo: "texto" },
       { coluna: "E-MAIL", rotulo: "E-mail", tipo: "email" }
-    ],
+    ].concat(CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
+      /* 05/11/2026: pagamento da comissão — opcionais; nunca viram falta (não estão no FALTA_CORRETOR) */
+      return { coluna: c.coluna, rotulo: c.rotulo, tipo: c.tipo };
+    })),
     loteamento: [
       { coluna: "DENOMINAÇÃO", rotulo: "Denominação", tipo: "texto" },
       { coluna: "MUNICÍPIO/UF", rotulo: "Município/UF", tipo: "texto" },
@@ -1357,6 +1459,88 @@ var ContratoVenda = (function () {
       }) });
     });
     return { grupos: grupos, conta: conta, outras: outras };
+  }
+
+  /* ---- 05/11/2026 (dono): o vendedor da casa de rua vem preenchido sozinho ----
+   * "O cadastro do vendedor SEMPRE tem que vir preenchido automático, o único dado manual é os dados bancários."
+   * Campo a campo, vale o primeiro preenchido nesta ordem:
+   *   1. a linha do cadastro (VENDEDORES – CONTRATO; na produção PROPRIETARIOS_PAI);
+   *   2. a qualificação do proprietário ATUAL lida pela IA na matrícula da casa (colunas VENDEDOR - … da VENDAS);
+   *   3. a obra em DOCUMENTOS (PROPRIETARIO DOCUMENTO e CPF/CNPJ);
+   *   4. o cliente da obra no Mais Controle (colunas VENDEDOR MC - …, gravadas pelo robô diário do servidor);
+   *   5. só para PJ sem representante: a Propriedade REPRESENTANTE_PJ_PADRAO (as SPEs têm o mesmo representante).
+   * A matrícula e o MC só entram se forem da MESMA pessoa da obra: CPF/CNPJ igual; sem documento dos dois lados para
+   * comparar, o nome. O banco não sai daqui (vem da conta da obra ou da "Conta de recebimento").
+   * e = { cadastro: {campos do ctrFontes_, nome = título} | null, matricula: {nome, cpfCnpj, nacionalidade, estadoCivil,
+   *       profissao, rg, endereco} | null, obra: {proprietario, cpfCnpj}, mc: {nome, cpfCnpj, endereco, email} | null,
+   *       representantePadrao: {nome, cpf, rg, nacionalidade, estadoCivil, email} | null }
+   * Devolve { vendedor | null (sem nome nem documento em lugar nenhum), origem: {campo: fonte}, descartadas: [fonte],
+   *           completar: {COLUNA do cadastro: valor} } — completar = o que a linha não tem e veio da própria pessoa
+   *           (matrícula, obra, MC); o representante padrão NUNCA vai para o cadastro (a Propriedade continua valendo). */
+  var CAMPOS_VENDEDOR = ["nome", "cpfCnpj", "endereco", "nacionalidade", "estadoCivil", "profissao", "rg",
+    "representanteNome", "representanteCpf", "representanteRg", "representanteNacionalidade", "representanteEstadoCivil",
+    "banco", "agencia", "operacao", "conta", "pix", "email", "representanteEmail"];
+  var COLUNA_DO_VENDEDOR = { cpfCnpj: "CPF/CNPJ", endereco: "ENDEREÇO / SEDE", nacionalidade: "NACIONALIDADE",
+    estadoCivil: "ESTADO CIVIL", profissao: "PROFISSÃO", rg: "RG", email: "E-MAIL" };
+  function digitos(v) { return txt(v).replace(/\D/g, ""); }
+  function mesmoNome(a, b) {
+    if (vazio(a) || vazio(b)) return false;
+    return semAcentoTxt(a) === semAcentoTxt(b) || R().mesmaPessoa(a, b);
+  }
+  function semAcentoTxt(v) { return up(v).normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " "); }
+  function tipoPeloDoc(doc) { var n = digitos(doc).length; return n === 14 ? "PJ" : n === 11 ? "PF" : ""; }
+  /* JSON da Propriedade REPRESENTANTE_PJ_PADRAO -> {nome, cpf, rg, nacionalidade, estadoCivil, email} ou null */
+  function representantePadrao(json) {
+    var o = null;
+    try { o = JSON.parse(txt(json) || "null"); } catch (e) { o = null; }
+    if (!o || typeof o !== "object" || Array.isArray(o)) return null;
+    var r = { nome: txt(o.nome), cpf: txt(o.cpf), rg: txt(o.rg), nacionalidade: txt(o.nacionalidade),
+              estadoCivil: txt(o.estadoCivil || o.estado_civil), email: txt(o.email) };
+    return r.nome ? r : null;
+  }
+  function comporVendedor(e) {
+    e = e || {};
+    var cad = e.cadastro || null, obra = e.obra || {}, origem = {}, descartadas = [], completar = {};
+    var idDoc = digitos((cad && cad.cpfCnpj) || obra.cpfCnpj), idNome = txt((cad && cad.nome) || obra.proprietario);
+    function daPessoa(f) {
+      if (!f) return false;
+      var d = digitos(f.cpfCnpj);
+      if (idDoc && d) return d === idDoc;
+      if (idNome && !vazio(f.nome)) return mesmoNome(f.nome, idNome);
+      return !idDoc && !idNome;                                     /* nada para comparar: a única fonte que há */
+    }
+    var mat = e.matricula && (txt(e.matricula.nome) || txt(e.matricula.cpfCnpj)) ? e.matricula : null;
+    var mc = e.mc && (txt(e.mc.nome) || txt(e.mc.cpfCnpj)) ? e.mc : null;
+    if (mat && !daPessoa(mat)) { descartadas.push("matricula"); mat = null; }
+    if (mc && !daPessoa(mc)) { descartadas.push("mc"); mc = null; }
+    var fontes = [["cadastro", cad], ["matricula", mat], ["documentos", { nome: obra.proprietario, cpfCnpj: obra.cpfCnpj }], ["mc", mc]];
+    var v = {};
+    CAMPOS_VENDEDOR.forEach(function (campo) {
+      v[campo] = "";
+      for (var i = 0; i < fontes.length; i++) {
+        var f = fontes[i][1];
+        if (f && !vazio(f[campo])) { v[campo] = txt(f[campo]); origem[campo] = fontes[i][0]; break; }
+      }
+    });
+    if (!v.nome && !v.cpfCnpj) return { vendedor: null, origem: {}, descartadas: descartadas, completar: {} };
+    v.tipo = up(cad && cad.tipo) || tipoPeloDoc(v.cpfCnpj);
+    var rp = e.representantePadrao;
+    if (v.tipo === "PJ" && rp && rp.nome) {
+      /* o padrão só completa o representante que falta — ou o MESMO representante (pelo nome) com campo vazio */
+      if (vazio(v.representanteNome) || mesmoNome(v.representanteNome, rp.nome)) {
+        if (vazio(v.representanteNome)) origem.representanteNome = "padrao";
+        v.representanteNome = v.representanteNome || rp.nome; v.representanteCpf = v.representanteCpf || rp.cpf;
+        v.representanteRg = v.representanteRg || rp.rg;
+        v.representanteNacionalidade = v.representanteNacionalidade || rp.nacionalidade;
+        v.representanteEstadoCivil = v.representanteEstadoCivil || rp.estadoCivil;
+        v.representanteEmail = v.representanteEmail || rp.email;
+      }
+    }
+    Object.keys(COLUNA_DO_VENDEDOR).forEach(function (campo) {
+      if (v[campo] && origem[campo] && origem[campo] !== "cadastro") completar[COLUNA_DO_VENDEDOR[campo]] = v[campo];
+    });
+    if (v.tipo && !(cad && up(cad.tipo))) completar.TIPO = v.tipo;
+    return { vendedor: v, origem: origem, descartadas: descartadas, completar: completar };
   }
 
   function cnpjValido(v) {
@@ -1480,6 +1664,9 @@ var ContratoVenda = (function () {
   var api = {
     PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
+    comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
+    CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
+    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
@@ -1491,7 +1678,7 @@ var ContratoVenda = (function () {
     comissaoPctPelaRegra: comissaoPctPelaRegra, qualificacaoQuadro: qualificacaoQuadro, valorExtenso: valorExtenso, meioPagamentoCondominio: meioPagamentoCondominio, excedenteSinal: excedenteSinal, preReservaPaga: preReservaPaga,
     somaFluxo: function (fl) { return somaFluxo(fluxoCondominio(fl)); }, negritoDaLinha: negritoDaLinha,
     parcelasPreChaves: parcelasPreChaves, parcelasPosChaves: parcelasPosChaves,
-    gruposFluxo: gruposFluxo, valoresCondominio: valoresCondominio, textoPreChaves: textoPreChaves, textoPosChaves: textoPosChaves, somaGrupos: somaGrupos,   /* 29/10: Alterar fluxo */   /* 28/10: termos de confissão */
+    gruposFluxo: gruposFluxo, valoresCondominio: valoresCondominio, textoPreChaves: textoPreChaves, textoPosChaves: textoPosChaves, somaGrupos: somaGrupos, obrigacoesPermuta: obrigacoesPermuta,   /* 29/10: Alterar fluxo */   /* 28/10: termos de confissão */
     /* o traço do campo em branco (o pré-contrato grifa em vermelho claro) */
     EM_BRANCO: EM_BRANCO,
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */

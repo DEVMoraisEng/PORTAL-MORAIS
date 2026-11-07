@@ -312,10 +312,12 @@ function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
   var nomeCs = ClicksignVenda.nomePadrao(f.endereco, f.casa, d.comprador1 && d.comprador1.nome);
 
   /* 30/10: rubricas do comprador — as posições vêm da tela (RubricasVenda, lidas NESTE PDF) e são conferidas aqui.
-     Só no contrato do condomínio (os modelos de casa de rua não têm os campos "ASSINATURA: ____"). */
+     Condomínio: obrigatórias. 05/11/2026 (dono, casa de rua): a rua também posiciona quando a tela mandou a leitura (ciência
+     por traço, "6.1. Valor total", uma linha por pessoa no modelo migrado); sem leitura (tela sem o PDF), envia como antes;
+     leitura sem campo de ciência vale (camposOpcionais) — o aviso da tela segue no resultado. */
   var rub = null;
-  if (d.condominio && !config.semRubricas) {
-    var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas });
+  if (!config.semRubricas && (d.condominio || (p.rubricas && typeof p.rubricas === "object"))) {
+    var vr = ClicksignVenda.validarRubricas(p.rubricas, gerado.nome, { linhas: config.linhas, camposOpcionais: !d.condominio });
     if (!vr.ok) { assLog_("enviar " + pid + " rubricas: " + vr.erro); return { resp: { ok: false, erro: vr.erro } }; }
     rub = { campos: vr.campos, valores: vr.valores, memorial: null, projeto: [], tamanhos: {}, avisos: assAvisosDaTela_(p.rubricas),
             /* 01/11 (plano 23 B): assinatura em cima da linha de cada pessoa — só com ASSINATURA_LINHAS=1 (correção 1) */
@@ -379,10 +381,11 @@ function assinaturaPdf_(col, p) {
   var pid = String(p.pageId).slice(0, 8);
   var config = assConfig_(p.pageId);
   if (config.semRubricas) return { ok: true, semRubricas: true };
-  /* casa de rua não rubrica; dado com problema: o envio é que diz qual (mesma leitura do assinaturaEnviar) */
+  /* dado com problema: o envio é que diz qual (mesma leitura do assinaturaEnviar). 05/11/2026 (dono): a casa de rua também
+     lê o PDF e posiciona (rua: true — a tela não barra o contrato sem campo de ciência; termos e memorial são só do condomínio) */
   var f = ctrFontes_(col, p.pageId);
-  if (!f.fontes || f.condominioErro || f.obraAmbigua || f.duplicados || f.obraNaoEncontrada ||
-      !ContratoVenda.montarDadosContrato(f.fontes).condominio) return { ok: true, semRubricas: true };
+  if (!f.fontes || f.condominioErro || f.obraAmbigua || f.duplicados || f.obraNaoEncontrada) return { ok: true, semRubricas: true };
+  var dPdf = ContratoVenda.montarDadosContrato(f.fontes), cond = !!dPdf.condominio;
   var pg = ctrLerPaginaVenda_(p.pageId), gerado = assDoc_({}).gerado(pg);
   if (!gerado || !gerado.url) return { ok: false, erro: "SEM_CONTRATO_GERADO" };
   var b = null;
@@ -390,11 +393,12 @@ function assinaturaPdf_(col, p) {
   if (!b || b.mime !== "application/pdf") { assLog_("pdf rubricas " + pid + " ilegivel"); return { ok: false, erro: "CONTRATO_ILEGIVEL" }; }
   if (b.base64.length * 3 / 4 > ASS_MAX_BYTES) return { ok: false, erro: "CONTRATO_ILEGIVEL" };
   var r = { ok: true, nome: gerado.nome, base64: b.base64, ajuste: config.rubricasAjuste };
+  if (!cond) r.rua = true;
   /* 01/11 (plano 23 B): os termos de confissão do envelope também, para a tela achar as linhas de assinatura deles.
      nome = o do documento na Clicksign (sem o carimbo). Termo que falta ou não abre fica de fora (o envio é que barra). */
   r.linhas = !!config.linhas;   /* correção 1 (C-1): desligadas, a tela nem procura as linhas */
-  if (config.linhas) {
-    var d = ContratoVenda.montarDadosContrato(f.fontes);
+  if (config.linhas && cond) {
+    var d = dPdf;
     var tipos = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_()) ? ConfissaoVenda.quais(d) : [];
     r.termos = [];
     tipos.forEach(function (tipo) {
@@ -407,8 +411,8 @@ function assinaturaPdf_(col, p) {
   }
   /* dono 01/11/2026: memorial migrado (uma linha por pessoa) — o PDF vai para a tela achar as linhas, como os termos */
   var memId = String(prop_("MODELO_MEMORIAL_ID") || "").trim();
-  if (config.linhas && memId && ctrLerModelo_(memId).migrado) {
-    var dm = ContratoVenda.montarDadosContrato(f.fontes);
+  if (config.linhas && cond && memId && ctrLerModelo_(memId).migrado) {
+    var dm = dPdf;
     var gm = assGerarMemorial_(dm, pid, ClicksignVenda.nomePadrao(f.endereco, f.casa, dm.comprador1 && dm.comprador1.nome), memId);
     if (gm.doc && gm.doc.base64.length * 3 / 4 <= ASS_MAX_BYTES) r.memorial = { nome: gm.doc.nome, base64: gm.doc.base64 };
     else assLog_("pdf rubricas " + pid + " memorial nao gerado");
@@ -500,6 +504,7 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var config = assConfig_(p.pageId), cfg = {};
   for (k in config) cfg[k] = config[k];
   cfg.incluirCorretor = false;
+  cfg.semTestemunhas = true;   /* 06/11/2026 (dono): o termo de pré-reserva não leva testemunhas */
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
     .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
   if (faltas.length) {
@@ -849,10 +854,14 @@ function assinaturaEstado_(col, p) {
 function assPosAssinatura_(col, pageId) {
   var id8 = String(pageId).slice(0, 8), pg;
   try { pg = notion_("GET", "/pages/" + pageId, null); } catch (e) { ctrErro_("pos-assinatura " + id8 + " leitura", e); return; }
-  if (!pg || vendaBaseDaPagina_(pg) !== "CONDOMINIO") return;
+  var base = pg ? vendaBaseDaPagina_(pg) : "";
+  if (base !== "CONDOMINIO" && base !== "VENDAS") return;
   try { vigiaMarcarAndamento_(pg); } catch (e) { ctrErro_("pos-assinatura " + id8 + " andamento", e); }
   if (String(prop_("MC_LANCAR_AO_ASSINAR") || "").trim().toUpperCase() === "SIM") {
-    try { vigiaLancarMC_(col, pageId); } catch (e) { ctrErro_("pos-assinatura " + id8 + " mais controle", e); }
+    /* 05/11/2026 (dono): casa de rua pede a prévia sozinha e lança quando ela volta OK (mcAutoIniciar_, MaisControleVenda.gs);
+       o condomínio segue esperando a prévia do botão */
+    try { if (base === "VENDAS") mcAutoIniciar_(col, pageId); else vigiaLancarMC_(col, pageId); }
+    catch (e) { ctrErro_("pos-assinatura " + id8 + " mais controle", e); }
   }
 }
 function vigiaMarcarAndamento_(pg) {
@@ -936,7 +945,8 @@ function assReenviarTravado_(p, pid) {
 /* ---- 03/11/2026 (dono): trocar o e-mail de quem ainda não assinou, sem cancelar o envelope ----
  * "há vezes em que o email de alguém fica errado, e para alterar precisa cancelar". A API v3 não edita signatário: cria um
  * signatário novo (mesmo nome, CPF, telefone e avisos; e-mail certo), recria os requisitos que o envio guardou daquele
- * signatário (qualificação, autenticação, rubricas), tira os requisitos do antigo e o antigo, e avisa só o novo. A ordem
+ * signatário (qualificação, autenticação, rubricas — em lote, que é o que a Clicksign aceita com o envelope ativo), exclui o
+ * antigo (os requisitos dele vão junto) e avisa só o novo. A ordem
  * (novo antes de tirar o antigo) faz o envelope nunca ficar sem a pessoa — sem ela, o auto_close fecharia o contrato.
  * Falha no meio desfaz o novo; se nem isso der, a tela manda cancelar o envelope. Só envelope ENVIADO e signatário
  * pendente. Não muda o cadastro: o e-mail certo também precisa ser corrigido na venda (a tela avisa). */
@@ -992,22 +1002,19 @@ function assTrocarEmailTravado_(p, pid, antigo) {
   var novo = "", criados = [], papeis = assPapeis_(envId);
   function desfazer() {
     /* tira o que foi criado; se não der, sobram os dois signatários e só cancelar resolve */
-    var ok = true;
-    if (criados.length) ok = cs_("post", base + "/bulk_requirements", ClicksignVenda.corpoRemoverRequisitos(criados.map(function (g) { return g[0]; }))).ok;
-    if (novo) ok = cs_("delete", base + "/signers/" + encodeURIComponent(novo)).ok && ok;
-    return ok;
+    /* excluir o signatário leva os requisitos dele junto (sandbox 03/11); tirar só os requisitos dá 422 */
+    return novo ? cs_("delete", base + "/signers/" + encodeURIComponent(novo)).ok : true;
   }
   try {
     novo = csPasso_("novo signatario", "post", base + "/signers",
                     ClicksignVenda.corpoSignatarioTrocado(velho && velho.attributes, p.email), true).id;
-    ClicksignVenda.requisitosParaRecriar(guardados).forEach(function (g) {
-      var corpo = ClicksignVenda.corpoRequisitoTrocado(g, novo);
-      var rr = csPasso_("requisitos do novo", "post", base + "/requirements", corpo);
-      criados.push(ClicksignVenda.requisitoGuardado(rr.id, corpo));
-      Utilities.sleep(CS_PAUSA_REQ_MS);
-    });
-    var velhos = guardados.map(function (g) { return g[0]; }).filter(function (id) { return id; });
-    if (velhos.length) csPasso_("tirar requisitos do antigo", "post", base + "/bulk_requirements", ClicksignVenda.corpoRemoverRequisitos(velhos));
+    /* envelope ativo: requisitos novos só em lote (POST /requirements dá 403 com running — sandbox 03/11) */
+    var lote = ClicksignVenda.corpoAdicionarRequisitos(guardados, novo), ops = lote["atomic:operations"];
+    var rl = csPasso_("requisitos do novo", "post", base + "/bulk_requirements", lote);
+    var idsNovos = ClicksignVenda.idsDoLote(rl.resultados, ops.length);
+    ops.forEach(function (op, i) { criados.push(ClicksignVenda.requisitoGuardado(idsNovos[i], { data: op.data })); });
+    /* sandbox 03/11: tirar os requisitos do antigo antes responde 422 ("há signatário(s) sem os requisitos necessários");
+       o DELETE do signatário já leva os requisitos dele */
     csPasso_("tirar signatario antigo", "delete", base + "/signers/" + encodeURIComponent(antigo));
   } catch (e) {
     if (e.message !== "CLICKSIGN_FALHOU") throw e;
@@ -1180,7 +1187,8 @@ function verDocumentoAssinado_(col, p) {
  * as mesmas ações respondem ENVELOPE_ABERTO com a mensagem; Atualizar situação, Reenviar, Cancelar, Prévia e as leituras
  * (visualizar contrato/termos/fluxo, documentos assinados) seguem. Cancelado/recusado/expirado destrava tudo. */
 var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento",
-                          "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2"];
+                          "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
+                          "excluirArquivoEspaco" /* 05/11: documento do dossiê não sai com o contrato enviado ou assinado */];
 /* 03/11: só o envelope ABERTO trava aqui. Assinado, salvarFluxo e lerCrlv já respondem FLUXO_CONTRATO_ASSINADO ("mudar o
    fluxo agora exige aditivo"); o Corrigir aqui da conferência segue aberto depois de assinado (dado do cadastro). */
 var ASS_TRAVA_SO_ABERTO = ["salvarFluxo", "lerCrlv", "corrigirConferencia"];

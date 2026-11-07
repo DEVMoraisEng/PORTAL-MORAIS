@@ -55,7 +55,8 @@ main{padding-bottom:50px}
 .btn-voltar:hover{background:#16303f}
 .sec{display:flex;align-items:center;gap:10px;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:9px 14px;margin:22px 0 14px;flex-wrap:wrap}
 .sec .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
-.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:13px}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:13px}
+@media(max-width:1250px){.kpis{grid-template-columns:repeat(3,1fr)}}
 @media(max-width:1000px){.kpis{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:520px){.kpis{grid-template-columns:1fr}}
 .kpi{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:15px 16px 14px}
@@ -189,6 +190,12 @@ html[data-tema="escuro"] .al.validar .ti{color:#f0c95f}
 .cal-mc.rm{border-left-style:dashed}
 .cal-mc.ok{opacity:.62}
 .cal-mc.ok .e{text-decoration:line-through}
+/* 04/11/26 — desfalque (cliente ausente / prestador não compareceu): vermelho */
+.cal-mc.df{background:#FEE2E2 !important;color:#991B1B !important;border-left-color:#DC2626 !important}
+.cal-mc.df .st{background:#DC2626;color:#fff}
+.mcard.df{border-left-color:#DC2626 !important;background:#FEF2F2}
+html[data-tema="escuro"] .cal-mc.df{background:#3a1e1e !important;color:#f3a29a !important}
+html[data-tema="escuro"] .mcard.df{background:#2a1717}
 /* item 11: arrastar para outro dia */
 .cal-mc[draggable="true"]{cursor:grab}
 .cal-mc.arrastando{opacity:.4;cursor:grabbing}
@@ -858,7 +865,8 @@ html[data-tema="escuro"] .logo{background:#fff}
   <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=45"></script>
+<script src="app.js?v=46"></script>
+<script src="painel-abas.js?v=2"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
  * Transcrita do "Manual do Proprietário" — as DUAS listas, como combinado:
@@ -1092,8 +1100,41 @@ function andEvento(m){
   return (m && m.andamentoEvento !== undefined) ? m.andamentoEvento : (m ? m.andamento : null);
 }
 /* Etiqueta curta: concluído vira FEITO; sem valor vira EM ABERTO. */
+/* 04/11/26 — DESFALQUES: CLIENTE AUSENTE e PRESTADOR NÃO COMPARECEU, nos
+   andamentos do serviço e de cada retorno. O evento ENCERRA (não fica cobrando
+   "data passada sem finalizar" nem aparece em aberto), sai em VERMELHO no
+   calendário e entra na contagem de desfalques do topo. O próximo passo é
+   marcar o retorno. Nunca vale para o ANDAMENTO DA SOLICITAÇÃO. */
+const DESFALQUES = ["CLIENTE AUSENTE", "PRESTADOR NÃO COMPARECEU"];
+function tipoDesfalque(v){
+  const n = normN(v);
+  if(!n) return "";
+  if(n.indexOf("AUSENTE")>=0) return "cliente";
+  if(n.indexOf("NAO COMPARECEU")>=0 || n.indexOf("PRESTADOR")>=0) return "prestador";
+  return "";
+}
+function ehDesfalque(v){ return !!tipoDesfalque(v); }
+/* evento encerrado = feito OU desfalque (não cobra mais nada daquela data) */
+function eventoEncerrado(v){ return ehFinalizado(v) || ehDesfalque(v); }
+/* campo de andamento de EVENTO (do serviço ou de um retorno) — é nele que os
+   desfalques aparecem; o ANDAMENTO DA SOLICITAÇÃO fica de fora */
+function ehAndamentoEvento(nome){
+  const n = normN(nome);
+  return n.indexOf("ANDAMENTO")>=0 && n.indexOf("SOLICITACAO")<0 &&
+         (n.indexOf("SERVICO")>=0 || ehRetorno(n));
+}
+/* Garante as duas opções no schema da tela mesmo antes de o arquivo publicado
+   trazê-las (o fetch_pos_obra.py cria no Notion; o Code.gs aceita gravar). */
+function completarDesfalques(sc){
+  (sc && sc.campos || []).forEach(c=>{
+    if(c.tipo !== "select" || !ehAndamentoEvento(c.nome)) return;
+    c.opcoes = c.opcoes || [];
+    DESFALQUES.forEach(d=>{ if(!c.opcoes.some(o=>normN(o)===normN(d))) c.opcoes.push(d); });
+  });
+  return sc;
+}
 function rotuloEvento(a){ return ehFinalizado(a) ? "FEITO" : (a || "EM ABERTO"); }
-function classeEvento(a){ return ehFinalizado(a) ? "sim" : "alerta"; }
+function classeEvento(a){ return ehFinalizado(a) ? "sim" : (ehDesfalque(a) ? "nao" : "alerta"); }
 
 /* Ordem dos campos no painel do serviço (pedido 5). O que não estiver aqui
    vai para o fim, em ordem alfabética — coluna nova no Notion aparece sozinha
@@ -1521,7 +1562,7 @@ function aplicarBoot(r){
   OBRAS = r.obras || [];
   FLEX_CAMPO = r.flexCampo || null;
   AGENDA_SRV = r.marcacoes || [];
-  if(r.schema && r.schema.ok) SCHEMA = r.schema;
+  if(r.schema && r.schema.ok) SCHEMA = completarDesfalques(r.schema);
   /* Um serviço só sai da ponte local quando o arquivo publicado já o traz.
      O dist manda a lista de ids ("chamados"); a resposta do Apps Script não
      tem esse campo, e aí valem os ids que aparecem no calendário — que é
@@ -1826,7 +1867,7 @@ function calcularAlertas(obraId){
     /* Passou a olhar o andamento DAQUELE evento (pedido 5): antes, uma
        remarcação já executada continuava avisando enquanto o chamado inteiro
        não fosse fechado. */
-    if(ehFinalizado(andEvento(m))) return;
+    if(eventoEncerrado(andEvento(m))) return;   // 04/11: desfalque também encerra o evento
     if(!ehColunaServico(m.coluna)) return;
     const d = soData(m.data);
     if(d === amanha) doDia.push(m);
@@ -1953,12 +1994,30 @@ function pintarHub(){
      estao com campo obrigatorio em branco. Substitui o KPI de "Servicos
      registrados", que era so um total informativo — este aqui e acionavel. */
   const incompletos = l.reduce((a,o)=>a+(o.servicosIncompletos||0),0);
+  const df = contarDesfalques();
   document.getElementById("kpis").innerHTML =
     kpi("Obras com cliente", total, "vindas do banco de vendas", "hero") +
     kpi("Pós obra em andamento", andamento, "obras com serviço não finalizado", andamento?"alerta":"") +
     kpi("Serviços abertos", abertos, "chamados sem baixa") +
-    kpi("Falta preencher", incompletos, incompletos ? "chamados com campo em branco" : "tudo preenchido", incompletos?"alerta":"");
+    kpi("Falta preencher", incompletos, incompletos ? "chamados com campo em branco" : "tudo preenchido", incompletos?"alerta":"") +
+    kpi("Desfalques", df.total, df.cliente+" cliente ausente · "+df.prestador+" prestador não compareceu · "+df.mes+" neste mês", df.total?"alerta":"");
   renderObras();
+}
+/* 04/11/26 — conta os desfalques: cada data de serviço/retorno cujo andamento
+   é CLIENTE AUSENTE ou PRESTADOR NÃO COMPARECEU conta uma vez. */
+function contarDesfalques(){
+  const r = { total:0, cliente:0, prestador:0, mes:0 }, vistos = {};
+  const mesAtual = hojeISO().slice(0,7);
+  (AGENDA || []).forEach(m=>{
+    if(!ehColunaServico(m.coluna)) return;
+    const t = tipoDesfalque(andEvento(m));
+    if(!t) return;
+    const k = m.atividadeId + "|" + m.coluna;
+    if(vistos[k]) return; vistos[k] = 1;
+    r.total++; r[t]++;
+    if(String(soData(m.data)).slice(0,7) === mesAtual) r.mes++;
+  });
+  return r;
 }
 function kpi(lab, val, sub, cls){
   return '<div class="kpi '+(cls||"")+'"><div class="lab">'+esc(lab)+'</div><div class="val">'+
@@ -2232,7 +2291,7 @@ function renderCalendario(){
  * a segunda só existe quando já acabou. */
 function eventosAbertos(lista){
   return (lista || agendaVisivel()).filter(m=>
-    ehColunaServico(m.coluna) && !ehFinalizado(andEvento(m)) &&
+    ehColunaServico(m.coluna) && !eventoEncerrado(andEvento(m)) &&
     /* pedido 3: filtro por cliente com horário flexível. Só age na visão
        "Em aberto" — no mês e na semana o CAL_FLEX fica sempre false. */
     (!CAL_FLEX || ehFlexivel(flexDaObra(m.obraId)))
@@ -2315,21 +2374,21 @@ function numeroDeAgenda(col){
    Verde = evento concluído (pedido 5). */
 function etiquetaCal(m){
   const rm = ehRetorno(m.coluna);
-  const and = andEvento(m), ok = ehFinalizado(and);
+  const and = andEvento(m), ok = ehFinalizado(and), df = ehDesfalque(and);
   const hora = temHora(m.data) ? hhmm(m.data) : "";
-  const cls = (ok ? " ok" : "") + (rm ? " rm" : "");
+  const cls = (ok ? " ok" : "") + (df ? " df" : "") + (rm ? " rm" : "");
   /* Pedido 1: a cor vem do RESPONSÁVEL (corDe), a mesma dos chips do histórico
      e das barras do kanban — a mesma pessoa tem a mesma cor em toda a tela.
      Sem responsável = cinza neutro. O estado (REMARCAÇÃO/FEITO) segue escrito
      na etiqueta .st, então nada de informação depende só da cor. */
   const cor = m.responsavel ? corDe(m.responsavel) : "#8aacbb";
-  const est = ok ? "FEITO" : (rm ? rotuloColuna(m.coluna) : "");
+  const est = ok ? "FEITO" : (df ? (tipoDesfalque(and)==="cliente" ? "CLIENTE AUSENTE" : "PRESTADOR FALTOU") : (rm ? rotuloColuna(m.coluna) : ""));
   /* MELHORIAS item 11: arrastar para outro dia. Só quem pode gravar arrasta —
      em modo teste ou com o chamado finalizado a etiqueta fica fixa. */
   const arr = podeArrastar(m)
     ? ' draggable="true" ondragstart="arrastarInicio(event,\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')" ondragend="arrastarFim()"'
     : "";
-  return '<button class="cal-mc'+cls+'"'+arr+' style="border-left-color:'+cor+';background:'+cor+'1F;color:'+cor+'" '+
+  return '<button class="cal-mc'+cls+'"'+arr+' style="'+(df?'':'border-left-color:'+cor+';background:'+cor+'1F;color:'+cor)+'" '+
          'title="'+esc(m.nome+" · "+m.coluna+" · "+rotuloEvento(and)+(m.responsavel?" · "+m.responsavel:""))+
          '" onclick="abrirCard(\''+m.atividadeId+'\',\''+esc(m.coluna).replace(/'/g,"&#39;")+'\')">'+
          '<span class="e">'+esc(m.nome)+'</span>'+
@@ -2358,10 +2417,10 @@ function dadosCard(m){
 }
 function cardCal(m){
   const d = dadosCard(m);
-  const and = andEvento(m), ok = ehFinalizado(and);
-  // pedido 1: barra do card na cor do responsável
-  const cor = d.responsavel ? corDe(d.responsavel) : "#8aacbb";
-  return '<div class="mcard'+(ok?" ok":(d.rm?" rm":""))+'" style="border-left:4px solid '+cor+'">'+
+  const and = andEvento(m), ok = ehFinalizado(and), df = ehDesfalque(and);
+  // pedido 1: barra do card na cor do responsável (desfalque = vermelho)
+  const cor = df ? "#DC2626" : (d.responsavel ? corDe(d.responsavel) : "#8aacbb");
+  return '<div class="mcard'+(ok?" ok":(df?" df":(d.rm?" rm":"")))+'" style="border-left:4px solid '+cor+'">'+
     '<div class="end">'+esc(d.endereco)+' '+selo(flexDaObra(m.obraId))+'</div>'+
     '<div class="ln"><span class="pill '+classeEvento(and)+'">'+esc(rotuloEvento(and))+'</span></div>'+
     '<div class="ln">'+esc(rotuloColuna(d.coluna))+' · '+esc(d.dataHora)+'</div>'+
@@ -3750,7 +3809,7 @@ function renderPainelChamado(){
     /* r22: o schema ja vem no posObraBoot; esta chamada so acontece se, por
        algum motivo, ele nao tiver chegado. */
     ler({action:"posObraSchema"}, "pos_schema").then(r=>{
-      if(r && r.ok){ SCHEMA = r; renderPainelChamado(); }
+      if(r && r.ok){ SCHEMA = completarDesfalques(r); renderPainelChamado(); }
       else body.innerHTML = '<div class="vazio">Não consegui carregar os campos: '+esc(erroTexto(r&&r.erro))+'</div>';
     });
     return;
@@ -3822,6 +3881,11 @@ function renderPainelChamado(){
             esc(rotuloRetorno(nivel+1))+'</b>.</div></div>';
   }
   body.innerHTML = html;
+  /* 06/11/26 — painel do serviço em ABAS, igual ao painel da casa da Gestão de Vendas, com a
+     lógica do Pós Obra: o serviço (dados e o 1º atendimento) e uma aba por remarcação.
+     painel-abas.js só muda os blocos de lugar; nada muda no salvar. */
+  try{ if(window.PainelAbas) PainelAbas.aplicar(body,{chave:"pos-obra",item:CHAMADO&&CHAMADO.id,secoes:{seletor:".grupo-rm",primeira:"Serviço",
+    titulo:el=>{ const g=el.querySelector(".gt"); const t=g&&g.firstChild&&g.firstChild.nodeType===3?g.firstChild.textContent:(g?g.textContent:""); return String(t||"").trim(); }}}); }catch(e){}
 }
 
 /* MELHORIAS item 7 — chamado finalizado fica congelado.
