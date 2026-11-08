@@ -404,12 +404,25 @@ var FluxoLivre = (function () {
         if (mesNum(l.d) + l.n - 1 > teto) encurtar(k, teto - mesNum(l.d) + 1);
       });
     }
-    /* 08/11/2026 (dono, bug: 1ª parte 12/2026–10/2027 e 2ª a partir de 12/2027 deixavam 11/2027 sem parcela): mês vazio
-       ENTRE duas partes — a parte de antes estica até a véspera da próxima (o total dela não muda; cada parcela baixa) */
+    /* 08/11/2026 (dono, bug: 1ª parte 12/2026–10/2027 e 2ª a partir de 12/2027 deixavam 11/2027 sem parcela):
+       "a primeira parcela da segunda parte tem de ser o mês seguinte da última parcela da primeira" — mês vazio ENTRE
+       duas partes: a parte de DEPOIS volta para o mês seguinte ao fim da de antes e mantém o último mês dela (ganha
+       parcelas; o total não muda, cada parcela baixa). Se a de depois é a que a pessoa mexeu (fixo), a de antes estica. */
     ord.forEach(function (k, a) {
-      if (a + 1 >= ord.length || k === Number(fixo)) return;
-      var l = linhas[k], prox = Math.min(mesNum(linhas[ord[a + 1]].d) - 1, fim), n = prox - mesNum(l.d) + 1;
-      if (n > l.n && totalLinhaC(l) >= n) { linhas[k] = comTotal({ t: l.t, n: n, d: l.d, i: 1, x: l.x }, totalLinhaC(l)); marca(k); }
+      if (a + 1 >= ord.length) return;
+      var l = linhas[k], kp = ord[a + 1], lp = linhas[kp];
+      var fimAnt = mesNum(l.d) + l.n - 1, iniProx = mesNum(lp.d);
+      if (iniProx <= fimAnt + 1) return;
+      if (kp !== Number(fixo)) {
+        var volta = iniProx - (fimAnt + 1), fimProx = Math.min(mesNum(lp.d) + lp.n - 1, fim);
+        var n2 = fimProx - (fimAnt + 1) + 1;
+        if (n2 >= 1 && totalLinhaC(lp) >= n2) {
+          linhas[kp] = comTotal({ t: lp.t, n: n2, d: maisMeses(lp.d, -volta), i: 1, x: lp.x }, totalLinhaC(lp)); marca(kp);
+        }
+      } else if (k !== Number(fixo)) {
+        var n = Math.min(iniProx - 1, fim) - mesNum(l.d) + 1;
+        if (n > l.n && totalLinhaC(l) >= n) { linhas[k] = comTotal({ t: l.t, n: n, d: l.d, i: 1, x: l.x }, totalLinhaC(l)); marca(k); }
+      }
     });
     return { linhas: linhas, mudou: mudou.sort(function (x, y) { return x - y; }) };
   }
