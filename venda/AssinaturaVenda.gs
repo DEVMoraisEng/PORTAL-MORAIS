@@ -1192,7 +1192,7 @@ var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContra
                           "excluirArquivoEspaco" /* 05/11: documento do dossiê não sai com o contrato enviado ou assinado */];
 /* 03/11: só o envelope ABERTO trava aqui. Assinado, salvarFluxo e lerCrlv já respondem FLUXO_CONTRATO_ASSINADO ("mudar o
    fluxo agora exige aditivo"); o Corrigir aqui da conferência segue aberto depois de assinado (dado do cadastro). */
-var ASS_TRAVA_SO_ABERTO = ["salvarFluxo", "lerCrlv", "corrigirConferencia"];
+var ASS_TRAVA_SO_ABERTO = ["salvarFluxo", "lerCrlv", "corrigirConferencia", "confirmarReservaPaga" /* 08/11: mexe no fluxo */];
 var ASS_TRAVA_TERMO = ["gerarTermoPreReserva", "salvarContaPreReserva", "salvarConjugePreReserva"];
 var ASS_TRAVA_ENVELOPE = ["assinaturaEnviar", "assinaturaReenviar", "assinaturaCancelar", "assinaturaTrocarEmail"];
 var ASS_MSG_ABERTO = "O contrato já foi enviado para assinatura. Para mudar, cancele o envelope primeiro.";

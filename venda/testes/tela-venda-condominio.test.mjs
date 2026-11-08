@@ -2077,3 +2077,62 @@ test("06/11: termo sem testemunhas — envia sem o par configurado e trocar as t
   const e = k.acao("assinaturaEnviar", rub(k));
   assert.ok(e.signatarios.some((x) => x.papel === "Testemunha 1"), "o contrato continua com as testemunhas");
 });
+
+/* 08/11/2026 (dono): "A reserva já foi paga?" ao gerar o contrato */
+const cenarioReservaFluxo = (linha = {}) => cenario({ docEnd: "CONDOMÍNIO RESERVA DOS IPÊS", linha: { ...COLS_PR, "FLUXO PERSONALIZADO": rt(""),
+  "PRÉ-RESERVA - VALOR": num(null), "PRÉ-RESERVA - DATA PAGAMENTO": { date: null }, ...linha } });
+const fluxoGravado = (c) => JSON.parse(c.n.pagina.properties["FLUXO PERSONALIZADO"].rich_text.map((t) => t.plain_text || t.text.content).join(""));
+
+test("08/11 reserva: sem fluxo alterado grava valor e data e não cria fluxo (o abatimento já é automático)", () => {
+  const c = cenarioReservaFluxo();
+  const r = c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.fluxoMudou, undefined);
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, 1000);
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2025-12-20");
+  assert.equal(c.acao("fluxoEditar").alterado, false);
+});
+
+test("08/11 reserva: com fluxo alterado a reserva entra nele, o total não muda e o histórico registra", () => {
+  const c = cenarioReservaFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  const salvo = c.acao("salvarFluxo", { fluxo: comBalao(base), motivo: "cliente pediu mais um balão" });
+  assert.equal(salvo.ok, true, JSON.stringify(salvo));
+  const antes = fluxoGravado(c);
+  const r = c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.fluxoMudou.some((m) => /reserva de R\$ 1\.000,00 paga em 20\/12\/2025/.test(m)), JSON.stringify(r.fluxoMudou));
+  const depois = fluxoGravado(c);
+  const total = (f) => f.linhas.reduce((s, l) => s + Math.round(l.v * 100) * (l.u ? l.n - 1 : l.n) + (l.u ? Math.round(l.u * 100) : 0), 0);
+  assert.equal(total(depois), total(antes));
+  assert.deepEqual(depois.linhas.filter((l) => l.t === "prereserva").map((l) => [l.v, l.d]), [[1000, "2025-12-20"]]);
+  const hist = c.acao("fluxoEditar").historico;
+  assert.match(hist[hist.length - 1].motivo, /^Reserva paga: /);
+  /* responder de novo com o mesmo valor e data não grava outra alteração */
+  const r2 = c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" });
+  assert.equal(r2.ok, true);
+  assert.equal(r2.fluxoMudou, undefined);
+  assert.equal(c.acao("fluxoEditar").historico.length, hist.length);
+});
+
+test("08/11 reserva: o restante do sinal com data anterior a hoje não salva o fluxo; a reserva fica gravada", () => {
+  const c = cenarioReservaFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  const k = base.linhas.findIndex((l) => l.t === "sinal");
+  const velho = { ...base, linhas: base.linhas.map((l, i) => (i === k ? { ...l, d: "2025-12-01" } : l)) };
+  c.n.pagina.properties["FLUXO PERSONALIZADO"] = { type: "rich_text", rich_text: [{ plain_text: JSON.stringify({ v: 1, valor: velho.valor, entrega: velho.entrega, linhas: velho.linhas }) }] };
+  const r = c.acao("confirmarReservaPaga", { valor: 1, data: "2025-12-01" });
+  assert.equal(r.ok, false);
+  assert.ok(r.erros.some((e) => /antes de hoje/.test(e)), JSON.stringify(r.erros));
+  assert.equal(r.reservaGravada.dataPagamento, "2025-12-01");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, 1);
+  assert.equal(fluxoGravado(c).linhas[k].d, "2025-12-01", "o fluxo gravado não muda");
+});
+
+test("08/11 reserva: valor inválido não grava; perfil TESTES não grava", () => {
+  const c = cenarioReservaFluxo();
+  assert.equal(c.acao("confirmarReservaPaga", { valor: 0, data: "2025-12-20" }).erro, "PR_VALOR_INVALIDO");
+  assert.equal(c.acao("confirmarReservaPaga", { valor: 1000, data: "" }).erro, "PR_DATA_INVALIDA");
+  assert.equal(c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, null);
+});
