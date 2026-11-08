@@ -553,13 +553,13 @@ var FluxoLivre = (function () {
             erroLinha(k, "sinal só nos prazos do sinal: de " + dataBR(ass) + " a " + dataBR(limite) + " (ato, 30, 60 e 90 dias)");
         });
         if (nSinal > 4) erros.push("O restante do sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
-        /* 08/11/2026 (dono, unidade 13 que veio da 11): "a lógica deve ser pelo valor da casa de agora" — o piso é o
-           MENOR entre o sinal da proposta e o sinal mínimo do fluxo padrão da casa de agora (casa trocada ou com
-           desconto: a proposta guardou o sinal calculado para a casa de antes) */
-        var piso = Math.min(totSinal(padrao.linhas), c(sinalMinimoCasa(f)));
-        if (totSinal(f.linhas) < piso)
-          erros.push("O sinal (com a reserva e a permuta) não pode ficar abaixo do mínimo: " + moeda(piso / 100));
       }
+      /* 08/11/2026 (dono): "o sinal sempre tem que ser >= que o mínimo" — o mínimo é o da casa de agora (unidade 13, que veio
+         da 11, mais cara: 10 mil), com ou sem reserva paga; o sinal da proposta não entra na conta */
+      var pisoSinal = c(sinalMinimoCasa(f, padrao));
+      var sinalAgora = f.linhas.reduce(function (s, l) { return s + (l.t === "sinal" || l.t === "prereserva" || l.t === "permuta" ? totalLinhaC(l) : 0); }, 0);
+      if (sinalAgora < pisoSinal)
+        erros.push("O sinal (com a reserva e a permuta) não pode ficar abaixo do mínimo: " + moeda(pisoSinal / 100));
       var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
       /* 31/10/2026 (dono): o prazo pode mudar no Alterar fluxo (cliente de 24x para 36x) — pós-chaves só 0, 12 ou 24
          parcelas; a comissão e o fiador seguem o prazo novo (ContratoVenda.planoDoFluxo / comPosChaves, PR #35) */
@@ -678,9 +678,11 @@ var FluxoLivre = (function () {
      diferença vai para as pré-chaves e os balões (Distribuir). { linhas, mudou: [textos] } ou { erro }. */
   /* 08/11/2026 — sinal mínimo do fluxo padrão para a casa de agora (a conta do simulador, fpcGerar/sinalDe):
      entrada = valor − financiamento − FGTS − subsídio; até R$ 60.200 o sinal é R$ 10.000; acima, cresce na proporção. */
-  function sinalMinimoCasa(f) {
+  function sinalMinimoCasa(f, padrao) {
     f = normalizar(f);
-    var B0 = (c(f.valor) - somaC(f.linhas.filter(function (l) { return l.t === "fin" || l.t === "fgts" || l.t === "subsidio"; }))) / 100;
+    /* com a proposta, vale o financiamento dela (a carta): reduzir o financiamento joga a diferença nas parcelas e não sobe o sinal (dono 05/11) */
+    var base = padrao ? normalizar(padrao).linhas : f.linhas;
+    var B0 = (c(f.valor) - somaC(base.filter(function (l) { return l.t === "fin" || l.t === "fgts" || l.t === "subsidio"; }))) / 100;
     var nPos = PRAZOS[prazoDasLinhas(f.linhas) || 48], basePos = nPos * SIM_POS_UNIT, baseMeio = SIM_CHEIA - 10000 - basePos;
     var T = Math.max(B0, 10000);
     if (T <= SIM_CHEIA + 0.01) return 10000;
@@ -711,7 +713,7 @@ var FluxoLivre = (function () {
     });
     if (de(L, ["fin"]).length !== de(P, ["fin"]).length || tot(L, ["fin"]) > tot(P, ["fin"])) trocar(["fin"], "financiamento");
     var sinaisAgora = tot(L, ["sinal", "prereserva", "permuta"]),
-        sinaisProp = Math.min(tot(P, ["sinal", "prereserva", "permuta"]), c(sinalMinimoCasa({ valor: f.valor, entrega: f.entrega, linhas: L })));   /* 08/11: até o mínimo da casa de agora */
+        sinaisProp = c(sinalMinimoCasa({ valor: f.valor, entrega: f.entrega, linhas: L }, padrao));   /* 08/11 (dono): o mínimo da casa de agora */
     if (sinaisAgora < sinaisProp) {
       /* o sinal da proposta, menos a reserva paga (que já entrou acima); a permuta de agora fica e abate */
       var falta = sinaisProp - tot(L, ["prereserva", "permuta"]), sinaisP = de(P, ["sinal"]);
