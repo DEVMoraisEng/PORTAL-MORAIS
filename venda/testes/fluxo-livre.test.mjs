@@ -338,10 +338,10 @@ test("permuta conta no sinal mínimo junto com o sinal e a reserva; permuta meno
   /* proposta: sinal 12.280,41 com a pré-reserva de 1.000; o cliente dá um carro de 11.280,41 e não paga mais sinal */
   assert.equal(p.linhas.filter((l) => l.t === "sinal" || l.t === "prereserva").reduce((s, l) => s + Math.round(l.v * 100) * l.n, 0), 1228041);
   assert.deepEqual(F.validar(troca([...fixos, permuta(11280.41)]), p).erros, []);
-  /* carro de 10.280,41 e os 1.000 que faltam numa pré-chaves: recusado com o texto novo */
+  /* 08/11 (dono): o limite é o mínimo da casa (10.000), não o sinal da proposta. Carro de 8.000 + reserva de 1.000 = 9.000: recusado */
   const pre = fixos.find((l) => l.t === "pre");
-  const menor = troca([...fixos.map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l), permuta(10280.41)]);
-  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a reserva e a permuta\) não pode ficar abaixo do mínimo: R\$ 12\.280,41/);
+  const menor = troca([...fixos.map((l) => l === pre ? Object.assign({}, l, { u: l.v + 3280.41 }) : l), permuta(8000)]);
+  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a reserva e a permuta\) não pode ficar abaixo do mínimo: R\$ 10\.000,00/);
 });
 
 /* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" — pré-chaves, balão e pós-chaves vencem
@@ -487,4 +487,39 @@ test("Corrigir datas com a 1ª parte empurrada: ela encurta para não cair no m�
   assert.deepEqual([p[0].d, p[0].n, p[1].d, p[1].n], ["2026-12-10", 11, "2027-11-10", 12]);
   assert.equal(F.soma(cd.linhas), F.soma(f.linhas));
   assert.ok(!F.validar(Object.assign({}, f, { linhas: cd.linhas })).erros.some((e) => /uma por mês/.test(e)));
+});
+
+/* 08/11/2026 (dono): "o sinal sempre tem que ser >= que o mínimo" */
+const casa = (valor, fin, sinal, n = 12) => {
+  const pre = valor - fin - sinal - 17000;
+  return { valor, entrega: "2028-11-30", linhas: [{ t: "sinal", v: sinal, n: 1, d: "2026-11-30", i: 1, x: "" },
+    { t: "pre", v: Math.round(pre / n * 100) / 100, n, d: "2026-12-15", i: 1, x: "" },
+    { t: "balao", v: 10000, n: 1, d: "2027-12-15", i: 1, x: "" }, { t: "balao", v: 7000, n: 1, d: "2028-11-15", i: 1, x: "" },
+    { t: "fin", v: fin, n: 1, d: "", i: 1, x: "" }] };
+};
+const erroMinimo = (r) => r.erros.filter((e) => /abaixo do mínimo/.test(e));
+
+test("sinal mínimo: sem reserva paga também trava abaixo do mínimo da casa", () => {
+  const proposta = casa(305000, 244800, 10000);
+  const baixo = casa(305000, 244800, 9000);
+  assert.ok(F.sinalMinimoCasa(proposta) === 10000);
+  assert.match(erroMinimo(F.validar(baixo, proposta)).join(";"), /mínimo: R\$ 10\.000,00/);
+  assert.deepEqual(erroMinimo(F.validar(proposta, proposta)), []);
+});
+
+test("sinal mínimo: casa trocada por uma mais barata — vale o mínimo da casa de agora, não o sinal da proposta", () => {
+  const propostaDaCara = casa(305000, 244800, 20000);
+  assert.deepEqual(erroMinimo(F.validar(casa(305000, 244800, 10000), propostaDaCara)), []);
+});
+
+test("sinal mínimo: a proposta com sinal baixo não libera ficar abaixo do mínimo da casa", () => {
+  const f = casa(380000, 244800, 10000);
+  const minimo = F.sinalMinimoCasa(f);
+  assert.ok(minimo > 10000, String(minimo));
+  assert.equal(erroMinimo(F.validar(f, f)).length, 1);
+});
+
+test("sinal mínimo: reduzir o financiamento não sobe o mínimo (a diferença vai nas parcelas)", () => {
+  const proposta = casa(305000, 244800, 10000);
+  assert.deepEqual(erroMinimo(F.validar(casa(305000, 200000, 10000, 12), proposta)), []);
 });
