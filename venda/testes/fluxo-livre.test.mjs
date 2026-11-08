@@ -240,7 +240,7 @@ test("com reserva o restante do sinal se divide livre, só nos prazos do sinal e
   const pre = fixos.find((l) => l.t === "pre");
   const menor = troca([fixos[0], { t: "sinal", v: 6000, n: 1, d: "2026-10-30", i: 1, x: "" },
     ...fixos.slice(1).map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l)]);
-  assert.match(F.validar(menor, p).erros.join(";"), /não pode ficar abaixo do da proposta: R\$ 10\.000,00/);
+  assert.match(F.validar(menor, p).erros.join(";"), /não pode ficar abaixo do mínimo: R\$ 10\.000,00/);
   /* pré-reserva não muda */
   const mexeu = troca([Object.assign({}, fixos[0], { v: 2000 }), { t: "sinal", v: 8000, n: 1, d: "2026-10-30", i: 1, x: "" }, ...fixos.slice(1)]);
   assert.match(F.validar(mexeu, p).erros.join(";"), /Reserva paga, financiamento, FGTS e subsídio não mudam/);
@@ -341,7 +341,7 @@ test("permuta conta no sinal mínimo junto com o sinal e a reserva; permuta meno
   /* carro de 10.280,41 e os 1.000 que faltam numa pré-chaves: recusado com o texto novo */
   const pre = fixos.find((l) => l.t === "pre");
   const menor = troca([...fixos.map((l) => l === pre ? Object.assign({}, l, { u: l.v + 1000 }) : l), permuta(10280.41)]);
-  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a reserva e a permuta\) não pode ficar abaixo do da proposta: R\$ 12\.280,41/);
+  assert.match(F.validar(menor, p).erros.join(";"), /O sinal \(com a reserva e a permuta\) não pode ficar abaixo do mínimo: R\$ 12\.280,41/);
 });
 
 /* 07/11/2026 (dono): "a data de vencimento não pode ser uma data passada" — pré-chaves, balão e pós-chaves vencem
@@ -443,12 +443,12 @@ test("2 pré-chaves de 12: a 2ª para 13 trava (parcela em nov/2028, mês do bal
   assert.ok(F.validar(f).erros.some((e) => /pré-chaves vence em 10\/11\/2028: as parcelas terminam em outubro\/2028 .* cabem 12/.test(e)));
 });
 
-test("pré-chaves só mensais; mês sem parcela é aviso; dois balões no mesmo mês travam", () => {
+test("pré-chaves só mensais; mês sem parcela trava; dois balões no mesmo mês travam", () => {
   const f = doze(), [[, k0], [, k1]] = pres(f);
   const r1 = F.validar(Object.assign({}, f, { linhas: f.linhas.map((l, i) => i === k0 ? Object.assign({}, l, { i: 2 }) : l) }));
   assert.ok(r1.erros.some((e) => /pré-chaves só mensais/.test(e)));
   const r2 = F.validar(Object.assign({}, f, { linhas: f.linhas.map((l, i) => i === k1 ? Object.assign({}, l, { d: "2027-12-10", n: 11 }) : l) }));
-  assert.ok(r2.avisos.some((a) => /pré-chaves sem parcela em 11\/2027/.test(a)), JSON.stringify(r2.avisos));
+  assert.ok(r2.erros.some((a) => /pré-chaves sem parcela em 11\/2027/.test(a)), JSON.stringify(r2.erros));
   const b = f.linhas.filter((l) => l.t === "balao");
   const f3 = Object.assign({}, f, { linhas: f.linhas.concat([{ t: "balao", v: 1, n: 1, d: b[0].d, i: 1, x: "" }]) });
   assert.ok(F.validar(f3).erros.some((e) => /já tem balão em 12\/2027/.test(e)));

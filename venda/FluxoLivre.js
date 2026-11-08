@@ -486,7 +486,8 @@ var FluxoLivre = (function () {
         avisos.push("Linha " + (k + 1) + ": " + tp.nome.toLowerCase() + " vence depois da entrega das chaves (" + dataBR(ultima) + ")");
       if (entrega && l.t === "pos" && l.d <= entrega) avisos.push("Linha " + (k + 1) + ": pós-chaves vence antes da entrega das chaves");
     });
-    /* 07/11/2026 (dono): uma parcela pré-chaves por mês e um balão por mês; mês sem parcela no meio é só aviso */
+    /* 07/11/2026 (dono): uma parcela pré-chaves por mês e um balão por mês.
+       08/11/2026 (dono, duas partes de 11 deixavam um mês sem parcela): mês sem parcela no meio não salva mais */
     var ocup = {}, bal = {}, minM = null, maxM = null;
     f.linhas.slice(0, MAX_LINHAS).forEach(function (l, k) {
       if (!isoValida(l.d)) return;
@@ -511,7 +512,7 @@ var FluxoLivre = (function () {
     if (minM !== null) {
       var buracos = [];
       for (var mm = minM; mm <= maxM; mm++) if (ocup[mm] === undefined) buracos.push(mesBR(mm));
-      if (buracos.length) avisos.push("pré-chaves sem parcela em " + buracos.slice(0, 4).join(", ") + (buracos.length > 4 ? "…" : ""));
+      if (buracos.length) erros.push("pré-chaves sem parcela em " + buracos.slice(0, 4).join(", ") + (buracos.length > 4 ? "…" : "") + " — não pode ficar mês sem parcela: use Encaixar as pré-chaves");
     }
     /* regras que dependem da proposta (dono 29/10): financiamento/FGTS/subsídio iguais aos da proposta; pós-chaves com
        0, 12 ou 24 no total (o prazo pode mudar — 31/10), parcela até o teto e sem começar antes da proposta */
@@ -729,6 +730,48 @@ var FluxoLivre = (function () {
     var ds = distribuir({ valor: f.valor, entrega: f.entrega, linhas: L });
     if (ds.erro) return { erro: "Trouxe " + mudou.join(", ") + " da proposta, mas: " + ds.erro };
     return { linhas: ds.linhas, mudou: mudou };
+  }
+  /* 08/11/2026 (dono): "perguntar se já foi pago e, se sim, ignorar a data do sinal" (unidade 13: tiveram de mudar a data
+     do sinal porque travava). O valor pago vira a linha da reserva, que não trava por data, e sai do sinal da mais antiga
+     para a mais nova. O que ainda falta pagar não fica com data passada: vai para a referência (a maior entre assinatura e
+     hoje). O total do fluxo não muda. pr = { valor, data }; ref = { assinatura, hoje }. { linhas, mudou: [textos] } ou { erro } */
+  function reservaNoFluxo(f, pr, ref) {
+    f = normalizar(f);
+    var pago = c(pr.valor), dPago = isoValida(pr.data) ? pr.data : "", dRef = refVencimento(ref || {}).d;
+    var jaC = 0, jaD = "";
+    f.linhas.forEach(function (l) { if (l.t === "prereserva") { jaC += totalLinhaC(l); jaD = l.d; } });
+    var falta = pago - jaC;
+    var temPassado = f.linhas.some(function (l) { return l.t === "sinal" && dRef && isoValida(l.d) && l.d < dRef; });
+    if (falta === 0 && jaD === dPago && !temPassado) return { linhas: f.linhas, mudou: [] };
+    var sinais = [], pos = -1, fica = [];
+    f.linhas.forEach(function (l) {
+      if (l.t !== "sinal" && l.t !== "prereserva") { fica.push(l); return; }
+      if (pos < 0) pos = fica.length;
+      if (l.t === "prereserva") return;
+      for (var j = 0; j < Math.max(1, l.n); j++) {
+        var vC = j === l.n - 1 && l.n > 1 && positivo(l.u) ? c(l.u) : c(l.v);
+        sinais.push({ t: "sinal", vC: vC, n: 1, d: isoValida(l.d) ? maisMeses(l.d, j * l.i) : l.d, i: 1, x: l.x });
+      }
+    });
+    if (pos < 0) pos = 0;
+    sinais.sort(function (a, b) { return String(a.d) < String(b.d) ? -1 : String(a.d) > String(b.d) ? 1 : 0; });
+    if (falta < 0) sinais.push({ t: "sinal", vC: -falta, n: 1, d: dRef || dPago, i: 1, x: "" });
+    var resto = Math.max(0, falta);
+    sinais = sinais.filter(function (s) {
+      var usa = Math.min(resto, s.vC);
+      s.vC -= usa; resto -= usa;
+      return s.vC > 0;
+    });
+    if (resto > 0) return { erro: "A reserva paga (" + moeda(pago / 100) + ") passa do sinal do fluxo — confira o valor" };
+    var mudou = [];
+    if (falta !== 0 || jaD !== dPago) mudou.push("reserva de " + moeda(pago / 100) + " paga em " + dataBR(dPago) + " entrou no fluxo");
+    var novas = pago > 0 ? [{ t: "prereserva", v: pago / 100, n: 1, d: dPago, i: 1, x: "" }] : [];
+    sinais.forEach(function (s) {
+      if (dRef && isoValida(s.d) && s.d < dRef) { mudou.push(moeda(s.vC / 100) + " do sinal foi de " + dataBR(s.d) + " para " + dataBR(dRef)); s.d = dRef; }
+      novas.push({ t: "sinal", v: s.vC / 100, n: 1, d: s.d, i: 1, x: s.x });
+    });
+    fica.splice.apply(fica, [pos, 0].concat(novas));
+    return { linhas: fica, mudou: mudou };
   }
   /* Sugestão "Distribuir": a diferença (falta ou sobra) vai proporcional ao total de cada pré-chaves e balão; os centavos
      no maior. Sinal, pós-chaves e o resto não mudam. { linhas } ou { erro }. */
@@ -1004,7 +1047,7 @@ var FluxoLivre = (function () {
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
-           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, alinharComProposta: alinharComProposta, sinalMinimoCasa: sinalMinimoCasa, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
+           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, reservaNoFluxo: reservaNoFluxo, alinharComProposta: alinharComProposta, sinalMinimoCasa: sinalMinimoCasa, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();
