@@ -732,17 +732,18 @@ var FluxoLivre = (function () {
     return { linhas: ds.linhas, mudou: mudou };
   }
   /* 08/11/2026 (dono): "perguntar se já foi pago e, se sim, ignorar a data do sinal" (unidade 13: tiveram de mudar a data
-     do sinal porque travava). O valor pago vira a linha da reserva, que não trava por data, e sai do sinal da mais antiga
-     para a mais nova. O que ainda falta pagar não fica com data passada: vai para a referência (a maior entre assinatura e
-     hoje). O total do fluxo não muda. pr = { valor, data }; ref = { assinatura, hoje }. { linhas, mudou: [textos] } ou { erro } */
+     do sinal porque travava). A reserva continua sendo parte do sinal: o valor pago vira a linha da reserva, que não trava
+     por data, e é descontado das outras parcelas do sinal, da mais antiga para a mais nova. O que ainda vai ser pago segue
+     a data que está no fluxo; se ela for anterior a hoje, o validar trava ("só não pode ter data anterior à data atual").
+     O total do fluxo não muda. pr = { valor, data }; ref = { assinatura, hoje } só para a devolução sem parcela de sinal.
+     { linhas, mudou: [textos] } ou { erro } */
   function reservaNoFluxo(f, pr, ref) {
     f = normalizar(f);
     var pago = c(pr.valor), dPago = isoValida(pr.data) ? pr.data : "", dRef = refVencimento(ref || {}).d;
     var jaC = 0, jaD = "";
     f.linhas.forEach(function (l) { if (l.t === "prereserva") { jaC += totalLinhaC(l); jaD = l.d; } });
     var falta = pago - jaC;
-    var temPassado = f.linhas.some(function (l) { return l.t === "sinal" && dRef && isoValida(l.d) && l.d < dRef; });
-    if (falta === 0 && jaD === dPago && !temPassado) return { linhas: f.linhas, mudou: [] };
+    if (falta === 0 && jaD === dPago) return { linhas: f.linhas, mudou: [] };
     var sinais = [], pos = -1, fica = [];
     f.linhas.forEach(function (l) {
       if (l.t !== "sinal" && l.t !== "prereserva") { fica.push(l); return; }
@@ -755,7 +756,8 @@ var FluxoLivre = (function () {
     });
     if (pos < 0) pos = 0;
     sinais.sort(function (a, b) { return String(a.d) < String(b.d) ? -1 : String(a.d) > String(b.d) ? 1 : 0; });
-    if (falta < 0) sinais.push({ t: "sinal", vC: -falta, n: 1, d: dRef || dPago, i: 1, x: "" });
+    /* reserva corrigida para menos: a diferença volta para a 1ª parcela do sinal, que mantém a data */
+    if (falta < 0) { if (sinais.length) sinais[0].vC += -falta; else sinais.push({ t: "sinal", vC: -falta, n: 1, d: dRef || dPago, i: 1, x: "" }); }
     var resto = Math.max(0, falta);
     sinais = sinais.filter(function (s) {
       var usa = Math.min(resto, s.vC);
@@ -763,11 +765,9 @@ var FluxoLivre = (function () {
       return s.vC > 0;
     });
     if (resto > 0) return { erro: "A reserva paga (" + moeda(pago / 100) + ") passa do sinal do fluxo — confira o valor" };
-    var mudou = [];
-    if (falta !== 0 || jaD !== dPago) mudou.push("reserva de " + moeda(pago / 100) + " paga em " + dataBR(dPago) + " entrou no fluxo");
+    var mudou = ["reserva de " + moeda(pago / 100) + " paga em " + dataBR(dPago) + " registrada como parte do sinal"];
     var novas = pago > 0 ? [{ t: "prereserva", v: pago / 100, n: 1, d: dPago, i: 1, x: "" }] : [];
     sinais.forEach(function (s) {
-      if (dRef && isoValida(s.d) && s.d < dRef) { mudou.push(moeda(s.vC / 100) + " do sinal foi de " + dataBR(s.d) + " para " + dataBR(dRef)); s.d = dRef; }
       novas.push({ t: "sinal", v: s.vC / 100, n: 1, d: s.d, i: 1, x: s.x });
     });
     fica.splice.apply(fica, [pos, 0].concat(novas));

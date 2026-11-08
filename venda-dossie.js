@@ -839,7 +839,7 @@
       '<div class="dz-linha dz-pr-pag"><label><span>Valor pago (R$)</span>' +
       '<input type="text" data-res="valor" inputmode="decimal" maxlength="15" style="width:130px" placeholder="0,00" value="' + esc(p.valor || "") + '"' + dis + "></label>" +
       '<label><span>Data do pagamento</span><input type="date" data-res="data" value="' + esc(p.data || "") + '"' + dis + "></label></div>" +
-      '<div class="dz-msg dz-nota">O valor pago abate o sinal, e a data dele não trava o contrato. O que faltar do sinal com data passada vai para hoje.</div>' +
+      '<div class="dz-msg dz-nota">A reserva faz parte do sinal, e a data dela não trava o contrato. O que ainda vai ser pago segue a data do fluxo, que não pode ser anterior a hoje.</div>' +
       '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-res-sim"' + dis + ">" + (p.registrada ? "Confirmar e gerar" : "Sim, foi paga — gerar") + "</button> " +
       (p.registrada ? "" : '<button type="button" class="bt ghost bt-mini" data-acao="c-res-nao"' + dis + ">Ainda não — gerar</button> ") +
       '<button type="button" class="bt ghost bt-mini" data-acao="c-res-cancelar">Cancelar</button></div>';
@@ -3696,7 +3696,10 @@
           if (seq !== seqC || !vivo()) return;
           uiC.ocupadoContrato = null;
           if (!r.ok) {
-            uiC.msg = r.erros && r.erros.length ? "A reserva não entrou no fluxo: " + r.erros.join("; ") + ". Use Alterar fluxo." : (r.mensagem || mensagemPR(r));
+            var grav = r.reservaGravada;
+            if (grav && estadoP) { estadoP.valor = grav.valor; estadoP.dataPagamento = grav.dataPagamento; estadoP.dataLimite = grav.dataLimite; estadoP.dataLimiteDigitada = grav.dataLimiteDigitada || ""; estadoP.historico = grav.historico || ""; }
+            if (grav) uiC.perguntaReserva = null;
+            uiC.msg = r.erros && r.erros.length ? (grav ? "A reserva foi gravada, mas o fluxo precisa de ajuste: " : "") + r.erros.join("; ") + ". Abra o Alterar fluxo e gere de novo." : (r.mensagem || mensagemPR(r));
             pintar();
             return;
           }

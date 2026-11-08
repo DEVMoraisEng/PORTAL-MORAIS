@@ -43,13 +43,22 @@ test("sinal de valor igual ao da reserva vira a reserva paga, com a data do paga
   assert.equal(soma(r.linhas), soma(f.linhas));
 });
 
-test("caso da unidade 13: sinal inteiro com data passada e só a reserva paga — o resto vai para hoje, sem travar", () => {
+test("caso da unidade 13: sinal inteiro com data passada e só a reserva paga — o resto segue a data do fluxo e trava por ser antes de hoje", () => {
   const f = base([{ t: "sinal", v: 10000, n: 1, d: "2026-11-07", i: 1, x: "" }]);
   const r = F.reservaNoFluxo(f, { valor: 1000, data: "2026-11-07" }, REF);
   assert.deepEqual(de(r, "prereserva").map((l) => [l.v, l.d]), [[1000, "2026-11-07"]]);
-  assert.deepEqual(de(r, "sinal").map((l) => [l.v, l.d]), [[9000, "2026-11-08"]]);
+  assert.deepEqual(de(r, "sinal").map((l) => [l.v, l.d]), [[9000, "2026-11-07"]]);
   assert.equal(soma(r.linhas), soma(f.linhas));
-  assert.ok(r.mudou.some((m) => /9\.000,00/.test(m) && /08\/11\/2026/.test(m)), JSON.stringify(r.mudou));
+  const v = F.validar(Object.assign({}, f, REF, { linhas: r.linhas }));
+  assert.ok(v.erros.some((e) => /sinal vence em 07\/11\/2026, antes de hoje/.test(e)), JSON.stringify(v.erros));
+});
+
+test("o que ainda vai ser pago mantém a data do fluxo; a reserva continua contando como sinal", () => {
+  const f = base([{ t: "sinal", v: 10000, n: 1, d: "2026-11-30", i: 1, x: "" }]);
+  const r = F.reservaNoFluxo(f, { valor: 1000, data: "2026-11-07" }, REF);
+  assert.deepEqual(de(r, "sinal").map((l) => [l.v, l.d]), [[9000, "2026-11-30"]]);
+  assert.equal(soma(de(r, "sinal")) + soma(de(r, "prereserva")), 1000000);
+  assert.ok(r.mudou.some((m) => /parte do sinal/.test(m)), JSON.stringify(r.mudou));
   const v = F.validar(Object.assign({}, f, REF, { linhas: r.linhas }));
   assert.ok(!v.erros.some((e) => /antes de hoje/.test(e)), JSON.stringify(v.erros));
 });
@@ -79,7 +88,7 @@ test("já está certo: não muda nada (não grava fluxo à toa)", () => {
 test("reserva corrigida para menos devolve a diferença ao sinal; maior que o sinal é recusada", () => {
   const f = base([{ t: "prereserva", v: 3000, n: 1, d: "2026-11-07", i: 1, x: "" }, { t: "sinal", v: 7000, n: 1, d: "2026-11-30", i: 1, x: "" }]);
   const r = F.reservaNoFluxo(f, { valor: 1000, data: "2026-11-07" }, REF);
-  assert.equal(soma(de(r, "sinal")), 900000);
+  assert.deepEqual(de(r, "sinal").map((l) => [l.v, l.d]), [[9000, "2026-11-30"]]);
   assert.equal(soma(r.linhas), soma(f.linhas));
   assert.match(F.reservaNoFluxo(f, { valor: 20000, data: "2026-11-07" }, REF).erro, /passa do sinal/);
 });

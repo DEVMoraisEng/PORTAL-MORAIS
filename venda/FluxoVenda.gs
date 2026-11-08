@@ -153,7 +153,9 @@ function salvarFluxo_(col, sess, p) {
 }
 /* 08/11/2026 (dono): resposta "a reserva já foi paga" ao gerar o contrato. Grava valor e data (salvarPagamentoPreReserva_,
    com as mesmas validações e o histórico) e, se a venda tem fluxo alterado, põe a reserva dentro dele (FluxoLivre.reservaNoFluxo),
-   pelo mesmo caminho do Salvar do fluxo: mesmas travas e mesmo histórico. Sem fluxo alterado o abatimento já é automático. */
+   pelo mesmo caminho do Salvar do fluxo: mesmas travas e mesmo histórico. Sem fluxo alterado o abatimento já é automático.
+   O que ainda vai ser pago segue a data do fluxo: data anterior a hoje não salva o fluxo (a reserva fica gravada e a tela
+   manda abrir o Alterar fluxo). */
 function confirmarReservaPaga_(col, sess, p) {
   var rp = salvarPagamentoPreReserva_(col, sess, { pageId: p.pageId, valor: p.valor, data: p.data });
   if (!rp.ok) return rp;
@@ -166,7 +168,7 @@ function confirmarReservaPaga_(col, sess, p) {
   var novo = JSON.parse(FluxoLivre.serializar(pers));
   novo.linhas = ajuste.linhas;
   var r = salvarFluxo_(col, sess, { pageId: p.pageId, fluxo: novo, motivo: "Reserva paga: " + ajuste.mudou.join("; ") });
-  if (!r.ok) return r;
+  if (!r.ok) { r.reservaGravada = { valor: rp.valor, dataPagamento: rp.dataPagamento, dataLimite: rp.dataLimite, dataLimiteDigitada: rp.dataLimiteDigitada, historico: rp.historico }; return r; }
   rp.fluxo = r.fluxo;
   rp.fluxoMudou = ajuste.mudou;
   return rp;

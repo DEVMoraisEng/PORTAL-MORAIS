@@ -2115,6 +2115,20 @@ test("08/11 reserva: com fluxo alterado a reserva entra nele, o total não muda 
   assert.equal(c.acao("fluxoEditar").historico.length, hist.length);
 });
 
+test("08/11 reserva: o restante do sinal com data anterior a hoje não salva o fluxo; a reserva fica gravada", () => {
+  const c = cenarioReservaFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  const k = base.linhas.findIndex((l) => l.t === "sinal");
+  const velho = { ...base, linhas: base.linhas.map((l, i) => (i === k ? { ...l, d: "2025-12-01" } : l)) };
+  c.n.pagina.properties["FLUXO PERSONALIZADO"] = { type: "rich_text", rich_text: [{ plain_text: JSON.stringify({ v: 1, valor: velho.valor, entrega: velho.entrega, linhas: velho.linhas }) }] };
+  const r = c.acao("confirmarReservaPaga", { valor: 1, data: "2025-12-01" });
+  assert.equal(r.ok, false);
+  assert.ok(r.erros.some((e) => /antes de hoje/.test(e)), JSON.stringify(r.erros));
+  assert.equal(r.reservaGravada.dataPagamento, "2025-12-01");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, 1);
+  assert.equal(fluxoGravado(c).linhas[k].d, "2025-12-01", "o fluxo gravado não muda");
+});
+
 test("08/11 reserva: valor inválido não grava; perfil TESTES não grava", () => {
   const c = cenarioReservaFluxo();
   assert.equal(c.acao("confirmarReservaPaga", { valor: 0, data: "2025-12-20" }).erro, "PR_VALOR_INVALIDO");
