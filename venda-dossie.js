@@ -1398,7 +1398,12 @@
       " nas pré-chaves e balões</button></div>";
     /* 07/11: vencimento no passado — um clique leva as linhas para o 1º mês que pode (mesmo dia; o total não muda) */
     /* 07/11: duas parcelas pré-chaves no mesmo mês ou depois de out/2028 — um clique encaixa as partes (o total de cada uma não muda) */
-    if (r.erros.some(function (x) { return /uma por mês|as parcelas terminam em outubro\/2028/.test(x); }))
+    /* 08/11: reserva paga / sinal / FGTS diferentes dos da proposta (fluxo gravado antes da reserva ser paga) — um clique traz */
+    if (r.erros.some(function (x) { return /não mudam — ficam como na proposta|não pode ficar abaixo do da proposta/.test(x); }))
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-alinhar"' + dis +
+        ' title="Traz da proposta a reserva paga, o sinal, o FGTS e o subsídio; a diferença vai para as pré-chaves e os balões">Trazer reserva e sinal da proposta</button></div>';
+    if (r.erros.some(function (x) { return /uma por mês|as parcelas terminam em outubro\/2028/.test(x); }) ||
+        r.avisos.some(function (x) { return /pré-chaves sem parcela em/.test(x); }))
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-encaixar"' + dis +
         ' title="Cada parte da pré-chaves termina antes da próxima e até outubro/2028; o total da linha não muda">Encaixar as pré-chaves</button></div>';
     if (r.erros.some(function (x) { return /use Corrigir datas/.test(x); }))
@@ -3925,6 +3930,14 @@
         var en = FL().encaixarPre({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, null);
         ed.linhas = en.linhas;
         uiC.msg = en.mudou.length ? "Pré-chaves encaixadas em " + en.mudou.length + " linha(s) — confira e salve." : "As pré-chaves já estão mês a mês.";
+        pintar();
+        return;
+      }
+      if (acao === "c-fluxo-alinhar") {
+        var al = FL().alinharComProposta({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, ed.padrao);
+        if (al.erro) uiC.msg = al.erro;
+        else { ed.linhas = al.linhas; ed.ajustadas = {}; ed.sugestao = null; ed.guiaErro = "";
+               uiC.msg = al.mudou.length ? "Trouxe da proposta: " + al.mudou.join(", ") + " (a diferença foi para as pré-chaves e os balões) — confira e salve." : "Já está igual à proposta."; }
         pintar();
         return;
       }

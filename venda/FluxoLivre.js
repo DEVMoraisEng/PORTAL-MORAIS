@@ -404,6 +404,13 @@ var FluxoLivre = (function () {
         if (mesNum(l.d) + l.n - 1 > teto) encurtar(k, teto - mesNum(l.d) + 1);
       });
     }
+    /* 08/11/2026 (dono, bug: 1ª parte 12/2026–10/2027 e 2ª a partir de 12/2027 deixavam 11/2027 sem parcela): mês vazio
+       ENTRE duas partes — a parte de antes estica até a véspera da próxima (o total dela não muda; cada parcela baixa) */
+    ord.forEach(function (k, a) {
+      if (a + 1 >= ord.length || k === Number(fixo)) return;
+      var l = linhas[k], prox = Math.min(mesNum(linhas[ord[a + 1]].d) - 1, fim), n = prox - mesNum(l.d) + 1;
+      if (n > l.n && totalLinhaC(l) >= n) { linhas[k] = comTotal({ t: l.t, n: n, d: l.d, i: 1, x: l.x }, totalLinhaC(l)); marca(k); }
+    });
     return { linhas: linhas, mudou: mudou.sort(function (x, y) { return x - y; }) };
   }
 
@@ -643,7 +650,51 @@ var FluxoLivre = (function () {
     f.linhas.forEach(function (l) { if (refaz[l.t]) { if (pos < 0) pos = linhas.length; } else linhas.push(l); });
     if (pos < 0) pos = linhas.length;
     linhas.splice.apply(linhas, [pos, 0].concat(novas));
-    return { linhas: linhas };
+    /* 08/11: as quantidades vêm das linhas de antes — sem mês vazio entre as partes da pré-chaves */
+    return { linhas: encaixarPre({ valor: f.valor, entrega: f.entrega, linhas: linhas }, null).linhas };
+  }
+  /* 08/11/2026 (bug no editor da venda): o fluxo gravado antes (FLUXO PERSONALIZADO) não tinha a reserva paga e o sinal
+     da proposta de hoje — "Reserva paga, financiamento, FGTS e subsídio não mudam" e "O sinal não pode ficar abaixo"
+     travavam o Salvar sem jeito de consertar na tela. Traz da proposta a reserva paga, o FGTS, o subsídio e (se o de
+     agora for menor) o sinal; o financiamento fica o de agora se a quantidade de linhas bate (pode ter baixado); a
+     diferença vai para as pré-chaves e os balões (Distribuir). { linhas, mudou: [textos] } ou { erro }. */
+  function alinharComProposta(f, padrao) {
+    f = normalizar(f);
+    if (!padrao) return { erro: "Sem o fluxo da proposta" };
+    var P = normalizar(padrao).linhas, L = f.linhas.slice(), mudou = [];
+    var tot = function (ls, tipos) { return ls.reduce(function (s, l) { return s + (tipos.indexOf(l.t) >= 0 ? totalLinhaC(l) : 0); }, 0); };
+    var de = function (ls, tipos) { return ls.filter(function (l) { return tipos.indexOf(l.t) >= 0; }); };
+    function trocar(tipos, rotulo) {
+      var novas = de(P, tipos).map(function (l) { return JSON.parse(JSON.stringify(l)); }), pos = -1, fica = [];
+      L.forEach(function (l) { if (tipos.indexOf(l.t) >= 0) { if (pos < 0) pos = fica.length; } else fica.push(l); });
+      if (pos < 0) pos = 0;
+      fica.splice.apply(fica, [pos, 0].concat(novas));
+      L = fica; mudou.push(rotulo);
+    }
+    ["prereserva", "fgts", "subsidio"].forEach(function (t) {
+      var a = de(L, [t]).map(function (l) { return totalLinhaC(l); }).sort().join("|"), b = de(P, [t]).map(function (l) { return totalLinhaC(l); }).sort().join("|");
+      if (a !== b) trocar([t], { prereserva: "reserva paga", fgts: "FGTS", subsidio: "subsídio" }[t]);
+    });
+    if (de(L, ["fin"]).length !== de(P, ["fin"]).length || tot(L, ["fin"]) > tot(P, ["fin"])) trocar(["fin"], "financiamento");
+    var sinaisAgora = tot(L, ["sinal", "prereserva", "permuta"]), sinaisProp = tot(P, ["sinal", "prereserva", "permuta"]);
+    if (sinaisAgora < sinaisProp) {
+      /* o sinal da proposta, menos a reserva paga (que já entrou acima); a permuta de agora fica e abate */
+      var falta = sinaisProp - tot(L, ["prereserva", "permuta"]), sinaisP = de(P, ["sinal"]);
+      var base = tot(sinaisP, ["sinal"]);
+      L = L.filter(function (l) { return l.t !== "sinal"; });
+      var pos = L.findIndex(function (l) { return l.t !== "prereserva"; }); if (pos < 0) pos = L.length;
+      var novas = [], dado = 0;
+      sinaisP.forEach(function (l, j) {
+        var alvo = j === sinaisP.length - 1 ? falta - dado : Math.round(falta * totalLinhaC(l) / (base || 1));
+        dado += alvo; if (alvo > 0) novas.push(comTotal(l, alvo));
+      });
+      L.splice.apply(L, [pos, 0].concat(novas));
+      mudou.push("sinal");
+    }
+    if (!mudou.length) return { linhas: f.linhas, mudou: [] };
+    var ds = distribuir({ valor: f.valor, entrega: f.entrega, linhas: L });
+    if (ds.erro) return { erro: "Trouxe " + mudou.join(", ") + " da proposta, mas: " + ds.erro };
+    return { linhas: ds.linhas, mudou: mudou };
   }
   /* Sugestão "Distribuir": a diferença (falta ou sobra) vai proporcional ao total de cada pré-chaves e balão; os centavos
      no maior. Sinal, pós-chaves e o resto não mudam. { linhas } ou { erro }. */
@@ -919,7 +970,7 @@ var FluxoLivre = (function () {
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
-           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
+           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, alinharComProposta: alinharComProposta, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();
