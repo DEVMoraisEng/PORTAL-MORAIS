@@ -539,8 +539,12 @@ var FluxoLivre = (function () {
             erroLinha(k, "sinal só nos prazos do sinal: de " + dataBR(ass) + " a " + dataBR(limite) + " (ato, 30, 60 e 90 dias)");
         });
         if (nSinal > 4) erros.push("O restante do sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
-        if (totSinal(f.linhas) < totSinal(padrao.linhas))
-          erros.push("O sinal (com a reserva e a permuta) não pode ficar abaixo do da proposta: " + moeda(totSinal(padrao.linhas) / 100));
+        /* 08/11/2026 (dono, unidade 13 que veio da 11): "a lógica deve ser pelo valor da casa de agora" — o piso é o
+           MENOR entre o sinal da proposta e o sinal mínimo do fluxo padrão da casa de agora (casa trocada ou com
+           desconto: a proposta guardou o sinal calculado para a casa de antes) */
+        var piso = Math.min(totSinal(padrao.linhas), c(sinalMinimoCasa(f)));
+        if (totSinal(f.linhas) < piso)
+          erros.push("O sinal (com a reserva e a permuta) não pode ficar abaixo do mínimo: " + moeda(piso / 100));
       }
       var qtd = function (ls) { return ls.reduce(function (s, l) { return s + (l.t === "pos" ? Math.max(0, l.n) : 0); }, 0); };
       /* 31/10/2026 (dono): o prazo pode mudar no Alterar fluxo (cliente de 24x para 36x) — pós-chaves só 0, 12 ou 24
@@ -658,6 +662,16 @@ var FluxoLivre = (function () {
      travavam o Salvar sem jeito de consertar na tela. Traz da proposta a reserva paga, o FGTS, o subsídio e (se o de
      agora for menor) o sinal; o financiamento fica o de agora se a quantidade de linhas bate (pode ter baixado); a
      diferença vai para as pré-chaves e os balões (Distribuir). { linhas, mudou: [textos] } ou { erro }. */
+  /* 08/11/2026 — sinal mínimo do fluxo padrão para a casa de agora (a conta do simulador, fpcGerar/sinalDe):
+     entrada = valor − financiamento − FGTS − subsídio; até R$ 60.200 o sinal é R$ 10.000; acima, cresce na proporção. */
+  function sinalMinimoCasa(f) {
+    f = normalizar(f);
+    var B0 = (c(f.valor) - somaC(f.linhas.filter(function (l) { return l.t === "fin" || l.t === "fgts" || l.t === "subsidio"; }))) / 100;
+    var nPos = PRAZOS[prazoDasLinhas(f.linhas) || 48], basePos = nPos * SIM_POS_UNIT, baseMeio = SIM_CHEIA - 10000 - basePos;
+    var T = Math.max(B0, 10000);
+    if (T <= SIM_CHEIA + 0.01) return 10000;
+    return Math.round((1000 + 9000 * (T - 1000 - basePos) / (9000 + baseMeio)) * 100) / 100;
+  }
   function alinharComProposta(f, padrao) {
     f = normalizar(f);
     if (!padrao) return { erro: "Sem o fluxo da proposta" };
@@ -671,12 +685,19 @@ var FluxoLivre = (function () {
       fica.splice.apply(fica, [pos, 0].concat(novas));
       L = fica; mudou.push(rotulo);
     }
+    /* a reserva paga entrou antes como 1ª parcela do sinal (mesmo valor): vira a linha da reserva, sem contar duas vezes */
+    var prP = tot(P, ["prereserva"]);
+    if (prP && !de(L, ["prereserva"]).length) {
+      var kS = L.findIndex(function (l) { return l.t === "sinal" && totalLinhaC(l) === prP; });
+      if (kS >= 0) L.splice(kS, 1);
+    }
     ["prereserva", "fgts", "subsidio"].forEach(function (t) {
       var a = de(L, [t]).map(function (l) { return totalLinhaC(l); }).sort().join("|"), b = de(P, [t]).map(function (l) { return totalLinhaC(l); }).sort().join("|");
       if (a !== b) trocar([t], { prereserva: "reserva paga", fgts: "FGTS", subsidio: "subsídio" }[t]);
     });
     if (de(L, ["fin"]).length !== de(P, ["fin"]).length || tot(L, ["fin"]) > tot(P, ["fin"])) trocar(["fin"], "financiamento");
-    var sinaisAgora = tot(L, ["sinal", "prereserva", "permuta"]), sinaisProp = tot(P, ["sinal", "prereserva", "permuta"]);
+    var sinaisAgora = tot(L, ["sinal", "prereserva", "permuta"]),
+        sinaisProp = Math.min(tot(P, ["sinal", "prereserva", "permuta"]), c(sinalMinimoCasa({ valor: f.valor, entrega: f.entrega, linhas: L })));   /* 08/11: até o mínimo da casa de agora */
     if (sinaisAgora < sinaisProp) {
       /* o sinal da proposta, menos a reserva paga (que já entrou acima); a permuta de agora fica e abate */
       var falta = sinaisProp - tot(L, ["prereserva", "permuta"]), sinaisP = de(P, ["sinal"]);
@@ -970,7 +991,7 @@ var FluxoLivre = (function () {
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
-           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, alinharComProposta: alinharComProposta, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
+           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, alinharComProposta: alinharComProposta, sinalMinimoCasa: sinalMinimoCasa, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();

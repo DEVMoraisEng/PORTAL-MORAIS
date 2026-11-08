@@ -819,7 +819,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
   </div>
 
 <script src="app.js?v=46"></script>
-<script src="venda/FluxoLivre.js?v=18" defer></script><!-- 29/10: Alterar fluxo -->
+<script src="venda/FluxoLivre.js?v=19" defer></script><!-- 29/10: Alterar fluxo -->
 <script src="venda-dossie.js?v=84" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=4" defer></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
@@ -2207,7 +2207,12 @@ function altPropConta(){
   const o={preco, financiado:fin, fgts:fgtsP+fgtsC, subsidio:sub, nSinal:Number(d.sinalParcelas)||4,
            prazoEntrada:altPrazo(d.prazoEntrada||p.prazoEntrada), ano:hoje.getFullYear(), mes:hoje.getMonth()+1, primeira:d.primeiraParcela||""};
   const g0=fpcGerar(Object.assign({},o,{informado:0}));
-  return {u, novo, preco, aval, teto, fin, fgtsP, fgtsC, sub, o, g0, min:g0.sinalMinimo, max:Math.max(10000, Math.round(g0.entradaCliente*100)/100)};
+  /* 08/11: o sinal mínimo da casa de ANTES (com o financiamento da proposta) — se o sinal da proposta era só o mínimo
+     dela, trocar de casa leva o sinal para o mínimo da casa nova (para cima OU para baixo) */
+  const precoAnt=Number(p.preco)||Number(d.preco)||0, avalAnt=Number(p.avaliacao)||Number(d.avaliacao)||0;
+  const finAnt=Math.min(Number(p.valorFinanciado)||avalAnt*0.8, avalAnt*0.8||Infinity);
+  const minAnt=fpcGerar(Object.assign({},o,{preco:precoAnt, financiado:finAnt, informado:0})).sinalMinimo;
+  return {u, novo, preco, aval, teto, fin, fgtsP, fgtsC, sub, o, g0, min:g0.sinalMinimo, minAnt, max:Math.max(10000, Math.round(g0.entradaCliente*100)/100)};
 }
 function altPropCalc(trocouUnidade){
   const A=ALT_P; if(!A) return;
@@ -2218,6 +2223,12 @@ function altPropCalc(trocouUnidade){
     ? "crédito aprovado na CAIXA (limitado a 80% da avaliação) — não muda aqui"
     : "sem crédito aprovado: pode alterar, até 80% da avaliação ("+simBRL(k.teto)+")"+(altNum("alt-fin")>k.teto+0.5?' <b style="color:#C0392B">— acima do teto, vale '+simBRL(k.teto)+'</b>':"");
   /* sinal mínimo da unidade: abaixo dele o valor sobe sozinho até o mínimo */
+  const infEl0=document.getElementById("alt-inf");
+  if(trocouUnidade){
+    /* 08/11 (dono, un. 11 → 13): o sinal da proposta que era só o mínimo da casa de antes vira o mínimo da casa nova */
+    const infProp=Number(A.p.valorEntrada)||0;
+    infEl0.value=altMoeda(k.novo && infProp<=k.minAnt+0.01 ? k.min : Math.max(infProp, k.min));
+  }
   let inf=altNum("alt-inf"); const av=document.getElementById("alt-aviso");
   let nota="";
   if(inf < k.min-0.005){ nota="O valor para o sinal subiu de "+simBRL(inf)+" para "+simBRL(k.min)+" (sinal mínimo desta unidade)."; inf=k.min; if(document.activeElement!==infEl || trocouUnidade) infEl.value=altMoeda(inf); }
