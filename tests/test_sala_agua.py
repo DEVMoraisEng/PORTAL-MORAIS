@@ -196,3 +196,69 @@ def test_problemas_publicos_sem_valor_nem_cpf():
     assert it["notion"] == ["0123456789abcdef0123456789abcdef"] and it["uc"] == "777" and it["mc"]
     assert d["duplicadas"][0]["notion"] == ["a" * 32]
     assert A.problemas_publicos(None)["ok"] is False
+
+
+# ---------- 09/11/2026: STATUS e OBSERVAÇÕES do robô na aba CONTROLE DE CONTAS VENCIDAS ----------
+CAB_L = "quando;concessionaria;obra;chave;ref;valor;vencimento;resultado;conferencia;detalhe\n"
+CAB_C = "quando;concessionaria;obra;chave;acao;resultado;detalhe\n"
+
+
+def _pasta_contas(tmp_path):
+    d = tmp_path / "dados"
+    d.mkdir()
+    (d / "lancamentos_mc_equatorial_2026-11.csv").write_text(CAB_L + "".join([
+        # 111: simulação não conta; lançada de verdade depois
+        "2026-11-03 08:00:00;EQUATORIAL;XX 01 QD 01 LT 01 CS 1;0111;OUT 2026;58,45;2026-11-10;DRY_RUN;OK;alteraria\n",
+        "2026-11-04 08:00:00;EQUATORIAL;XX 01 QD 01 LT 01 CS 1;0111;OUT 2026;58,45;2026-11-10;LANCADO;OK;tp=e851a221… anexos=1\n",
+        "2026-11-05 08:00:00;EQUATORIAL;XX 01 QD 01 LT 01 CS 1;0111;OUT 2026;58,45;2026-11-10;JA_LANCADO;OK;fatura já está no ERP R$ 58.45\n",
+        "2026-11-06 08:00:00;EQUATORIAL;XX 01 QD 01 LT 01 CS 1;0111;OUT 2026;58,45;2026-11-10;JA_LANCADO;OK;fatura já está no ERP R$ 58.45\n",
+        # 222: dúvida repetida em dois dias = um registro só
+        "2026-11-04 08:00:00;EQUATORIAL;XX 01 QD 01 LT 02 CS 1;222;OUT 2026;10,00;2026-11-10;DUVIDA;OK;conta de CPF 123.456.789-00 não parece da empresa R$ 10,00\n",
+        "2026-11-05 08:00:00;EQUATORIAL;XX 01 QD 01 LT 02 CS 1;222;OUT 2026;10,00;2026-11-10;DUVIDA;OK;conta de CPF 123.456.789-00 não parece da empresa R$ 10,00\n",
+        # 333: lançada, mas a referência é velha (ago) = aguardando a fatura do mês
+        "2026-11-04 08:00:00;EQUATORIAL;XX 01 QD 01 LT 03 CS 1;333;AGO 2026;10,00;2026-09-10;JA_LANCADO;OK;já está\n",
+    ]), encoding="utf-8-sig")
+    (d / "criacoes_mc_2026-11.csv").write_text(CAB_C + "".join([
+        # 444: sem parcela no mês → lançada à vista depois
+        "2026-11-04 08:20:00;SANESC;XX 01 QD 01 LT 04 CS 1;444;atrasado;LANCADO;tp=32a5dd4a R$ 23.40 UC 444 REF OUT 2026 CASA 1 anexos=1\n",
+        "2026-11-04 08:21:00;SANESC;XX 01 QD 01 LT 04 CS 1;444;recorrencia;CRIADA;recorrência criada\n",
+        # 111: renovação em dúvida segura o alerta
+        "2026-11-06 08:30:00;EQUATORIAL;XX 01 QD 01 LT 01 CS 1;0111;renovacao;DUVIDA;a recorrência atual é de outra obra\n",
+        "2026-11-04 08:00:00;EQUATORIAL;Z;999;plano;DRY_RUN;simulação\n",
+    ]), encoding="utf-8-sig")
+    (d / "mc_parcelas.json").write_text(json.dumps({"111": {"id": "p-111", "data": "2026-11-10"}}), encoding="utf-8")
+    r = tmp_path / "relatorios"
+    r.mkdir()
+    (r / "casas_do_cliente.csv").write_text(
+        "data;concessionaria;obra;chave;ref;valor;decisao;motivo\n"
+        "2026-11-05;EQUATORIAL;XX 01 QD 01 LT 05 CS 1;555;OUT 2026;46,37;CLIENTE;CASA DO CLIENTE: nome do comprador\n",
+        encoding="utf-8-sig")
+    return tmp_path
+
+
+def test_contas_publicas_status_e_historico(tmp_path):
+    d = A.contas_publicas(_pasta_contas(tmp_path), hoje=dt.date(2026, 11, 9))
+    c = d["contas"]
+    assert d["ok"] and set(c) == {"111", "222", "333", "444", "555"}
+    # 111: lançada, depois "já estava" 2x (vira 1 registro) e renovação em dúvida → alerta, com o link do MC
+    assert c["111"]["st"] == "alerta" and c["111"]["ref"] == "OUT 2026"
+    assert [h["st"] for h in c["111"]["hist"]] == ["alerta", "ok", "ok"]          # o mais novo primeiro
+    assert c["111"]["hist"][1]["t"].startswith("Já estava lançado")
+    assert c["111"]["hist"][1]["mc"].endswith("/payable-installments/p-111")      # link só no mais novo
+    assert c["111"]["hist"][2]["mc"] is None and c["111"]["mc"].endswith("p-111")
+    assert c["111"]["hist"][2]["q"] == "2026-11-04 08:00"
+    # 222: dúvida (sem CPF nem valor no texto), um registro só
+    assert c["222"]["st"] == "alerta" and len(c["222"]["hist"]) == 1
+    assert "456.789" not in c["222"]["hist"][0]["t"] and "10,00" not in c["222"]["hist"][0]["t"]
+    assert c["222"]["hist"][0]["t"].startswith("Não lançado")
+    # 333: referência velha → aguardando a fatura do mês
+    assert c["333"]["st"] == "aguardando"
+    # 444: lançada à vista + recorrência criada → em dia
+    assert c["444"]["st"] == "ok" and c["444"]["ref"] == "OUT 2026" and len(c["444"]["hist"]) == 2
+    # 555: conta do cliente → em dia, sem o motivo (pode ter nome de cliente)
+    assert c["555"]["st"] == "ok" and "comprador" not in c["555"]["hist"][0]["t"]
+    assert "999" not in c                                                        # simulação não entra
+
+
+def test_contas_publicas_sem_pasta(tmp_path):
+    assert A.contas_publicas(tmp_path / "nada")["ok"] is False

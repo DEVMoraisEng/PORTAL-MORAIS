@@ -706,6 +706,7 @@ def publicar_escritorio() -> None:
         import escritorio_robos
         if escritorio_robos.publicar_se_passou(5, lambda m: log("[escritorio] " + m)):
             publicar_problemas_agua((escritorio_robos.ULTIMO or {}).get("agua"))
+            publicar_contas_agua()
     except Exception as e:
         log("[escritorio] FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
 
@@ -782,6 +783,39 @@ def publicar_problemas_agua(sala) -> str | None:
         return res
     except Exception as e:
         log("[escritorio] problemas das ligações FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
+        return None
+
+
+ARQ_CONTAS_AGUA = "dist/agua_contas.json"
+
+
+def publicar_contas_agua() -> str | None:
+    """09/11: a aba CONTROLE DE CONTAS VENCIDAS (ligacoes.html) — STATUS de cada UC e o que o robô de água e energia
+    fez nela (lançou, REF e link; ou por que não lançou). Sem CPF, valor ou nome de cliente. Só sobe quando muda."""
+    try:
+        import sala_agua
+        doc = sala_agua.contas_publicas()
+        if not doc.get("ok"):
+            return None
+        comparar = dict(doc, updated_at=None)
+        marca = CENTRAL / "agua-contas-publicado.json"
+        try:
+            if json.loads(marca.read_text(encoding="utf-8")) == comparar:
+                return "sem mudança"
+        except Exception:
+            pass
+        cfg = json.loads(CONFIG.read_text(encoding="utf-8")).get("robos") or {}
+        arq = RAIZ / ARQ_CONTAS_AGUA
+        arq.parent.mkdir(parents=True, exist_ok=True)
+        arq.write_text(json.dumps(doc, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
+        res = publicar_arquivo(cfg, ARQ_CONTAS_AGUA,
+                               "Contas de água e energia %s (servidor) [skip ci]" % dt.datetime.now().strftime("%Y-%m-%d %H:%M"))
+        if res in ("publicado", "sem mudança"):
+            marca.write_text(json.dumps(comparar, ensure_ascii=False), encoding="utf-8")
+        log("[escritorio] contas de água e energia: %s (%d UC(s))" % (res, len(doc["contas"])))
+        return res
+    except Exception as e:
+        log("[escritorio] contas de água e energia FALHOU %s: %s" % (type(e).__name__, str(e)[:150]))
         return None
 
 
