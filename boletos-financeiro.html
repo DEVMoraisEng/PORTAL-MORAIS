@@ -6,7 +6,10 @@
 <meta name="theme-color" content="#295778">
 <script>(function(){try{var t=localStorage.getItem("morais_tema");
   if(t!=="claro"&&t!=="escuro") t="claro";
-  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+  document.documentElement.dataset.tema=t;}catch(e){}
+  /* 09/11: dentro da aba do Escritório dos Robôs o cabeçalho é o dele, e o tema acompanha o botão de lá */
+  if(/[?&]embutido=1/.test(location.search)) document.documentElement.classList.add("embutido");
+  addEventListener("storage",function(e){if(e.key==="morais_tema"&&(e.newValue==="claro"||e.newValue==="escuro"))document.documentElement.dataset.tema=e.newValue;});})();</script>
 <title>Boletos e Financeiro · Morais Engenharia</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -23,6 +26,9 @@ html[data-tema="escuro"]{
   --ok:#6fd3a0;--ok-f:#17352a;--ru:#f2998f;--ru-f:#3d1c1a;--al:#eab661;--al-f:#3a2c12;--ma:#a9d2e6;--ma-f:#1a2c38;
 }
 *{box-sizing:border-box}
+.embutido header{display:none}
+.embutido body{background:transparent;min-height:0}
+.embutido main{padding:0}
 html,body{margin:0}
 body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;min-height:100vh}
 header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}

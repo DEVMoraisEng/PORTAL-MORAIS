@@ -192,6 +192,11 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 
 /* vista: sala 3D × lista */
 .salas{display:flex;gap:8px;flex-wrap:wrap}
+/* 09/11: a aba Boletos e Financeiro é a página própria dentro de um quadro; as outras salas somem enquanto ela está aberta */
+#aba-boletos{display:none}
+body.na-boletos main>*:not(#salas):not(#aba-boletos){display:none!important}
+body.na-boletos #aba-boletos{display:block}
+#aba-boletos iframe{display:block;width:100%;min-height:70vh;border:0;background:transparent}
 .salas button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:12px;border:1px solid var(--border2);background:var(--sup);font-weight:700;font-size:14px;color:var(--text2,var(--text3))}
 .salas button[aria-pressed="true"]{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(30,63,88,.25)}
 .salas button .n{font-family:'Barlow Condensed';font-weight:800;font-size:13px;background:var(--st-erro);color:#fff;border-radius:999px;padding:0 7px;line-height:18px}
@@ -305,7 +310,6 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
       <div class="hsub">Morais Engenharia · quem trabalha no servidor</div>
     </div>
     <div class="hspace"></div>
-    <a class="hbtn" href="boletos-financeiro.html">Boletos e Financeiro</a>
     <button class="hbtn" id="bt-recarregar" type="button" title="Buscar de novo">↻ Atualizar</button>
     <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
     <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro">◐</button>
@@ -316,6 +320,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
   <nav class="salas" id="salas" aria-label="Salas">
     <button type="button" id="s-mc" aria-pressed="true">🏢 Robôs do Mais Controle</button>
     <button type="button" id="s-agua" aria-pressed="false">💧 Água e Energia <span class="n hide" id="s-agua-n"></span></button>
+    <button type="button" id="s-boletos" aria-pressed="false">🧾 Boletos e Financeiro</button>
   </nav>
   <div id="avisos"></div>
   <div class="kpis" id="kpis"></div>
@@ -347,6 +352,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
     <div id="painel-agua-corpo"></div>
   </section>
   <div class="rodape" id="rodape"></div>
+  <section id="aba-boletos" aria-label="Boletos e Financeiro"></section>
 </main>
 
 <div class="veu hide" id="veu"></div>
@@ -892,6 +898,7 @@ function kpisHtml(robos, D) {
 }
 
 function pintar() {
+  if (SALA === "boletos") return;     // 09/11: a aba tem a página própria; a sala 3D não desenha escondida
   const D = DADOS; if (!D) return;
   const agua = SALA === "agua";
   const robos = agua ? montarRobosAgua(D) : montarRobos(D);
@@ -1165,7 +1172,7 @@ function resumoRodada(x) {
   return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
 }
 function abrir(chave, manterAbertas) {
-  if (chave === "financeiro") { location.href = "boletos-financeiro.html"; return; }
+  if (chave === "financeiro") { trocarSala("boletos"); window.scrollTo(0, 0); return; }
   if (chave === "__agenda__" && SALA === "agua") return abrirAgua("agua:coletor", manterAbertas);
   if (chave === "__agenda__") return abrirAgenda(manterAbertas);
   if (String(chave).startsWith("agua:")) return abrirAgua(chave, manterAbertas);
@@ -1242,10 +1249,27 @@ $("bt-agenda").addEventListener("click", () => abrirAgenda());
 
 /* ---------------- sala: Mais Controle ou Água e Energia (04/11) ---------------- */
 let SALA = "mc";
-try { if (localStorage.getItem("morais_escritorio_sala") === "agua") SALA = "agua"; } catch (e) {}
-function trocarSala(s) {
-  SALA = s === "agua" ? "agua" : "mc";
+try { const s = localStorage.getItem("morais_escritorio_sala"); if (s === "agua" || s === "boletos") SALA = s; } catch (e) {}
+function marcarSala() {
   $("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+  $("s-boletos").setAttribute("aria-pressed", SALA === "boletos");
+  document.body.classList.toggle("na-boletos", SALA === "boletos");
+  if (SALA !== "boletos" || $("quadro-boletos")) return;
+  const f = document.createElement("iframe");   // carrega só na primeira vez que a aba abre
+  f.id = "quadro-boletos"; f.title = "Boletos e Financeiro"; f.src = "boletos-financeiro.html?embutido=1";
+  f.addEventListener("load", () => {            // o quadro acompanha a altura da página, sem rolagem dupla
+    try {
+      const corpo = f.contentDocument.documentElement;
+      const ajusta = () => { f.style.height = corpo.scrollHeight + "px"; };
+      ajusta();
+      new ResizeObserver(ajusta).observe(f.contentDocument.body);
+    } catch (e) {}
+  });
+  $("aba-boletos").appendChild(f);
+}
+function trocarSala(s) {
+  SALA = s === "agua" || s === "boletos" ? s : "mc";
+  marcarSala();
   try { localStorage.setItem("morais_escritorio_sala", SALA); } catch (e) {}
   if (ABERTO) fechar();
   pintar();
@@ -1257,7 +1281,8 @@ $("kpis").addEventListener("click", e => {
 });
 $("s-mc").addEventListener("click", () => trocarSala("mc"));
 $("s-agua").addEventListener("click", () => trocarSala("agua"));
-$("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+$("s-boletos").addEventListener("click", () => trocarSala("boletos"));
+marcarSala();
 
 /* ---------------- vista: sala 3D (padrão) ou lista ---------------- */
 let VISTA = "3d", SALA3D = false;

@@ -266,15 +266,20 @@ test("gs: recusa pedido estranho; falha do Notion não vira ok", () => {
 
 test("a página está ligada: início, cache offline, gancho do Apps Script e atalho no Escritório", () => {
   const ler = a => readFileSync(new URL("../../" + a, import.meta.url), "utf8");
-  assert.match(ler("index.html"), /chave:"BOLETOS E FINANCEIRO".*link:"boletos-financeiro\.html"/);
+  assert.doesNotMatch(ler("index.html"), /boletos-financeiro\.html/);
   assert.match(ler("sw.js"), /"\.\/boletos-financeiro\.html","\.\/boletos-financeiro\.js"/);
   assert.match(ler("Melhorias.gs"), /bfRotear_\(action, sess, p\)/);
-  assert.match(ler("escritorio-robos.html"), /href="boletos-financeiro\.html"/);
+  assert.doesNotMatch(ler("escritorio-robos.html"), /href="boletos-financeiro\.html"/);
+  assert.match(ler("escritorio-robos.html"), /id="s-agua"[^\n]*\n\s*<button type="button" id="s-boletos"[^>]*>[^<]*Boletos e Financeiro/);
+  assert.match(ler("escritorio-robos.html"), /boletos-financeiro\.html\?embutido=1/);
   assert.match(ler("escritorio-robos.html"), /boletos:\s*\{ nome: "Boletos do mês"/);
   assert.match(ler("escritorio-robos.html"), /financeiro:\s*\{ nome: "Financeiro do condomínio"/);
-  assert.match(ler("escritorio-robos.html"), /if \(chave === "financeiro"\) \{ location\.href = "boletos-financeiro\.html"/);
+  assert.match(ler("escritorio-robos.html"), /if \(chave === "financeiro"\) \{ trocarSala\("boletos"\)/);
   assert.match(ler("escritorio-robos.html"), /"documentos"\]\.forEach\(pega\);\n  pega\("financeiro"\)/);
   const pagina = ler("boletos-financeiro.html");
+  assert.match(pagina, /embutido/);
+  assert.match(pagina, /\.embutido header\{display:none\}/);
+  assert.match(pagina, /"storage"/);
   assert.match(pagina, /src="boletos-financeiro\.js/);
   assert.match(pagina, /action: "bfBoot"/);
 });
