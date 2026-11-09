@@ -305,6 +305,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
       <div class="hsub">Morais Engenharia · quem trabalha no servidor</div>
     </div>
     <div class="hspace"></div>
+    <a class="hbtn" href="boletos-financeiro.html">Boletos e Financeiro</a>
     <button class="hbtn" id="bt-recarregar" type="button" title="Buscar de novo">↻ Atualizar</button>
     <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
     <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro">◐</button>
@@ -394,6 +395,8 @@ const CATALOGO = {
     faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
   documentos: { nome: "Documentos do Orçamento", cargo: "Vendas", ico: "📂", cor: "#a0784a",
     faz: "Todo dia cedo procura em Obras › Orçamento do Mais Controle a matrícula, a certidão mãe, o alvará e o habite-se de cada casa de rua vendida e anexa no dossiê do imóvel o que for novo (fica como “novo, não lido”). Só lê o ERP." },
+  boletos:  { nome: "Boletos do mês", cargo: "Cobrança", ico: "🧾", cor: "#1c7a4a",
+    faz: "Emite pela Cobrança Fácil os boletos do mês do Reserva dos Ipês, dias úteis às 10:00. O detalhe de cada parcela está na página Boletos e Financeiro." },
   agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
     faz: "Coleta as contas de água e energia das obras." }
 };
