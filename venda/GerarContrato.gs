@@ -324,6 +324,14 @@ var CTR_COLUNAS_VENDA = ["VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)", "COMIS
 var CTR_GARANTIR_COND = { "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)": "number", "COMISSÃO": "number", "VALOR NA MÃO": "number",
                           "CORRETOR": "rich_text", "SETOR": "rich_text", "OBRA-AUTO": "relation" };
 
+/* 09/11/2026 (diretor): exceção POR VENDA (não por unidade: num distrato a unidade revendida volta à regra) — a Propriedade
+   UM_FIADOR_VENDAS lista os ids das páginas da BANCO DE DADOS VENDAS CONDOMÍNIO (com ou sem hífen, separados por vírgula
+   ou espaço) em que o termo de confissão sai com um fiador só. Vazia = ninguém. */
+function ctrUmFiador_(pageId) {
+  var alvo = String(pageId || "").replace(/-/g, "").toLowerCase();
+  if (!alvo) return false;
+  return String(prop_("UM_FIADOR_VENDAS") || "").split(/[\s,;]+/).some(function (x) { return x.replace(/-/g, "").toLowerCase() === alvo; });
+}
 function ctrFontes_(col, pageId) {
   var C = RegrasVenda.COL, CV = ContratoVenda.COL;
   var pg = ctrLerPaginaVenda_(pageId), v = ctrPorChave_(pg.properties);
@@ -483,6 +491,8 @@ function ctrFontes_(col, pageId) {
                  telefone: kc.telefone || "" };
   }
 
+  /* 09/11/2026 (diretor): venda liberada com UM fiador só — Propriedade UM_FIADOR_VENDAS (ids das páginas da venda) */
+  if (cond && cond.condominio && ctrUmFiador_(pageId)) cond.condominio.umFiador = true;
   return {
     fontes: { venda: venda, obra: obra, vendedor: vendedor, loteamento: loteamento, corretor: corretor,
               condominio: cond ? cond.condominio : null,

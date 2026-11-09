@@ -57,15 +57,19 @@ var ConfissaoVenda = (function () {
      (36x/48x ou 24x alterado). O envio (AssinaturaVenda) e o Gerar (GerarContrato) usam esta mesma função. */
   function fiadoresAssinam(d, termosLigados) { return !!termosLigados && !!d && !!d.condominio && quais(d).length > 0; }
   function fiadorDispensado(d) { return quais(d).indexOf("POS") < 0; }
+  /* 09/11/2026 (diretor): exceção por venda — o termo sai com o Fiador 1 só (d.condominio.umFiador, de UM_FIADOR_VENDAS) */
+  function umFiador(d) { return !!(d && d.condominio && d.condominio.umFiador === true); }
 
   /* O que falta para gerar os termos (só nomes de campo). Os dois fiadores são obrigatórios (8.1 do termo),
      menos em 24x sem pós-chaves (30/10/2026): aí só se confere o fiador que tiver sido informado. */
   function faltas(d) {
     if (!quais(d).length) return [];
-    var f = [], fis = fiadores(d), disp = fiadorDispensado(d);
+    var f = [], fis = fiadores(d), disp = fiadorDispensado(d), um = umFiador(d);
     [0, 1].forEach(function (i) {
       var fi = fis[i] || {}, rot = "Fiador " + (i + 1) + " (termo de confissão)";
       if (disp && !txt(fi.nome) && !txt(fi.cpf)) return;
+      /* 09/11/2026 (diretor): venda liberada com um fiador só — o 2º, vazio, não falta */
+      if (um && i === 1 && !txt(fi.nome) && !txt(fi.cpf)) return;
       if (!txt(fi.nome)) f.push(rot + ": nome");
       if (!txt(fi.cpf)) f.push(rot + ": CPF");
       else if (!R().cpfValido(fi.cpf)) f.push(rot + ": CPF inválido");
@@ -92,7 +96,8 @@ var ConfissaoVenda = (function () {
     };
     [0, 1].forEach(function (i) {
       var fi = fis[i] || {}, n = i + 1;
-      m["FIADOR" + n + "_QUADRO"] = quadroFiador(fi);
+      /* 09/11/2026: com um fiador só, a linha "FIADOR 2:" do quadro diz "não há" em vez de ficar em branco */
+      m["FIADOR" + n + "_QUADRO"] = quadroFiador(fi) || (n === 2 && umFiador(d) ? "não há" : "");
       m["FIADOR" + n + "_NOME"] = txt(fi.nome);
       m["FIADOR" + n + "_CPF"] = txt(fi.cpf);
     });
@@ -107,7 +112,7 @@ var ConfissaoVenda = (function () {
     return "";
   }
 
-  var api = { COL: COL, TIPOS: TIPOS, PREFIXO: PREFIXO, MODELO: MODELO, quais: quais, fiadoresAssinam: fiadoresAssinam, faltas: faltas, fiadorDispensado: fiadorDispensado,
+  var api = { COL: COL, TIPOS: TIPOS, PREFIXO: PREFIXO, MODELO: MODELO, quais: quais, fiadoresAssinam: fiadoresAssinam, faltas: faltas, fiadorDispensado: fiadorDispensado, umFiador: umFiador,
               marcadores: marcadores, totalPre: totalPre, totalPos: totalPos, colunaAssinadaDoNome: colunaAssinadaDoNome };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
