@@ -201,8 +201,8 @@ fica com `ERRO: <motivo>` e "MC - RETRATO EM" com ` | ERRO <agora>: <motivo>` (s
 **Premissa do fuso:** a hora gravada é a hora local do servidor (`datetime.now()`), e o portal compara o mês dela com o mês de hoje
 em America/Sao_Paulo. O servidor precisa estar no fuso de Brasília/Goiânia (UTC-3); em outro fuso a leitura da virada do mês
 (e a das 05:00) cairia no mês errado e a tela pediria "Ler de novo" sem necessidade.
-Script: `robo_mc_retratos.py` (chama `python -m venda.mc.retrato --todas`). Tarefa agendada sugerida: todo dia às
-05:00, `python servidor\robo_fila.py --robo retratos`. **A chave "robos" de `robos-portal.json` precisa de
+Script: `robo_mc_retratos.py` (chama `python -m venda.mc.retrato --todas`). Tarefa agendada: todo dia às
+08:00, `python servidor\robo_fila.py --robo retratos`. **A chave "robos" de `robos-portal.json` precisa de
 `DB_VENDAS_COND` em "vars"** (id da base de vendas do condomínio), senão o robô sai com código 2 e avisa o motivo.
 A fila também precisa de `DB_VENDAS_COND` em "vars" para o retrato depois do Lançar: depois de gravar uma venda
 (lançar ou distrato com `--aplicar`, código 0), o robô da fila roda `venda.mc.retrato --todas` com o mesmo ambiente. Sem a chave o retrato
@@ -234,7 +234,7 @@ Mesmo Python (`pythonw.exe`, caminho completo), mesma conta e "só com o usuári
 | MoraisEng - Robo contas | todo dia 06:23 | `robo_fila.py --robo contas` |
 | MoraisEng - Robo bases | todo dia 07:17 | `robo_fila.py --robo bases` |
 | MoraisEng - Robo medicoes | seg a sáb, 07:20 a 19:20 de 2 em 2 h | `robo_fila.py --robo medicoes` |
-| MoraisEng - Robo retratos | todo dia 05:00 | `robo_fila.py --robo retratos` |
+| MoraisEng - Robo retratos | todo dia 08:00 | `robo_fila.py --robo retratos` |
 | MoraisEng - Robo indices | todo dia 09:00 | `robo_fila.py --indices` |
 Rodar cada uma uma vez (`schtasks /Run`) e mostrar o `Last Result`.
 
@@ -507,3 +507,17 @@ Remove-Item Env:BOLETOS_SO
 - Antes de emitir qualquer um, confere se o saldo de créditos cobre a lista toda. Se não cobrir, não emite nada
   (código 2, `trava: saldo ...`); o motivo completo fica no relatório.
 - Teto de 62 boletos por rodada; acima disso não emite nada e pede para olhar.
+
+# PÁGINA BOLETOS E FINANCEIRO (09/11/2026)
+
+Página `boletos-financeiro.html` do portal: boletos do mês e financeiro por unidade do Reserva dos Ipês. O servidor monta o
+arquivo (`servidor/boletos_portal.py`) e sobe para `robos/boletos-financeiro.json` no bucket privado `analise`, depois da rodada
+de boletos, da leitura dos retratos e de cada Segurar ou Soltar. O link sai do `apps-script/BoletosFinanceiro.gs`, que confere o
+acesso `BOLETOS E FINANCEIRO` da coluna ACESSOS.
+
+- **Parcelas seguradas:** `_central\boletos\seguradas.json`. O robô de boletos não emite parcela que esteja nele e confere o
+  arquivo antes de cada boleto. Arquivo ilegível = o robô não emite nada e mostra a trava. Para soltar sem o portal, apague a linha
+  da parcela no arquivo.
+- **Último financeiro bom:** `_central\financeiro-condominio.json`, usado quando o Notion falha.
+- **Pedidos:** Segurar e Soltar entram na FILA DO ROBÔ com o tipo `boleto-segurar`; Atualizar agora usa o `robo-rodar` da tarefa
+  `MoraisEng - Robo retratos`. A fila de teste não segura boleto.

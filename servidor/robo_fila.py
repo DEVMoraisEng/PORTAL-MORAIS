@@ -256,6 +256,8 @@ class Fila:
         alvo = str(payload.get("pageId") or "")[:8]
         if tipo == "robo-rodar":
             return self.rodar_de_novo(linha, payload)
+        if tipo == "boleto-segurar":
+            return self.segurar_boleto(linha, payload)
         montado = argumentos(tipo, payload, self.pode_gravar_recebimento if tipo == "mc-recebimento" else self.pode_gravar)
         if not montado:
             self.marcar(linha["id"], "ERRO", "pedido inválido (%s)" % tipo)
@@ -320,6 +322,28 @@ class Fila:
                 pass
         return "FEITO" if ok else "ERRO"
 
+
+    def segurar_boleto(self, linha: dict, payload: dict) -> str:
+        """09/11: Segurar/Soltar da página Boletos e Financeiro. Só mexe num arquivo do servidor, sem usar o Mais
+        Controle: não espera a vez dele, então vale mesmo com a rodada de boletos em andamento."""
+        acao, parcela, quem = str(payload.get("acao") or ""), str(payload.get("parcela") or ""), str(payload.get("quem") or "")
+        if self.nome == "teste":
+            ok, msg = False, "a fila de teste não segura boleto"
+        elif not RE_ID.match(parcela):
+            ok, msg = False, "parcela inválida"
+        else:
+            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+            import boletos_portal as BP
+            try:
+                ok, msg = BP.pedir(acao, parcela, quem)
+            except Exception as e:
+                ok, msg = False, type(e).__name__
+        self.marcar(linha["id"], "FEITO" if ok else "ERRO", msg)
+        log("[%s] boleto-segurar %s %s: %s" % (self.nome, acao[:8], parcela[:8], msg))
+        if ok:
+            import boletos_portal as BP
+            BP.publicar(lambda m: log("[boletos] " + m))
+        return "FEITO" if ok else "ERRO"
 
     def reorganizar(self, linha: dict, quem: str) -> str:
         try:
@@ -653,6 +677,13 @@ def robo_antigo(nome: str) -> int:
         except Exception as e:
             log("[medidores] publicar FALHOU %s: %s" % (type(e).__name__, str(e)[:200]))
             pior = 1
+    if nome in ("boletos", "retratos"):   # 09/11: a página Boletos e Financeiro lê o que estas duas rodadas produzem
+        try:
+            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+            import boletos_portal as BP
+            BP.publicar(lambda m: log("[boletos] " + m))
+        except Exception as e:             # a página atrasada não muda o resultado do robô
+            log("[boletos] publicar FALHOU %s" % type(e).__name__)
     saude = json.loads(SAUDE.read_text(encoding="utf-8")) if SAUDE.exists() else {}
     saude.setdefault("robos", {})[nome] = {"em": agora_iso(), "codigo": pior}
     SAUDE.write_text(json.dumps(saude, ensure_ascii=False, indent=1), encoding="utf-8")
