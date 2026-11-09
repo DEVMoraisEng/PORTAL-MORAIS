@@ -492,6 +492,7 @@ tfoot td:last-child{border-right:none}
 .cfg-bar input[type=search],.cfg-bar select{padding:6px 10px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;background:var(--branco);color:var(--text)}
 .cfg-bar input[type=search]{flex:1 1 220px;min-width:0}
 .cfg-bar .cnt{font-size:12px;color:var(--text3);margin-left:auto}
+.cfg-rd{display:inline-flex;align-items:center;gap:5px;font-size:13px;margin-right:12px;cursor:pointer}
 .cfg-btn{font-family:'Barlow Condensed',sans-serif;font-weight:800;letter-spacing:.05em;text-transform:uppercase;font-size:13px;padding:7px 14px;border-radius:7px;border:1.5px solid var(--azul);background:var(--azul);color:#fff;cursor:pointer}
 .cfg-btn:disabled{opacity:.45;cursor:not-allowed}
 .cfg-btn.sec{background:transparent;color:var(--azul)}
@@ -558,6 +559,50 @@ html[data-tema="escuro"] #ad-tip h4{color:var(--teal)}
 #ad-tip td{padding:2px 0;border:0;color:var(--text);text-align:left;background:none}
 #ad-tip td:last-child{text-align:right;font-family:'DM Mono',monospace;white-space:nowrap;padding-left:10px}
 #ad-tip .fora{color:var(--text3);font-size:11.5px}
+/* 09/11/26: lista de lançamentos ao clicar na barra */
+#ad-tip .lanc-dica{margin-top:6px;font-size:11.5px;font-weight:700;color:var(--azul)}
+html[data-tema="escuro"] #ad-tip .lanc-dica{color:var(--teal)}
+.dc-ch .col[data-lanc]{cursor:pointer}
+#lanc-dlg{width:min(1180px,calc(100vw - 24px));max-height:calc(100vh - 32px);border:1.5px solid var(--azul);border-radius:12px;padding:16px 18px;background:var(--branco);color:var(--text);box-shadow:0 18px 48px rgba(10,30,45,.35);overflow:auto}
+#lanc-dlg::backdrop{background:rgba(10,25,35,.55)}
+#lanc-dlg .lc-h{display:flex;gap:12px;align-items:flex-start;justify-content:space-between}
+#lanc-dlg h3{font-family:'Barlow Condensed',sans-serif;font-size:20px;font-weight:800;text-transform:uppercase;letter-spacing:.03em;color:var(--azul);margin:0}
+html[data-tema="escuro"] #lanc-dlg h3{color:var(--teal)}
+#lanc-dlg .lc-s{color:var(--text3);font-size:12.5px;margin-top:2px}
+#lanc-dlg .lc-x{background:none;border:1px solid var(--border);border-radius:8px;color:var(--text);font-size:15px;width:34px;height:34px;cursor:pointer;flex:none}
+#lanc-dlg .lc-tot{margin:10px 0 6px;font-size:14px;display:flex;flex-wrap:wrap;gap:6px 16px;align-items:center}
+#lanc-dlg .lc-tot .g{color:var(--verde)} #lanc-dlg .lc-tot .r{color:#c0392b}
+#lanc-dlg .lc-ors{font-size:12px;color:var(--text3);display:flex;gap:12px}
+#lanc-dlg .lc-or{display:inline-block;font-size:10.5px;font-weight:800;letter-spacing:.04em;padding:1px 7px;border-radius:999px;border:1px solid var(--azul);color:var(--azul)}
+#lanc-dlg .lc-or.box{border-color:#b7791f;color:#b7791f}
+html[data-tema="escuro"] #lanc-dlg .lc-or.mc{border-color:var(--teal);color:var(--teal)}
+#lanc-dlg .lc-av{background:rgba(212,160,23,.12);border:1px solid rgba(212,160,23,.5);border-radius:8px;padding:6px 10px;font-size:12.5px;margin:6px 0}
+#lanc-dlg .lc-ch{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+#lanc-dlg .lc-ch button{font:inherit;font-size:12px;font-weight:600;padding:4px 10px;border-radius:999px;border:1px solid var(--border);background:var(--bg2);color:var(--text);cursor:pointer}
+#lanc-dlg .lc-ch button span{font-family:'DM Mono',monospace;font-weight:500;color:var(--text3);margin-left:4px}
+#lanc-dlg .lc-ch button.on{background:var(--azul);border-color:var(--azul);color:#fff} #lanc-dlg .lc-ch button.on span{color:#dfeaf0}
+#lanc-dlg .lc-bar{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 8px}
+#lanc-dlg .lc-bar input{flex:1 1 260px;min-width:0;padding:7px 10px;border:1px solid var(--border);border-radius:7px;background:var(--branco);color:var(--text);font:inherit;font-size:13px}
+#lanc-dlg .lc-csv{font:inherit;font-size:12.5px;font-weight:700;padding:6px 12px;border-radius:7px;border:1px solid var(--azul);background:transparent;color:var(--azul);cursor:pointer}
+html[data-tema="escuro"] #lanc-dlg .lc-csv{border-color:var(--teal);color:var(--teal)}
+#lanc-dlg .lc-tw{overflow:auto;max-height:calc(100vh - 330px);border:1px solid var(--border2);border-radius:8px}
+#lanc-dlg .lc-t{width:100%;border-collapse:collapse;font-size:12.5px}
+#lanc-dlg .lc-t th{position:sticky;top:0;background:var(--bg3);color:var(--text);text-align:left;border:0;font-size:11px;text-transform:uppercase;letter-spacing:.05em;padding:7px 8px;z-index:1}
+#lanc-dlg .lc-t{min-width:760px}
+#lanc-dlg .lc-t td{padding:6px 8px;border-top:1px solid var(--border2);vertical-align:top;text-align:left;color:var(--text);background:none;white-space:normal;overflow-wrap:anywhere}
+#lanc-dlg .lc-t td:nth-child(5){min-width:220px}
+#lanc-dlg .lc-t td b{font-weight:600}
+#lanc-dlg .lc-t .nr,#lanc-dlg .lc-t td.nr{text-align:right;font-family:'DM Mono',monospace;white-space:nowrap}
+#lanc-dlg .lc-t .nw{white-space:nowrap}
+#lanc-dlg .lc-t td.g{color:var(--verde)}
+#lanc-dlg .lc-t tr.dup td{background:rgba(212,160,23,.08)}
+#lanc-dlg .lc-t tfoot td{position:sticky;bottom:0;background:var(--bg3);color:var(--text);font-weight:600;border-top:1.5px solid var(--border)}
+#lanc-dlg .lc-pl{font-size:11px;color:var(--text3)}
+#lanc-dlg .lc-dup{font-size:11px;color:#b7791f;font-weight:600;margin-top:2px}
+#lanc-dlg .lc-vz{text-align:center;color:var(--text3);padding:18px}
+#lanc-dlg .lc-pe{font-size:12px;color:var(--text3);margin-top:10px}
+.pt-chip.fonte{border:1px solid rgba(212,160,23,.6)}
+@media (max-width:700px){#lanc-dlg{padding:12px} #lanc-dlg .lc-t{font-size:12px}}
 /* operacional × não operacional */
 .op-tab{width:100%;border-collapse:collapse;font-size:13px}
 .op-tab th,.op-tab td{padding:8px 10px;border-bottom:1px solid var(--border2);text-align:right;background:none;color:var(--text)}
@@ -604,6 +649,7 @@ html[data-tema="escuro"] #ad-tip h4{color:var(--teal)}
     <a class="pt-voltar" href="index.html">← Voltar para o Dashboard</a>
     <span style="flex:1"></span>
     <span class="pt-chip" id="updated-at">—</span>
+    <span class="pt-chip fonte" id="fonte-badge" title="">Fonte: Mais Controle</span>
     <button class="pt-ghost" onclick="location.reload()">↻ Atualizar</button>
   </div>
   <div class="pt-tabs-outer"><div class="pt-tabs" id="pt-tabs">
@@ -1378,7 +1424,10 @@ function expandirPagamentos(p){
   return p.rows.map(r=>({
     cc:d.cc[r[0]], valor:r[1], mes:d.mes[r[2]], grupo:d.grupo[r[3]],
     categoria:d.categoria[r[4]], plano_de_conta:d.plano_de_conta[r[5]],
-    fornecedor:d.fornecedor[r[6]], juros_multa:r[7]
+    fornecedor:d.fornecedor[r[6]], juros_multa:r[7],
+    /* 09/11/26: descrição, dia e id (lista de lançamentos ao clicar na barra);
+       arquivo antigo não tem — a lista mostra só o mês */
+    descricao:d.descricao?d.descricao[r[8]]:'', dia:r[9]||null, id:r[10]||'', dup:r[11]||''
   }));
 }
 async function carregarAnaliseDados(){
@@ -1462,8 +1511,9 @@ let CFG={clientes:{},ccs:{},cats:{},naturezas:{}}, CFG_META={}, CFG_PODE=false, 
 const CFG_SOC=new Set(['APORTE CAPITAL','DISTRIBUICAO DE LUCROS','COTA CAPITAL']);
 const CFG_TER=new Set(['AQUISICAO DE TERRENO','COMISSAO AQUISICAO DE LOTE','ITBI','ESCRITURA','REGISTRO DE LOTE']);
 const CFG_VENDA=new Set(['COMISSAO VENDA DE CASA','GANHO DE CAPITAL','DARF RET (INCORPORACAO)']);
-const CFG_NAO_OBRA=new Set(['DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO','ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL']);
-const CFG_NAO_ESC=new Set(['FINANCIAMENTO SALA COMERCIAL','ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL','DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO']);
+const CFG_NAO_OBRA=new Set(['DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO','ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL','PAGAMENTO DUPLICADO','ADIANTAMENTO A CLIENTE']);
+/* 09/11/26: compra de terreno (ITBI, escritura, registro, comissão de lote) paga pelo CC do escritório NÃO é custo fixo do escritório */
+const CFG_NAO_ESC=new Set(['FINANCIAMENTO SALA COMERCIAL','ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL','DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO','PAGAMENTO DUPLICADO','ADIANTAMENTO A CLIENTE',...CFG_TER]);
 const CFG_NAT={'VENDA':'receita','PRESTACAO DE SERVICOS':'receita','EXECUCAO DE OBRAS':'receita','APORTE DE CAPITAL':'socios','APORTE DE INVESTIDOR':'socios'};
 const CFG_CLI_MORAIS=new Set([...CLIENTES_MORAIS].map(nzC).concat(['MORAIS FLORENCA SPE','MORAIS PARTICIPACOES IMOBILIARIAS SPE','MORAIS VALE DAS BRISAS SPE LTDA']));
 const ROT_TIPO={obra:'Obra',esc:'Escritório',pos:'Pós-obra',soc:'Sócios (aportes/distribuições)',ign:'Não conta'};
@@ -1513,6 +1563,45 @@ function cls(p){const c=ccInfo(p.cc);
   if(c.tipo==='ign') return {t:'ign',i:'nao',c};
   return {t:c.tipo,i:d,c};}
 function natDest(nat){const n=nzC(nat); if(!n) return 'receita'; return CFG.naturezas[n]||CFG_NAT[n]||'nao';}
+
+/* ===================== BOX OBRAS (09/11/26) =====================
+   O Box Obras foi o ERP antigo; parte das vendas e dos custos de 2026 ficou
+   lá. O arquivo do Box (gerado do backup, só 2026) é importado uma vez na aba
+   Configurações › 0 e fica salvo junto das configurações (ad_config), nunca no
+   dist/ público. A FONTE escolhida (MC + Box, só MC, só Box) vale para todas
+   as telas: tudo lê window._pagFull e FATS_TODOS, montados aqui.
+   Os lançamentos do Box que também estão no MC entram (pedido de 09/11) e
+   aparecem com ⚠ na lista de lançamentos. */
+let PAG_MC=[], FAT_MC=[], BOX=null, BOX_X={pag:[],rec:[]}, FONTE='ambos';
+const ROT_FONTE={ambos:'Mais Controle + Box',mc:'Só Mais Controle',box:'Só Box'};
+/* chave própria no ad_config; se o Apps Script não aceitar a chave nova, vai dentro de "ccs" como X|nome */
+function cfgExtra(ch){ const a=CFG[ch]; if(a&&typeof a==='object'&&Object.keys(a).length) return a; return (CFG.ccs||{})['X|'+ch]||null; }
+function boxExpandir(b){
+  if(!b||!b.pag||!b.pag.rows) return {pag:[],rec:[]};
+  const pag=expandirPagamentos(b.pag).map(p=>(p.origem='box',p));
+  const d=(b.rec&&b.rec.dic)||{}, rec=((b.rec&&b.rec.rows)||[]).map(r=>({cc:d.cc[r[0]],valor:r[1],mes:d.mes[r[2]],nat:d.nat[r[3]],descricao:d.descricao[r[4]],dia:r[5],id:r[6],origem:'box'}));
+  return {pag,rec}; }
+function boxCarregar(){ BOX=cfgExtra('box'); BOX_X=boxExpandir(BOX); const f=(cfgExtra('fonte')||{}).v; FONTE=ROT_FONTE[f]?f:'ambos'; }
+function fonteEfetiva(){ return BOX_X.pag.length||BOX_X.rec.length?FONTE:'mc'; }
+function aplicarFonte(){ const f=fonteEfetiva();
+  window._pagFull=(f==='box'?[]:PAG_MC).concat(f==='mc'?[]:BOX_X.pag);
+  FATS_TODOS=(f==='box'?[]:FAT_MC).concat(f==='mc'?[]:BOX_X.rec);
+  const b=document.getElementById('fonte-badge'); if(b){ b.textContent='Fonte: '+ROT_FONTE[f]; b.title=f==='mc'?'Dados do Box Obras fora da análise':'Box Obras: 2026, '+BOX_X.pag.length+' pagamentos e '+BOX_X.rec.length+' recebimentos'; } }
+async function cfgGravarExtra(ch,valor){
+  const okR=r=>{ if(!r||!r.ok) throw new Error((r&&r.erro)||'sem resposta'); return r; };
+  let r=null;
+  try{ r=okR(await chamar({action:'adCfgSalvar',chave:ch,valor:JSON.stringify(valor)},60000));
+    /* confere se a chave nova volta na leitura; se não voltar, guarda em "ccs" */
+    const l=await chamar({action:'adCfgLer'},30000);
+    if(l&&l.ok&&l.cfg&&l.cfg[ch]&&Object.keys(l.cfg[ch]).length){ CFG[ch]=valor; CFG_META[ch]={por:r.por,em:r.em};
+      if(CFG.ccs&&CFG.ccs['X|'+ch]){ const nv=JSON.parse(JSON.stringify(CFG.ccs)); delete nv['X|'+ch]; try{ okR(await chamar({action:'adCfgSalvar',chave:'ccs',valor:JSON.stringify(nv)},60000)); CFG.ccs=nv; }catch(e){} }
+      return r; }
+  }catch(e){ if(/rede|Failed to fetch|abort/i.test(String(e.message))) throw e; }
+  const nv=JSON.parse(JSON.stringify(CFG.ccs||{})); nv['X|'+ch]=valor;
+  r=okR(await chamar({action:'adCfgSalvar',chave:'ccs',valor:JSON.stringify(nv)},60000));
+  CFG.ccs=nv; CFG_META.ccs={por:r.por,em:r.em}; CFG_META[ch]={por:r.por,em:r.em};
+  if(CFG_ED){ CFG_ED.ccs=CFG_ED.ccs||{}; CFG_ED.ccs['X|'+ch]=valor; }
+  return r; }
 /* Remonta pags (pagamento de obra por CC/mês) e fats (receita de obra) pela configuração. */
 setTimeout(()=>{ try{ carregarUnidadesCond(); }catch(e){} },1500);
 function aplicarConfig(){
@@ -4350,8 +4439,10 @@ async function init(){
     metas=data.metas||[];
     pags=data.pagamentos_detalhe||{};
     fats=data.faturamentos_erp||[];
-    window._pagFull=data.pagamentos_full||[];
-    FATS_TODOS=fats.slice();
+    /* 09/11/26: Mais Controle + Box Obras (2026) — a fonte escolhida em Configurações › 0 decide o que entra */
+    PAG_MC=(data.pagamentos_full||[]).map(p=>(p.origem='mc',p));
+    FAT_MC=fats.map(f=>Object.assign({origem:'mc'},f));
+    boxCarregar(); aplicarFonte();
     DOC_IDX={}; docs.forEach(d=>{ if(d.endereco) DOC_IDX[nzC(d.endereco)]=d; });
     /* 28/10: vendas dos condomínios (BANCO DE DADOS VENDAS CONDOMÍNIO) entram no VGV */
     VENDAS_COND=(Array.isArray(data.vendas_cond)?data.vendas_cond:[]).filter(v=>v&&(v.data_venda||v.valor_venda_contrato)).map(v=>Object.assign({},v,{clientes:true,endereco:'CONDOMÍNIO '+(v.condominio||'RESERVA DOS IPÊS'),setor:'CONDOMÍNIO '+(v.condominio||'RESERVA DOS IPÊS'),_cond:true}));
@@ -4718,9 +4809,11 @@ function obrasCard(){
     <tr class="tot"><td>${mk(ac)}Σ Custo total</td><td data-tip="tot@${F.imo}:12">${fmtBRL(sT(m12))}</td><td data-tip="tot@${F.imo}:ano">${fmtBRL(sT(mA))}</td><td data-tip="tot@${F.imo}:med">${fmtBRL(sT(m12)/12)}</td><td data-tip="tot@${F.imo}:mes">${fmtBRL(totM(mes))}</td></tr>
     ${lin('VGV vendido',F.vg,'vgv','vgv',VERDE)}</tbody></table></div>`;
   const vgvL={n:'VGV vendido',cor:VERDE,v:m12.map(m=>dS(F.vg,[m])),w:3};
+  const obLanc=i=>({titulo:'Obras · '+F.nome+' · '+fmtM(m12[i]),sub:'Custo de obra e compra de terreno',
+    pag:p=>{ if(p.mes!==m12[i]) return false; const k=cls(p); if(k.t!=='obra'||(k.i!=='obra'&&k.i!=='ter')) return false; const c=ccInfo(p.cc||'').imovel==='COND'; if(vis==='rua') return !c; if(!c) return false; return !K||((condoDe(p.cc)||{}).k===K); }});
   const ch=modo==='barra'
-    ? dashChart('ob',m12,{titulo:'Obras · '+F.nome,bars:compBars(F.c,m12,4,CORES_CH,[{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(F.t,[m]))}]),lines:[vgvL],nota:'Barras: composição do custo (terreno + maiores categorias de obra). Linha verde: VGV vendido no mês.'})
-    : dashChart('ob',m12,{titulo:'Obras · '+F.nome,lines:[{n:'Σ Custo total',cor:ac,v:m12.map(totM),w:3.4},{n:'Custo de obra (s/ terreno)',cor:corObra,v:m12.map(m=>dS(F.o,[m])),w:2},{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(F.t,[m])),w:2,dash:'5 4'},vgvL]});
+    ? dashChart('ob',m12,{lanc:obLanc,titulo:'Obras · '+F.nome,bars:compBars(F.c,m12,4,CORES_CH,[{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(F.t,[m]))}]),lines:[vgvL],nota:'Barras: composição do custo (terreno + maiores categorias de obra). Linha verde: VGV vendido no mês.'})
+    : dashChart('ob',m12,{lanc:obLanc,titulo:'Obras · '+F.nome,lines:[{n:'Σ Custo total',cor:ac,v:m12.map(totM),w:3.4},{n:'Custo de obra (s/ terreno)',cor:corObra,v:m12.map(m=>dS(F.o,[m])),w:2},{n:'Terreno',cor:'#a0522d',v:m12.map(m=>dS(F.t,[m])),w:2,dash:'5 4'},vgvL]});
   const tg=(grp,op,on)=>`<span class="dc-tg">${op.map(([v,t])=>`<button type="button" data-modo="${grp}|${v}" class="${on===v?'on':''}">${t}</button>`).join('')}</span>`;
   const hdr=tg('OBV',[['rua','🏠 Casas de rua'],['cond','🏘 Condomínios']],vis)+tg('OBM',[['linha','Linha'],['barra','Barras']],modo);
   let extra='';
@@ -4744,6 +4837,49 @@ function obrasCard(){
 }
 
 let TIP_NS='x', DASH_M=null, DASH_ANIM=true;
+/* ============ LANÇAMENTOS CONSIDERADOS (09/11/26) ============
+   Clicar numa barra abre a lista de TODOS os lançamentos que formam aquele
+   valor (Mais Controle e Box), com a categoria, o centro de custo e a origem. */
+const LANC={}; let LANC_L=null, LANC_F={q:'',g:'',ord:'v'};
+const lancData=x=>{ const [a,m]=String(x.mes||'').split('-'); return m?(x.dia?String(x.dia).padStart(2,'0')+'/':'')+m+'/'+a:'—'; };
+function lancAbrir(o){
+  const L=[];
+  if(o.pag) (window._pagFull||[]).forEach(p=>{ let ok=false; try{ ok=o.pag(p); }catch(e){} if(!ok) return;
+    L.push({t:'P',mes:p.mes,dia:p.dia,data:lancData(p),orig:p.origem||'mc',cc:p.cc||'',g:p.categoria||'(sem categoria)',plano:p.plano_de_conta||'',forn:p.fornecedor||'',desc:p.descricao||'',v:p.valor||0,dup:p.dup||'',id:p.id||''}); });
+  if(o.rec) (FATS_TODOS||[]).forEach(f=>{ let ok=false; try{ ok=o.rec(f); }catch(e){} if(!ok) return;
+    L.push({t:'R',mes:f.mes,dia:f.dia,data:lancData(f),orig:f.origem||'mc',cc:f.cc||'',g:'Recebimento · '+(f.nat||'(sem natureza)'),plano:'',forn:'',desc:f.descricao||'',v:f.valor||0,dup:'',id:f.id||''}); });
+  LANC_L={o,L}; LANC_F={q:'',g:'',ord:'v'};
+  let d=document.getElementById('lanc-dlg');
+  if(!d){ d=document.createElement('dialog'); d.id='lanc-dlg'; document.body.appendChild(d);
+    d.addEventListener('click',e=>{ if(e.target===d) d.close(); }); }
+  lancRender(); if(!d.open) d.showModal(); }
+function lancFiltro(){ const q=nzC(LANC_F.q); return LANC_L.L.filter(x=>(!LANC_F.g||x.g===LANC_F.g)&&(!q||nzC([x.cc,x.g,x.forn,x.desc,x.plano,x.data,x.orig==='box'?'BOX':'MC'].join(' ')).includes(q))); }
+function lancRender(){
+  const d=document.getElementById('lanc-dlg'); if(!d||!LANC_L) return; const {o,L}=LANC_L;
+  const soma=a=>a.reduce((x,y)=>x+y.v,0), P=L.filter(x=>x.t==='P'), R=L.filter(x=>x.t==='R');
+  const grp={}; L.forEach(x=>{ const k=x.g; (grp[k]=grp[k]||{n:0,v:0}); grp[k].n++; grp[k].v+=x.v*(x.t==='P'&&R.length?-1:1); });
+  const ori=o2=>{ const a=L.filter(x=>x.orig===o2); return a.length?`<span class="lc-or ${o2}">${o2==='box'?'Box':'MC'}</span> ${a.length} · ${fmtBRL(soma(a))}`:''; };
+  const nDup=L.filter(x=>x.dup).length;
+  const tot=R.length?`Entradas <b class="g">${fmtBRL(soma(R))}</b> (${R.length}) · Saídas <b class="r">${fmtBRL(soma(P))}</b> (${P.length})`:`<b>${fmtBRL(soma(P))}</b> em ${P.length} lançamento${P.length===1?'':'s'}`;
+  d.innerHTML=`<div class="lc-h"><div><h3>${esc(o.titulo||'Lançamentos')}</h3><div class="lc-s">${esc(o.sub||'')}</div></div><button type="button" class="lc-x" onclick="document.getElementById('lanc-dlg').close()" aria-label="Fechar">✕</button></div>
+  <div class="lc-tot">${tot}<span class="lc-ors">${ori('mc')} ${ori('box')}</span></div>
+  ${nDup?`<div class="lc-av">⚠ ${nDup} lançamento${nDup>1?'s':''} do Box também pode${nDup>1?'m':''} estar no Mais Controle — está${nDup>1?'ão':''} contando (veja a coluna Descrição).</div>`:''}
+  <div class="lc-ch"><button type="button" class="${LANC_F.g?'':'on'}" onclick="LANC_F.g='';lancRender()">Todas</button>${Object.entries(grp).sort((a,b)=>Math.abs(b[1].v)-Math.abs(a[1].v)).map(([k,x])=>`<button type="button" class="${LANC_F.g===k?'on':''}" onclick="LANC_F.g='${jq(k)}';lancRender()">${esc(k)} <span>${fmtBRL(Math.abs(x.v))}</span></button>`).join('')}</div>
+  <div class="lc-bar"><input type="search" id="lc-q" placeholder="Buscar fornecedor, descrição, centro de custo…" value="${esc(LANC_F.q)}" oninput="LANC_F.q=this.value;lancTabela()">
+    <select onchange="LANC_F.ord=this.value;lancTabela()"><option value="v"${LANC_F.ord==='v'?' selected':''}>Maior valor primeiro</option><option value="d"${LANC_F.ord==='d'?' selected':''}>Por data</option></select>
+    <button type="button" class="lc-csv" onclick="lancCSV()">Baixar planilha (CSV)</button></div>
+  <div class="lc-tw" id="lc-tw"></div>
+  <div class="lc-pe">Algo não deveria estar aqui? Mude a <b>categoria</b> (Configurações › 3) ou o <b>tipo do centro de custo</b> (Configurações › 2) — vale para todas as telas —, ou corrija o lançamento no Mais Controle. A origem MC/Box vem de Configurações › 0.</div>`;
+  lancTabela(); }
+function lancTabela(){ const w=document.getElementById('lc-tw'); if(!w) return;
+  const F=lancFiltro().slice().sort(LANC_F.ord==='d'?((a,b)=>(a.mes+String(a.dia||0).padStart(2,'0')).localeCompare(b.mes+String(b.dia||0).padStart(2,'0'))||b.v-a.v):((a,b)=>b.v-a.v));
+  const lim=800, vis=F.slice(0,lim), sR=F.filter(x=>x.t==='R').reduce((a,x)=>a+x.v,0), sP=F.filter(x=>x.t==='P').reduce((a,x)=>a+x.v,0), mix=sR&&sP;
+  w.innerHTML=`<table class="lc-t"><thead><tr><th>Data</th><th>Origem</th><th>Centro de custo</th><th>Categoria</th><th>Fornecedor · descrição</th><th class="nr">Valor</th></tr></thead><tbody>${vis.map(x=>`<tr class="${x.dup?'dup':''}"><td class="nw">${x.data}</td><td><span class="lc-or ${x.orig}">${x.orig==='box'?'Box':'MC'}</span></td><td>${esc(x.cc)}</td><td>${esc(x.g)}${x.plano&&x.orig!=='box'?`<div class="lc-pl">${esc(x.plano)}</div>`:''}</td><td>${x.forn?`<b>${esc(x.forn)}</b>`:''}${x.forn&&x.desc?'<br>':''}${esc(x.desc)}${x.dup?`<div class="lc-dup">⚠ ${esc(x.dup)}</div>`:''}</td><td class="nr ${x.t==='R'?'g':''}">${fmtBRL(x.v)}</td></tr>`).join('')||'<tr><td colspan="6" class="lc-vz">Nenhum lançamento com esse filtro.</td></tr>'}</tbody>
+  <tfoot><tr><td colspan="5">${F.length} lançamento${F.length===1?'':'s'}${F.length>lim?` (mostrando os ${lim} primeiros; a planilha traz todos)`:''}${mix?` · entradas ${fmtBRL(sR)} − saídas ${fmtBRL(sP)}`:''}</td><td class="nr"><b>${fmtBRL(mix?sR-sP:sR+sP)}</b></td></tr></tfoot></table>`; }
+function lancCSV(){ if(!LANC_L) return; const F=lancFiltro(), q=v=>'"'+String(v==null?'':v).replace(/"/g,'""')+'"';
+  const linhas=[['Tipo','Data','Origem','Centro de custo','Categoria','Plano de conta','Fornecedor','Descrição','Valor','Aviso']].concat(F.map(x=>[x.t==='R'?'Recebimento':'Pagamento',x.data,x.orig==='box'?'Box':'MC',x.cc,x.g,x.plano,x.forn,x.desc,String((x.v||0).toFixed(2)).replace('.',','),x.dup]));
+  const b=new Blob(['﻿'+linhas.map(l=>l.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(LANC_L.o.titulo||'lancamentos').replace(/[^\w\- ]+/g,' ').replace(/\s+/g,'_')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); }
 let DASH_MODO=(()=>{ try{ return JSON.parse(localStorage.getItem('ad_dash_modo')||'{}'); }catch(e){ return {}; } })();
 function tipNS(ns){ TIP_NS=ns; TIPS[ns]={}; }
 function dashModo(k,v){ DASH_MODO[k]=v; if(k==='OBV'&&v==='rua') {} try{ localStorage.setItem('ad_dash_modo',JSON.stringify(DASH_MODO)); }catch(e){}
@@ -4772,6 +4908,9 @@ function dashAgg(){
   return M;
 }
 const dS=(f,ml)=>ml.reduce((a,m)=>a+((DASH_M[m]||{})[f]||0),0);
+/* 09/11/26: filtros de lançamentos (mesma regra do dashAgg) */
+const pK=(ml,f)=>p=>ml.includes(p.mes)&&f(cls(p));
+function pagOp(p){ const k=cls(p); return (k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda'))||((k.t==='esc'||k.t==='pos')&&k.i==='conta'); }
 function dSC(f,ml){ const r={}; ml.forEach(m=>{ const o=(DASH_M[m]||{})[f]||{}; Object.entries(o).forEach(([k,v])=>r[k]=(r[k]||0)+v); }); return r; }
 function topK(obj,n){ const e=Object.entries(obj).sort((a,b)=>b[1]-a[1]); return {top:e.slice(0,n).map(x=>x[0]),resto:e.length>n}; }
 const CORES_CH=['#295778','#e08a1e','#2bb3a3','#8e5bb5','#d4a017','#5c8fb8','#c0392b','#7f8c8d'];
@@ -4801,8 +4940,9 @@ function dashChart(key,ml,o){
     seg.forEach(p=>{ g+=`<circle cx="${p[0].toFixed(1)}" cy="${p[1].toFixed(1)}" r="3.2" fill="${l.cor}" stroke="${cv('--branco','#fff')}" stroke-width="1.2"/>`; }); });
   ml.forEach((m,i)=>{ const rows=[...bars.map(b=>[b.n,b.v[i]||0,b.cor]),...lines.map(l=>[l.n,l.v[i],l.cor])].filter(r=>r[1]!=null&&(r[1]!==0||lines.some(l=>l.n===r[0])));
     const fv=pct?(v=>fmtN(v,2)+'%'):fmtBRL; const tot=bars.length>1?`<tr><td><b>Total das barras</b></td><td><b>${fv(bars.reduce((a,b)=>a+(b.v[i]||0),0))}</b></td></tr>`:'';
-    const html=`<h4>${esc(o.titulo||'')} · ${fmtM(m)}</h4><table>${rows.map(r=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${r[2]};margin-right:6px"></i>${esc(r[0])}</td><td>${fv(r[1])}</td></tr>`).join('')}${tot}</table>${o.extra?o.extra(i):''}${o.nota?`<div class="fora" style="margin-top:6px">${o.nota}</div>`:''}`;
-    g+=`<rect class="col" x="${(L+bw*i).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H-T-B}"${tipX(key+'_'+i,html)}/>`; });
+    const html=`<h4>${esc(o.titulo||'')} · ${fmtM(m)}</h4><table>${rows.map(r=>`<tr><td><i style="display:inline-block;width:9px;height:9px;border-radius:2px;background:${r[2]};margin-right:6px"></i>${esc(r[0])}</td><td>${fv(r[1])}</td></tr>`).join('')}${tot}</table>${o.extra?o.extra(i):''}${o.nota?`<div class="fora" style="margin-top:6px">${o.nota}</div>`:''}${o.lanc?'<div class="lanc-dica">🔎 Clique na barra para ver os lançamentos</div>':''}`;
+    let la=''; if(o.lanc){ const lid=key+'_'+i; LANC[lid]=()=>o.lanc(i); la=` data-lanc="${lid}"`; }
+    g+=`<rect class="col" x="${(L+bw*i).toFixed(1)}" y="${T}" width="${bw.toFixed(1)}" height="${H-T-B}"${tipX(key+'_'+i,html)}${la}/>`; });
   return `${o.ttl?`<div class="ttl">${o.ttl}</div>`:''}${legHtml(bars,lines)}<div class="dc-ch"><svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${g}</svg></div>`;
 }
 function compBars(campo,ml,n,cores,extra){ const tot=dSC(campo,ml), {top,resto}=topK(tot,n); const b=top.map((c,i)=>({n:c,cor:cores[i%cores.length],v:ml.map(m=>((DASH_M[m]||{})[campo]||{})[c]||0)}));
@@ -4823,7 +4963,7 @@ function dashNovo(P){
       ${vlin('Σ VGV total','vgv','vgv','tot vgvt',VERDE,'cas')}</tbody></table></div>
     <div class="dv-s" style="margin:-4px 0 6px">🏠 ${P.metaAno?`Meta de vendas das casas de rua ${ano}: <b>${P.casasAno}</b>/${P.metaAno} casas (= construídas em ${ano-1})`:`<b>${P.casasAno}</b> casas de rua no ano`} · mês: <b>${P.casasMes}</b>${P.metaMes?'/'+fmtN(P.metaMes,1):''} ${pillTend(dS('vgvR',M1),dS('vgvR',m12)/12,false)} · 🏘 condomínios seguem a meta de valor de cada um (card Obras › Condomínios)</div>${P.alertaVgv||''}`+
     `<div id="vgv-ch">${vgvChartHtml()}</div>`;
-  const venBody=`<div class="dv-g">${per4('ven','venda',true)}</div>`+dashChart('ven',m12,{titulo:'Custo de venda',bars:compBars('venC',m12,4,['#8e5bb5','#d4a017','#2bb3a3','#e08a1e']),lines:[],nota:'Composição por categoria: comissão de venda, DARF RET, ganho de capital…'});
+  const venBody=`<div class="dv-g">${per4('ven','venda',true)}</div>`+dashChart('ven',m12,{titulo:'Custo de venda',bars:compBars('venC',m12,4,['#8e5bb5','#d4a017','#2bb3a3','#e08a1e']),lines:[],nota:'Composição por categoria: comissão de venda, DARF RET, ganho de capital…',lanc:i=>({titulo:'Custo de venda · '+fmtM(m12[i]),sub:'Comissão, DARF RET, ganho de capital…',pag:pK([m12[i]],k=>k.t==='obra'&&k.i==='venda')})});
   let h=`<div class="dg c2">${dcard(VERDE,'📈','VGV','vendas pelo contrato',`<span class="dc-tg">${[['rua','🏠 Casas de rua'],['cond','🏘 Condomínios'],['todos','Σ Todos']].map(([v,t])=>`<button type="button" data-modo="VGVV|${v}" class="${(DASH_MODO.VGVV||'rua')===v?'on':''}">${t}</button>`).join('')}</span>`,vgvBody)}${dcard('#8e5bb5','💼','Custo de venda','comissão · RET · ganho de capital','',venBody)}</div>`;
   // ---------- Escritório + pós-obra + indicadores ----------
   /* 28/10: escritório e pós-obra contam a partir de mar/2026 até existirem 12 meses de fato */
@@ -4841,16 +4981,28 @@ function dashNovo(P){
     return `<div class="ind" data-tip="rat:${k}"><div class="dv-l">${l}</div><div class="dv ${v==null?'':ok?'g':'r'}">${v!=null?fmtN(v,2)+'%':'—'}</div><div class="ind-b"><span style="width:${w}%;background:${ok?VERDE:'#c0392b'}"></span></div><div class="dv-s">${sub}</div></div>`; }).join('');
   const tri=m=>[mAdd(m,-3),mAdd(m,-2),mAdd(m,-1)];
   const triOk=m=>tri(m)[0]>=INI_FIXOS;
+  /* 09/11/26: no gráfico da razão, o tooltip mostra os valores da conta (custo e VGV/obra de cada mês) */
+  const razaoTri=(m,f,rot,den,rotD)=>{ if(!triOk(m)) return `<div class="fora" style="margin-top:4px">Precisa de 3 meses desde ${fmtM(INI_FIXOS)}.</div>`;
+    const t=tri(m), a=dS(f,t), b=t.reduce((x,y)=>x+den(y),0);
+    return `<div class="tr">A conta · ${fmtM(t[0])} a ${fmtM(t[2])}</div><table><tr><td style="color:var(--text3)">Mês</td><td style="color:var(--text3);font-family:inherit">${rot} · ${rotD}</td></tr>${t.map(x=>`<tr><td>${fmtM(x)}</td><td>${fmtBRL(dS(f,[x]))} · ${fmtBRL(den(x))}</td></tr>`).join('')}<tr><td><b>${rot}</b></td><td><b>${fmtBRL(a)}</b></td></tr><tr><td><b>${rotD}</b></td><td><b>${fmtBRL(b)}</b></td></tr>${b>0?`<tr><td><b>${rot} ÷ ${rotD}</b></td><td><b>${fmtN(a/b*100,2)}%</b></td></tr>`:''}</table>`; };
   const rE=mE.map(m=>{ const v=dS('vgv',tri(m)); return triOk(m)&&v>0?dS('esc',tri(m))/v*100:null; });
   const rP=mE.map(m=>{ const v=dS('oR',tri(m))+dS('oC',tri(m)); return triOk(m)&&v>0?dS('pos',tri(m))/v*100:null; });
   const indH=(rs)=>rs.map(([k,l,v,meta,sub])=>{ const ok=v!=null&&v<=meta, w=v==null?0:Math.min(100,v/(meta*2)*100);
     return `<div class="ind" data-tip="rat:${k}"><div class="dv-l">${l}</div><div class="dv ${v==null?'':ok?'g':'r'}">${v!=null?fmtN(v,2)+'%':'—'}</div><div class="ind-b"><span style="width:${w}%;background:${ok?VERDE:'#c0392b'}"></span></div><div class="dv-s">${sub}</div></div>`; }).join('');
   const escBody=ep(E,'esc','#295778')+`<div class="ind-g c2">${indH(P.rat.slice(0,2))}</div>`+
-    dashChart('esc',mE,{titulo:'Escritório',ttl:'Escritório por mês',bars:compBars('escC',mE,4,['#295778','#5c8fb8','#2bb3a3','#d4a017']),h:190})+
-    dashChart('rEsc',mE,{titulo:'Escritório ÷ VGV',ttl:'Escritório ÷ VGV · 3 meses antes de cada mês',pct:true,meta:4,lines:[{n:'Escritório ÷ VGV',cor:'#295778',v:rE}],h:170,nota:'Mesma conta do indicador trimestral: soma dos 3 meses anteriores.'});
+    dashChart('esc',mE,{titulo:'Escritório',ttl:'Escritório por mês',bars:compBars('escC',mE,4,['#295778','#5c8fb8','#2bb3a3','#d4a017']),h:190,
+      extra:i=>{ const m=mE[i], e=dS('esc',[m]), v=dS('vgv',[m]); return `<table style="margin-top:4px"><tr><td>VGV vendido no mês</td><td>${fmtBRL(v)}</td></tr>${v>0?`<tr><td>Escritório ÷ VGV do mês</td><td>${fmtN(e/v*100,2)}%</td></tr>`:''}</table>`; },
+      lanc:i=>({titulo:'Escritório · '+fmtM(mE[i]),sub:'Pagamentos que entram no custo do escritório',pag:pK([mE[i]],k=>k.t==='esc'&&k.i==='conta')})})+
+    dashChart('rEsc',mE,{titulo:'Escritório ÷ VGV',ttl:'Escritório ÷ VGV · 3 meses antes de cada mês',pct:true,meta:4,lines:[{n:'Escritório ÷ VGV',cor:'#295778',v:rE}],h:170,nota:'Mesma conta do indicador trimestral: soma dos 3 meses anteriores.',
+      extra:i=>razaoTri(mE[i],'esc','Escritório',m=>dS('vgv',[m]),'VGV'),
+      lanc:i=>triOk(mE[i])?{titulo:'Escritório · '+fmtM(tri(mE[i])[0])+' a '+fmtM(tri(mE[i])[2]),sub:'Os 3 meses que entram na conta de '+fmtM(mE[i]),pag:pK(tri(mE[i]),k=>k.t==='esc'&&k.i==='conta')}:null});
   const posBody=ep(Po,'pos','#2bb3a3')+`<div class="ind-g c2">${indH(P.rat.slice(2,4))}</div>`+
-    dashChart('pos',mE,{titulo:'Pós-obra',ttl:'Pós-obra por mês',bars:compBars('posC',mE,3,['#2bb3a3','#8e5bb5','#e08a1e']),h:190})+
-    dashChart('rPos',mE,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.'});
+    dashChart('pos',mE,{titulo:'Pós-obra',ttl:'Pós-obra por mês',bars:compBars('posC',mE,3,['#2bb3a3','#8e5bb5','#e08a1e']),h:190,
+      extra:i=>{ const m=mE[i], po=dS('pos',[m]), ob=dS('oR',[m])+dS('oC',[m]); return `<table style="margin-top:4px"><tr><td>Custo de obra do mês (s/ terreno)</td><td>${fmtBRL(ob)}</td></tr>${ob>0?`<tr><td>Pós-obra ÷ obra do mês</td><td>${fmtN(po/ob*100,2)}%</td></tr>`:''}</table>`; },
+      lanc:i=>({titulo:'Pós-obra · '+fmtM(mE[i]),sub:'Pagamentos que entram no custo de pós-obra',pag:pK([mE[i]],k=>k.t==='pos'&&k.i==='conta')})})+
+    dashChart('rPos',mE,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.',
+      extra:i=>razaoTri(mE[i],'pos','Pós-obra',m=>dS('oR',[m])+dS('oC',[m]),'Custo de obra'),
+      lanc:i=>triOk(mE[i])?{titulo:'Pós-obra · '+fmtM(tri(mE[i])[0])+' a '+fmtM(tri(mE[i])[2]),sub:'Os 3 meses que entram na conta de '+fmtM(mE[i]),pag:pK(tri(mE[i]),k=>k.t==='pos'&&k.i==='conta')}:null});
   h+=`<div class="dg c2">${dcard('#295778','🏢','Escritório','custo fixo · meta ≤ 4% do VGV','',escBody)}${dcard('#2bb3a3','🔧','Pós-obra','assistência · meta ≤ 1% do custo de obra','',posBody)}</div>`;
   // ---------- Obras: casas de rua × condomínio ----------
   DASH_PP={mes,ano,m12,mA};
@@ -4864,6 +5016,8 @@ function dashNovo(P){
       ${linha(op?'Entradas operacionais':'Entradas não operacionais',fe,ce,'g')}${linha(op?'Saídas operacionais':'Saídas não operacionais',fs,cs,'r')}
       <tr class="tot"><td>${op?'Resultado operacional':'Saldo não operacional'}</td>${res}</tr></tbody></table>`;
     const ch=dashChart(op?'op':'nop',m12,{titulo:op?'Operacional':'Não operacional',
+      lanc:i=>({titulo:(op?'Operacional':'Não operacional')+' · '+fmtM(m12[i]),sub:op?'Entradas: recebimentos de receita · Saídas: obra, terreno, venda, escritório e pós-obra':'Aportes, distribuições, devoluções e o que não conta',
+        pag:p=>p.mes===m12[i]&&pagOp(p)===op, rec:f=>f.mes===m12[i]&&/^\d{4}-\d{2}$/.test(f.mes||'')&&recOp(f)===op}),
       bars:[{n:'Entradas',cor:VERDE,v:m12.map(m=>dS(fe,[m]))},{n:'Saídas',cor:'#c0392b',v:m12.map(m=>-dS(fs,[m]))}],
       lines:[{n:op?'Resultado':'Saldo',cor:op?cv('--text','#223'):'#d4a017',v:m12.map(m=>dS(fe,[m])-dS(fs,[m])),w:3}].concat(op?[]:[{n:'Média móvel 12 meses do saldo',cor:cv('--text','#223'),dash:'6 4',w:2.4,v:m12.map(m=>{ const ul=[...Array(12)].map((_,i)=>mAdd(m,-i)); return (dS(fe,ul)-dS(fs,ul))/12; })}]),
       nota:op?'Entradas: recebimentos com natureza Receita. Saídas: obra, terreno, venda, escritório e pós-obra.':'Entradas: aportes, empréstimos, estornos. Saídas: distribuições, financiamento da sala, devoluções e o que é marcado "não conta".'});
@@ -4956,6 +5110,9 @@ function tipConteudo(ch){
   document.addEventListener('mouseover',e=>{ if(fixo) return; const el=e.target.closest('[data-tip]'); if(el===alvo) return; alvo=el; if(el) mostrar(el,e); else { const t=tip(); if(t) t.style.display='none'; } });
   document.addEventListener('mousemove',e=>{ if(fixo||!alvo||!ehCol(alvo)) return; mostrar(alvo,e); });
   document.addEventListener('click',e=>{ if(e.target.closest('[data-modo]')) return; const el=e.target.closest('[data-tip]'); const t=tip();
+    /* 09/11/26: barra com lançamentos -> abre a lista de tudo o que foi considerado */
+    if(el&&ehCol(el)&&el.dataset.lanc&&LANC[el.dataset.lanc]){ let L=null; try{ L=LANC[el.dataset.lanc](); }catch(err){ console.error(err); }
+      if(L){ fixo=null; marcar(null); if(t) t.style.display='none'; alvo=null; lancAbrir(L); return; } }
     if(el&&(ehCol(el)||matchMedia('(hover: none)').matches)){ fixo=ehCol(el)?el:null; marcar(el); mostrar(el,e); return; }
     if(!el){ fixo=null; marcar(null); if(t) t.style.display='none'; alvo=null; } });
   window.addEventListener('scroll',()=>{ const t=tip(); if(t) t.style.display='none'; alvo=null; fixo=null; marcar(null); },true);
@@ -4986,6 +5143,45 @@ async function cfgSalvar(chave){
 function cfgMetaTxt(chave){ const m=CFG_META[chave]; return m&&m.em?`Última alteração: ${esc(m.por||'?')} em ${new Date(m.em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}`:'Usando só a regra automática.'; }
 function cfgRodape(chave){ return `<div class="cfg-bar" style="margin:10px 0 0"><button class="cfg-btn" id="cfg-salvar-${chave}" onclick="cfgSalvar('${chave}')" disabled>Salvar</button><span class="cfg-auto" id="cfg-st-${chave}">${cfgMetaTxt(chave)}</span></div>`; }
 
+/* ---- 0 · Fonte dos dados: Mais Controle × Box Obras (09/11/26) ---- */
+let CFG_FONTE_ED=null, CFG_BOX_NOVO=null;
+function boxResumo(X){ const r={pag:0,nP:0,rec:0,nR:0,dup:0,nD:0,it:{}}; const add=(k,v)=>{ r.it[k]=(r.it[k]||0)+v; };
+  X.pag.forEach(p=>{ r.pag+=p.valor||0; r.nP++; if(p.dup){ r.dup+=p.valor||0; r.nD++; } const k=cls(p);
+    add(k.i==='soc'?'Sócios (aportes/distribuições)':k.t==='obra'?(k.i==='obra'?'Custo de obra':k.i==='ter'?'Compra de terreno':k.i==='venda'?'Custo de venda':'Não conta'):k.t==='esc'&&k.i==='conta'?'Escritório':k.t==='pos'&&k.i==='conta'?'Pós-obra':'Não conta',p.valor||0); });
+  X.rec.forEach(f=>{ r.rec+=f.valor||0; r.nR++; });
+  r.recOp=X.rec.filter(f=>recOp(f)).reduce((a,f)=>a+(f.valor||0),0); return r; }
+function cfgFonteHtml(){
+  const tem=BOX_X.pag.length||BOX_X.rec.length, f=CFG_FONTE_ED||FONTE, m=CFG_META.box||(CFG_META.ccs&&BOX?CFG_META.ccs:null);
+  const dt=x=>x?x.split('-').reverse().join('/'):'?';
+  let st='';
+  if(tem){ const r=boxResumo(BOX_X), per=(BOX&&BOX.periodo)||[];
+    const ord=['Custo de obra','Compra de terreno','Custo de venda','Escritório','Pós-obra','Não conta','Sócios (aportes/distribuições)'];
+    st=`<div class="cfg-aviso ok">Box importado${BOX&&BOX.importado_em?' em '+new Date(BOX.importado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+(BOX.importado_por?' por '+esc(BOX.importado_por):''):''}: <b>${r.nP}</b> pagamentos (${fmt0(r.pag)}) e <b>${r.nR}</b> recebimentos (${fmt0(r.rec)}), de ${dt(per[0])} a ${dt(per[1])}. ${r.nD?`<b>${r.nD}</b> pagamentos (${fmt0(r.dup)}) também podem estar no Mais Controle: estão contando e aparecem com ⚠ na lista de lançamentos.`:''}</div>
+    <div class="cfg-tw" style="max-height:none"><table><thead><tr><th class="left">O que o Box acrescenta (pelas regras desta aba)</th><th>Valor</th></tr></thead><tbody>
+    ${ord.filter(k=>r.it[k]).map(k=>`<tr><td>${k}</td><td class="nr">${fmt0(r.it[k])}</td></tr>`).join('')}
+    <tr><td>Recebimentos de receita (vendas)</td><td class="nr">${fmt0(r.recOp)}</td></tr><tr><td>Outros recebimentos (estornos, reembolsos, Pix)</td><td class="nr">${fmt0(r.rec-r.recOp)}</td></tr></tbody></table></div>`; }
+  else st=`<div class="cfg-aviso">O arquivo do Box ainda não foi importado. Enquanto isso a análise usa só o Mais Controle.</div>`;
+  const op=Object.entries(ROT_FONTE).map(([v,t])=>`<label class="cfg-rd"><input type="radio" name="cfg-fonte" value="${v}"${v===f?' checked':''}${CFG_PODE&&tem?'':' disabled'} onchange="CFG_FONTE_ED=this.value;const b=document.getElementById('cfg-salvar-fonte');if(b)b.disabled=(this.value===FONTE)"> ${t}</label>`).join('');
+  return `<div class="cfg-sec" id="cfg-sec-fonte"><h3>0 · Fonte dos dados: Mais Controle e Box Obras</h3>
+    <p class="desc">Em 2026 parte das vendas e dos custos ainda foi lançada no <b>Box Obras</b>, o ERP antigo. Escolha o que a análise usa; vale para todas as telas e todos os logins. Os lançamentos do Box passam pelas mesmas regras de centro de custo e categoria desta aba (as categorias do Box foram convertidas para o Manual do Plano de Contas).</p>
+    ${st}
+    <div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap">${op}<button class="cfg-btn" id="cfg-salvar-fonte" onclick="cfgSalvarFonte()" disabled>Salvar</button><span class="cfg-auto" id="cfg-st-fonte">Agora: ${ROT_FONTE[fonteEfetiva()]}${CFG_META.fonte&&CFG_META.fonte.em?' · alterado por '+esc(CFG_META.fonte.por||'?'):''}</span></div>
+    ${CFG_PODE?`<div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap"><label class="cfg-btn" style="cursor:pointer">${tem?'Trocar':'Importar'} arquivo do Box (.json)<input type="file" accept=".json,application/json" style="display:none" onchange="cfgBoxArquivo(this)"></label><span class="cfg-auto" id="cfg-st-box">Arquivo box_2026.json, gerado do backup do Box.</span></div>`:''}
+  </div>`; }
+async function cfgSalvarFonte(){ const b=document.getElementById('cfg-salvar-fonte'), st=document.getElementById('cfg-st-fonte'); const v=CFG_FONTE_ED; if(!v||!CFG_PODE) return;
+  b.disabled=true; st.textContent='Salvando…';
+  try{ const r=await cfgGravarExtra('fonte',{v}); FONTE=v; CFG_FONTE_ED=null; aplicarFonte(); aplicarConfig(); buildDash(); renderConfig();
+    const s2=document.getElementById('cfg-st-fonte'); if(s2) s2.textContent='Salvo por '+r.por+'. Agora: '+ROT_FONTE[fonteEfetiva()]+' — todas as telas já usam.'; }
+  catch(e){ b.disabled=false; st.textContent='Não salvou: '+e.message; } }
+function cfgBoxArquivo(inp){ const st=document.getElementById('cfg-st-box'), f=inp.files&&inp.files[0]; if(!f) return;
+  const rd=new FileReader(); rd.onload=async()=>{ let j=null; try{ j=JSON.parse(rd.result); }catch(e){ st.textContent='Arquivo inválido (não é JSON).'; return; }
+    if(!j||!j.pag||!Array.isArray(j.pag.rows)||!j.pag.dic||!j.rec){ st.textContent='Este arquivo não é o do Box (falta pag/rec).'; return; }
+    const X=boxExpandir(j); st.textContent=`Gravando ${X.pag.length} pagamentos e ${X.rec.length} recebimentos…`;
+    try{ j.importado_em=new Date().toISOString(); j.importado_por=(S_AD&&(S_AD.nome||S_AD.login))||''; j.arquivo=f.name;
+      await cfgGravarExtra('box',j); boxCarregar(); aplicarFonte(); aplicarConfig(); buildDash(); renderConfig();
+      const s2=document.getElementById('cfg-st-box'); if(s2) s2.textContent='Box importado. A análise já usa: '+ROT_FONTE[fonteEfetiva()]+'.'; }
+    catch(e){ st.textContent='Não gravou: '+e.message; } };
+  rd.readAsText(f,'utf-8'); }
 function renderConfig(){
   CFG_ED=null; CFG_SUJO={}; _ccC.clear();
   const el=document.getElementById('cfg-body'); const m12=cfgMeses12();
@@ -5008,6 +5204,8 @@ function renderConfig(){
     <div><b>${gm}</b>clientes do Grupo Morais</div><div><b>${cliL.length-gm}</b>investidores</div>
     ${Object.entries(tCnt).map(([t,q])=>`<div><b>${q}</b>CCs: ${esc(ROT_TIPO[t]||t)}</div>`).join('')}
   </div>
+
+  ${cfgFonteHtml()}
 
   <div class="cfg-sec"><h3>1 · Clientes do Mais Controle</h3>
     <p class="desc">O cliente da obra no ERP diz se ela é do Grupo Morais ou de investidor. A regra automática considera Grupo Morais a Morais Engenharia, as SPEs e empresas com "MORAIS" no nome, a VXZ, o Júlio César e o João Vitor. Pessoas físicas com sobrenome Morais ficam como investidor: confira.</p>
