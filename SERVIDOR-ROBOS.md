@@ -516,8 +516,8 @@ de boletos, da leitura dos retratos e de cada Segurar ou Soltar. O link sai do `
 acesso `BOLETOS E FINANCEIRO` da coluna ACESSOS.
 
 - **Parcelas seguradas:** `_central\boletos\seguradas.json`. O robô de boletos não emite parcela que esteja nele e confere o
-  arquivo antes de cada boleto. Arquivo ilegível = o robô não emite nada e mostra a trava. Para soltar sem o portal, apague a linha
-  da parcela no arquivo.
+  arquivo antes de cada boleto. Arquivo ilegível = o robô não emite nada e mostra a trava. Para soltar sem o portal, apague a parcela
+  do arquivo deixando o JSON válido.
 - **Último financeiro bom:** `_central\financeiro-condominio.json`, usado quando o Notion falha.
 - **Pedidos:** Segurar e Soltar entram na FILA DO ROBÔ com o tipo `boleto-segurar`; Atualizar agora usa o `robo-rodar` da tarefa
   `MoraisEng - Robo retratos`. A fila de teste não segura boleto.

@@ -69,6 +69,15 @@ test("boletos: a coluna do motivo tem classe própria, para não ser espremida n
   assert.match(readFileSync(new URL("../../boletos-financeiro.html", import.meta.url), "utf8"), /\.mot\{min-width/);
 });
 
+test("boletos: pedido recusado pelo servidor aparece na tela", () => {
+  const h = BF.htmlBoletos(dados({}, { recusas: [{ parcela: "x", unidade: "01", motivo: "parcela fora da lista", em: "09/11/2026 14:12" }] }), {});
+  assert.match(h, /Não consegui atender o pedido da Unidade 01 em 09\/11\/2026 14:12: parcela fora da lista/);
+});
+
+test("financeiro: a nota não afirma nada sobre juros antes da conferência com uma baixa real", () => {
+  assert.doesNotMatch(fin({}), /juros/);
+});
+
 test("escapa nome com HTML", () => {
   const h = BF.htmlBoletos(dados({ aguardando: [item("a", { comprador: "<img src=x onerror=1>" })] }), {});
   assert.doesNotMatch(h, /<img/);

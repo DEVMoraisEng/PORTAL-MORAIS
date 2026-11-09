@@ -405,3 +405,10 @@ def test_baixa_sem_resumo_do_erp_conta_o_valor_da_parcela_09_11():
     p.update(received=True, sumOfReceivedValues=None, pendingValue=None, receipts=[], plannedValue=500)
     r = {x["id"]: x for x in RT.normalizar(v, "2026-11-09")["parcelas"]}[p["id"]]
     assert (r["recebido"], r["aberto"]) == (500, 0.0)
+
+
+def test_campo_estranho_do_erp_nao_derruba_o_retrato_09_11():
+    v = carregar("base")
+    p = v["tradeReceivable"]["installments"][0]
+    p.update(received=False, sumOfReceivedValues="n/d", pendingValue="n/d", receipts=[{"receivedValue": "n/d"}])
+    assert RT.normalizar(v, "2026-11-09")["parcelas"]

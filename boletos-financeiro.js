@@ -80,6 +80,7 @@
     const avisos = [];
     if (r && r.trava) avisos.push("Trava: " + r.trava);
     if (d.trava_seguradas) avisos.push(d.trava_seguradas);
+    (d.recusas || []).forEach(x => avisos.push("Não consegui atender o pedido da " + (x.unidade ? "Unidade " + x.unidade : "parcela") + " em " + x.em + ": " + x.motivo));
     const blocos = GRUPOS.map(x => {
       const itens = g[x.chave] || [];
       const escolha = (op.grupos || {})[x.chave];   // o que a pessoa abriu ou fechou vale mais que o padrão
@@ -120,7 +121,7 @@
       '<button type="button" id="bt-atualizar"' + (op.atualizando ? " disabled" : "") + ">" + (op.atualizando ? "Atualizando, leva alguns minutos…" : "Atualizar agora") + "</button></div>" +
       '<div class="nums">' + num("Recebido", "recebido") + num("A vencer", "a_vencer") + num("Vencido", "vencido", (t.vencido > 0 ? "vermelho" : "")) +
       num("FGTS e financ.", "caixa") + num("Permuta", "permuta") + "</div>" +
-      '<p class="muted nota">A vencer é o valor de hoje: as parcelas futuras ainda recebem o INCC. Recebido inclui juros pagos nas baixas.</p>' +
+      '<p class="muted nota">A vencer é o valor de hoje: as parcelas futuras ainda recebem o INCC.</p>' +
       avisos.map(a => '<div class="aviso">' + esc(a) + "</div>").join("") +
       '<div class="filtros"><input id="busca" type="search" placeholder="Buscar unidade ou comprador" aria-label="Buscar unidade ou comprador" value="' + esc(op.busca || "") + '">' +
       '<label><input id="so-vencido" type="checkbox"' + (op.soVencido ? " checked" : "") + "> Só com vencido</label></div>" +

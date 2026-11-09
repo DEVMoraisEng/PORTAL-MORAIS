@@ -201,6 +201,13 @@ class Fila:
                             and (self.nome != "teste" or TESTE_PODE_GRAVAR.exists()))
         self.pode_gravar_recebimento = bool(cfg.get("pode_gravar_recebimento")) and APLICAR_RECEBIMENTO.exists()
 
+    def pendentes_de_segurar(self) -> list:
+        r = self.notion.api("POST", "/databases/%s/query" % self.db, {
+            "filter": {"and": [{"property": COL["tipo"], "select": {"equals": "boleto-segurar"}},
+                               {"property": COL["situacao"], "select": {"equals": "PENDENTE"}}]},
+            "sorts": [{"property": COL["pedido_em"], "direction": "ascending"}], "page_size": 50})
+        return r.get("results") or []
+
     def sinal(self) -> None:
         r = self.notion.api("POST", "/databases/%s/query" % self.db,
                             {"filter": {"property": COL["tipo"], "select": {"equals": "SINAL"}}, "page_size": 1})
@@ -332,17 +339,22 @@ class Fila:
         elif not RE_ID.match(parcela):
             ok, msg = False, "parcela inválida"
         else:
-            sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-            import boletos_portal as BP
+            BP = None
             try:
-                ok, msg = BP.pedir(acao, parcela, quem)
+                sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+                import boletos_portal as BP
+                ok, msg = _uma_escrita_por_vez(lambda: BP.pedir(acao, parcela, quem))
             except Exception as e:
                 ok, msg = False, type(e).__name__
+            if BP is not None:
+                if not ok:
+                    try:
+                        BP.registrar_recusa(parcela, msg)
+                    except Exception as e:
+                        log("[boletos] recusa não gravada (%s)" % type(e).__name__)
+                BP.publicar(lambda m: log("[boletos] " + m))   # recusa também publica: a tela precisa avisar
         self.marcar(linha["id"], "FEITO" if ok else "ERRO", msg)
         log("[%s] boleto-segurar %s %s: %s" % (self.nome, acao[:8], parcela[:8], msg))
-        if ok:
-            import boletos_portal as BP
-            BP.publicar(lambda m: log("[boletos] " + m))
         return "FEITO" if ok else "ERRO"
 
     def reorganizar(self, linha: dict, quem: str) -> str:
@@ -496,6 +508,37 @@ def na_vez(nome: str, funcao, espera_s: float = ESPERA_VEZ_S, dormir=time.sleep,
         f.close()
 
 
+def _uma_escrita_por_vez(funcao, tentativas: int = 30, dormir=time.sleep):
+    """A fila e o robô de boletos atendem Segurar: sem esta trava, um podia apagar a marca que o outro acabou de gravar."""
+    CENTRAL.mkdir(parents=True, exist_ok=True)
+    f = open(CENTRAL / "boletos-seguradas.trava", "a+")
+    try:
+        for _ in range(tentativas):
+            if _travar(f):
+                try:
+                    return funcao()
+                finally:
+                    _soltar(f)
+            dormir(1)
+        return False, "outro pedido ainda está sendo gravado"
+    finally:
+        f.close()
+
+
+def atender_seguradas_pendentes() -> None:
+    """09/11: antes da rodada de boletos. A fila pode estar presa num lançamento de venda; um Segurar pedido antes das
+    10:00 não pode perder para a emissão por causa disso. Levanta erro se não conseguir ler a fila: quem chama não emite."""
+    for fila in carregar():
+        if fila.nome == "teste":
+            continue
+        for linha in fila.pendentes_de_segurar():
+            try:
+                payload = json.loads(texto(linha["properties"].get(COL["payload"])) or "{}")
+            except ValueError:
+                payload = {}
+            fila.segurar_boleto(linha, payload)
+
+
 def rodada() -> int:
     saude = {"em": agora_iso(), "filas": {}}
     erro = 0
@@ -503,7 +546,9 @@ def rodada() -> int:
         st = {"feitos": 0, "erros": 0}
         try:
             fila.sinal()
-            for linha in fila.pendentes():
+            # Segurar primeiro, em ordem estável: não usa o Mais Controle e tem hora para valer
+            pedidos = sorted(fila.pendentes(), key=lambda l: texto(l["properties"].get(COL["tipo"])) != "boleto-segurar")
+            for linha in pedidos:
                 if fila.atender(linha) == "FEITO":
                     st["feitos"] += 1
                 else:
@@ -642,6 +687,12 @@ def robo_antigo(nome: str) -> int:
         log("[%s] sem a chave \"robos\" em %s" % (nome, CONFIG.name))
         return 2
     env, pior = env_robos(cfg), 0
+    if nome == "boletos":
+        try:
+            atender_seguradas_pendentes()
+        except Exception as e:             # emitir parcela segurada não tem volta; atrasar um dia tem
+            log("[boletos] não emiti: não consegui ler os pedidos de segurar (%s)" % type(e).__name__)
+            return 1
     for item in ROBOS[nome]:
         script = item if isinstance(item, str) else item[0]       # 06/11: item = texto ou [script, argumento...]
         argv = [sys.executable] + ([item] if isinstance(item, str) else list(item))

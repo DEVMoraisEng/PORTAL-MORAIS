@@ -28,13 +28,16 @@ CAMINHO = "robos/boletos-financeiro.json"
 GRUPOS = ("emitidos", "a_emitir", "aguardando", "decidir", "seguradas", "pulados")
 
 
-def ultimo_relatorio(pasta=PASTA) -> dict | None:
-    """O relatório mais novo que dá para ler. seguradas.json fica na mesma pasta e não casa com o padrão de data."""
+def ultimo_relatorio(pasta=PASTA, com_linhas: bool = False) -> dict | None:
+    """O relatório mais novo que dá para ler. seguradas.json fica na mesma pasta e não casa com o padrão de data.
+    com_linhas=True pula a rodada que não conseguiu montar a lista (ERP fora): a tela e o Segurar usam a última lista boa."""
     for arq in sorted(pathlib.Path(pasta).glob("20??-??-??_*.json"), reverse=True):
         try:
-            return dict(json.loads(arq.read_text(encoding="utf-8")), nome=arq.stem)
+            rel = dict(json.loads(arq.read_text(encoding="utf-8")), nome=arq.stem)
         except (ValueError, OSError):
             continue
+        if rel.get("linhas") or not com_linhas:
+            return rel
     return None
 
 
@@ -81,7 +84,10 @@ def grupos(rel: dict | None, seguradas: dict) -> dict:
 
 
 def rotulo_da_parcela(parcela: str, rel: dict | None) -> dict | None:
-    """Os dados da parcela no último relatório, ou None. Pulada não entra: boleto, ato e permuta não se seguram."""
+    """Os dados da parcela no último relatório, ou None. Pulada não entra: boleto, ato e permuta não se seguram.
+    Parcela emitida naquela rodada também não: o boleto já saiu, e dizer "segurada" seria falso."""
+    if any(r.get("parcela") == parcela and r.get("situacao") in ("EMITIDO", "JA_TINHA") for r in (rel or {}).get("resultados") or []):
+        return None
     for l in (rel or {}).get("linhas") or []:
         if l.get("parcela") == parcela:
             return None if l.get("acao") == "pular" else {k: l.get(k, "") for k in ("unidade", "comprador", "tipo", "data", "valor")}
@@ -97,15 +103,53 @@ def pedir(acao: str, parcela: str, quem: str, pasta=PASTA, agora: str | None = N
         if parcela in atuais:
             del atuais[parcela]
             S.gravar(pasta, atuais)
+        _limpar_recusa(parcela, pasta)
         return True, "solta"
     if acao != "segurar":
         return False, "ação inválida"
-    rotulo = rotulo_da_parcela(parcela, ultimo_relatorio(pasta))
+    rotulo = rotulo_da_parcela(parcela, ultimo_relatorio(pasta, com_linhas=True))
     if rotulo is None:
         return False, "parcela fora da lista do mês, ou já com boleto, ato ou permuta"
     atuais[parcela] = {"quem": quem[:40], "em": agora or dt.datetime.now().strftime("%d/%m/%Y %H:%M"), "rotulo": rotulo}
     S.gravar(pasta, atuais)
+    _limpar_recusa(parcela, pasta)
     return True, "segurada"
+
+
+RECUSAS = "recusas.json"
+
+
+def _ler_recusas(pasta) -> dict:
+    try:
+        d = json.loads((pathlib.Path(pasta) / RECUSAS).read_text(encoding="utf-8"))
+        return d if isinstance(d, dict) else {}
+    except (ValueError, OSError):
+        return {}
+
+
+def _gravar_recusas(pasta, recusas: dict) -> None:
+    pathlib.Path(pasta).mkdir(parents=True, exist_ok=True)
+    (pathlib.Path(pasta) / RECUSAS).write_text(json.dumps(recusas, ensure_ascii=False), encoding="utf-8")
+
+
+def _limpar_recusa(parcela: str, pasta) -> None:
+    recusas = _ler_recusas(pasta)
+    if parcela in recusas:
+        del recusas[parcela]
+        _gravar_recusas(pasta, recusas)
+
+
+def registrar_recusa(parcela: str, motivo: str, pasta=PASTA, agora: str | None = None) -> None:
+    """Pedido que o servidor não atendeu: a tela precisa dizer, senão quem clicou acha que a parcela está segura."""
+    recusas = _ler_recusas(pasta)
+    recusas[parcela] = {"motivo": motivo[:150], "em": agora or dt.datetime.now().strftime("%d/%m/%Y %H:%M")}
+    _gravar_recusas(pasta, recusas)
+
+
+def recusas_para_a_tela(pasta, rel: dict | None) -> list[dict]:
+    unidades = {l.get("parcela"): l.get("unidade", "") for l in (rel or {}).get("linhas") or []}
+    return [{"parcela": p, "unidade": unidades.get(p, ""), "motivo": str(r.get("motivo") or ""), "em": str(r.get("em") or "")}
+            for p, r in _ler_recusas(pasta).items() if isinstance(r, dict)]
 
 
 def _cfg() -> dict:
@@ -133,17 +177,18 @@ def financeiro(hoje: str, ler_linhas=None, guardado=ULTIMO_FINANCEIRO) -> dict:
 
 def montar(pasta=PASTA, hoje: str | None = None, ler_linhas=None, guardado=ULTIMO_FINANCEIRO) -> dict:
     hoje = hoje or dt.date.today().isoformat()
-    rel = ultimo_relatorio(pasta)
+    novo = ultimo_relatorio(pasta)                         # a trava e a hora vêm da rodada mais nova
+    rel = ultimo_relatorio(pasta, com_linhas=True) or novo  # a lista vem da última que conseguiu montar
     trava_seguradas = ""
     try:
         seguradas = S.ler(pasta)
     except S.SeguradasIlegiveis:
         seguradas, trava_seguradas = {}, "Não consegui ler as parcelas seguradas: o robô não emite enquanto isso."
     resumo = None
-    if rel:
-        resumo = {k: rel.get(k) for k in ("modo", "mes", "hoje", "trava", "contagem", "saldo", "nome")}
+    if novo:
+        resumo = {k: novo.get(k) for k in ("modo", "mes", "hoje", "trava", "contagem", "saldo", "nome")}
     return {"versao": 1, "gerado": dt.datetime.now().isoformat(timespec="seconds"), "rodada": resumo,
-            "trava_seguradas": trava_seguradas, "grupos": grupos(rel, seguradas),
+            "trava_seguradas": trava_seguradas, "grupos": grupos(rel, seguradas), "recusas": recusas_para_a_tela(pasta, rel),
             "financeiro": financeiro(hoje, ler_linhas, guardado)}
 
 

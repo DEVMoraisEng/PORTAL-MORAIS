@@ -37,15 +37,15 @@ def _aberto(p: dict, valor: float) -> float:
         return 0.0
     pend = p.get("pendingValue")
     if pend is None:
-        return round(max(valor - float(p.get("sumOfReceivedValues") or 0), 0.0), 2)
-    return round(max(float(pend), 0.0), 2)
+        return round(max(valor - D._f(p.get("sumOfReceivedValues")), 0.0), 2)
+    return round(max(D._f(pend), 0.0), 2)
 
 
 def _recebido(p: dict, valor: float) -> float:
-    """Dinheiro que entrou na parcela, com juros. Baixa marcada sem o resumo do ERP conta o valor da parcela."""
-    soma = float(p.get("sumOfReceivedValues") or 0)
+    """Dinheiro que entrou na parcela, pelo resumo do ERP. Baixa marcada sem o resumo do ERP conta o valor da parcela."""
+    soma = D._f(p.get("sumOfReceivedValues"))
     if soma <= 0:
-        soma = sum(float(r.get("receivedValue") or r.get("value") or 0) for r in p.get("receipts") or [])
+        soma = sum(D._f(r.get("receivedValue") or r.get("value")) for r in p.get("receipts") or [])
     if soma <= 0 and p.get("received"):
         soma = valor
     return round(soma, 2)

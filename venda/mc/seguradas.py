@@ -27,12 +27,14 @@ def ler(pasta) -> dict:
             if tentativa == 4:
                 raise SeguradasIlegiveis(str(e)[:120])
             time.sleep(0.2)
+        except ValueError as e:       # bytes que não são UTF-8
+            raise SeguradasIlegiveis(type(e).__name__)
     try:
         parcelas = json.loads(texto)["parcelas"]
     except (ValueError, KeyError, TypeError) as e:
         raise SeguradasIlegiveis("%s: %s" % (type(e).__name__, str(e)[:120]))
-    if not isinstance(parcelas, dict):
-        raise SeguradasIlegiveis("parcelas não é um dicionário")
+    if not isinstance(parcelas, dict) or not all(isinstance(m, dict) for m in parcelas.values()):
+        raise SeguradasIlegiveis("formato inesperado")
     return parcelas
 
 
@@ -40,7 +42,7 @@ def gravar(pasta, parcelas: dict) -> None:
     """Grava num arquivo temporário e troca de uma vez: quem lê vê o arquivo antigo ou o novo, nunca pela metade."""
     pasta = Path(pasta)
     pasta.mkdir(parents=True, exist_ok=True)
-    tmp = pasta / (NOME + ".tmp")
+    tmp = pasta / ("%s.%d.tmp" % (NOME, os.getpid()))
     tmp.write_text(json.dumps({"v": 1, "parcelas": parcelas}, ensure_ascii=False, indent=1), encoding="utf-8")
     for tentativa in range(5):
         try:

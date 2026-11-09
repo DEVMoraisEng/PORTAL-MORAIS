@@ -129,3 +129,49 @@ def test_aplicar_nao_mexe_em_pulada():
 def test_solta_depois_da_rodada_nao_some_da_tela():
     g = BP.grupos({"linhas": [linha("x", "segurada", "segurada por ADM")]}, {})
     assert "solta depois" in g["aguardando"][0]["motivo"]
+
+
+def test_marca_malformada_conta_como_arquivo_ilegivel(tmp_path):
+    import pytest
+    for conteudo in ('{"parcelas": {"x": null}}', '{"parcelas": {"x": "sim"}}', '{"parcelas": {"x": false}}'):
+        (tmp_path / "seguradas.json").write_text(conteudo, encoding="utf-8")
+        with pytest.raises(S.SeguradasIlegiveis):
+            S.ler(tmp_path)
+
+
+def test_bytes_invalidos_contam_como_arquivo_ilegivel(tmp_path):
+    import pytest
+    (tmp_path / "seguradas.json").write_bytes(b'{"parcelas": {"\xff": {}}}')
+    with pytest.raises(S.SeguradasIlegiveis):
+        S.ler(tmp_path)
+
+
+def test_rodada_com_erp_fora_nao_esvazia_a_tela_nem_impede_segurar(tmp_path):
+    relatorio(tmp_path, [linha(ID1, "aguardar")], nome="2026-11-09_100000")
+    (tmp_path / "2026-11-10_100000.json").write_text(json.dumps({
+        "modo": "emissao", "mes": "2026-11", "hoje": "2026-11-10", "trava": "ERP fora ao montar a lista: caiu",
+        "saldo": None, "contagem": {}, "linhas": [], "resultados": []}), encoding="utf-8")
+    d = BP.montar(tmp_path, "2026-11-10", lambda: [], tmp_path / "fin.json")
+    assert [i["parcela"] for i in d["grupos"]["aguardando"]] == [ID1]
+    assert "ERP fora" in d["rodada"]["trava"]
+    assert BP.pedir("segurar", ID1, "ADM", tmp_path)[0] is True
+
+
+def test_nao_aceita_segurar_parcela_ja_emitida(tmp_path):
+    relatorio(tmp_path, [linha(ID1, "emitir")], [{"parcela": ID1, "situacao": "EMITIDO"}])
+    ok, msg = BP.pedir("segurar", ID1, "ADM", tmp_path)
+    assert ok is False and S.ler(tmp_path) == {}
+
+
+def test_recusa_aparece_no_arquivo_da_pagina_e_some_quando_da_certo(tmp_path):
+    relatorio(tmp_path, [linha(ID1, "aguardar")])
+    BP.registrar_recusa(ID1, "disco cheio", tmp_path, agora="09/11/2026 14:12")
+    d = BP.montar(tmp_path, "2026-11-09", lambda: [], tmp_path / "fin.json")
+    assert d["recusas"] == [{"parcela": ID1, "unidade": "01", "motivo": "disco cheio", "em": "09/11/2026 14:12"}]
+    assert BP.pedir("segurar", ID1, "ADM", tmp_path)[0] is True
+    assert BP.montar(tmp_path, "2026-11-09", lambda: [], tmp_path / "fin.json")["recusas"] == []
+
+
+def test_recusas_ilegiveis_nao_impedem_publicar(tmp_path):
+    (tmp_path / "recusas.json").write_text("{quebrado", encoding="utf-8")
+    assert BP.montar(tmp_path, "2026-11-09", lambda: [], tmp_path / "fin.json")["recusas"] == []
