@@ -381,3 +381,27 @@ def test_gabarito_dos_testes_js_e_o_que_o_python_gera():
     assert atual == gerado, (
         "venda/testes/dados/antecipacao-retratos.json divergiu do retrato que o robô gera (normalizar do retrato.py com base.json, "
         "lido em 2026-10-21). Regenere na raiz do repositório e rode as suítes de novo:\n" + comando)
+
+
+def test_financeiro_recebido_aberto_e_permuta_09_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    for p in inst[:4]:
+        p.update(receipts=[], received=False, pendingValue=None, sumOfReceivedValues=0, comment=None)
+    inst[0].update(received=True, sumOfReceivedValues=1035.5, plannedValue=1000)
+    inst[1].update(pendingValue=600, sumOfReceivedValues=400, plannedValue=1000, receipts=[{"value": 400}])
+    inst[2].update(plannedValue=1000)
+    inst[3].update(plannedValue=72000, comment=" Permuta veículo")
+    r = {p["id"]: p for p in RT.normalizar(v, "2026-11-09")["parcelas"]}
+    assert (r[inst[0]["id"]]["recebido"], r[inst[0]["id"]]["aberto"]) == (1035.5, 0.0)
+    assert (r[inst[1]["id"]]["recebido"], r[inst[1]["id"]]["aberto"]) == (400, 600)
+    assert (r[inst[2]["id"]]["recebido"], r[inst[2]["id"]]["aberto"]) == (0, 1000)
+    assert r[inst[3]["id"]]["permuta"] is True and r[inst[0]["id"]]["permuta"] is False
+
+
+def test_baixa_sem_resumo_do_erp_conta_o_valor_da_parcela_09_11():
+    v = carregar("base")
+    p = v["tradeReceivable"]["installments"][0]
+    p.update(received=True, sumOfReceivedValues=None, pendingValue=None, receipts=[], plannedValue=500)
+    r = {x["id"]: x for x in RT.normalizar(v, "2026-11-09")["parcelas"]}[p["id"]]
+    assert (r["recebido"], r["aberto"]) == (500, 0.0)

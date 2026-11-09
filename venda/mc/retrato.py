@@ -31,6 +31,26 @@ def _tipo(p: dict) -> str:
     return "outro"
 
 
+def _aberto(p: dict, valor: float) -> float:
+    """Saldo em aberto da parcela (09/11/2026, financeiro por unidade)."""
+    if p.get("received"):
+        return 0.0
+    pend = p.get("pendingValue")
+    if pend is None:
+        return round(max(valor - float(p.get("sumOfReceivedValues") or 0), 0.0), 2)
+    return round(max(float(pend), 0.0), 2)
+
+
+def _recebido(p: dict, valor: float) -> float:
+    """Dinheiro que entrou na parcela, com juros. Baixa marcada sem o resumo do ERP conta o valor da parcela."""
+    soma = float(p.get("sumOfReceivedValues") or 0)
+    if soma <= 0:
+        soma = sum(float(r.get("receivedValue") or r.get("value") or 0) for r in p.get("receipts") or [])
+    if soma <= 0 and p.get("received"):
+        soma = valor
+    return round(soma, 2)
+
+
 def normalizar(venda: dict, lido_em: str) -> dict:
     obra = ((venda.get("work") or {}).get("name") or "").strip()
     if obra != OBRA:
@@ -50,7 +70,10 @@ def normalizar(venda: dict, lido_em: str) -> dict:
                          "fator": 1 + float(rd.get("accumulatedReadjustmentValue") or 0) / 100 if rd.get("table") else 1.0,
                          "pagoEm": "",   # abaixo, só quando paga por inteiro
                          "pago": D.tem_recebimento(p) and not D.recebida_em_parte(p),
-                         "parcial": D.recebida_em_parte(p)})
+                         "parcial": D.recebida_em_parte(p),
+                         # 09/11/2026: financeiro por unidade. Só acrescenta campos; antecipação e aba Financeiro não os leem.
+                         "recebido": _recebido(p, valor), "aberto": _aberto(p, valor),
+                         "permuta": str(p.get("comment") or "").strip().lower().startswith("permuta")})
     for q, p in zip(parcelas, (venda.get("tradeReceivable") or {}).get("installments") or []):
         if q["pago"]:
             q["pagoEm"] = str(p.get("dateOfReceipt") or "")[:10]
@@ -111,8 +134,8 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
         texto = "ERRO: " + motivo
         em = " | ERRO %s: %s" % (agora, motivo)   # sem leitura boa não há hora de leitura: a coluna só diz que falhou
     # Limite de leitura: o Notion devolve, ao ler a página, no máximo 25 itens de rich_text por coluna. Cada item grava até 1900
-    # caracteres, então cabem cerca de 47 mil caracteres. Hoje o retrato tem cerca de 190 caracteres por parcela (56 parcelas
-    # = 10,6 mil), o que dá folga para umas 250 parcelas. Venda com bem mais que isso seria lida cortada pelo portal.
+    # caracteres, então cabem cerca de 47 mil caracteres. Hoje o retrato tem cerca de 240 caracteres por parcela (56 parcelas
+    # = 13,4 mil), o que dá folga para umas 190 parcelas. Venda com bem mais que isso seria lida cortada pelo portal.
     if not notion.gravar_texto_longo(page_id, props, COL_RETRATO, texto):
         return "sem_coluna"
     notion.gravar_textos(page_id, props, {COL_RETRATO_EM: em})
