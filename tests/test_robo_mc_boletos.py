@@ -1,6 +1,7 @@
 import copy, json, pathlib
 
 import robo_mc_boletos as RB
+from venda.mc import seguradas as S
 from venda.mc import regras as R
 
 BASE = json.loads((pathlib.Path(__file__).parent.parent / "venda" / "mc" / "testes" / "dados"
@@ -310,3 +311,83 @@ def test_sem_confirmacao_em_rodada_anterior_nao_pede_de_novo(tmp_path, capsys, m
     assert linhas[x]["motivo"] == ("emissão sem confirmação em 2026-11-05: conferir no Mais Controle antes de emitir")
     err = capsys.readouterr().err
     assert err.count("relatório anterior ilegível") == 1 and "2026-11-05_110000.json" in err
+
+
+def _relatorio(tmp_path):
+    return json.loads(sorted(tmp_path.glob("20*.json"))[-1].read_text(encoding="utf-8"))
+
+
+def test_parcela_segurada_nao_emite_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    v = venda_com_duas_entradas_do_mes()
+    erp = ErpDeMentira([v])
+    segura, livre = erp.parcelas()
+    S.gravar(tmp_path, {segura: {"quem": "ADM", "em": "09/11/2026 09:00"}})
+    assert RB.rodar(erp, "2026-11", True, None, tmp_path, HOJE, esperar=lambda s: None) == 0
+    assert erp.posts == 1
+    rel = _relatorio(tmp_path)
+    ac = {l["parcela"]: l for l in rel["linhas"]}
+    assert ac[segura]["acao"] == "segurada" and "ADM" in ac[segura]["motivo"]
+    assert [r["parcela"] for r in rel["resultados"]] == [livre]
+    assert rel["contagem"]["segurada"] == 1
+
+
+def test_segurada_no_meio_da_rodada_nao_emite_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira([venda_com_duas_entradas_do_mes()])
+    primeira, segunda = erp.parcelas()
+    antigo = erp.pedir_core
+
+    def post_e_segura(metodo, caminho, corpo=None, params=None):
+        r = antigo(metodo, caminho, corpo, params)
+        if metodo == "POST":
+            S.gravar(tmp_path, {segunda: {"quem": "ADM", "em": "agora"}})
+        return r
+    erp.pedir_core = post_e_segura
+    RB.rodar(erp, "2026-11", True, None, tmp_path, HOJE, esperar=lambda s: None)
+    assert erp.posts == 1
+    assert {l["parcela"]: l["acao"] for l in _relatorio(tmp_path)["linhas"]}[segunda] == "segurada"
+
+
+def test_seguradas_ilegiveis_nao_emite_nada_09_11(tmp_path, monkeypatch, capsys):
+    liga(tmp_path, monkeypatch)
+    (tmp_path / "seguradas.json").write_text("{quebrado", encoding="utf-8")
+    erp = ErpDeMentira([venda_com_duas_entradas_do_mes()])
+    assert RB.rodar(erp, "2026-11", True, None, tmp_path, HOJE, esperar=lambda s: None) == 2
+    assert erp.posts == 0
+    assert "seguradas" in capsys.readouterr().out
+
+
+def test_seguradas_quebradas_no_meio_da_rodada_para_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira([venda_com_duas_entradas_do_mes()])
+    antigo = erp.pedir_core
+
+    def post_e_quebra(metodo, caminho, corpo=None, params=None):
+        r = antigo(metodo, caminho, corpo, params)
+        if metodo == "POST":
+            (tmp_path / "seguradas.json").write_text("{quebrado", encoding="utf-8")
+        return r
+    erp.pedir_core = post_e_quebra
+    assert RB.rodar(erp, "2026-11", True, None, tmp_path, HOJE, esperar=lambda s: None) == 2
+    assert erp.posts == 1
+
+
+def test_seguradas_json_nao_atrapalha_a_conferencia_de_sem_confirmacao_09_11(tmp_path):
+    S.gravar(tmp_path, {"x": {"quem": "ADM"}})
+    assert RB._sem_confirmacao_antes(tmp_path, "2026-11") == {}
+
+
+def test_relatorio_traz_saldo_unidade_e_comprador_separados_09_11(tmp_path, monkeypatch):
+    monkeypatch.setattr(RB, "APLICAR", tmp_path / "nao-existe.txt")
+    erp = ErpDeMentira([venda_com_uma_entrada_do_mes(nome="COMPRADOR Z")], saldo=77)
+    RB.rodar(erp, "2026-11", False, None, tmp_path, HOJE, esperar=lambda s: None)
+    rel = _relatorio(tmp_path)
+    assert rel["saldo"] == 77
+    l = [x for x in rel["linhas"] if x["acao"] == "emitir"][0]
+    assert (l["unidade"], l["comprador"]) == ("1", "COMPRADOR Z")
+
+
+def test_descricao_fora_do_formato_fica_inteira_09_11():
+    assert RB._unidade_e_nome("OUTRA COISA") == ("", "OUTRA COISA")
+    assert RB._unidade_e_nome("venda unidade 12 - FULANO - B") == ("12", "FULANO - B")

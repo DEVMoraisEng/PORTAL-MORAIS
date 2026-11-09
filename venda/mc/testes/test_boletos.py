@@ -227,3 +227,11 @@ def test_todas_as_releituras_caem_fica_sem_confirmacao():
     v = venda(); p = _uma(v); f = ErpFalso(v, "cria", leituras_ruins=99)
     r = B.emitir_uma(f, v["id"], p["id"], esperar=lambda s: None)
     assert r["situacao"] == "SEM_CONFIRMACAO" and "a releitura caiu" in r["motivo"] and f.posts == 1
+
+
+def test_com_boleto_marca_quem_ja_tem_boleto_vivo_09_11():
+    v = venda(); v["tradeReceivable"]["installments"] = []
+    parcela(v, R.TIPO_SINAL, "2026-10-31", received=True)
+    tem = parcela(v, R.TIPO_SINAL, "2026-11-10", billings=[{"status": "REGISTERED"}])
+    l = B.selecionar(v, "2026-11", hoje="2026-11-09")
+    assert [x for x in l if x["parcela"] == tem["id"]][0]["com_boleto"] is True

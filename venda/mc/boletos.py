@@ -59,7 +59,7 @@ def selecionar(venda: dict, mes: str, hoje: str | None = None) -> list[dict]:
         elif tipo not in EMITE:
             linha.update(acao="pular" if tipo == "terceiros" else "decidir", motivo="tipo %s não emite" % tipo)
         elif any(s in BLOQUEIA for s in st):
-            linha.update(acao="pular", motivo="já tem boleto (%s)" % ",".join(st))
+            linha.update(acao="pular", motivo="já tem boleto (%s)" % ",".join(st), com_boleto=True)
         elif st:
             linha.update(acao="decidir", motivo="boleto anterior %s" % ",".join(st))
         elif linha["valor"] <= 0:
