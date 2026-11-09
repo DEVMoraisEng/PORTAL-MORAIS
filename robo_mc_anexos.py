@@ -157,6 +157,23 @@ def escolher(aud):
         ultimo_pg[int(idl)] = max(ultimo_pg.get(int(idl), ""), dp)
         if alerta:
             ALERTAS.add(int(idl))
+    # 09/11 (dono: "ficou faltando o anexo dos dois lançamentos quando é possivelmente duplicado"): o OUTRO lançamento
+    # da duplicidade ("… do lançamento N — data, valor") costuma estar OK no auditor e ficava sem link. Entra também,
+    # como alerta, com a data do pagamento dele (ou a do alerta, se ele não estiver na auditoria).
+    pg_id = {}
+    for i, idl in enumerate(c["id"]):
+        if idl:
+            pg_id[int(idl)] = max(pg_id.get(int(idl), ""), c["dp"][i] or "")
+    for f in aud.get("fiscal") or []:
+        if not (isinstance(f, (list, tuple)) and len(f) > 2 and f[0] == "DUP"):
+            continue
+        m = re.search(r"do lançamento (\d+)", str(f[2]))
+        i = int(f[1])
+        if not m or i >= len(c["id"]) or (c["dp"][i] or "") < lim_fiscal:
+            continue
+        outro = int(m.group(1))
+        ultimo_pg[outro] = max(ultimo_pg.get(outro, ""), pg_id.get(outro) or c["dp"][i] or "")
+        ALERTAS.add(outro)
     return ultimo_pg                      # {id do lançamento: data do último pagamento}
 
 

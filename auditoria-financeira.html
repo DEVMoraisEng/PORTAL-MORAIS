@@ -923,6 +923,11 @@ function afAnexosId(id,compacto){
 }
 /* 05/11: o link do lançamento no Mais Controle — a parcela que o robô achou (o mesmo endereço que o robô de água e
    energia usa nos e-mails dele). Sem a parcela, nada: link errado é pior que nenhum. */
+/* 09/11 (dono): na duplicidade, os anexos dos DOIS lançamentos — o outro vem no texto do alerta ("do lançamento N") */
+function afDupOutro(f){ const m=f&&f[0]==="DUP"&&/do lançamento (\d+)/.exec(f[1]||""); return m?m[1]:""; }
+function afDupAnexos(f,compacto){ const o=afDupOutro(f); if(!o) return "";
+  return compacto?`<div class="small muted" style="margin-top:6px">Anexos do lançamento ${esc(o)}:</div>${afAnexosId(o,true)}`
+    :`<div style="margin-top:6px"><span class="small muted">Anexos do lançamento ${esc(o)} (o outro pagamento):</span>${afAnexosId(o,true)}</div>`; }
 function afUrlMc(it){
   const m=(it&&it.mc)||{}, p=(m.parcelas||[])[0];
   return p&&/^[0-9a-f-]{36}$/i.test(p)?"https://acessar.maiscontroleerp.com.br/#/payable-installments/"+p:"";
@@ -941,7 +946,7 @@ function afAbrirDrawer(i){
       <div class="to"><h4>Deveria ser</h4><div class="big">${sg?esc(sg):"—"}</div><div class="pl">${sg?esc(sugPl(i)):"sem sugestão"}</div></div></div>
     <div class="why">${esc(mot(i))}</div>
     ${alrt(i).length?`<div class="small" style="margin-bottom:12px">${alrt(i).map(a=>"• "+esc(a)).join("<br>")}</div>`:""}
-    ${fis.length?`<div class="callout r" style="margin:0 0 12px"><h4>Fiscalização</h4>${fis.map(f=>`<p><b>${esc(((AF_D.fiscal_tipos||{})[f[0]]||{}).t||f[0])}</b> — ${esc(f[1])}</p>`).join("")}</div>`:""}
+    ${fis.length?`<div class="callout r" style="margin:0 0 12px"><h4>Fiscalização</h4>${fis.map(f=>`<p><b>${esc(((AF_D.fiscal_tipos||{})[f[0]]||{}).t||f[0])}</b> — ${esc(f[1])}</p>${afDupAnexos(f,false)}`).join("")}</div>`:""}
     ${man?`<div class="manualtxt"><b>Manual · ${esc(cat(i))}:</b> ${esc(man.texto||"")}</div>`:""}
     ${manS&&sg!==cat(i)?`<div class="manualtxt"><b>Manual · ${esc(sg)}:</b> ${esc(manS.texto||"")}</div>`:""}
     <div class="vbox"><h4>Validação</h4>
@@ -1236,7 +1241,7 @@ function afRenderFisc(){
   document.getElementById("f-tab").innerHTML=L.length?`<p class="small" style="margin:0 0 8px">${fN(L.length)} alertas · ${fR(L.reduce((a,f)=>a+AF_C.v[f[1]],0))}</p>
     <div class="tbl-wrap"><table><thead><tr><th>Alerta</th><th>Pagamento</th><th>Lançamento</th><th>Categoria</th><th class="num">Valor</th><th>Detalhe</th><th>Validação</th></tr></thead><tbody>
     ${L.slice(0,400).map((f,ix)=>{ const i=f[1], v=AF_VAL.get(f[0]+":"+AF_C.k[i]); return `<tr class="clk" onclick="afAbrirDrawer(${i})"><td><b>${esc((T[f[0]]||{}).t||f[0])}</b></td><td class="small nw">${fD(AF_C.dp[i])}</td>
-      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div>${afAnexosHtml(i,true)}</td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}</td>
+      <td class="desc-c">${esc(AF_C.d[i]||"—")}<div class="small">${esc(forn(i)||"—")} · ${esc(ccv(i))} · ID ${AF_C.id[i]}</div>${afAnexosHtml(i,true)}</td><td>${esc(cat(i))}</td><td class="num">${fR(AF_C.v[i])}</td><td class="small">${esc(f[2])}${afDupAnexos([f[0],f[2]],true)}</td>
       <td onclick="event.stopPropagation()">${afVlBadge(v?v.status:"PENDENTE")}${v&&v.por?`<div class="vquem">${esc(v.por)} · ${fD((v.em||"").slice(0,10))}</div>`:""}
         ${g?`<div class="vacts"><button class="vbt ok" onclick="afPerguntarVal([${i}],'CONFORME','${f[0]}')">✓ Conforme</button><button class="vbt cx" onclick="afPerguntarVal([${i}],'CORRIGIR','${f[0]}')">✎ Corrigir</button></div>`:""}</td></tr>`; }).join("")}
     </tbody></table></div>${L.length>400?`<p class="small">Mostrando 400 de ${fN(L.length)} — use o Excel (CSV) para ver todos.</p>`:""}`:`<div class="vazio">Nenhum alerta com estes filtros.</div>`;

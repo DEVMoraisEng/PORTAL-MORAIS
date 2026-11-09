@@ -426,3 +426,12 @@ def test_sessao_que_cai_no_meio_guarda_o_que_ja_leu(monkeypatch):
     itens, est = ra.rodada(ra.LeitorMC(Erp()), aud_falsa(), {101: D(5), 303: D(6)})
     assert est["caiu"] and est["lidos"] == 1
     assert sum(1 for x in itens.values() if x.get("v")) == 1
+
+
+def test_duplicidade_traz_o_outro_lancamento():
+    aud = aud_falsa()
+    aud["fiscal"] = [["DUP", 3, "Mesma UC 123 e mesma referência 10/2026 do lançamento 202 — 23/10/2026, R$ 104,13"],
+                     ["DUP", 0, "Mesmo nº de documento (55) do lançamento 777 — 01/10/2026, R$ 10,00"]]
+    alvo = ra.escolher(aud)
+    assert 202 in alvo and 202 in ra.ALERTAS and alvo[202] == D(40)    # está na auditoria: data do pagamento dele
+    assert 777 in alvo and 777 in ra.ALERTAS and alvo[777] == D(5)     # fora da auditoria: data do alerta
