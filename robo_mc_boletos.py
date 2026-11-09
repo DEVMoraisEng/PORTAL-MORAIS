@@ -21,6 +21,7 @@ Saída: 0 tudo certo · 1 houve RECUSADO ou SEM_CONFIRMACAO · 2 trava (saldo, t
 O stdout só leva contagens e, antes delas, "trava: <motivo>" e "índice faltando: <lista>" (sem dado pessoal).
 """
 import argparse
+import calendar
 import datetime as dt
 import html
 import json
@@ -44,6 +45,17 @@ def _unidade_e_nome(descricao: str) -> tuple[str, str]:
     """"VENDA UNIDADE 12 - FULANO" -> ("12", "FULANO"). Fora desse formato, a descrição inteira fica como nome."""
     m = re.match(r"\s*VENDA\s+UNIDADE\s+(\S+)\s*-\s*(.*)$", descricao or "", re.I)
     return (m.group(1), m.group(2).strip()) if m else ("", descricao or "")
+
+
+def _mes_seguinte(mes: str) -> str:
+    a, m = int(mes[:4]), int(mes[5:7])
+    return "%04d-%02d" % (a + (m == 12), m % 12 + 1)
+
+
+def _na_janela_da_previa(hoje: str) -> bool:
+    """Últimos 5 dias do mês: dá tempo de segurar uma parcela do mês seguinte antes da primeira rodada dele."""
+    a, m, d = int(hoje[:4]), int(hoje[5:7]), int(hoje[8:10])
+    return calendar.monthrange(a, m)[1] - d < 5
 
 
 def _montar_linhas(erp, mes, hoje):
@@ -158,7 +170,7 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
     hoje = hoje or dt.date.today().isoformat()
     fora_do_mes = emitir and mes != hoje[:7]
     modo = "emissao" if emitir and APLICAR.exists() and not fora_do_mes else "previa"
-    linhas, resultados, trava, fora, falta, saldo = [], [], None, False, [], None
+    linhas, resultados, trava, fora, falta, saldo, proximo = [], [], None, False, [], None, None
     seguradas_ok = True
     if fora_do_mes:
         trava = "emissão só no mês vigente"
@@ -166,7 +178,7 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
 
     def salvar():
         rel = {"modo": modo, "mes": mes, "hoje": hoje, "saldo": saldo, "contagem": _contagem(linhas, resultados),
-               "linhas": linhas, "resultados": resultados, "trava": trava}
+               "linhas": linhas, "resultados": resultados, "trava": trava, "proximo_mes": proximo}
         try:
             _gravar(pasta, nome, rel)
         except Exception as ex:
@@ -217,6 +229,14 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
             saldo = B.ler_saldo(erp)
         except Exception:      # o saldo só informa a tela: sem ele, a rodada não muda
             saldo = None
+        if mes == hoje[:7] and _na_janela_da_previa(hoje):
+            seguinte = _mes_seguinte(mes)
+            try:               # só lista, nunca emite; falhar aqui também não muda a rodada
+                previa = _montar_linhas(erp, seguinte, hoje)
+                S.aplicar(S.ler(pasta), previa)
+                proximo = {"mes": seguinte, "linhas": previa}
+            except Exception:
+                proximo = {"mes": seguinte, "linhas": [], "falhou": True}
     salvar()
     # 07/11: "a emitir" = escolhidas pela regra; na prévia "emitidos" é sempre 0 e a linha escondia o que vai sair
     fim = "boletos: %d a emitir, %d emitidos, %d aguardando, %d decidir, %d pulados" % (

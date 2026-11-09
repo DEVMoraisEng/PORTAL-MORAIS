@@ -25,7 +25,7 @@ CONFIG = CENTRAL / "robos-portal.json"
 ULTIMO_FINANCEIRO = CENTRAL / "financeiro-condominio.json"   # guarda o último bom: o Notion fora não apaga os números
 BUCKET = "analise"
 CAMINHO = "robos/boletos-financeiro.json"
-GRUPOS = ("emitidos", "a_emitir", "aguardando", "decidir", "seguradas", "pulados")
+GRUPOS = ("emitidos", "a_emitir", "aguardando", "proximo_mes", "decidir", "seguradas", "pulados")
 
 
 def ultimo_relatorio(pasta=PASTA, com_linhas: bool = False) -> dict | None:
@@ -76,6 +76,17 @@ def grupos(rel: dict | None, seguradas: dict) -> dict:
             out["aguardando"].append(_item(l, "solta depois da rodada; o robô reavalia na próxima"))
         else:
             out["decidir"].append(_item(l))
+    for l in (rel.get("proximo_mes") or {}).get("linhas") or []:
+        vistas.add(l.get("parcela"))
+        marca, acao = seguradas.get(l.get("parcela")), l.get("acao")
+        if acao == "pular":                      # ato, permuta, já com boleto: não há o que conferir aqui
+            continue
+        if marca is not None:
+            out["seguradas"].append(dict(_item(l, S.motivo(marca)), segurada=True))
+        elif acao == "decidir":
+            out["proximo_mes"].append(_item(l))
+        else:
+            out["proximo_mes"].append(_item(l, "sai na primeira rodada do mês"))
     for parcela, marca in seguradas.items():
         if parcela not in vistas:
             out["seguradas"].append(dict(marca.get("rotulo") or {}, parcela=parcela, motivo=S.motivo(marca),
@@ -88,7 +99,7 @@ def rotulo_da_parcela(parcela: str, rel: dict | None) -> dict | None:
     Parcela emitida naquela rodada também não: o boleto já saiu, e dizer "segurada" seria falso."""
     if any(r.get("parcela") == parcela and r.get("situacao") in ("EMITIDO", "JA_TINHA") for r in (rel or {}).get("resultados") or []):
         return None
-    for l in (rel or {}).get("linhas") or []:
+    for l in ((rel or {}).get("linhas") or []) + (((rel or {}).get("proximo_mes") or {}).get("linhas") or []):
         if l.get("parcela") == parcela:
             return None if l.get("acao") == "pular" else {k: l.get(k, "") for k in ("unidade", "comprador", "tipo", "data", "valor")}
     return None
@@ -187,6 +198,8 @@ def montar(pasta=PASTA, hoje: str | None = None, ler_linhas=None, guardado=ULTIM
     resumo = None
     if novo:
         resumo = {k: novo.get(k) for k in ("modo", "mes", "hoje", "trava", "contagem", "saldo", "nome")}
+        prox = (rel or {}).get("proximo_mes") or {}
+        resumo["proximo_mes"], resumo["proximo_falhou"] = prox.get("mes"), bool(prox.get("falhou"))
     return {"versao": 1, "gerado": dt.datetime.now().isoformat(timespec="seconds"), "rodada": resumo,
             "trava_seguradas": trava_seguradas, "grupos": grupos(rel, seguradas), "recusas": recusas_para_a_tela(pasta, rel),
             "financeiro": financeiro(hoje, ler_linhas, guardado)}

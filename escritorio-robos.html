@@ -395,6 +395,8 @@ const CATALOGO = {
     faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
   documentos: { nome: "Documentos do Orçamento", cargo: "Vendas", ico: "📂", cor: "#a0784a",
     faz: "Todo dia cedo procura em Obras › Orçamento do Mais Controle a matrícula, a certidão mãe, o alvará e o habite-se de cada casa de rua vendida e anexa no dossiê do imóvel o que for novo (fica como “novo, não lido”). Só lê o ERP." },
+  financeiro: { nome: "Financeiro do condomínio", cargo: "Cobrança", ico: "💰", cor: "#1c7a4a",
+    faz: "Mostra, unidade por unidade do Reserva dos Ipês, o que foi recebido, o que vai vencer e o que está vencido. Clique para abrir a página." },
   boletos:  { nome: "Boletos do mês", cargo: "Cobrança", ico: "🧾", cor: "#1c7a4a",
     faz: "Emite pela Cobrança Fácil os boletos do mês do Reserva dos Ipês, dias úteis às 10:00. O detalhe de cada parcela está na página Boletos e Financeiro." },
   agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
@@ -449,6 +451,7 @@ function montarRobos(D) {
   Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
   /* 04/11: todo robô conhecido tem mesa, mesmo sem tarefa agendada ainda (ex.: anexos da auditoria) */
   ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos"].forEach(pega);
+  pega("financeiro");     // 09/11: não é tarefa do servidor; a mesa só abre a página Boletos e Financeiro
   const PL = D.coordenador, plAtivo = !!(PL && !["terminado", "cancelado"].includes(PL.status));
   mapa.forEach(r => { r.log = ((D.log || {})[r.chave]) || []; });
   /* porteiro: a linha "porteiro: …" mais nova de qualquer rodada */
@@ -470,7 +473,8 @@ function montarRobos(D) {
     const res = r.tarefas.map(t => t.resultado).filter(x => x != null);
     const resRuim = res.some(x => ![0, 267009, 267011, 267014].includes(x));
     let st = "sem", stTexto = "sem notícias", stHora = "";
-    if (r.chave === "porteiro") {
+    if (r.chave === "financeiro") { st = "ok"; stTexto = "clique para abrir"; }
+    else if (r.chave === "porteiro") {
       const P = D.porteiro;          // 04/11: o servidor diz o que os ROBÔS viram por último (o porteiro.log mentia)
       if (P && P.estado && P.estado !== "?") { st = P.estado === "ok" ? "ok" : "erro"; stTexto = P.estado === "ok" ? "logado" : "fora do Mais Controle"; stHora = quando(P.em); }
       else if (ultP) { const logado = /^porteiro: logado/.test(ultP.porteiro || ""); st = logado ? "ok" : "erro"; stTexto = logado ? "logado" : "fora"; stHora = quando(ultP.fim || ultP.inicio); }
@@ -516,7 +520,7 @@ function montarRobos(D) {
       st = "trab"; stTexto = agoraR && agoraR.fase === "esperando a vez" ? "esperando a vez no Mais Controle" : "trabalhando";
       if (agoraR && agoraR.desde) stHora = "desde " + hhmm(dataDe(agoraR.desde));
     }
-    if (st === "sem" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
+    if (st === "sem" && r.chave !== "financeiro" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
     const noPlano = plAtivo && PL.fila.find(i => i.chave === r.chave && (i.estado === "esperando" || i.estado === "rodando"));
     if (noPlano && noPlano.estado === "esperando" && st !== "trab") { st = "pedido"; stTexto = "na fila do coordenador (" + (PL.fila.indexOf(noPlano) + 1) + "º)"; }
     const ped = PEDIDOS[r.chave];
@@ -528,7 +532,8 @@ function montarRobos(D) {
   const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
   robos.sort((a, b) => {
     const ia = ordem.indexOf(a.chave), ib = ordem.indexOf(b.chave);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
+    return (a.chave === "financeiro") - (b.chave === "financeiro")   // a mesa nova fica na última vaga do salão
+      || (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
   });
   return robos;
 }
@@ -1160,6 +1165,7 @@ function resumoRodada(x) {
   return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
 }
 function abrir(chave, manterAbertas) {
+  if (chave === "financeiro") { location.href = "boletos-financeiro.html"; return; }
   if (chave === "__agenda__" && SALA === "agua") return abrirAgua("agua:coletor", manterAbertas);
   if (chave === "__agenda__") return abrirAgenda(manterAbertas);
   if (String(chave).startsWith("agua:")) return abrirAgua(chave, manterAbertas);

@@ -42,7 +42,7 @@ def test_grupos_separam_cada_situacao():
            "resultados": [{"parcela": "o", "situacao": "EMITIDO"}, {"parcela": "r", "situacao": "SEM_CONFIRMACAO", "motivo": "x"}]}
     g = BP.grupos(rel, {"s": {"quem": "ADM", "em": "09/11/2026 14:12"}})
     ids = {k: [i["parcela"] for i in v] for k, v in g.items()}
-    assert ids == {"emitidos": ["o", "b"], "a_emitir": ["e"], "aguardando": ["a"], "decidir": ["r", "d"], "seguradas": ["s"], "pulados": ["p"]}
+    assert ids == {"emitidos": ["o", "b"], "a_emitir": ["e"], "aguardando": ["a"], "proximo_mes": [], "decidir": ["r", "d"], "seguradas": ["s"], "pulados": ["p"]}
     assert g["pulados"][0]["motivo"].startswith("ato")
     assert "ADM" in g["seguradas"][0]["motivo"]
 
@@ -175,3 +175,29 @@ def test_recusa_aparece_no_arquivo_da_pagina_e_some_quando_da_certo(tmp_path):
 def test_recusas_ilegiveis_nao_impedem_publicar(tmp_path):
     (tmp_path / "recusas.json").write_text("{quebrado", encoding="utf-8")
     assert BP.montar(tmp_path, "2026-11-09", lambda: [], tmp_path / "fin.json")["recusas"] == []
+
+
+def _com_previa(tmp, linhas):
+    (tmp / "2026-11-27_100000.json").write_text(json.dumps({
+        "modo": "emissao", "mes": "2026-11", "hoje": "2026-11-27", "trava": None, "saldo": 9, "contagem": {},
+        "linhas": [linha(ID1, "aguardar")], "resultados": [], "proximo_mes": {"mes": "2026-12", "linhas": linhas}}), encoding="utf-8")
+
+
+def test_proximo_mes_aparece_em_grupo_proprio_e_aceita_segurar(tmp_path):
+    _com_previa(tmp_path, [linha(ID2, "emitir", data="2026-12-10"), linha(ID3, "pular", "ato")])
+    d = BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")
+    assert [i["parcela"] for i in d["grupos"]["proximo_mes"]] == [ID2]
+    assert "primeira rodada" in d["grupos"]["proximo_mes"][0]["motivo"]
+    assert d["rodada"]["proximo_mes"] == "2026-12" and d["rodada"]["proximo_falhou"] is False
+    assert BP.pedir("segurar", ID2, "ADM", tmp_path)[0] is True
+    assert BP.pedir("segurar", ID3, "ADM", tmp_path)[0] is False
+    d = BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")
+    assert d["grupos"]["proximo_mes"] == [] and [i["parcela"] for i in d["grupos"]["seguradas"]] == [ID2]
+    assert "fora_do_relatorio" not in d["grupos"]["seguradas"][0]
+
+
+def test_previa_que_falhou_vira_aviso_na_rodada(tmp_path):
+    (tmp_path / "2026-11-27_100000.json").write_text(json.dumps({
+        "modo": "emissao", "mes": "2026-11", "linhas": [linha(ID1, "aguardar")], "resultados": [],
+        "proximo_mes": {"mes": "2026-12", "linhas": [], "falhou": True}}), encoding="utf-8")
+    assert BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")["rodada"]["proximo_falhou"] is True

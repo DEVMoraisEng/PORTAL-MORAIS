@@ -15,7 +15,7 @@ test("boletos: cabeçalho, grupos e motivo do pulado", () => {
   const h = BF.htmlBoletos(dados({ pulados: [item("p", { motivo: "ato (sempre por Pix, nunca boleto)" })] }), {});
   assert.match(h, /Boletos de novembro\/2026/);
   assert.match(h, /09\/11 às 10:00 · 99 créditos · sem trava/);
-  assert.match(h, /Pulados 1/);
+  assert.match(h, /Pulados <b>1<\/b>/);
   assert.match(h, /ato \(sempre por Pix, nunca boleto\)/);
 });
 
@@ -57,13 +57,6 @@ test("boletos: datas do motivo no formato brasileiro", () => {
   assert.doesNotMatch(h, /2026-11-/);
 });
 
-test("boletos: grupo que a pessoa abriu ou fechou continua assim ao atualizar a tela", () => {
-  const g = { pulados: [item("p")], aguardando: [item("a")] };
-  const abertoEm = h => (h.match(/<details open data-grupo="(\w+)"/g) || []).map(s => s.match(/"(\w+)"$/)[1]);
-  assert.deepEqual(abertoEm(BF.htmlBoletos(dados(g), {})), ["aguardando"]);
-  assert.deepEqual(abertoEm(BF.htmlBoletos(dados(g), { grupos: { pulados: true, aguardando: false } })), ["pulados"]);
-});
-
 test("boletos: a coluna do motivo tem classe própria, para não ser espremida no celular", () => {
   assert.match(BF.htmlBoletos(dados({ aguardando: [item("a")] }), {}), /<td class="mot">/);
   assert.match(readFileSync(new URL("../../boletos-financeiro.html", import.meta.url), "utf8"), /\.mot\{min-width/);
@@ -76,6 +69,95 @@ test("boletos: pedido recusado pelo servidor aparece na tela", () => {
 
 test("financeiro: a nota não afirma nada sobre juros antes da conferência com uma baixa real", () => {
   assert.doesNotMatch(fin({}), /juros/);
+});
+
+test("boletos: filtro por grupo mostra só aquele bloco, e a contagem fica no botão", () => {
+  const g = { aguardando: [item("a")], pulados: [item("p", { motivo: "ato (sempre por Pix, nunca boleto)" })] };
+  const so = BF.htmlBoletos(dados(g), { grupo: "pulados" });
+  assert.match(so, /class="chip ativo ne" data-grupo="pulados"/);
+  assert.match(so, /Todas <b>2<\/b>/);
+  assert.match(so, /Aguardando <b>1<\/b>/);
+  assert.match(so, /ato \(sempre/);
+  assert.doesNotMatch(so, /emite a partir/);
+});
+
+test("boletos: busca por unidade exata ou comprador muda a contagem", () => {
+  const g = { aguardando: [item("a"), item("b", { unidade: "10", comprador: "COMPRADOR Z" })] };
+  assert.match(BF.htmlBoletos(dados(g), { buscaBoletos: "10" }), /Aguardando <b>1<\/b>/);
+  assert.match(BF.htmlBoletos(dados(g), { buscaBoletos: "comprador z" }), /Aguardando <b>1<\/b>/);
+  assert.match(BF.htmlBoletos(dados(g), { buscaBoletos: "ninguém" }), /Nenhuma parcela para mostrar/);
+});
+
+test("boletos: cada motivo de decidir vira um bloco com o que fazer e quem resolve", () => {
+  const g = { decidir: [item("v", { motivo: "venceu em 2026-11-03 sem boleto: não emite, só aviso" }), item("c", { motivo: "cadastro do comprador incompleto (CPF)" }),
+                        item("i", { motivo: "índice do mês ainda não lançado: INCC" }), item("r", { motivo: "SEM_CONFIRMACAO: conferir" }), item("o", { motivo: "valor zero" })] };
+  const h = BF.htmlBoletos(dados(g), {});
+  for (const t of ["Venceu sem boleto", "Cadastro do comprador incompleto", "Índice do mês não lançado", "Emissão sem confirmação ou recusada", "Outros casos"]) assert.match(h, new RegExp(t));
+  assert.match(h, /Quem resolve: Vendas/);
+  assert.match(h, /Completar CPF/);
+});
+
+test("boletos: próximo mês só aparece quando tem parcela, com botão de segurar", () => {
+  assert.doesNotMatch(BF.htmlBoletos(dados({}), {}), /data-grupo="proximo_mes"/);
+  const d = dados({ proximo_mes: [item("n", { data: "2026-12-10" })] }, { rodada: { modo: "emissao", mes: "2026-11", nome: "2026-11-27_100000", proximo_mes: "2026-12" } });
+  const h = BF.htmlBoletos(d, { podeSegurar: true });
+  assert.match(h, /dezembro\/2026 <b>1<\/b>/);
+  assert.match(h, /Próximo mês: dezembro\/2026/);
+  assert.match(h, /data-acao="segurar" data-parcela="n"/);
+});
+
+test("boletos: lista do próximo mês que falhou avisa", () => {
+  assert.match(BF.htmlBoletos(dados({}, { rodada: { modo: "emissao", mes: "2026-11", nome: "2026-11-27_100000", proximo_falhou: true } }), {}), /lista do próximo mês/);
+});
+
+const TITULOS = [
+  { coluna: "vencido", unidade: "02", comprador: "COMPRADOR B", tipo: "pre", sub: "", data: "2026-10-28", valor: 3800, pago_em: "", dias_atraso: 12 },
+  { coluna: "recebido", unidade: "01", comprador: "COMPRADOR A", tipo: "sinal", sub: "", data: "2026-10-30", valor: 42000, pago_em: "2026-10-31", dias_atraso: 0 },
+  { coluna: "recebido", unidade: "02", comprador: "COMPRADOR B", tipo: "pre", sub: "", data: "2026-10-28", valor: 15300, pago_em: "", dias_atraso: 0 },
+  { coluna: "caixa", unidade: "01", comprador: "COMPRADOR A", tipo: "terceiros", sub: "fgts", data: "2027-08-01", valor: 180000, pago_em: "", dias_atraso: 0 }
+];
+
+test("financeiro: os números são botões, e clicar mostra só os títulos daquele número", () => {
+  const lista = fin({ titulos: TITULOS });
+  assert.match(lista, /class="num" data-coluna="vencido"/);
+  assert.match(lista, /COMPRADOR 01/);
+  const v = fin({ titulos: TITULOS }, { coluna: "vencido" });
+  assert.match(v, /class="num ativo" data-coluna="vencido" aria-pressed="true"/);
+  assert.match(v, /Vencido: títulos <small>1<\/small>/);
+  assert.match(v, /R\$ 3\.800,00/);
+  assert.match(v, /28\/10\/2026/);
+  assert.match(v, /12 dias/);
+  assert.match(v, /Cobrar o comprador/);
+  assert.match(v, /Quem resolve: Financeiro/);
+  assert.doesNotMatch(v, /42\.000,00<\/td>/);
+  assert.doesNotMatch(v, /so-vencido/);
+  assert.match(v, /id="ver-unidades"/);
+});
+
+test("financeiro: recebido mostra a data da baixa e o que entrou em parte; FGTS pelo nome", () => {
+  const r = fin({ titulos: TITULOS }, { coluna: "recebido" });
+  assert.match(r, /31\/10\/2026/);
+  assert.match(r, /em parte/);
+  assert.match(r, /Recebido: títulos <small>2<\/small>/);
+  assert.match(fin({ titulos: TITULOS }, { coluna: "caixa" }), /<td>FGTS<\/td>/);
+});
+
+test("financeiro: busca vale nos títulos, e número sem título não quebra", () => {
+  const b = fin({ titulos: TITULOS }, { coluna: "recebido", busca: "02" });
+  assert.match(b, /Recebido: títulos <small>1<\/small>/);
+  assert.match(fin({ titulos: TITULOS }, { coluna: "permuta" }), /Nenhum título para mostrar/);
+  assert.match(fin({}, { coluna: "coluna-que-nao-existe" }), /COMPRADOR 01/);
+});
+
+test("financeiro: singular quando há um título só", () => {
+  const h = fin({ titulos: TITULOS });
+  assert.match(h, /1 título</);
+  assert.match(h, /2 títulos</);
+  assert.doesNotMatch(h, /1 títulos/);
+});
+
+test("página: o bloco colorido só muda a faixa, não o texto", () => {
+  assert.match(readFileSync(new URL("../../boletos-financeiro.html", import.meta.url), "utf8"), /\.bloco\.ru,\.bloco\.al,\.bloco\.ok,\.bloco\.ma,\.bloco\.ne\{background:var\(--sup\);color:var\(--text\)\}/);
 });
 
 test("escapa nome com HTML", () => {
@@ -189,6 +271,9 @@ test("a página está ligada: início, cache offline, gancho do Apps Script e at
   assert.match(ler("Melhorias.gs"), /bfRotear_\(action, sess, p\)/);
   assert.match(ler("escritorio-robos.html"), /href="boletos-financeiro\.html"/);
   assert.match(ler("escritorio-robos.html"), /boletos:\s*\{ nome: "Boletos do mês"/);
+  assert.match(ler("escritorio-robos.html"), /financeiro:\s*\{ nome: "Financeiro do condomínio"/);
+  assert.match(ler("escritorio-robos.html"), /if \(chave === "financeiro"\) \{ location\.href = "boletos-financeiro\.html"/);
+  assert.match(ler("escritorio-robos.html"), /"documentos"\]\.forEach\(pega\);\n  pega\("financeiro"\)/);
   const pagina = ler("boletos-financeiro.html");
   assert.match(pagina, /src="boletos-financeiro\.js/);
   assert.match(pagina, /action: "bfBoot"/);

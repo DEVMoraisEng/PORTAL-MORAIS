@@ -34,27 +34,39 @@ def resumo_da_venda(parcelas: list[dict], hoje: str) -> dict:
     """Os cinco números de uma venda, os dias de atraso da parcela vencida mais antiga e a próxima parcela a vencer."""
     c = dict.fromkeys(CAMPOS, 0)
     mais_antiga, proxima = "", None
+    titulos = []
+
+    def titulo(coluna, centavos, p, data):
+        titulos.append({"coluna": coluna, "tipo": p.get("tipo") or "", "sub": p.get("sub") or "", "data": data, "valor": _r(centavos),
+                        "pago_em": str(p.get("pagoEm") or "") if coluna == "recebido" else "",
+                        "dias_atraso": _dias(data, hoje) if coluna == "vencido" else 0})
     for p in parcelas:
         recebido, aberto = _partes(p)
+        data = str(p.get("data") or "")
         c["recebido"] += recebido
+        if recebido > 0:
+            titulo("recebido", recebido, p, data)
         if aberto <= 0:
             continue
-        data = str(p.get("data") or "")
         if p.get("permuta"):
-            c["permuta"] += aberto
+            coluna = "permuta"
         elif p.get("tipo") == "terceiros":
-            c["caixa"] += aberto
+            coluna = "caixa"
         elif data < hoje:
-            c["vencido"] += aberto
+            coluna = "vencido"
             mais_antiga = min(mais_antiga or data, data)
         else:
-            c["a_vencer"] += aberto
+            coluna = "a_vencer"
             if proxima is None or data < proxima["data"]:
                 proxima = {"data": data, "valor": _r(aberto)}
+        c[coluna] += aberto
+        titulo(coluna, aberto, p, data)
+    titulos.sort(key=lambda t: t["data"])
     out = {k: _r(v) for k, v in c.items()}
     out["centavos"] = c
     out["dias_atraso"] = _dias(mais_antiga, hoje) if mais_antiga else 0
     out["proxima"] = proxima
+    out["titulos"] = titulos
     return out
 
 
@@ -75,7 +87,7 @@ def _ordem(unidade: str):
 def montar(linhas: list[dict], hoje: str) -> dict:
     """Linhas do Notion -> totais, unidades, vendas ainda não lançadas e vendas lançadas sem leitura.
     Só entram nos totais as vendas com retrato legível. Linha sem UNIDADE é ignorada."""
-    unidades, nao_lancadas, sem_leitura = [], [], []
+    unidades, nao_lancadas, sem_leitura, titulos = [], [], [], []
     total = dict.fromkeys(CAMPOS, 0)
     lido = ""
     for linha in linhas:
@@ -99,11 +111,13 @@ def montar(linhas: list[dict], hoje: str) -> dict:
         for k in CAMPOS:
             total[k] += r["centavos"][k]
         del r["centavos"]
+        titulos += [dict(t, unidade=unidade, comprador=comprador) for t in r.pop("titulos")]
         r.update(unidade=unidade, comprador=comprador, lido=lido_aqui, erro_leitura="| ERRO" in em)
         unidades.append(r)
         lido = max(lido, lido_aqui)
     unidades.sort(key=lambda u: _ordem(u["unidade"]))
     nao_lancadas.sort(key=_ordem)
     sem_leitura.sort(key=_ordem)
-    return {"hoje": hoje, "lido": lido, "totais": {k: _r(v) for k, v in total.items()}, "unidades": unidades,
+    titulos.sort(key=lambda t: _ordem(t["unidade"]))   # ordem estável: dentro da unidade segue o vencimento
+    return {"hoje": hoje, "lido": lido, "totais": {k: _r(v) for k, v in total.items()}, "unidades": unidades, "titulos": titulos,
             "nao_lancadas": nao_lancadas, "sem_leitura": sem_leitura}

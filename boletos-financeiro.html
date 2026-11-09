@@ -43,15 +43,32 @@ h2{font-family:'Barlow Condensed';font-weight:700;font-size:24px;margin:0;color:
 .pill{display:inline-block;font-size:12.5px;font-weight:700;border-radius:999px;padding:2px 10px;white-space:nowrap}
 .ok{background:var(--ok-f);color:var(--ok)}.ru{background:var(--ru-f);color:var(--ru)}.al{background:var(--al-f);color:var(--al)}
 .ma{background:var(--ma-f);color:var(--ma)}.ne{border:1px solid var(--border);color:var(--text3)}
-details{border-top:1px solid var(--border2);padding-top:8px}
-summary{cursor:pointer;padding:2px 0}
 .rola{overflow-x:auto;margin-top:6px}
+.bloco{background:var(--sup);border:1px solid var(--border2);border-left-width:5px;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.bloco.ru{border-left-color:var(--ru)}.bloco.al{border-left-color:var(--al)}.bloco.ok{border-left-color:var(--ok)}.bloco.ma{border-left-color:var(--azul)}.bloco.ne{border-left-color:var(--border)}
+.bloco.ru,.bloco.al,.bloco.ok,.bloco.ma,.bloco.ne{background:var(--sup);color:var(--text)}
+.bloco-cab{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between}
+h3{font-family:'Barlow Condensed';font-weight:700;font-size:19px;margin:0}
+h3 small{font-size:15px;color:var(--text3);font-weight:600}
+.soma{font-family:Inter;font-size:13px;font-weight:700;color:var(--text3);margin-left:6px}
+.quem{font-size:12.5px;font-weight:700;color:var(--text3)}
+.fazer{margin:0;font-size:13px;color:var(--text3)}
+.selecao{padding:0 2px}
+.chip{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:999px;padding:5px 12px;font-weight:600}
+.chip b{font-family:'Barlow Condensed';font-size:15px;margin-left:3px}
+.chip.ativo{background:var(--azul);border-color:var(--azul);color:#fff}
+#busca-boletos{flex:1 1 220px}
+#ver-unidades{align-self:flex-start}
 table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
 th{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);text-align:left;font-weight:700}
 td,th{padding:7px 9px;border-bottom:1px solid var(--border2);vertical-align:top}
 .n{text-align:right;white-space:nowrap}
 .mot{min-width:230px}
-.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.num{display:flex;flex-direction:column;align-items:flex-start;gap:0;text-align:left;border:1px solid var(--border2);background:var(--bg2);color:var(--text);border-radius:10px;padding:9px 12px;white-space:normal}
+.num:hover{border-color:var(--azul)}
+.num.ativo{border-color:var(--azul);box-shadow:inset 0 0 0 1px var(--azul)}
+.n-tit{font-size:11.5px;font-weight:600;color:var(--text3)}
 .rotulo{display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3)}
 .nums b{font-family:'Barlow Condensed';font-weight:700;font-size:25px;font-variant-numeric:tabular-nums}
 .vermelho{color:var(--ru)}
@@ -73,13 +90,13 @@ button:disabled{opacity:.6;cursor:wait}
 </div></header>
 <main id="tela"><div class="muted">Carregando…</div></main>
 <script src="app.js?v=46"></script>
-<script src="boletos-financeiro.js?v=1"></script>
+<script src="boletos-financeiro.js?v=2"></script>
 <script>
 const S = exigirSessao();
 const $ = id => document.getElementById(id);
 const CACHE_LOCAL = "morais_boletos_financeiro_v1";
-let DADOS = null, PODE = false, BUSCA = "", SO_VENCIDO = false, ATUALIZANDO = false;
-const PEDIDOS = {}, GRUPOS_ABERTOS = {};
+let DADOS = null, PODE = false, BUSCA = "", BUSCA_BOLETOS = "", GRUPO = "todas", COLUNA = "", SO_VENCIDO = false, ATUALIZANDO = false;
+const PEDIDOS = {};
 const ERROS = {
   APENAS_ADM: "Só ADM e MASTER podem segurar ou soltar.",
   PEDIDO_INVALIDO: "Esse pedido não é válido.",
@@ -90,10 +107,10 @@ function aviso(txt) { const d = document.createElement("div"); d.className = "to
 function erroTela(html) { $("tela").innerHTML = '<div class="erro">' + html + "</div>"; }
 function pintar() {
   if (!DADOS) return;
-  const busca = $("busca"), foco = busca && document.activeElement === busca, pos = busca ? busca.selectionStart : 0;
-  $("tela").innerHTML = BF.htmlBoletos(DADOS, { podeSegurar: PODE, pedidos: PEDIDOS, grupos: GRUPOS_ABERTOS }) +
-    BF.htmlFinanceiro(DADOS, { busca: BUSCA, soVencido: SO_VENCIDO, atualizando: ATUALIZANDO });
-  if (foco) { const b = $("busca"); b.focus(); b.setSelectionRange(pos, pos); }
+  const ativo = document.activeElement, id = ativo && ativo.type === "search" ? ativo.id : "", pos = id ? ativo.selectionStart : 0;
+  $("tela").innerHTML = BF.htmlBoletos(DADOS, { podeSegurar: PODE, pedidos: PEDIDOS, grupo: GRUPO, buscaBoletos: BUSCA_BOLETOS }) +
+    BF.htmlFinanceiro(DADOS, { busca: BUSCA, coluna: COLUNA, soVencido: SO_VENCIDO, atualizando: ATUALIZANDO });
+  if (id) { const b = $(id); b.focus(); b.setSelectionRange(pos, pos); }
 }
 async function carregar() {
   const bt = $("bt-recarregar"); bt.disabled = true;
@@ -148,10 +165,17 @@ document.addEventListener("click", e => {
   const seg = e.target.closest(".bt-seg");
   if (seg) return void pedirSegurar(seg);
   if (e.target.id === "bt-atualizar") return void pedirAtualizar();
+  if (e.target.id === "ver-unidades") { COLUNA = ""; return void pintar(); }
+  const chip = e.target.closest(".chip");
+  if (chip) { GRUPO = chip.dataset.grupo; return void pintar(); }
+  const num = e.target.closest(".num");
+  if (num) { COLUNA = COLUNA === num.dataset.coluna ? "" : num.dataset.coluna; pintar(); }
 });
-document.addEventListener("input", e => { if (e.target.id === "busca") { BUSCA = e.target.value; pintar(); } });
+document.addEventListener("input", e => {
+  if (e.target.id === "busca") { BUSCA = e.target.value; pintar(); }
+  if (e.target.id === "busca-boletos") { BUSCA_BOLETOS = e.target.value; pintar(); }
+});
 document.addEventListener("change", e => { if (e.target.id === "so-vencido") { SO_VENCIDO = e.target.checked; pintar(); } });
-document.addEventListener("toggle", e => { const g = e.target.dataset && e.target.dataset.grupo; if (g) GRUPOS_ABERTOS[g] = e.target.open; }, true);
 $("bt-recarregar").addEventListener("click", carregar);
 carregar();
 setInterval(() => { if (!document.hidden) carregar(); }, 3 * 60 * 1000);

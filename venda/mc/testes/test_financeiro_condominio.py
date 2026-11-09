@@ -84,3 +84,27 @@ def test_retrato_com_formato_estranho_vira_sem_leitura():
     d = F.montar([linha("1", "X", "id", json.dumps({"parcelas": "nao"}), "2026-11-09 08:00"),
                   linha("2", "Y", "id", json.dumps([1]), "2026-11-09 08:00")], HOJE)
     assert d["sem_leitura"] == ["1", "2"] and d["unidades"] == []
+
+
+def test_titulos_batem_com_cada_numero():
+    ret = json.dumps({"parcelas": [
+        p("2026-10-10", 1000.1, recebido=1000.1, aberto=0, pago=True, pagoEm="2026-10-11"),
+        p("2026-11-01", 1000, recebido=400, aberto=600, parcial=True),
+        p("2026-12-10", 400.4),
+        p("2027-06-01", 5000, tipo="terceiros", sub="fgts"),
+        p("2026-11-20", 72000, tipo="entrada", permuta=True)]})
+    d = F.montar([linha("9", "COMPRADOR A", "id", ret, "2026-11-09 08:04")], HOJE)
+    t = d["titulos"]
+    for coluna, total in d["totais"].items():
+        assert round(sum(x["valor"] for x in t if x["coluna"] == coluna), 2) == total, coluna
+    ven = [x for x in t if x["coluna"] == "vencido"][0]
+    assert (ven["unidade"], ven["comprador"], ven["valor"], ven["dias_atraso"]) == ("9", "COMPRADOR A", 600, 8)
+    assert [x["pago_em"] for x in t if x["coluna"] == "recebido"] == ["2026-10-11", ""]
+    assert [x["sub"] for x in t if x["coluna"] == "caixa"] == ["fgts"]
+    assert "titulos" not in d["unidades"][0]
+
+
+def test_titulos_em_ordem_de_unidade_e_vencimento():
+    r1 = json.dumps({"parcelas": [p("2026-12-10", 1), p("2026-11-10", 2)]})
+    d = F.montar([linha("10", "B", "i", r1, "2026-11-09 08:04"), linha("9", "A", "i", r1, "2026-11-09 08:04")], HOJE)
+    assert [(x["unidade"], x["data"]) for x in d["titulos"]] == [("9", "2026-11-10"), ("9", "2026-12-10"), ("10", "2026-11-10"), ("10", "2026-12-10")]

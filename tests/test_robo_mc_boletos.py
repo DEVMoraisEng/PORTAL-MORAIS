@@ -391,3 +391,54 @@ def test_relatorio_traz_saldo_unidade_e_comprador_separados_09_11(tmp_path, monk
 def test_descricao_fora_do_formato_fica_inteira_09_11():
     assert RB._unidade_e_nome("OUTRA COISA") == ("", "OUTRA COISA")
     assert RB._unidade_e_nome("venda unidade 12 - FULANO - B") == ("12", "FULANO - B")
+
+
+def _venda_com_dezembro():
+    v = venda_com_uma_entrada_do_mes()
+    parcela(v, R.TIPO_ENTRADA, "2026-12-10", valor=300.0)
+    return v
+
+
+def test_previa_lista_o_proximo_mes_nos_ultimos_5_dias_sem_emitir_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira([_venda_com_dezembro()])
+    assert RB.rodar(erp, "2026-11", True, None, tmp_path, "2026-11-26", esperar=lambda s: None) == 0
+    rel = _relatorio(tmp_path)
+    assert rel["proximo_mes"]["mes"] == "2026-12"
+    assert [(l["data"], l["acao"]) for l in rel["proximo_mes"]["linhas"]] == [("2026-12-10", "emitir")]
+    assert erp.posts == 0 or all(not r["parcela"] == rel["proximo_mes"]["linhas"][0]["parcela"] for r in rel["resultados"])
+
+
+def test_previa_fora_da_janela_nao_le_o_proximo_mes_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    RB.rodar(ErpDeMentira([_venda_com_dezembro()]), "2026-11", True, None, tmp_path, "2026-11-25", esperar=lambda s: None)
+    assert _relatorio(tmp_path).get("proximo_mes") is None
+
+
+def test_previa_respeita_parcela_segurada_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    v = _venda_com_dezembro()
+    dez = v["tradeReceivable"]["installments"][-1]["id"]
+    S.gravar(tmp_path, {dez: {"quem": "ADM", "em": "ontem"}})
+    RB.rodar(ErpDeMentira([v]), "2026-11", True, None, tmp_path, "2026-11-30", esperar=lambda s: None)
+    assert _relatorio(tmp_path)["proximo_mes"]["linhas"][0]["acao"] == "segurada"
+
+
+def test_falha_na_previa_nao_muda_a_rodada_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    erp = ErpDeMentira([_venda_com_dezembro()])
+    real = RB._montar_linhas
+
+    def cai_em_dezembro(e, mes, hoje):
+        if mes == "2026-12":
+            raise RuntimeError("caiu")
+        return real(e, mes, hoje)
+    monkeypatch.setattr(RB, "_montar_linhas", cai_em_dezembro)
+    assert RB.rodar(erp, "2026-11", True, None, tmp_path, "2026-11-30", esperar=lambda s: None) == 0
+    assert _relatorio(tmp_path)["proximo_mes"]["falhou"] is True
+
+
+def test_mes_seguinte_vira_o_ano_09_11():
+    assert RB._mes_seguinte("2026-12") == "2027-01"
+    assert RB._na_janela_da_previa("2026-12-27") is True and RB._na_janela_da_previa("2026-12-26") is False
+    assert RB._na_janela_da_previa("2027-02-24") is True and RB._na_janela_da_previa("2027-02-23") is False
