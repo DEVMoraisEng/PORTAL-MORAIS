@@ -1571,8 +1571,11 @@ function natDest(nat){const n=nzC(nat); if(!n) return 'receita'; return CFG.natu
    dist/ público. A FONTE escolhida (MC + Box, só MC, só Box) vale para todas
    as telas: tudo lê window._pagFull e FATS_TODOS, montados aqui.
    Os lançamentos do Box que também estão no MC entram (pedido de 09/11) e
-   aparecem com ⚠ na lista de lançamentos. */
-let PAG_MC=[], FAT_MC=[], BOX=null, BOX_X={pag:[],rec:[]}, FONTE='ambos';
+   aparecem com ⚠ na lista de lançamentos; Configurações › 0 pode tirá-los.
+   09/11 (v2): o Box vai de mar/2024 a ago/2026 (~22 mil lançamentos). Para
+   caber nas configurações, os dados ficam COMPACTADOS (gzip + base64, campo gz)
+   — a tela compacta ao importar e descompacta ao abrir. */
+let PAG_MC=[], FAT_MC=[], BOX=null, BOX_X={pag:[],rec:[]}, FONTE='ambos', BOX_DUP='conta', BOX_ERRO='';
 const ROT_FONTE={ambos:'Mais Controle + Box',mc:'Só Mais Controle',box:'Só Box'};
 /* chave própria no ad_config; se o Apps Script não aceitar a chave nova, vai dentro de "ccs" como X|nome */
 function cfgExtra(ch){ const a=CFG[ch]; if(a&&typeof a==='object'&&Object.keys(a).length) return a; return (CFG.ccs||{})['X|'+ch]||null; }
@@ -1581,12 +1584,19 @@ function boxExpandir(b){
   const pag=expandirPagamentos(b.pag).map(p=>(p.origem='box',p));
   const d=(b.rec&&b.rec.dic)||{}, rec=((b.rec&&b.rec.rows)||[]).map(r=>({cc:d.cc[r[0]],valor:r[1],mes:d.mes[r[2]],nat:d.nat[r[3]],descricao:d.descricao[r[4]],dia:r[5],id:r[6],origem:'box'}));
   return {pag,rec}; }
-function boxCarregar(){ BOX=cfgExtra('box'); BOX_X=boxExpandir(BOX); const f=(cfgExtra('fonte')||{}).v; FONTE=ROT_FONTE[f]?f:'ambos'; }
+async function boxDescomprimir(b64){ const bin=Uint8Array.from(atob(b64),c=>c.charCodeAt(0));
+  return JSON.parse(await new Response(new Blob([bin]).stream().pipeThrough(new DecompressionStream('gzip'))).text()); }
+async function boxComprimir(obj){ const buf=new Uint8Array(await new Response(new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer());
+  let bin=''; for(let i=0;i<buf.length;i+=0x8000) bin+=String.fromCharCode.apply(null,buf.subarray(i,i+0x8000)); return btoa(bin); }
+async function boxCarregar(){ BOX=cfgExtra('box'); BOX_ERRO=''; let b=BOX;
+  if(b&&b.gz){ try{ b=Object.assign({},b,await boxDescomprimir(b.gz)); }catch(e){ console.error(e); b=null; BOX_ERRO='Não consegui abrir os dados do Box salvos ('+e.message+'). Importe o arquivo de novo.'; } }
+  BOX_X=boxExpandir(b); const f=cfgExtra('fonte')||{}; FONTE=ROT_FONTE[f.v]?f.v:'ambos'; BOX_DUP=f.dup==='tira'?'tira':'conta'; }
 function fonteEfetiva(){ return BOX_X.pag.length||BOX_X.rec.length?FONTE:'mc'; }
 function aplicarFonte(){ const f=fonteEfetiva();
-  window._pagFull=(f==='box'?[]:PAG_MC).concat(f==='mc'?[]:BOX_X.pag);
+  const bp=BOX_DUP==='tira'?BOX_X.pag.filter(p=>!p.dup):BOX_X.pag;
+  window._pagFull=(f==='box'?[]:PAG_MC).concat(f==='mc'?[]:bp);
   FATS_TODOS=(f==='box'?[]:FAT_MC).concat(f==='mc'?[]:BOX_X.rec);
-  const b=document.getElementById('fonte-badge'); if(b){ b.textContent='Fonte: '+ROT_FONTE[f]; b.title=f==='mc'?'Dados do Box Obras fora da análise':'Box Obras: 2026, '+BOX_X.pag.length+' pagamentos e '+BOX_X.rec.length+' recebimentos'; } }
+  const b=document.getElementById('fonte-badge'); if(b){ b.textContent='Fonte: '+ROT_FONTE[f]; b.title=f==='mc'?'Dados do Box Obras fora da análise':'Box Obras: '+bp.length+' pagamentos e '+BOX_X.rec.length+' recebimentos'+(BOX_DUP==='tira'?' (sem os que também estão no MC)':''); } }
 async function cfgGravarExtra(ch,valor){
   const okR=r=>{ if(!r||!r.ok) throw new Error((r&&r.erro)||'sem resposta'); return r; };
   let r=null;
@@ -1597,8 +1607,13 @@ async function cfgGravarExtra(ch,valor){
       if(CFG.ccs&&CFG.ccs['X|'+ch]){ const nv=JSON.parse(JSON.stringify(CFG.ccs)); delete nv['X|'+ch]; try{ okR(await chamar({action:'adCfgSalvar',chave:'ccs',valor:JSON.stringify(nv)},60000)); CFG.ccs=nv; }catch(e){} }
       return r; }
   }catch(e){ if(/rede|Failed to fetch|abort/i.test(String(e.message))) throw e; }
-  const nv=JSON.parse(JSON.stringify(CFG.ccs||{})); nv['X|'+ch]=valor;
-  r=okR(await chamar({action:'adCfgSalvar',chave:'ccs',valor:JSON.stringify(nv)},60000));
+  const ant=JSON.parse(JSON.stringify(CFG.ccs||{})), nv=JSON.parse(JSON.stringify(ant)); nv['X|'+ch]=valor;
+  r=okR(await chamar({action:'adCfgSalvar',chave:'ccs',valor:JSON.stringify(nv)},90000));
+  /* confere se o servidor ainda devolve as configurações; se não, desfaz para não travar a aba */
+  let lido=null; try{ lido=await chamar({action:'adCfgLer'},60000); }catch(e){}
+  if(!lido||!lido.ok||!lido.cfg||!lido.cfg.ccs||!lido.cfg.ccs['X|'+ch]){
+    try{ await chamar({action:'adCfgSalvar',chave:'ccs',valor:JSON.stringify(ant)},90000); }catch(e){}
+    throw new Error('o servidor não devolveu os dados depois de gravar; desfiz a gravação'); }
   CFG.ccs=nv; CFG_META.ccs={por:r.por,em:r.em}; CFG_META[ch]={por:r.por,em:r.em};
   if(CFG_ED){ CFG_ED.ccs=CFG_ED.ccs||{}; CFG_ED.ccs['X|'+ch]=valor; }
   return r; }
@@ -4442,7 +4457,7 @@ async function init(){
     /* 09/11/26: Mais Controle + Box Obras (2026) — a fonte escolhida em Configurações › 0 decide o que entra */
     PAG_MC=(data.pagamentos_full||[]).map(p=>(p.origem='mc',p));
     FAT_MC=fats.map(f=>Object.assign({origem:'mc'},f));
-    boxCarregar(); aplicarFonte();
+    await boxCarregar(); aplicarFonte();
     DOC_IDX={}; docs.forEach(d=>{ if(d.endereco) DOC_IDX[nzC(d.endereco)]=d; });
     /* 28/10: vendas dos condomínios (BANCO DE DADOS VENDAS CONDOMÍNIO) entram no VGV */
     VENDAS_COND=(Array.isArray(data.vendas_cond)?data.vendas_cond:[]).filter(v=>v&&(v.data_venda||v.valor_venda_contrato)).map(v=>Object.assign({},v,{clientes:true,endereco:'CONDOMÍNIO '+(v.condominio||'RESERVA DOS IPÊS'),setor:'CONDOMÍNIO '+(v.condominio||'RESERVA DOS IPÊS'),_cond:true}));
@@ -5144,7 +5159,8 @@ function cfgMetaTxt(chave){ const m=CFG_META[chave]; return m&&m.em?`Última alt
 function cfgRodape(chave){ return `<div class="cfg-bar" style="margin:10px 0 0"><button class="cfg-btn" id="cfg-salvar-${chave}" onclick="cfgSalvar('${chave}')" disabled>Salvar</button><span class="cfg-auto" id="cfg-st-${chave}">${cfgMetaTxt(chave)}</span></div>`; }
 
 /* ---- 0 · Fonte dos dados: Mais Controle × Box Obras (09/11/26) ---- */
-let CFG_FONTE_ED=null, CFG_BOX_NOVO=null;
+let CFG_FONTE_ED=null, CFG_DUP_ED=null, CFG_BOX_NOVO=null;
+function cfgFonteSujo(){ const b=document.getElementById('cfg-salvar-fonte'); if(b) b.disabled=!CFG_PODE||((CFG_FONTE_ED||FONTE)===FONTE&&(CFG_DUP_ED||BOX_DUP)===BOX_DUP); }
 function boxResumo(X){ const r={pag:0,nP:0,rec:0,nR:0,dup:0,nD:0,it:{}}; const add=(k,v)=>{ r.it[k]=(r.it[k]||0)+v; };
   X.pag.forEach(p=>{ r.pag+=p.valor||0; r.nP++; if(p.dup){ r.dup+=p.valor||0; r.nD++; } const k=cls(p);
     add(k.i==='soc'?'Sócios (aportes/distribuições)':k.t==='obra'?(k.i==='obra'?'Custo de obra':k.i==='ter'?'Compra de terreno':k.i==='venda'?'Custo de venda':'Não conta'):k.t==='esc'&&k.i==='conta'?'Escritório':k.t==='pos'&&k.i==='conta'?'Pós-obra':'Não conta',p.valor||0); });
@@ -5154,31 +5170,34 @@ function cfgFonteHtml(){
   const tem=BOX_X.pag.length||BOX_X.rec.length, f=CFG_FONTE_ED||FONTE, m=CFG_META.box||(CFG_META.ccs&&BOX?CFG_META.ccs:null);
   const dt=x=>x?x.split('-').reverse().join('/'):'?';
   let st='';
-  if(tem){ const r=boxResumo(BOX_X), per=(BOX&&BOX.periodo)||[];
+  if(tem){ const r=boxResumo({pag:BOX_DUP==='tira'?BOX_X.pag.filter(p=>!p.dup):BOX_X.pag,rec:BOX_X.rec}), rD=boxResumo({pag:BOX_X.pag.filter(p=>p.dup),rec:[]}), per=(BOX&&BOX.periodo)||[];
     const ord=['Custo de obra','Compra de terreno','Custo de venda','Escritório','Pós-obra','Não conta','Sócios (aportes/distribuições)'];
-    st=`<div class="cfg-aviso ok">Box importado${BOX&&BOX.importado_em?' em '+new Date(BOX.importado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+(BOX.importado_por?' por '+esc(BOX.importado_por):''):''}: <b>${r.nP}</b> pagamentos (${fmt0(r.pag)}) e <b>${r.nR}</b> recebimentos (${fmt0(r.rec)}), de ${dt(per[0])} a ${dt(per[1])}. ${r.nD?`<b>${r.nD}</b> pagamentos (${fmt0(r.dup)}) também podem estar no Mais Controle: estão contando e aparecem com ⚠ na lista de lançamentos.`:''}</div>
+    st=`<div class="cfg-aviso ok">Box importado${BOX&&BOX.importado_em?' em '+new Date(BOX.importado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+(BOX.importado_por?' por '+esc(BOX.importado_por):''):''}: <b>${r.nP}</b> pagamentos (${fmt0(r.pag)}) e <b>${r.nR}</b> recebimentos (${fmt0(r.rec)}), de ${dt(per[0])} a ${dt(per[1])}${BOX_DUP==='tira'&&rD.nP?` (sem os ${rD.nP} que também estão no MC)`:''}.</div>
     <div class="cfg-tw" style="max-height:none"><table><thead><tr><th class="left">O que o Box acrescenta (pelas regras desta aba)</th><th>Valor</th></tr></thead><tbody>
     ${ord.filter(k=>r.it[k]).map(k=>`<tr><td>${k}</td><td class="nr">${fmt0(r.it[k])}</td></tr>`).join('')}
     <tr><td>Recebimentos de receita (vendas)</td><td class="nr">${fmt0(r.recOp)}</td></tr><tr><td>Outros recebimentos (estornos, reembolsos, Pix)</td><td class="nr">${fmt0(r.rec-r.recOp)}</td></tr></tbody></table></div>`; }
-  else st=`<div class="cfg-aviso">O arquivo do Box ainda não foi importado. Enquanto isso a análise usa só o Mais Controle.</div>`;
-  const op=Object.entries(ROT_FONTE).map(([v,t])=>`<label class="cfg-rd"><input type="radio" name="cfg-fonte" value="${v}"${v===f?' checked':''}${CFG_PODE&&tem?'':' disabled'} onchange="CFG_FONTE_ED=this.value;const b=document.getElementById('cfg-salvar-fonte');if(b)b.disabled=(this.value===FONTE)"> ${t}</label>`).join('');
+  else st=`<div class="cfg-aviso">${BOX_ERRO?esc(BOX_ERRO):'O arquivo do Box ainda não foi importado. Enquanto isso a análise usa só o Mais Controle.'}</div>`;
+  const nDup=BOX_X.pag.filter(p=>p.dup).length, vDup=BOX_X.pag.filter(p=>p.dup).reduce((a,p)=>a+(p.valor||0),0), fd=CFG_DUP_ED||BOX_DUP;
+  const dupH=tem&&nDup?`<div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap"><span style="font-size:13px;margin-right:10px"><b>${nDup}</b> pagamentos do Box (${fmt0(vDup)}) também estão no Mais Controle (aparecem com ⚠ na lista de lançamentos):</span>${[['conta','Contar'],['tira','Não contar']].map(([v,t])=>`<label class="cfg-rd"><input type="radio" name="cfg-dup" value="${v}"${v===fd?' checked':''}${CFG_PODE?'':' disabled'} onchange="CFG_DUP_ED=this.value;cfgFonteSujo()"> ${t}</label>`).join('')}</div>`:'';
+  const op=Object.entries(ROT_FONTE).map(([v,t])=>`<label class="cfg-rd"><input type="radio" name="cfg-fonte" value="${v}"${v===f?' checked':''}${CFG_PODE&&tem?'':' disabled'} onchange="CFG_FONTE_ED=this.value;cfgFonteSujo()"> ${t}</label>`).join('');
   return `<div class="cfg-sec" id="cfg-sec-fonte"><h3>0 · Fonte dos dados: Mais Controle e Box Obras</h3>
-    <p class="desc">Em 2026 parte das vendas e dos custos ainda foi lançada no <b>Box Obras</b>, o ERP antigo. Escolha o que a análise usa; vale para todas as telas e todos os logins. Os lançamentos do Box passam pelas mesmas regras de centro de custo e categoria desta aba (as categorias do Box foram convertidas para o Manual do Plano de Contas).</p>
-    ${st}
-    <div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap">${op}<button class="cfg-btn" id="cfg-salvar-fonte" onclick="cfgSalvarFonte()" disabled>Salvar</button><span class="cfg-auto" id="cfg-st-fonte">✓ Em uso: <b>${ROT_FONTE[fonteEfetiva()]}</b>${tem?' — já está valendo para todos. O Salvar só acende quando você marca outra opção.':''}${CFG_META.fonte&&CFG_META.fonte.em?' · alterado por '+esc(CFG_META.fonte.por||'?'):''}</span></div>
-    ${CFG_PODE?`<div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap"><label class="cfg-btn" style="cursor:pointer">${tem?'Trocar':'Importar'} arquivo do Box (.json)<input type="file" accept=".json,application/json" style="display:none" onchange="cfgBoxArquivo(this)"></label><span class="cfg-auto" id="cfg-st-box">Arquivo box_2026.json, gerado do backup do Box.</span></div>`:''}
+    <p class="desc">Até 2026 parte das vendas e dos custos foi lançada no <b>Box Obras</b>, o ERP antigo (o arquivo traz de mar/2024 em diante, mesmo início do Fluxo de Caixa). Escolha o que a análise usa; vale para todas as telas e todos os logins. Os lançamentos do Box passam pelas mesmas regras de centro de custo e categoria desta aba (as categorias do Box foram convertidas para o Manual do Plano de Contas).</p>
+    ${st}${dupH}
+    <div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap">${op}<button class="cfg-btn" id="cfg-salvar-fonte" onclick="cfgSalvarFonte()" disabled>Salvar</button><span class="cfg-auto" id="cfg-st-fonte">✓ Em uso: <b>${ROT_FONTE[fonteEfetiva()]}</b>${tem&&nDup?(BOX_DUP==='tira'?' · sem os duplicados':' · contando os duplicados'):''}${tem?' — já está valendo para todos. O Salvar só acende quando você muda alguma opção.':''}${CFG_META.fonte&&CFG_META.fonte.em?' · alterado por '+esc(CFG_META.fonte.por||'?'):''}</span></div>
+    ${CFG_PODE?`<div class="cfg-bar" style="margin:10px 0 0;flex-wrap:wrap"><label class="cfg-btn" style="cursor:pointer">${tem?'Trocar':'Importar'} arquivo do Box (.json)<input type="file" accept=".json,application/json" style="display:none" onchange="cfgBoxArquivo(this)"></label><span class="cfg-auto" id="cfg-st-box">Arquivo box_obras.json, gerado do backup do Box.</span></div>`:''}
   </div>`; }
-async function cfgSalvarFonte(){ const b=document.getElementById('cfg-salvar-fonte'), st=document.getElementById('cfg-st-fonte'); const v=CFG_FONTE_ED; if(!v||!CFG_PODE) return;
+async function cfgSalvarFonte(){ const b=document.getElementById('cfg-salvar-fonte'), st=document.getElementById('cfg-st-fonte'); const v=CFG_FONTE_ED||FONTE, dp=CFG_DUP_ED||BOX_DUP; if(!CFG_PODE) return;
   b.disabled=true; st.textContent='Salvando…';
-  try{ const r=await cfgGravarExtra('fonte',{v}); FONTE=v; CFG_FONTE_ED=null; aplicarFonte(); aplicarConfig(); buildDash(); renderConfig();
+  try{ const r=await cfgGravarExtra('fonte',{v,dup:dp}); FONTE=v; BOX_DUP=dp; CFG_FONTE_ED=null; CFG_DUP_ED=null; aplicarFonte(); aplicarConfig(); buildDash(); renderConfig();
     const s2=document.getElementById('cfg-st-fonte'); if(s2) s2.textContent='Salvo por '+r.por+'. Agora: '+ROT_FONTE[fonteEfetiva()]+' — todas as telas já usam.'; }
   catch(e){ b.disabled=false; st.textContent='Não salvou: '+e.message; } }
 function cfgBoxArquivo(inp){ const st=document.getElementById('cfg-st-box'), f=inp.files&&inp.files[0]; if(!f) return;
   const rd=new FileReader(); rd.onload=async()=>{ let j=null; try{ j=JSON.parse(rd.result); }catch(e){ st.textContent='Arquivo inválido (não é JSON).'; return; }
     if(!j||!j.pag||!Array.isArray(j.pag.rows)||!j.pag.dic||!j.rec){ st.textContent='Este arquivo não é o do Box (falta pag/rec).'; return; }
-    const X=boxExpandir(j); st.textContent=`Gravando ${X.pag.length} pagamentos e ${X.rec.length} recebimentos…`;
-    try{ j.importado_em=new Date().toISOString(); j.importado_por=(S_AD&&(S_AD.nome||S_AD.login))||''; j.arquivo=f.name;
-      await cfgGravarExtra('box',j); boxCarregar(); aplicarFonte(); aplicarConfig(); buildDash(); renderConfig();
+    const X=boxExpandir(j); st.textContent=`Compactando e gravando ${X.pag.length} pagamentos e ${X.rec.length} recebimentos… (pode levar 1 minuto)`;
+    try{ const salvo={versao:2,origem:j.origem||'Box Obras',gerado:j.gerado||'',periodo:j.periodo||[],importado_em:new Date().toISOString(),importado_por:(S_AD&&(S_AD.nome||S_AD.login))||'',arquivo:f.name,
+        gz:await boxComprimir({pag:j.pag,rec:j.rec})};
+      await cfgGravarExtra('box',salvo); await boxCarregar(); aplicarFonte(); aplicarConfig(); buildDash(); renderConfig();
       const s2=document.getElementById('cfg-st-box'); if(s2) s2.textContent='Box importado. A análise já usa: '+ROT_FONTE[fonteEfetiva()]+'.'; }
     catch(e){ st.textContent='Não gravou: '+e.message; } };
   rd.readAsText(f,'utf-8'); }
