@@ -72,10 +72,13 @@
    * gerar o contrato no meio de 118 campos. Só decide ONDE cada campo aparece; nada muda no Notion nem no salvar.
    *   Resumo · Documentos (dossiê + arquivos) · Compradores · Contrato (dados + gerar + Clicksign + Mais Controle)
    *   · Recebimentos · Andamento (checklist do processo, por departamento) */
+  /* 09/11/2026 (dono): aba LINKS — layout, fotos e localização saíram do fim do Andamento ("cadastro da casa") */
   var ABAS = [["resumo", "Resumo"], ["documentos", "Documentos"], ["compradores", "Compradores"],
-              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["andamento", "Andamento"]];
+              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["andamento", "Andamento"], ["links", "Links"]];
+  var RE_LINKS = /^(LAYOUT|FOTOS?|LOCALIZACAO)\b/;
   function abaDoCampo(nome) {
     var n = norm(nome), g = GRUPO[n] || "";
+    if (RE_LINKS.test(n)) return "links";
     if (/^COMPRADOR [12] - /.test(n)) return "compradores";
     if (g.indexOf("Contrato") === 0 || /^CONTRATO - /.test(n)) return "contrato";
     if (/^DOSSIE/.test(n)) return "documentos";
@@ -147,7 +150,34 @@
     return !!a && a !== e;
   }
 
-  var api = { OCULTOS: OCULTOS, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
+  /* 09/11/2026 (dono): "Resumo do processo" no topo da aba Resumo — VENDIDA · SITUAÇÃO DO PROCESSO · TRANSFERÊNCIA
+   * DAS LIGAÇÕES · RECEBEU · GEROU GCAP · PAGOU GCAP · DATA DO GCAP · ENTREGUE. Cada item acha a coluna pelo nome
+   * exato e, sem ela, pelo padrão (grafia do Notion varia: ENTEGOU/ENTREGOU…). VENDIDA não é coluna: o vendas.html
+   * calcula (contrato assinado / tem cliente). Coluna inexistente = item some. */
+  var PROCESSO = [
+    { chave: "vendida", rotulo: "Vendida", calculado: true },
+    { chave: "situacao", rotulo: "Situação do processo", exatos: ["SITUAÇÃO DO PROCESSO"], padrao: /^SITUACAO DO PROCESSO/ },
+    { chave: "ligacoes", rotulo: "Transferência das ligações", exatos: ["TITULARIDADES TRANSFERIDAS?"], padrao: /^TITULARIDADES? TRANSFERID/ },
+    { chave: "recebeu", rotulo: "Recebeu", exatos: ["RECEBEU?"], padrao: /^RECEBEU\??$/ },
+    { chave: "gerou_gcap", rotulo: "Gerou GCAP", exatos: ["GEROU E ARMAZENOU GCAP?"], padrao: /^GEROU.*GCAP/ },
+    { chave: "pagou_gcap", rotulo: "Pagou GCAP", exatos: ["PAGOU GCAP?"], padrao: /^PAGOU GCAP/ },
+    { chave: "data_gcap", rotulo: "Data do GCAP", exatos: ["DATA DO GCAP", "DATA GCAP"], padrao: /DATA.*GCAP|GCAP.*DATA/ },
+    { chave: "entregue", rotulo: "Entregue", exatos: ["ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?", "ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?"],
+      padrao: /^ENTR?EGOU A CASA/ }
+  ];
+  /* nomes = colunas do schema -> [{chave, rotulo, coluna|null, calculado}] (item de coluna inexistente sai) */
+  function resolverProcesso(nomes) {
+    var lista = (nomes || []).map(function (x) { return { nome: x, n: norm(x) }; });
+    return PROCESSO.map(function (it) {
+      if (it.calculado) return { chave: it.chave, rotulo: it.rotulo, coluna: null, calculado: true };
+      var col = null;
+      (it.exatos || []).some(function (e) { var ne = norm(e); var a = lista.find(function (x) { return x.n === ne; }); if (a) col = a.nome; return !!a; });
+      if (!col && it.padrao) { var b = lista.find(function (x) { return it.padrao.test(x.n); }); if (b) col = b.nome; }
+      return col ? { chave: it.chave, rotulo: it.rotulo, coluna: col, calculado: false } : null;
+    }).filter(Boolean);
+  }
+
+  var api = { OCULTOS: OCULTOS, PROCESSO: PROCESSO, resolverProcesso: resolverProcesso, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
               emailAntigoVisivel: emailAntigoVisivel, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
               ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento,

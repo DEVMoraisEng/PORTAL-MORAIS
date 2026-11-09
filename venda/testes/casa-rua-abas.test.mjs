@@ -11,7 +11,7 @@ const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..")
 const vendas = fs.readFileSync(path.join(RAIZ, "vendas.html"), "utf8");
 
 test("abas na ordem combinada", () => {
-  assert.deepEqual(P.ABAS.map(a => a[0]), ["resumo", "documentos", "compradores", "contrato", "recebimentos", "andamento"]);
+  assert.deepEqual(P.ABAS.map(a => a[0]), ["resumo", "documentos", "compradores", "contrato", "recebimentos", "andamento", "links"]);
 });
 
 test("cada campo vai para a aba certa", () => {
@@ -36,14 +36,14 @@ test("Andamento por departamento, coluna nova cai em CADASTRO DA CASA", () => {
   assert.equal(P.departamento("DATA DA CONFERÊNCIA (TRANSFERÊNCIA)"), "ÁGUA E ENERGIA");
   assert.equal(P.departamento("ARMAZENOU CONTRATO COMPRA E VENDA?"), "CONTRATO");
   assert.equal(P.departamento("LAYOUT"), "CADASTRO DA CASA");
-  const g = P.porDepartamento(["LAYOUT", "ITBI PAGO", "AGUA TRANSFERIDA", "ITBI GERADO"]);
+  const g = P.porDepartamento(["REF", "ITBI PAGO", "AGUA TRANSFERIDA", "ITBI GERADO"]);
   assert.deepEqual(g.map(x => x.titulo), ["CARTÓRIO E IMPOSTOS", "ÁGUA E ENERGIA", "CADASTRO DA CASA"]);
   assert.deepEqual(g[0].campos, ["ITBI PAGO", "ITBI GERADO"], "mantém a ordem recebida");
 });
 
 test("vendas.html: barra de abas no painel e cada parte com data-sec", () => {
   assert.match(vendas, /<div class="pn-abas cd-abas" id="pn-abas"><\/div>/);
-  assert.match(vendas, /\["resumo","documentos","compradores","contrato","andamento"\]\.map\(k=>`<div data-sec="\$\{k\}">\$\{sec\[k\]\}<\/div>`\)/);
+  assert.match(vendas, /\["resumo","documentos","compradores","contrato","andamento","links"\]\.map\(k=>`<div data-sec="\$\{k\}">\$\{sec\[k\]\}<\/div>`\)/);
   assert.match(vendas, /#painel\[data-aba="contrato"\] #contrato-wrap/);
   assert.match(vendas, /#painel\[data-aba="recebimentos"\] #contrato-wrap>:not\(\.vb-rec\)\{display:none\}/);
   const r = vendas.slice(vendas.indexOf("function renderPainel("), vendas.indexOf("/* ---------- COMENTÁRIOS (item 3)"));
@@ -194,4 +194,26 @@ test("espelho no navegador: caixas marcadas e o valor novo vai para a outra aba"
   assert.match(h, /Nome <span[^>]*>\(o mesmo do Resumo\)/);
   ctx.pnEspelhar("Email", "novo@b.co", el);
   assert.deepEqual(caixas.map(c => c.i.value), ["velho", "novo@b.co", "velho"], "só a outra caixa da mesma coluna muda");
+});
+
+/* 09/11/2026 — aba Links e Resumo do processo */
+test("layout, fotos e localização vão para a aba Links", () => {
+  assert.equal(P.abaDoCampo("LAYOUT"), "links");
+  assert.equal(P.abaDoCampo("FOTOS"), "links");
+  assert.equal(P.abaDoCampo("LOCALIZAÇÃO"), "links");
+  assert.equal(P.abaDoCampo("FOTOS DA VISTORIA"), "links", "começa com FOTOS");
+  assert.equal(P.abaDoCampo("ITBI PAGO"), "andamento");
+  assert.match(vendas, /#painel\[data-aba="links"\] #pn-body>\[data-sec="links"\]/);
+});
+test("resumo do processo acha as colunas pelo nome e pelo padrão", () => {
+  const r = P.resolverProcesso(["SITUAÇÃO DO PROCESSO", "TITULARIDADES TRANSFERIDAS?", "RECEBEU?", "RECEBEU TAXA VISTORIA?",
+    "GEROU E ARMAZENOU GCAP?", "PAGOU GCAP?", "DATA PAGAMENTO GCAP", "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?"]);
+  const m = Object.fromEntries(r.map(x => [x.chave, x.coluna]));
+  assert.deepEqual(r.map(x => x.chave), ["vendida", "situacao", "ligacoes", "recebeu", "gerou_gcap", "pagou_gcap", "data_gcap", "entregue"]);
+  assert.equal(m.recebeu, "RECEBEU?", "não pega RECEBEU TAXA VISTORIA?");
+  assert.equal(m.data_gcap, "DATA PAGAMENTO GCAP");
+  assert.equal(m.entregue, "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?");
+  assert.equal(r[0].calculado, true);
+  const sem = P.resolverProcesso(["RECEBEU?"]);
+  assert.deepEqual(sem.map(x => x.chave), ["vendida", "recebeu"], "coluna que não existe some");
 });
