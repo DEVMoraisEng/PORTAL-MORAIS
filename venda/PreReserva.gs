@@ -114,6 +114,23 @@ function prSinal_(pg) {
   } catch (e) { return 0; }
 }
 
+/* 09/11/2026 (dono): termo da pré-reserva cancelado → apaga a DATA PAGAMENTO (o valor fica) e grava no histórico
+   "… termo cancelado; pagamento dd/mm/aaaa → —". Sem data: nada a fazer. Falha aqui nunca desfaz o cancelamento. */
+function prApagarPagamentoAoCancelar_(pageId, sess) {
+  try {
+    var pg = ctrLerPaginaVenda_(pageId), C = PreReservaVenda.COL, antes = prPagamento_(pg);
+    if (!antes.data) return false;
+    var linha = PreReservaVenda.linhaHistorico(antes, { valor: antes.valor, data: "" }, ctrTxt_(sess && sess.u), hoje_("dd/MM/yyyy HH:mm"));
+    var props = {};
+    props[prCol_(pg, C.DATA_PAGAMENTO)] = propNotion_("date", null);
+    props[prCol_(pg, C.HISTORICO)] = propNotion_("rich_text",
+      PreReservaVenda.juntarHistorico(prTexto_(pg, C.HISTORICO), linha.replace(/: /, ": termo cancelado; ")));
+    notion_("PATCH", "/pages/" + pageId, { properties: props });
+    ctrLog_("pre-reserva cancelada " + String(pageId).slice(0, 8) + ": data do pagamento apagada");
+    return true;
+  } catch (e) { ctrErro_("pre-reserva cancelada " + String(pageId).slice(0, 8) + " apagar pagamento", e); return false; }
+}
+
 /* 31/10: valor e data do pagamento da venda; mudar grava uma linha no histórico com o usuário do portal.
    06/11: p.limite = DATA LIMITE (ausente = chamada antiga, não mexe nela). */
 function salvarPagamentoPreReserva_(col, sess, p) {
