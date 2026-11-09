@@ -211,6 +211,54 @@ def api(method, path, body=None, tentativas=4):
             raise SystemExit(f"Falha de rede em {path}: {e}")
 
 
+TIPOS_CASA_TITULO = "TIPOS DE CASA (MAPA DE VENDAS)"
+
+
+def ler_tipos_casa():
+    """Linhas da base TIPOS DE CASA: [{setor, tipo, layout, fotos, casaModeloId}].
+    Id pela variável TIPOS_CASA_DB_ID ou, sem ela, pela busca do Notion
+    (a base é criada pelo Apps Script com este título exato)."""
+    try:
+        db_id = os.environ.get("TIPOS_CASA_DB_ID", "").strip()
+        if not db_id:
+            r = api("POST", "/search", {"query": TIPOS_CASA_TITULO,
+                                        "filter": {"property": "object", "value": "database"}})
+            for d in r.get("results", []):
+                if d.get("archived") or d.get("in_trash"):
+                    continue
+                t = "".join(x.get("plain_text", "") for x in d.get("title", []))
+                if t.strip().upper() == TIPOS_CASA_TITULO:
+                    db_id = d["id"]
+                    break
+        if not db_id:
+            print("  TIPOS DE CASA: base ainda não existe (nada cadastrado).", flush=True)
+            return []
+        saida, vistos = [], set()
+        for pg in ler_banco(db_id, "TIPOS DE CASA"):
+            if pg.get("archived") or pg.get("in_trash"):
+                continue
+            p = pg.get("properties") or {}
+            setor = (valor(p["SETOR"]) if "SETOR" in p else "") or ""
+            tipo = (valor(p["TIPO"]) if "TIPO" in p else "") or ""
+            setor, tipo = str(setor).strip().upper(), str(tipo).strip()
+            if not setor or not tipo or (setor, tipo) in vistos:
+                continue   # duplicada: vale a primeira
+            vistos.add((setor, tipo))
+            rel = ((p.get("CASA MODELO") or {}).get("relation") or [])
+            saida.append({
+                "setor": setor,
+                "tipo": tipo,
+                "layout": ((p.get("LAYOUT") or {}).get("url")) or "",
+                "fotos": ((p.get("FOTOS") or {}).get("url")) or "",
+                "casaModeloId": rel[0]["id"] if rel else "",
+            })
+        print(f"  TIPOS DE CASA: {len(saida)} tipo(s) cadastrado(s).", flush=True)
+        return saida
+    except (SystemExit, Exception) as e:   # api() sai com SystemExit em erro do Notion
+        print(f"  ! TIPOS DE CASA não lida ({e}); mapa segue sem o cadastro.", flush=True)
+        return []
+
+
 def ler_banco(db_id, rotulo):
     """Pagina o banco inteiro (100 por vez)."""
     paginas, cursor, volta = [], None, 0
@@ -739,8 +787,14 @@ def main():
             # CONTRATO - GERADO EM). dataReserva vai como reservaAte - 24 h para o mapa (24 h fixas) contar até lá.
             "reservaAte": reserva_ate,
         })
+    # TIPOS DE CASA (09/11/2026): tipo SEM casa modelo própria no setor tem
+    # layout, fotos e a casa modelo de visita cadastrados na base TIPOS DE CASA
+    # (o portal grava pelo Apps Script, ação tipoCasaSalvar). O mapa usa isto
+    # quando o tipo não tem MODELO? = SIM próprio. Falha aqui NUNCA derruba o
+    # build: sem a base, o mapa só segue a regra antiga.
+    tipos_casa = ler_tipos_casa()
     gravar("mapa_vendas.json", {
-        "ok": True, "total": len(mv), "rows": mv, "updated_at": agora,
+        "ok": True, "total": len(mv), "rows": mv, "tipos": tipos_casa, "updated_at": agora,
     })
     print("  mapa_vendas.json: " + str(len(mv)) + " linhas ("
           + str(sum(1 for x in mv if x["reservada"] and

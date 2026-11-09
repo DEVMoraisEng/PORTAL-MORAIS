@@ -273,6 +273,16 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cola.falta{background:#fdf1e7;color:#b26a2b}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
+/* 09/11/26 — tipos sem casa modelo própria (aba Casas Modelo) */
+.tc-cab{margin:26px 0 10px}
+.tc-tit{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.6px;text-transform:uppercase;color:var(--text)}
+.tc-sub{color:var(--text3);font-size:12.5px;margin-top:3px;max-width:820px;white-space:normal}
+.tc-wrap{border-radius:10px}
+.tc-wrap select{padding:4px 7px;font-size:12.5px;max-width:360px}
+.tc-wrap input{width:100%;min-width:260px;padding:4px 7px;font-size:12.5px}
+.tc-add{border:1px dashed var(--border2);background:none;color:var(--text3);border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer}
+.tc-add:hover{color:var(--text);border-color:var(--text3)}
+.tc-casas{white-space:normal;max-width:340px;color:var(--text2,var(--text));font-size:12px}
 .lapis:hover{color:var(--text)}
 #distoverlay .modal{background:var(--sup);border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25);max-height:92vh;overflow:auto}
 #distoverlay h3{margin:0 0 6px;font-size:16px;color:var(--text)}
@@ -1169,6 +1179,16 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <span class="count" id="mod-count"></span>
         </div>
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
+
+        <!-- 09/11/26 — TIPOS SEM CASA MODELO PRÓPRIA: tipo que tem casa modelo
+             no setor usa a dela (não aparece aqui). Tipo sem casa modelo
+             escolhe o decorado de visita e tem layout/fotos próprios, gravados
+             na base TIPOS DE CASA. -->
+        <div class="tc-cab">
+          <div class="tc-tit">Tipos sem casa modelo própria</div>
+          <div class="tc-sub">Tipo com casa modelo no setor usa a dela. Aqui ficam só os tipos sem casa modelo: escolha qual casa modelo o cliente visita e coloque o layout e as fotos do tipo.</div>
+        </div>
+        <div class="tabela-wrap tc-wrap" id="tc-wrap"><div class="vazio">Carregando…</div></div>
       </div>
 
       <!-- 22/10/26 — CASAS LIBERADAS SEM TIPO: já saíram do "em breve" no mapa
@@ -2579,6 +2599,7 @@ async function abrirCasasModelo(){
   // escolhido na Planilha, e aí sumiriam casas modelo de outros setores.
   if(!DADOS.hub.length && !DADOS.set.length){ await carregarPlanilha("set"); }
   renderCasasModelo();
+  carregarTiposCasa();   // não espera: a tabela de cima já aparece
 }
 /* preenche um <select> com os valores que existem de fato, preservando a escolha atual */
 function popularSelect(id, valores, rotulo){
@@ -2632,6 +2653,9 @@ function renderCasasModelo(){
       const val=getV(v.valores,c.nome);
       // LAYOUT e FOTOS aqui são links do Drive: URL crua ocupa a linha toda e
       // não dá pra ler. Vira botão + lápis pra trocar o link sem sair da tabela.
+      // 09/11/26: link vazio mostrava célula em branco (clicável, mas ninguém sabia)
+      if((val==null||val==="") && c.tipo==="url" && editavelNaCelula(c))
+        return `<td class="edt" data-col="${esc(c.nome)}"><button type="button" class="tc-add" title="Adicionar link">＋ link</button></td>`;
       if(typeof val==="string" && /^https?:\/\//i.test(val))
         return `<td class="${editavelNaCelula(c)?"edt":""}" data-col="${esc(c.nome)}">`+
                `<a class="bt ghost bt-mini" href="${esc(val)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
@@ -2646,6 +2670,139 @@ function renderCasasModelo(){
   DADOS.mod=lista;
   ligarTabela("mod");
   ordenarDom("mod");   // reaplica a ordem por clique (a tabela foi reconstruída)
+  renderTiposSemModelo();
+}
+
+/* ---------- TIPOS SEM CASA MODELO PRÓPRIA (09/11/26) ----------
+   Regra (Morais): se o tipo tem casa modelo no setor, todas as casas dele usam
+   essa casa modelo — nada a editar aqui. Só o tipo SEM casa modelo própria é
+   editável: escolhe a casa modelo de visita (de outro tipo, mesmo setor) e
+   tem LAYOUT e FOTOS próprios. Grava na base TIPOS DE CASA pelo Apps Script
+   (tipoCasaSalvar); o mapa de vendas lê do dist/mapa_vendas.json ("tipos").
+   Setor/tipo/modelo vêm do mapa_vendas.json porque lá o SETOR já vem deduzido
+   do REF — em VENDAS a coluna SETOR fica vazia na maioria das linhas. */
+const TC={ rows:null, tipos:null };
+function tcNorm(x){ return String(x==null?"":x).trim().toUpperCase(); }
+function tcTipo(x){ return String(x==null?"":x).trim(); }
+function tcChave(setor,tipo){ return tcNorm(setor)+"|"+tcTipo(tipo); }
+function tcEhModelo(r){ return tcNorm(r.modelo)==="SIM"; }
+function tcRotulo(r){ return (r.endereco||"(sem endereço)")+(r.casa?" — C"+r.casa:""); }
+async function carregarTiposCasa(){
+  const [mv, vivo]=await Promise.all([
+    lerEstatico("mapa_vendas.json","mapa_vendas"),
+    ler({action:"tiposCasa"},"tipos_casa")
+  ]);
+  TC.rows = (mv && mv.rows) || TC.rows || [];
+  // o que vem do Apps Script é o mais novo (o dist/ só republica depois)
+  TC.tipos = (vivo && vivo.ok && vivo.tipos) ? vivo.tipos : ((mv && mv.tipos) || TC.tipos || []);
+  renderTiposSemModelo();
+}
+function tcCadastro(setor,tipo){
+  const k=tcChave(setor,tipo);
+  return (TC.tipos||[]).find(t=>tcChave(t.setor,t.tipo)===k) || null;
+}
+function renderTiposSemModelo(){
+  const wrap=document.getElementById("tc-wrap"); if(!wrap) return;
+  if(!TC.rows){ wrap.innerHTML='<div class="vazio">Carregando…</div>'; return; }
+  const podeEditar=editavelNaCelula(campoExatoOuFrag("LAYOUT"));
+  const fSetor=tcNorm(document.getElementById("mod-setor").value);
+  const fTipo=tcTipo(document.getElementById("mod-tipo").value);
+  // agrupa por setor + tipo
+  const grupos=new Map();
+  TC.rows.forEach(r=>{
+    const setor=tcNorm(r.setor), tipo=tcTipo(r.tipo);
+    if(!setor || !tipo) return;
+    const k=setor+"|"+tipo;
+    if(!grupos.has(k)) grupos.set(k,{setor,tipo,casas:[],temModelo:false});
+    const g=grupos.get(k);
+    g.casas.push(r);
+    if(tcEhModelo(r)) g.temModelo=true;
+  });
+  const lista=[...grupos.values()].filter(g=>{
+    if(g.temModelo) return false;                                   // usa a casa modelo própria
+    if(fSetor && g.setor!==fSetor) return false;
+    if(fTipo && g.tipo!==fTipo) return false;
+    // tipo esgotado (todas vendidas) só aparece se já tiver algo cadastrado
+    return g.casas.some(r=>!r.vendida) || !!tcCadastro(g.setor,g.tipo);
+  }).sort((a,b)=>a.setor.localeCompare(b.setor,"pt-BR")||a.tipo.localeCompare(b.tipo,"pt-BR",{numeric:true}));
+  if(!lista.length){
+    wrap.innerHTML='<div class="vazio">Todos os tipos'+(fSetor||fTipo?" deste filtro":"")+' têm casa modelo própria. 🎉</div>';
+    return;
+  }
+  const opcoesModelo=setor=>TC.rows.filter(r=>tcEhModelo(r)&&tcNorm(r.setor)===setor)
+    .sort((a,b)=>tcRotulo(a).localeCompare(tcRotulo(b),"pt-BR",{numeric:true}));
+  const celLink=(g,campo,url)=>{
+    const dados=`data-setor="${esc(g.setor)}" data-tipo="${esc(g.tipo)}" data-campo="${campo}"`;
+    if(url) return `<td ${dados}><a class="bt ghost bt-mini" href="${esc(url)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
+                   (podeEditar?` <button type="button" class="lapis tc-edit" title="Trocar link">✎</button>`:"")+`</td>`;
+    return `<td ${dados}>`+(podeEditar?`<button type="button" class="tc-add tc-edit">＋ link</button>`:"—")+`</td>`;
+  };
+  let html='<table><thead><tr><th>Setor</th><th>Tipo</th><th>Casas do tipo</th><th>Casa modelo (visita)</th><th>Layout</th><th>Fotos</th></tr></thead><tbody>';
+  lista.forEach(g=>{
+    const cad=tcCadastro(g.setor,g.tipo)||{};
+    const mods=opcoesModelo(g.setor);
+    const idSel=String(cad.casaModeloId||"").replace(/-/g,"");
+    const casas=g.casas.slice().sort((a,b)=>tcRotulo(a).localeCompare(tcRotulo(b),"pt-BR",{numeric:true}));
+    const casasTxt=casas.map(r=>tcRotulo(r)+(r.vendida?" (vendida)":"")).join(" · ");
+    let celModelo;
+    if(podeEditar){
+      celModelo=`<td><select class="tc-modelo" data-setor="${esc(g.setor)}" data-tipo="${esc(g.tipo)}">`+
+        `<option value="">— escolher —</option>`+
+        mods.map(r=>{ const id=String(r.id||"").replace(/-/g,"");
+          return `<option value="${esc(r.id)}"${id&&id===idSel?" selected":""}>${esc(tcRotulo(r))} · tipo ${esc(tcTipo(r.tipo)||"?")}</option>`; }).join("")+
+        `</select>${mods.length?"":' <span class="count">sem casa modelo no setor</span>'}</td>`;
+    }else{
+      const m=mods.find(r=>String(r.id||"").replace(/-/g,"")===idSel);
+      celModelo=`<td>${m?esc(tcRotulo(m)):"—"}</td>`;
+    }
+    html+=`<tr><td>${esc(g.setor)}</td><td>${esc(g.tipo)}</td>`+
+          `<td class="tc-casas" title="${esc(casasTxt)}">${casas.length} casa(s): ${esc(casasTxt)}</td>`+
+          celModelo+celLink(g,"LAYOUT",cad.layout)+celLink(g,"FOTOS",cad.fotos)+`</tr>`;
+  });
+  wrap.innerHTML=html+'</tbody></table>';
+  wrap.querySelectorAll(".tc-modelo").forEach(sel=>{
+    sel.onchange=()=>salvarTipoCasa(sel.dataset.setor, sel.dataset.tipo, "CASA MODELO", sel.value, sel);
+  });
+  wrap.onclick=ev=>{
+    const bt=ev.target.closest(".tc-edit"); if(!bt) return;
+    const td=bt.closest("td"); if(!td || td.querySelector("input")) return;
+    const cad=tcCadastro(td.dataset.setor, td.dataset.tipo)||{};
+    const atual=(td.dataset.campo==="LAYOUT"?cad.layout:cad.fotos)||"";
+    const antigo=td.innerHTML;
+    const el=document.createElement("input");
+    el.type="url"; el.value=atual; el.placeholder="Cole o link do Drive…";
+    td.innerHTML=""; td.appendChild(el); el.focus();
+    let fim=false;
+    const encerrar=salvar=>{
+      if(fim) return; fim=true;
+      const novo=el.value.trim();
+      if(!salvar || novo===atual){ td.innerHTML=antigo; return; }
+      if(novo && !/^https?:\/\//i.test(novo)){ td.innerHTML=antigo; toast("O link tem que começar com http:// ou https://"); return; }
+      td.innerHTML='<span class="load"></span>';
+      salvarTipoCasa(td.dataset.setor, td.dataset.tipo, td.dataset.campo, novo, null);
+    };
+    el.addEventListener("blur",()=>encerrar(true));
+    el.addEventListener("keydown",e=>{ if(e.key==="Escape") encerrar(false); if(e.key==="Enter") encerrar(true); });
+  };
+}
+async function salvarTipoCasa(setor, tipo, campo, valor, el){
+  if(el) el.disabled=true;
+  const r=await escrever({action:"tipoCasaSalvar", setor:setor, tipo:tipo, campo:campo, valor:valor}, "Tipo "+tipo+" — "+campo);
+  if(el) el.disabled=false;
+  if(r.ok){
+    // atualiza a cópia local na hora (o dist/ só republica depois)
+    let cad=tcCadastro(setor,tipo);
+    if(!cad){ cad={setor:tcNorm(setor), tipo:tcTipo(tipo), layout:"", fotos:"", casaModeloId:""}; (TC.tipos=TC.tipos||[]).push(cad); }
+    const volta=r.resposta && r.resposta.tipo;
+    if(volta){ Object.assign(cad, volta); }
+    else if(campo==="LAYOUT") cad.layout=valor;
+    else if(campo==="FOTOS") cad.fotos=valor;
+    else cad.casaModeloId=valor;
+    toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
+  }else{
+    toast("Erro: "+erroTexto(r.erro));
+  }
+  renderTiposSemModelo();
 }
 
 /* ---------- CASAS LIBERADAS SEM TIPO (22/10/26) ----------
