@@ -37,7 +37,7 @@
   /* "já tem boleto (REGISTERED)" -> "boleto registrado" */
   function motivoEmPortugues(motivo) {
     const m = /^já tem boleto \((.+)\)$/.exec(String(motivo || ""));
-    if (!m) return String(motivo || "");
+    if (!m) return String(motivo || "").replace(/\b(\d{4})-(\d{2})-(\d{2})\b/g, "$3/$2/$1");
     return "boleto " + m[1].split(",").map(s => STATUS[s] || s).join(", ");
   }
   function mesBr(mes) {
@@ -62,7 +62,7 @@
   function tabelaGrupo(g, itens, op) {
     if (!itens.length) return '<p class="muted vazio">Nenhuma parcela.</p>';
     const linhas = itens.map(i => "<tr><td>" + esc(i.unidade) + "</td><td>" + esc(i.comprador) + "</td><td>" + esc(TIPOS[i.tipo] || i.tipo) +
-      "</td><td>" + esc(dataBr(i.data)) + '</td><td class="n">' + brl(i.valor) + "</td><td>" + esc(motivoEmPortugues(i.motivo)) +
+      "</td><td>" + esc(dataBr(i.data)) + '</td><td class="n">' + brl(i.valor) + '</td><td class="mot">' + esc(motivoEmPortugues(i.motivo)) +
       (i.fora_do_relatorio ? ' <span class="muted">(fora da lista deste mês)</span>' : "") + "</td><td>" + botao(i, g.chave, op) + "</td></tr>").join("");
     return '<div class="rola"><table><thead><tr><th>Unid.</th><th>Comprador</th><th>Tipo</th><th>Vence</th><th class="n">Valor</th><th>Motivo</th><th></th></tr></thead><tbody>' + linhas + "</tbody></table></div>";
   }
@@ -82,7 +82,9 @@
     if (d.trava_seguradas) avisos.push(d.trava_seguradas);
     const blocos = GRUPOS.map(x => {
       const itens = g[x.chave] || [];
-      return "<details" + (x.aberto && itens.length ? " open" : "") + '><summary><span class="pill ' + x.cor + '">' + esc(x.nome) + " " + itens.length + "</span></summary>" + tabelaGrupo(x, itens, op) + "</details>";
+      const escolha = (op.grupos || {})[x.chave];   // o que a pessoa abriu ou fechou vale mais que o padrão
+      const aberto = escolha === undefined ? !!(x.aberto && itens.length) : escolha;
+      return "<details" + (aberto ? " open" : "") + ' data-grupo="' + x.chave + '"><summary><span class="pill ' + x.cor + '">' + esc(x.nome) + " " + itens.length + "</span></summary>" + tabelaGrupo(x, itens, op) + "</details>";
     }).join("");
     return '<section class="quadro"><h2>Boletos' + (r ? " de " + esc(mesBr(r.mes)) : "") + "</h2><div>" + topo + "</div>" +
       avisos.map(a => '<div class="aviso">' + esc(a) + "</div>").join("") + blocos + "</section>";

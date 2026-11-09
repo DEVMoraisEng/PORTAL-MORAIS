@@ -50,6 +50,25 @@ test("boletos: trava, seguradas ilegíveis, prévia e robô que nunca rodou", ()
   assert.match(BF.htmlBoletos({ rodada: null, grupos: vazio }, {}), /ainda não rodou/);
 });
 
+test("boletos: datas do motivo no formato brasileiro", () => {
+  const h = BF.htmlBoletos(dados({ aguardando: [item("a", { motivo: "emite a partir de 2026-11-25 (5 dias antes)" })], decidir: [item("d", { motivo: "venceu em 2026-11-03 sem boleto: não emite, só aviso" })] }), {});
+  assert.match(h, /emite a partir de 25\/11\/2026 \(5 dias antes\)/);
+  assert.match(h, /venceu em 03\/11\/2026 sem boleto/);
+  assert.doesNotMatch(h, /2026-11-/);
+});
+
+test("boletos: grupo que a pessoa abriu ou fechou continua assim ao atualizar a tela", () => {
+  const g = { pulados: [item("p")], aguardando: [item("a")] };
+  const abertoEm = h => (h.match(/<details open data-grupo="(\w+)"/g) || []).map(s => s.match(/"(\w+)"$/)[1]);
+  assert.deepEqual(abertoEm(BF.htmlBoletos(dados(g), {})), ["aguardando"]);
+  assert.deepEqual(abertoEm(BF.htmlBoletos(dados(g), { grupos: { pulados: true, aguardando: false } })), ["pulados"]);
+});
+
+test("boletos: a coluna do motivo tem classe própria, para não ser espremida no celular", () => {
+  assert.match(BF.htmlBoletos(dados({ aguardando: [item("a")] }), {}), /<td class="mot">/);
+  assert.match(readFileSync(new URL("../../boletos-financeiro.html", import.meta.url), "utf8"), /\.mot\{min-width/);
+});
+
 test("escapa nome com HTML", () => {
   const h = BF.htmlBoletos(dados({ aguardando: [item("a", { comprador: "<img src=x onerror=1>" })] }), {});
   assert.doesNotMatch(h, /<img/);

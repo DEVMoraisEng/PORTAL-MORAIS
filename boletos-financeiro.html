@@ -50,6 +50,7 @@ table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:
 th{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);text-align:left;font-weight:700}
 td,th{padding:7px 9px;border-bottom:1px solid var(--border2);vertical-align:top}
 .n{text-align:right;white-space:nowrap}
+.mot{min-width:230px}
 .nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px}
 .rotulo{display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3)}
 .nums b{font-family:'Barlow Condensed';font-weight:700;font-size:25px;font-variant-numeric:tabular-nums}
@@ -78,7 +79,7 @@ const S = exigirSessao();
 const $ = id => document.getElementById(id);
 const CACHE_LOCAL = "morais_boletos_financeiro_v1";
 let DADOS = null, PODE = false, BUSCA = "", SO_VENCIDO = false, ATUALIZANDO = false;
-const PEDIDOS = {};
+const PEDIDOS = {}, GRUPOS_ABERTOS = {};
 const ERROS = {
   APENAS_ADM: "Só ADM e MASTER podem segurar ou soltar.",
   PEDIDO_INVALIDO: "Esse pedido não é válido.",
@@ -90,7 +91,7 @@ function erroTela(html) { $("tela").innerHTML = '<div class="erro">' + html + "<
 function pintar() {
   if (!DADOS) return;
   const busca = $("busca"), foco = busca && document.activeElement === busca, pos = busca ? busca.selectionStart : 0;
-  $("tela").innerHTML = BF.htmlBoletos(DADOS, { podeSegurar: PODE, pedidos: PEDIDOS }) +
+  $("tela").innerHTML = BF.htmlBoletos(DADOS, { podeSegurar: PODE, pedidos: PEDIDOS, grupos: GRUPOS_ABERTOS }) +
     BF.htmlFinanceiro(DADOS, { busca: BUSCA, soVencido: SO_VENCIDO, atualizando: ATUALIZANDO });
   if (foco) { const b = $("busca"); b.focus(); b.setSelectionRange(pos, pos); }
 }
@@ -150,6 +151,7 @@ document.addEventListener("click", e => {
 });
 document.addEventListener("input", e => { if (e.target.id === "busca") { BUSCA = e.target.value; pintar(); } });
 document.addEventListener("change", e => { if (e.target.id === "so-vencido") { SO_VENCIDO = e.target.checked; pintar(); } });
+document.addEventListener("toggle", e => { const g = e.target.dataset && e.target.dataset.grupo; if (g) GRUPOS_ABERTOS[g] = e.target.open; }, true);
 $("bt-recarregar").addEventListener("click", carregar);
 carregar();
 setInterval(() => { if (!document.hidden) carregar(); }, 3 * 60 * 1000);
