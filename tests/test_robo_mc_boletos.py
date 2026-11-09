@@ -442,3 +442,25 @@ def test_mes_seguinte_vira_o_ano_09_11():
     assert RB._mes_seguinte("2026-12") == "2027-01"
     assert RB._na_janela_da_previa("2026-12-27") is True and RB._na_janela_da_previa("2026-12-26") is False
     assert RB._na_janela_da_previa("2027-02-24") is True and RB._na_janela_da_previa("2027-02-23") is False
+
+
+def test_relatorio_do_mes_fica_gravado_antes_da_previa_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    real, visto = RB._montar_linhas, []
+
+    def olha(e, mes, hoje):
+        if mes == "2026-12":
+            visto.append(len(list(tmp_path.glob("20*.json"))))
+        return real(e, mes, hoje)
+    monkeypatch.setattr(RB, "_montar_linhas", olha)
+    RB.rodar(ErpDeMentira([_venda_com_dezembro()]), "2026-11", True, None, tmp_path, "2026-11-30", esperar=lambda s: None)
+    assert visto == [1]
+
+
+def test_previa_aplica_o_indice_do_mes_seguinte_09_11(tmp_path, monkeypatch):
+    liga(tmp_path, monkeypatch)
+    v = venda_com_uma_entrada_do_mes()
+    parcela(v, R.TIPO_PARCELA, "2026-12-10", valor=300.0, tabela="INCC-M")
+    RB.rodar(ErpDeMentira([v], indices_ok=False), "2026-11", True, None, tmp_path, "2026-11-30", esperar=lambda s: None)
+    l = _relatorio(tmp_path)["proximo_mes"]["linhas"][0]
+    assert l["acao"] == "decidir" and "índice" in l["motivo"]

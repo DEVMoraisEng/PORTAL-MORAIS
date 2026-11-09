@@ -230,9 +230,11 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
         except Exception:      # o saldo só informa a tela: sem ele, a rodada não muda
             saldo = None
         if mes == hoje[:7] and _na_janela_da_previa(hoje):
+            salvar()           # o relatório do mês fica gravado antes da leitura extra, mesmo se ela estourar o prazo
             seguinte = _mes_seguinte(mes)
             try:               # só lista, nunca emite; falhar aqui também não muda a rodada
                 previa = _montar_linhas(erp, seguinte, hoje)
+                _aplicar_indices(erp, seguinte, previa)   # mostra já o "decidir" que a rodada do dia 1 vai dar
                 S.aplicar(S.ler(pasta), previa)
                 proximo = {"mes": seguinte, "linhas": previa}
             except Exception:

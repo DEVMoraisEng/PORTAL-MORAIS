@@ -77,13 +77,14 @@ def grupos(rel: dict | None, seguradas: dict) -> dict:
         else:
             out["decidir"].append(_item(l))
     for l in (rel.get("proximo_mes") or {}).get("linhas") or []:
-        vistas.add(l.get("parcela"))
         marca, acao = seguradas.get(l.get("parcela")), l.get("acao")
-        if acao == "pular":                      # ato, permuta, já com boleto: não há o que conferir aqui
+        if acao == "pular" and marca is None:    # ato, permuta, já com boleto: não há o que conferir aqui
             continue
-        if marca is not None:
-            out["seguradas"].append(dict(_item(l, S.motivo(marca)), segurada=True))
-        elif acao == "decidir":
+        vistas.add(l.get("parcela"))
+        if marca is not None:                    # segurada continua com Soltar, mesmo se ganhou boleto pela tela do ERP
+            extra = " (%s)" % l.get("motivo") if acao == "pular" else ""
+            out["seguradas"].append(dict(_item(l, S.motivo(marca) + extra), segurada=True))
+        elif acao in ("decidir", "aguardar"):
             out["proximo_mes"].append(_item(l))
         else:
             out["proximo_mes"].append(_item(l, "sai na primeira rodada do mês"))

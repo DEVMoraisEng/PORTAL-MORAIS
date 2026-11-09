@@ -96,8 +96,12 @@ button:disabled{opacity:.6;cursor:wait}
 </div></header>
 <main id="tela"><div class="muted">Carregando…</div></main>
 <script src="app.js?v=46"></script>
-<script src="boletos-financeiro.js?v=2"></script>
+<script src="boletos-financeiro.js?v=3"></script>
 <script>
+if (window.top !== window) {   /* 09/11: dentro da aba do Escritório, o login abre na janela inteira, não no quadro */
+  window.sair = function () { try { localStorage.removeItem("morais_sessao"); sessionStorage.removeItem("morais_sessao"); } catch (e) {} top.location.href = "login.html"; };
+  window.irParaLogin = window.sair;
+}
 const S = exigirSessao();
 const $ = id => document.getElementById(id);
 const CACHE_LOCAL = "morais_boletos_financeiro_v1";

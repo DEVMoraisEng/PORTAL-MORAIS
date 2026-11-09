@@ -267,6 +267,12 @@ test("gs: recusa pedido estranho; falha do Notion não vira ok", () => {
 test("a página está ligada: início, cache offline, gancho do Apps Script e atalho no Escritório", () => {
   const ler = a => readFileSync(new URL("../../" + a, import.meta.url), "utf8");
   assert.doesNotMatch(ler("index.html"), /boletos-financeiro\.html/);
+  assert.match(ler("index.html"), /chave:"ESCRITÓRIO DE ROBÔS",chaves:\["ESCRITÓRIO DE ROBÔS","BOLETOS E FINANCEIRO"\]/);
+  const esc = ler("escritorio-robos.html");
+  assert.match(esc, /if \(er === "SEM_PERMISSAO"\) \{ soBoletos\(\); return; \}/);
+  assert.match(esc, /quadro\.contentWindow\.location\.reload\(\)/);
+  assert.match(esc, /if \(SALA === "boletos"\) \{ pintarContadorAgua\(\); return; \}/);
+  assert.match(ler("boletos-financeiro.html"), /top\.location\.href = "login\.html"/);
   assert.match(ler("sw.js"), /"\.\/boletos-financeiro\.html","\.\/boletos-financeiro\.js"/);
   assert.match(ler("Melhorias.gs"), /bfRotear_\(action, sess, p\)/);
   assert.doesNotMatch(ler("escritorio-robos.html"), /href="boletos-financeiro\.html"/);

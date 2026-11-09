@@ -201,3 +201,17 @@ def test_previa_que_falhou_vira_aviso_na_rodada(tmp_path):
         "modo": "emissao", "mes": "2026-11", "linhas": [linha(ID1, "aguardar")], "resultados": [],
         "proximo_mes": {"mes": "2026-12", "linhas": [], "falhou": True}}), encoding="utf-8")
     assert BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")["rodada"]["proximo_falhou"] is True
+
+
+def test_previa_mostra_o_motivo_real_de_decidir_e_aguardar(tmp_path):
+    _com_previa(tmp_path, [linha(ID2, "decidir", "índice do mês ainda não lançado: INCC-M 2026-10"), linha(ID3, "aguardar", "emite a partir de 2026-12-05")])
+    g = BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")["grupos"]["proximo_mes"]
+    assert [i["motivo"] for i in g] == ["índice do mês ainda não lançado: INCC-M 2026-10", "emite a partir de 2026-12-05"]
+
+
+def test_segurada_da_previa_que_ganhou_boleto_vai_para_os_pulados_com_soltar(tmp_path):
+    _com_previa(tmp_path, [linha(ID2, "pular", "já tem boleto (REGISTERED)", com_boleto=True)])
+    S.gravar(tmp_path, {ID2: {"quem": "ADM", "em": "ontem"}})
+    g = BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")["grupos"]
+    assert [i["parcela"] for i in g["seguradas"]] == [ID2]
+    assert "boleto" in g["seguradas"][0]["motivo"]

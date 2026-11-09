@@ -897,8 +897,13 @@ function kpisHtml(robos, D) {
     + card("Porteiro", port && port.ultP ? (port.st === "ok" ? "Logado" : "Fora") : "—", port && port.ultP ? "conferido " + esc(port.stHora) : "sem conferência ainda", port && port.ultP ? (port.st === "ok" ? "ok" : "erro") : "");
 }
 
+function pintarContadorAgua() {
+  const D = DADOS; if (!D || !D.agua) return;
+  const nAgua = montarRobosAgua(D).filter(r => r.st === "erro").length;
+  $("s-agua-n").textContent = nAgua; $("s-agua-n").classList.toggle("hide", !nAgua);
+}
 function pintar() {
-  if (SALA === "boletos") return;     // 09/11: a aba tem a página própria; a sala 3D não desenha escondida
+  if (SALA === "boletos") { pintarContadorAgua(); return; }   // 09/11: a aba tem a página própria; a sala 3D não desenha escondida
   const D = DADOS; if (!D) return;
   const agua = SALA === "agua";
   const robos = agua ? montarRobosAgua(D) : montarRobos(D);
@@ -1259,13 +1264,18 @@ function marcarSala() {
   f.id = "quadro-boletos"; f.title = "Boletos e Financeiro"; f.src = "boletos-financeiro.html?embutido=1";
   f.addEventListener("load", () => {            // o quadro acompanha a altura da página, sem rolagem dupla
     try {
-      const corpo = f.contentDocument.documentElement;
-      const ajusta = () => { f.style.height = corpo.scrollHeight + "px"; };
+      const corpo = f.contentDocument.body;   // body encolhe junto com a lista; o documentElement só cresce
+      const ajusta = () => { f.style.height = Math.max(corpo.scrollHeight, 200) + "px"; };
       ajusta();
       new ResizeObserver(ajusta).observe(f.contentDocument.body);
     } catch (e) {}
   });
   $("aba-boletos").appendChild(f);
+}
+/* 09/11: quem tem só BOLETOS E FINANCEIRO (sem ESCRITÓRIO DE ROBÔS) entra direto na aba, sem as salas dos robôs */
+function soBoletos() {
+  $("s-mc").classList.add("hide"); $("s-agua").classList.add("hide");
+  if (SALA !== "boletos") trocarSala("boletos");
 }
 function trocarSala(s) {
   SALA = s === "agua" || s === "boletos" ? s : "mc";
@@ -1317,6 +1327,7 @@ async function carregar(manual) {
     if (!r || !r.ok) {
       const er = String((r && r.erro) || "");
       if (er === "NAO_AUTORIZADO") { sair(); return; }
+      if (er === "SEM_PERMISSAO") { soBoletos(); return; }
       if (er === "SEM_PERMISSAO") return erroTela(`<b>Sem acesso ao Escritório de Robôs.</b> Peça ao ADM a opção <b>ESCRITÓRIO DE ROBÔS</b> na coluna ACESSOS do LOGINS.`);
       if (/ACAO_DESCONHECIDA/.test(er)) return erroTela(`<b>Falta instalar o EscritorioRobos.gs no Apps Script</b> (projeto PORTAL-LEITURA) e o gancho de uma linha no Melhorias.gs — o passo a passo está no começo do arquivo apps-script/EscritorioRobos.gs.`);
       return erroTela(`<b>Não consegui ler o escritório.</b> ${esc(er || "sem resposta do servidor")}`);
@@ -1333,7 +1344,11 @@ async function carregar(manual) {
     erroTela(`<b>Não consegui carregar.</b> ${esc(e.message || e)}`);
   } finally { CARREGANDO = false; bt.disabled = false; }
 }
-$("bt-recarregar").addEventListener("click", () => carregar(true));
+$("bt-recarregar").addEventListener("click", () => {
+  carregar(true);
+  const quadro = $("quadro-boletos");   // na aba Boletos e Financeiro o Atualizar recarrega também a página de dentro
+  if (quadro && SALA === "boletos") try { quadro.contentWindow.location.reload(); } catch (e) {}
+});
 try { const c = JSON.parse(localStorage.getItem(CACHE_LOCAL) || "null"); if (c && c.versao) { DADOS = c; } } catch (e) {}
 trocarVista(VISTA);
 carregar();
