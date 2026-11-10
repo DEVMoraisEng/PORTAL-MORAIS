@@ -204,7 +204,8 @@ html[data-tema="escuro"] tbody tr.lin-semuc td.stick{background:#6e2424 !importa
 .txt-hist .h-it.robo .h-q{color:var(--azul-esc)}.txt-hist .h-it.robo.alerta .h-t{color:#92400E}
 .txt-hist .h-it .h-t a{font-weight:700;margin-left:4px}
 .st-ico{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
-  font-size:12px;font-weight:900;font-style:normal;margin-right:6px;vertical-align:-1px;cursor:help;line-height:1}
+  font-size:12px;font-weight:900;font-style:normal;margin-right:6px;vertical-align:-1px;cursor:pointer;line-height:1}
+.st-ico:hover{box-shadow:0 0 0 2px var(--azul)}.st-leg{cursor:pointer}.st-leg:hover{text-decoration:underline}
 .st-ico.ok{background:#16A34A;color:#fff}.st-ico.alerta{background:#F59E0B;color:#fff}.st-ico.aguardando{background:#E2E8F0;color:#334155}
 html[data-tema="escuro"] .st-ico.aguardando{background:#334155;color:#e2e8f0}
 html[data-tema="escuro"] .txt-hist .h-it.robo.alerta .h-t{color:#f0c95f}
@@ -3696,12 +3697,20 @@ const ST_CONTA_DICA = { ok: "A conta do mês está lançada no Mais Controle",
 const ST_CONTA_ICO  = { ok: "✓", alerta: "⚠", aguardando: "⏳" };
 function iconeStatusConta(l){
   const s = statusConta(l);
-  return `<span class="st-ico ${s}" title="${esc(ST_CONTA_TXT[s] + " — " + ST_CONTA_DICA[s])}">${ST_CONTA_ICO[s]}</span>`;
+  return `<span class="st-ico ${s}" onclick="filtrarStatusConta('${s}')" title="${esc(ST_CONTA_TXT[s] + " — " + ST_CONTA_DICA[s] + ". Clique para ver só estas")}">${ST_CONTA_ICO[s]}</span>`;
+}
+/* clique no ícone (tabela ou legenda) = filtro "Status da conta"; clicar de novo no mesmo volta para todos */
+function filtrarStatusConta(s){
+  const el = document.getElementById("set-stconta");
+  if (!el) return;
+  el.value = (el.value === s) ? "" : s;
+  renderAba();
 }
 const LEGENDA_ST_CONTA = `<div class="legenda"><b>Status da conta:</b>
-  <span><i class="st-ico ok">✓</i> em dia (lançada no Mais Controle)</span>
-  <span><i class="st-ico alerta">⚠</i> alerta (motivo nas observações)</span>
-  <span><i class="st-ico aguardando">⏳</i> aguardando a fatura do mês</span>
+  <span class="st-leg" onclick="filtrarStatusConta('ok')" title="Clique para ver só estas"><i class="st-ico ok">✓</i> em dia (lançada no Mais Controle)</span>
+  <span class="st-leg" onclick="filtrarStatusConta('alerta')" title="Clique para ver só estas"><i class="st-ico alerta">⚠</i> alerta (motivo nas observações)</span>
+  <span class="st-leg" onclick="filtrarStatusConta('aguardando')" title="Clique para ver só estas"><i class="st-ico aguardando">⏳</i> aguardando a fatura do mês</span>
+  <span class="small">— clique num ícone para filtrar</span>
 </div>`;
 let AGUA_CONTAS = null;
 function pintarContasAgua(r){
