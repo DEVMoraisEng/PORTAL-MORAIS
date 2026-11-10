@@ -291,6 +291,19 @@ html[data-tema="escuro"] .dv-ok{background:#1d1a0c;color:#e8cf7a}
 .sub-pg{display:none}
 .sub-pg.active{display:block}
 .controles{display:flex;align-items:center;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+/* 10/11/26: painel de filtros do Fluxo de Caixa */
+.flt-painel{background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:16px;display:grid;gap:12px}
+.flt-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:12px 14px;align-items:start}
+.flt{display:flex;flex-direction:column;gap:5px;min-width:0}
+.flt-obra{grid-column:span 2}
+.flt-l{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.08em}
+.flt select,.flt input[type=text]{width:100%;height:36px;box-sizing:border-box;padding:0 12px;border:1px solid var(--border);border-radius:7px;background:var(--branco);color:var(--text);font-family:'Barlow',sans-serif;font-size:13px}
+.flt input[type=text]:focus{outline:none;border-color:var(--teal)}
+.flt-ops{display:flex;flex-wrap:wrap;gap:8px 22px;align-items:center;padding-top:10px;border-top:1px solid var(--border2)}
+.flt-chk{display:flex;align-items:center;gap:7px;font-size:12.5px;color:var(--text);cursor:pointer}
+.flt-chk input{width:15px;height:15px;cursor:pointer;margin:0}
+.flt-nota{font-size:12px;color:var(--text3);margin-left:auto}
+@media (max-width:560px){.flt-obra{grid-column:1/-1}.flt-nota{margin-left:0}}
 .graf-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:22px}
 .graf-card{background:var(--branco);border:1.5px solid var(--border);border-radius:10px;
            overflow:hidden;box-shadow:0 2px 8px rgba(41,87,120,.06)}
@@ -948,39 +961,42 @@ html[data-tema="escuro"] #lanc-dlg .lc-csv{border-color:var(--teal);color:var(--
   </div>
   <div class="pg-body">
 
-    <!-- Filtros Fluxo de Caixa -->
-    <div class="controles" style="margin-bottom:16px;flex-wrap:wrap;row-gap:8px">
-      <span class="sel-lbl">Cidade:</span>
-      <select id="sel-cid-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todas</option></select>
-      <span class="sel-lbl">Setor:</span>
-      <select id="sel-set-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todos</option></select>
-      <span class="sel-lbl">Proprietário:</span>
-      <select id="sel-prop-fluxo" onchange="initObrasFluxo();buildFluxo()">
-        <option value="">Todos</option>
-        <option value="morais">Morais</option>
-        <option value="invest">Investidor</option>
-      </select>
-      <span class="sel-lbl">Obras:</span>
-      <div class="obra-search-wrap" id="fluxo-search-wrap" style="position:relative">
-        <input type="text" id="fluxo-search-input" placeholder="🔍 Digite para buscar endereço..." autocomplete="off"
-          style="padding:7px 12px;border:1.5px solid var(--border);border-radius:7px;font-size:13px;
-                 color:var(--text);width:260px;background:var(--branco);"
-          oninput="filtrarFluxoSearch()" onfocus="abrirDropFluxo()">
-        <div id="fluxo-dropdown" style="display:none;position:absolute;top:100%;left:0;z-index:300;
-          background:var(--branco);border:1.5px solid var(--border);border-radius:8px;
-          box-shadow:0 6px 24px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;
-          min-width:300px;padding:6px 0;margin-top:4px"></div>
-        <div id="fluxo-selecionadas" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+    <!-- Filtros Fluxo de Caixa — 10/11/26: painel em grade, rótulo em cima de cada campo -->
+    <div class="flt-painel">
+      <div class="flt-grid">
+        <label class="flt"><span class="flt-l">Período</span>
+          <select id="sel-ano-fluxo" onchange="buildFluxo()" title="Por padrão mostra o ano vigente."></select></label>
+        <label class="flt"><span class="flt-l">Cidade</span>
+          <select id="sel-cid-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todas</option></select></label>
+        <label class="flt"><span class="flt-l">Setor</span>
+          <select id="sel-set-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todos</option></select></label>
+        <label class="flt"><span class="flt-l">Proprietário</span>
+          <select id="sel-prop-fluxo" onchange="initObrasFluxo();buildFluxo()">
+            <option value="">Todos</option>
+            <option value="morais">Morais</option>
+            <option value="invest">Investidor</option>
+          </select></label>
+        <label class="flt"><span class="flt-l">Tipo</span>
+          <select id="sel-imo-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select></label>
+        <div class="flt flt-obra"><span class="flt-l">Obras</span>
+          <div class="obra-search-wrap" id="fluxo-search-wrap" style="position:relative">
+            <input type="text" id="fluxo-search-input" placeholder="🔍 Digite para buscar endereço..." autocomplete="off"
+              oninput="filtrarFluxoSearch()" onfocus="abrirDropFluxo()">
+            <div id="fluxo-dropdown" style="display:none;position:absolute;top:100%;left:0;right:0;z-index:300;
+              background:var(--branco);border:1.5px solid var(--border);border-radius:8px;
+              box-shadow:0 6px 24px rgba(0,0,0,.12);max-height:280px;overflow-y:auto;
+              min-width:260px;padding:6px 0;margin-top:4px"></div>
+            <div id="fluxo-selecionadas" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px"></div>
+          </div>
+        </div>
       </div>
-      <span class="sel-lbl">Tipo:</span>
-      <select id="sel-imo-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
-      <span class="sel-lbl">Período:</span>
-      <select id="sel-ano-fluxo" onchange="buildFluxo()" title="Por padrão mostra o ano vigente. A exposição de caixa continua acumulando desde o início da série."></select>
-      <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:4px">
-        <input type="checkbox" id="chk-fluxo-soConcluidas" onchange="initObrasFluxo();buildFluxo()" style="cursor:pointer;width:14px;height:14px">
-        Somente obras concluídas (todas as casas recebidas)
-      </label>
-      <span style="font-size:12px;color:var(--text3)" title="Aportes e distribuições nunca contam como gasto, receita ou lucro.">Aportes e distribuições: só na exposição de caixa</span>
+      <div class="flt-ops">
+        <label class="flt-chk"><input type="checkbox" id="chk-fluxo-saldoIni" checked onchange="buildFluxo()">
+          Trazer o saldo acumulado dos anos anteriores para a exposição de caixa</label>
+        <label class="flt-chk"><input type="checkbox" id="chk-fluxo-soConcluidas" onchange="initObrasFluxo();buildFluxo()">
+          Somente obras concluídas (todas as casas recebidas)</label>
+        <span class="flt-nota" title="Aportes e distribuições nunca contam como gasto, receita ou lucro.">Aportes e distribuições entram só na exposição de caixa</span>
+      </div>
     </div>
 
     <!-- KPIs resumo -->
@@ -3739,6 +3755,7 @@ function buildFluxo(){
       selAno.value=antes!==null&&(antes===''||anos.includes(antes))?antes:(anos.includes(hoje)?hoje:(anos[0]||''));
       selAno.dataset.anos=chave; } }
   const anoSel=selAno?selAno.value:'';
+  { const c=document.getElementById('chk-fluxo-saldoIni'); if(c){ c.disabled=!anoSel; c.parentElement.style.opacity=anoSel?'':'.5'; c.parentElement.title=anoSel?'':'Na série completa a exposição já começa no primeiro mês.'; } }
   const ms=anoSel?msAll.filter(m=>m.startsWith(anoSel)):msAll;
   if(!ms.length){
     document.getElementById('kpi-fluxo-resumo').innerHTML=`<div style="grid-column:1/-1;color:var(--text4);padding:20px;text-align:center">Sem movimentação em ${esc(anoSel)} para os filtros selecionados</div>`;
@@ -3758,8 +3775,10 @@ function buildFluxo(){
   }
   const socios=ms.map(m=>socMes[m]||0);
   const expAll={};{let ac=0; msAll.forEach(m=>{ ac+=(fatMes[m]||0)-(pagMes[m]||0)+(socMes[m]||0); expAll[m]=ac; });}
-  const iIni=msAll.indexOf(ms[0]), saldoIni=iIni>0?expAll[msAll[iIni-1]]:0;
-  const expCaixa=ms.map(m=>expAll[m]);
+  /* 10/11/26: com a caixa "Trazer o saldo acumulado" desmarcada, a exposição começa do zero no 1º mês do período */
+  const trazSaldo=document.getElementById('chk-fluxo-saldoIni')?.checked!==false;
+  const iIni=msAll.indexOf(ms[0]), saldoAnt=iIni>0?expAll[msAll[iIni-1]]:0, saldoIni=trazSaldo?saldoAnt:0;
+  const expCaixa=ms.map(m=>expAll[m]-saldoAnt+saldoIni);
 
   const totalGasto=gastos.reduce((a,b)=>a+b,0);
   const totalRecebido=receitas.reduce((a,b)=>a+b,0);
@@ -3790,7 +3809,7 @@ function buildFluxo(){
 
   // KPI Resumo — 27/10: com resumo ao passar o mouse
   tipNS('f');
-  const perTxt=`${fmtM(ms[0])} a ${fmtM(ms[ms.length-1])} · ${ms.length} meses${anoSel?' · ano '+anoSel:' · série completa'}`;
+  const perTxt=`${fmtM(ms[0])} a ${fmtM(ms[ms.length-1])} · ${ms.length} meses${anoSel?' · ano '+anoSel+(iIni>0?(trazSaldo?' · com o saldo anterior':' · exposição começando do zero'):''):' · série completa'}`;
   const filtTxt=[cid&&'cidade '+cid,set&&'setor '+set,prop&&(prop==='morais'?'só Morais':'só investidores'),imo&&(imo==='COND'?'só condomínio':'só casas de rua'),obrasSel&&obrasSel.size&&obrasSel.size+' obra(s) escolhida(s)',soConcluidas&&'só obras concluídas'].filter(Boolean).join(' · ')||'sem filtro (todas as obras)';
   const topCC=(obj,n)=>Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([c,v])=>`<tr><td>${esc(c)}</td><td>${fmtBRL(v)}</td></tr>`).join('');
   const nCC=o=>Object.keys(o).filter(k=>o[k]).length;
@@ -3820,7 +3839,7 @@ function buildFluxo(){
   document.getElementById('kpi-fluxo-lucro').innerHTML=kpisLucro.join('');
 
   // Tabela fluxo mensal
-  const linhaIni=anoSel&&iIni>0?`<tr style="background:var(--bg3)"><td><strong>Antes de ${esc(anoSel)}</strong><div style="font-size:11px;color:var(--text3)">${fmtM(msAll[0])} a ${fmtM(msAll[iIni-1])}</div></td><td class="nr" colspan="${comSoc?3:2}" style="color:var(--text3);font-size:12px">saldo acumulado que vem dos anos anteriores</td><td class="nr" style="${saldoIni<0?'color:#c0392b;font-weight:700':saldoIni>0?'color:#2a9d5c;font-weight:700':''}">${fmtBRL2(saldoIni)}</td><td class="nr">—</td><td class="nr">—</td></tr>`:'';
+  const linhaIni=anoSel&&iIni>0&&trazSaldo?`<tr style="background:var(--bg3)"><td><strong>Antes de ${esc(anoSel)}</strong><div style="font-size:11px;color:var(--text3)">${fmtM(msAll[0])} a ${fmtM(msAll[iIni-1])}</div></td><td class="nr" colspan="${comSoc?3:2}" style="color:var(--text3);font-size:12px">saldo acumulado que vem dos anos anteriores</td><td class="nr" style="${saldoIni<0?'color:#c0392b;font-weight:700':saldoIni>0?'color:#2a9d5c;font-weight:700':''}">${fmtBRL2(saldoIni)}</td><td class="nr">—</td><td class="nr">—</td></tr>`:'';
   const rows=linhaIni+ms.map((m,i)=>{
     const v=expCaixa[i];
     const corExp=v<0?'color:#c0392b;font-weight:700':v>0?'color:#2a9d5c;font-weight:700':'';
