@@ -802,6 +802,8 @@ var ContratoVenda = (function () {
     /* 29/10: fluxo alterado no portal (só quando existe: o carimbo das vendas sem alteração não muda) */
     var livre = txt(c.fluxoPersonalizado) ? FLV().ler(txt(c.fluxoPersonalizado)) : null;
     if (livre) out.livre = livre;
+    /* 09/11/2026 (diretor): venda liberada com um fiador só (GerarContrato: UM_FIADOR_VENDAS). Só quando existe. */
+    if (c.umFiador === true) out.umFiador = true;
     /* 31/10/2026 (dono): comprador casado ou em união estável → o cônjuge assina o contrato, mesmo sem compor renda.
        01/11/2026 (dono): no termo de reserva ele só assina se o corretor ligou a opção na venda (PR_CONJUGE_<pageId>).
        Só quando existe (o carimbo das vendas de solteiros não muda). */

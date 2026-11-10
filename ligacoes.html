@@ -200,6 +200,15 @@ html[data-tema="escuro"] tbody tr.lin-semuc td.stick{background:#6e2424 !importa
 .txt-hist{max-height:240px;overflow:auto;border:1px solid var(--border);border-radius:8px;padding:6px 10px;margin:6px 0 8px;background:var(--sup)}
 .txt-hist .h-it{padding:6px 0;border-bottom:1px dashed var(--border)}.txt-hist .h-it:last-child{border-bottom:0}
 .txt-hist .h-q{font-size:11px;font-weight:800;color:var(--text3)}
+/* 09/11/26: registro do robô de água e energia no histórico da observação (vem do dist/agua_contas.json) */
+.txt-hist .h-it.robo .h-q{color:var(--azul-esc)}.txt-hist .h-it.robo.alerta .h-t{color:#92400E}
+.txt-hist .h-it .h-t a{font-weight:700;margin-left:4px}
+.st-ico{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
+  font-size:12px;font-weight:900;font-style:normal;margin-right:6px;vertical-align:-1px;cursor:pointer;line-height:1}
+.st-ico:hover{box-shadow:0 0 0 2px var(--azul)}.st-leg{cursor:pointer}.st-leg:hover{text-decoration:underline}
+.st-ico.ok{background:#16A34A;color:#fff}.st-ico.alerta{background:#F59E0B;color:#fff}.st-ico.aguardando{background:#E2E8F0;color:#334155}
+html[data-tema="escuro"] .st-ico.aguardando{background:#334155;color:#e2e8f0}
+html[data-tema="escuro"] .txt-hist .h-it.robo.alerta .h-t{color:#f0c95f}
 .txt-hist .h-t{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .txt-hist .h-vazio{font-size:12px;color:var(--text3);padding:4px 0}
 td.sens{color:var(--text4)}
@@ -941,8 +950,14 @@ function noFluxo(l){
    para atravessarem tabela, PDF e escolha de colunas sem virar caso especial
    em cada lugar. */
 const CALC = { PROC_SANESC: "\u0000TEMPO_SANESC", LIG_CORRIDO: "\u0000TEMPO_LIGACAO",
-               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO", PRAZO_UC: "\u0000PRAZO_SEM_UC", PROBLEMA: "\u0000PROBLEMA_LIG" };
+               PRAZO_LIBER: "\u0000PRAZO_LIBERACAO", PRAZO_UC: "\u0000PRAZO_SEM_UC", PROBLEMA: "\u0000PROBLEMA_LIG",
+               ST_CONTA: "\u0000STATUS_CONTA" };
 const CALC_DEF = {};
+/* 09/11/26 (dono): STATUS DA CONTA na aba de contas vencidas — ✓ em dia (lançada no Mais Controle), ⚠ alerta (o robô
+   não lançou, ou a casa está em PROBLEMAS COM AS LIGAÇÕES), ⏳ aguardando a fatura do mês. Ver statusConta. */
+CALC_DEF[CALC.ST_CONTA] = { titulo: "STATUS DA CONTA", valor: l => ST_CONTA_TXT[statusConta(l)],
+  html: l => { const s = statusConta(l); return `<span class="pill ${ST_CONTA_PILL[s]}" title="${esc(ST_CONTA_DICA[s])}">${ST_CONTA_TXT[s]}</span>`; },
+  dica: "✓ lançada no Mais Controle · ⚠ o robô não lançou (motivo nas observações) · ⏳ a fatura do mês ainda não chegou" };
 CALC_DEF[CALC.PROBLEMA] = { titulo: "PROBLEMA", valor: l => { const p = problemasDaLinha(l); return p.length ? p.join(" · ") : null; },
   dica: "o que impede o robô de água e energia de lançar esta casa — some sozinho quando corrigido" };
 CALC_DEF[CALC.PROC_SANESC] = { titulo: "Tempo de processo (dias)", valor: diasProcessoSanesc,
@@ -1201,8 +1216,11 @@ const ABAS = {
   vencidas: {
     titulo: "Controle de contas vencidas no sistema",
     /* 21/10: OBS. CONTAS virou OBSERVAÇÕES com histórico (data de cada registro) */
+    /* 09/11/26: STATUS DA CONTA = só um ícone antes do endereço (pedido do dono: sem escrita, legenda embaixo
+       dos filtros); filtro próprio "Status da conta" */
     colunas: [C.OBRA, C.CONC, C.DT_UC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, confCol("vencidas","OBS")],
     filtros: [C.CONC],
+    statusConta: true,
     sensiveis: true,
     pdf: true,
     vencimento: true,        // liga o filtro e a pintura por vencimento
@@ -1815,6 +1833,7 @@ function boot(){
   // 04/11/26: medidores comprados no Mais Controle (alerta da aba "apta")
   lerEstaticoJa("medidores_mc.json", "medidores_mc", pintarMedidores);
   lerEstaticoJa("agua_problemas.json", "agua_problemas", pintarProblemasAgua);   // 04/11/26: PROBLEMAS COM AS LIGAÇÕES
+  lerEstaticoJa("agua_contas.json", "agua_contas", pintarContasAgua);            // 09/11/26: STATUS DA CONTA + robô nas OBSERVAÇÕES
   // valida a sessão em segundo plano — token velho cai fora
   ler({action:"me"}).then(r=>{ if(r && r.ok===false && r.erro==="NAO_AUTORIZADO") sair(); }).catch(()=>{});
   conferirBackend();
@@ -2889,7 +2908,10 @@ function celulaTexto(l, nome, fonte){
   if (ehCalculada(nome)){ const d = CALC_DEF[nome].valor(l); return d == null ? "—" : String(d); }
   const cf = confDe(nome);
   if (cf && cf.papel === "SEM") return confSemanaOk(l, cf.aba) ? "SIM" : "NÃO";
-  if (cf && cf.papel === "OBS") return confTextoObs(l, cf) || "—";
+  if (cf && cf.papel === "OBS"){   // 09/11/26: com os registros do robô (PDF)
+    const h = obsHistorico(l, cf);
+    return h.length ? h.map(x => (x.quando ? x.quando + "\n" : "") + x.texto).join("\n\n") : "—";
+  }
   if (cf && cf.papel === "DATA"){ const d = confData(l, cf.aba); return d ? fmtData(d) : "nunca conferida"; }
   if (fonte === "vendas" && ehColunaUc(nome)) return textoUc(l, nome);
   const campo = campoDe(nome, fonte);
@@ -2917,6 +2939,7 @@ function celulaTexto(l, nome, fonte){
 
 function celula(l, nome, fonte){
   if (ehCalculada(nome)){
+    if (CALC_DEF[nome].html) return CALC_DEF[nome].html(l);
     const d = CALC_DEF[nome].valor(l);
     return d == null ? "—" : `<b>${d}</b>`;
   }
@@ -2931,7 +2954,7 @@ function celula(l, nome, fonte){
     return `<span title="${n === 0 ? "hoje" : (n + (n === 1 ? " dia" : " dias") + " atrás")}${n > 7 ? " — mais de uma semana sem conferir" : ""}">${fmtData(d)}</span>`;
   }
   if (cf && cf.papel === "OBS"){
-    const h = confHistorico(confTextoObs(l, cf));
+    const h = obsHistorico(l, cf);   // 09/11/26: o das pessoas + o do robô, o mais novo primeiro
     if (!h.length) return '<span class="conf-escrever">✎ escrever…</span>';
     return `<span class="conf-obs" title="${esc(h.length + (h.length === 1 ? " registro" : " registros") + " — clique para ver o histórico e escrever")}">${h[0].quando ? `<small>${esc(h[0].quando.split(" · ")[0])}</small> ` : ""}${esc(h[0].texto)}${h.length > 1 ? ` <em>(+${h.length - 1})</em>` : ""}</span>`;
   }
@@ -3120,6 +3143,7 @@ function ordenarPor(ctx, i){
 
 function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
   if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
+  const comStatus = ctx === "set" && !!(ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].statusConta);   // 09/11/26
   const cols = colunas.slice();
   // a 1ª coluna fica congelada à esquerda (class "stick"), como na planilha de
   // vendas: rolando pro lado, você nunca perde de vista de que obra é a linha
@@ -3149,7 +3173,7 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
       // a primeira coluna (o endereço) é o link que abre a obra
       const conteudo = (i === 0)
-        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
+        ? (comStatus ? iconeStatusConta(l) : "") + `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
         : celula(l,c,fonte);
       return `<td${attrs}>${conteudo}</td>`;
     }).join("");
@@ -3308,7 +3332,7 @@ function abrirCaixaTexto(linha, col, fonte, campo){
   const cfH = confDe(col), hist = document.getElementById("txt-hist");
   CX_TEXTO.historico = !!(cfH && cfH.papel === "OBS");
   if (CX_TEXTO.historico){
-    hist.innerHTML = confHistoricoHtml(confTextoObs(linha, cfH)); hist.style.display = "";
+    hist.innerHTML = obsHistoricoHtml(obsHistorico(linha, cfH)); hist.style.display = "";   // 09/11/26: com o robô
     ta.value = ""; ta.placeholder = "Novo registro — entra no histórico com a data e a hora de agora. Enter pula de linha.";
   } else {
     hist.style.display = "none"; hist.innerHTML = "";
@@ -3659,6 +3683,90 @@ function pintarProblemasAgua(r){
   AGUA_PROB = r; PROB_IDX = null;
   if (SETOR_ATUAL && ABA_ATUAL) renderAba();
 }
+/* ---------- 09/11/26 (dono): STATUS DA CONTA e o robô nas OBSERVAÇÕES (aba CONTROLE DE CONTAS VENCIDAS) ----------
+ * dist/agua_contas.json (publicado pelo servidor, servidor/sala_agua.py → contas_publicas) traz, por UC/matrícula, o
+ * status e o que o robô de água e energia fez: lançou (REF e link da parcela no Mais Controle) ou por que não lançou.
+ * O robô NUNCA grava no Notion: os registros dele só aparecem aqui, misturados com os das pessoas pela data, no mesmo
+ * formato "▸ data hora · quem". Ao escrever uma observação, só o texto das pessoas vai para o Notion (confTextoObs). */
+const ROBO_NOME = "Robô água e energia";
+const ST_CONTA_TXT  = { ok: "✓ EM DIA", alerta: "⚠ ALERTA", aguardando: "⏳ AGUARDANDO FATURA" };
+const ST_CONTA_PILL = { ok: "sim", alerta: "alerta", aguardando: "neutro" };
+const ST_CONTA_DICA = { ok: "A conta do mês está lançada no Mais Controle",
+                        alerta: "O robô não lançou ou a casa tem um problema — o motivo está nas observações",
+                        aguardando: "A fatura do mês ainda não chegou (ou o robô ainda não tem registro desta UC)" };
+const ST_CONTA_ICO  = { ok: "✓", alerta: "⚠", aguardando: "⏳" };
+function iconeStatusConta(l){
+  const s = statusConta(l);
+  return `<span class="st-ico ${s}" onclick="filtrarStatusConta('${s}')" title="${esc(ST_CONTA_TXT[s] + " — " + ST_CONTA_DICA[s] + ". Clique para ver só estas")}">${ST_CONTA_ICO[s]}</span>`;
+}
+/* clique no ícone (tabela ou legenda) = filtro "Status da conta"; clicar de novo no mesmo volta para todos */
+function filtrarStatusConta(s){
+  const el = document.getElementById("set-stconta");
+  if (!el) return;
+  el.value = (el.value === s) ? "" : s;
+  renderAba();
+}
+const LEGENDA_ST_CONTA = `<div class="legenda"><b>Status da conta:</b>
+  <span class="st-leg" onclick="filtrarStatusConta('ok')" title="Clique para ver só estas"><i class="st-ico ok">✓</i> em dia (lançada no Mais Controle)</span>
+  <span class="st-leg" onclick="filtrarStatusConta('alerta')" title="Clique para ver só estas"><i class="st-ico alerta">⚠</i> alerta (motivo nas observações)</span>
+  <span class="st-leg" onclick="filtrarStatusConta('aguardando')" title="Clique para ver só estas"><i class="st-ico aguardando">⏳</i> aguardando a fatura do mês</span>
+  <span class="small">— clique num ícone para filtrar</span>
+</div>`;
+let AGUA_CONTAS = null;
+function pintarContasAgua(r){
+  if (!r || r.ok === false || !r.contas) return;
+  AGUA_CONTAS = r;
+  if (SETOR_ATUAL && ABA_ATUAL) renderAba();
+}
+function contaRobo(l){
+  const u = ucChaveProb(l).replace(/^0+/, "");
+  return (u && AGUA_CONTAS && AGUA_CONTAS.contas[u]) || null;
+}
+/* o que o robô apontou na última rodada para esta casa (a mesma lista da aba PROBLEMAS) */
+function problemasRoboDaLinha(l){
+  if (!l || !l.id) return [];
+  return (idxProblemas().robo[idNotion(l.id)] || []).filter(it => it.titulo);
+}
+function statusConta(l){
+  if (problemasDaLinha(l).length) return "alerta";
+  const r = contaRobo(l);
+  return (r && ST_CONTA_TXT[r.st]) ? r.st : "aguardando";
+}
+/* "AAAA-MM-DD HH:MM" → "DD/MM/AAAA HH:MM" */
+function fmtQuandoRobo(q){
+  const m = String(q || "").match(/^(\d{4})-(\d\d)-(\d\d)(?:[ T](\d\d:\d\d))?/);
+  return m ? (m[3] + "/" + m[2] + "/" + m[1] + (m[4] ? " " + m[4] : "")) : String(q || "");
+}
+/* "DD/MM/AAAA HH:MM · Nome" → "AAAA-MM-DD HH:MM" (para misturar com o robô pela data) */
+function ordemQuando(quando){
+  const m = String(quando || "").match(/^(\d\d)\/(\d\d)\/(\d{4})(?:\s+(\d\d:\d\d))?/);
+  return m ? (m[3] + "-" + m[2] + "-" + m[1] + " " + (m[4] || "00:00")) : "";
+}
+/* histórico da observação para MOSTRAR: o das pessoas e (na aba de contas vencidas) o do robô, o mais novo primeiro.
+   Registro antigo sem data fica no fim, na ordem em que estava. */
+function obsHistorico(l, cf){
+  const pessoas = confHistorico(confTextoObs(l, cf)).map(x => ({ quando: x.quando, texto: x.texto, ts: ordemQuando(x.quando) }));
+  if (!cf || cf.aba !== "vencidas") return pessoas;
+  const robo = [];
+  const r = contaRobo(l);
+  ((r && r.hist) || []).forEach(h => robo.push({ quando: fmtQuandoRobo(h.q) + " · " + ROBO_NOME, texto: h.t, mc: h.mc || null,
+                                                 robo: true, alerta: h.st === "alerta", ts: String(h.q || "").replace("T", " ").slice(0, 16) }));
+  const probs = problemasRoboDaLinha(l);
+  if (probs.length){
+    const q = String((AGUA_PROB && AGUA_PROB.rodada_inicio) || "").replace("T", " ").slice(0, 16);
+    probs.forEach(it => robo.push({ quando: (q ? fmtQuandoRobo(q) + " · " : "") + ROBO_NOME,
+      texto: "Alerta: " + it.titulo + (it.motivo && normN(it.titulo).indexOf(normN(it.motivo)) < 0 ? " — " + it.motivo : "") + (it.quem ? ". Quem resolve: " + it.quem : "") + (it.fazer ? ". " + it.fazer : ""),
+      mc: (it.mc || [])[0] || null, robo: true, alerta: true, ts: q }));
+  }
+  const datados = pessoas.filter(x => x.ts).concat(robo).sort((a, b) => (a.ts < b.ts ? 1 : (a.ts > b.ts ? -1 : 0)));
+  return datados.concat(pessoas.filter(x => !x.ts));
+}
+function obsHistoricoHtml(h){
+  if (!h.length) return '<div class="h-vazio">Nenhum registro ainda.</div>';
+  return h.map(x => `<div class="h-it${x.robo ? " robo" : ""}${x.alerta ? " alerta" : ""}"><div class="h-q">${x.quando ? esc(x.quando) : "registro sem data"}</div>`
+    + `<div class="h-t">${esc(x.texto)}${x.mc && /^https:\/\//.test(x.mc) ? ` <a href="${esc(x.mc)}" target="_blank" rel="noopener">abrir no Mais Controle ↗</a>` : ""}</div></div>`).join("");
+}
+
 function idNotion(id){ return String(id || "").replace(/-/g, "").toLowerCase(); }
 function urlNotion(id){ return "https://www.notion.so/" + idNotion(id); }
 function ucChaveProb(l){
@@ -4138,6 +4246,10 @@ function linhasVisiveisAba(){
     const v = document.getElementById("set-venc");
     if (v && v.value) linhas = linhas.filter(l => situacaoVenc(l) === v.value);
   }
+  if (def.statusConta){
+    const s = document.getElementById("set-stconta");
+    if (s && s.value) linhas = linhas.filter(l => statusConta(l) === s.value);
+  }
   return linhas;
 }
 
@@ -4194,6 +4306,15 @@ function renderAba(){
            <option value="sem">Sem data de vencimento</option>
          </select>`);
     }
+    if (def.statusConta){   // 09/11/26: filtrar só os que estão em alerta
+      box.insertAdjacentHTML("beforeend",
+        `<select id="set-stconta" onchange="renderAba()" title="${esc(CALC_DEF[CALC.ST_CONTA].dica)}">
+           <option value="">Status da conta: todos</option>
+           <option value="alerta">Status da conta: ${ST_CONTA_TXT.alerta}</option>
+           <option value="ok">Status da conta: ${ST_CONTA_TXT.ok}</option>
+           <option value="aguardando">Status da conta: ${ST_CONTA_TXT.aguardando}</option>
+         </select>`);
+    }
     if (def.pdf){
       box.insertAdjacentHTML("beforeend",
         `<button class="bt az" onclick="abrirEscolhaColunas()">Baixar relatório PDF</button>`);
@@ -4210,6 +4331,7 @@ function renderAba(){
   const cols = colunasDaAba(ABA_ATUAL);
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
+  if (def.statusConta) html += LEGENDA_ST_CONTA;   // 09/11/26
   else if (def.alertaCor) html += LEGENDA_ALERTA;
   /* 04/11/26: legenda da linha vermelha (ligada há 1 mês sem UC) onde ela aparece */
   if (!def.alertaCor && fonte === "ligacoes" && linhas.some(ligadaSemUcMes)) html += LEGENDA_SEM_UC;

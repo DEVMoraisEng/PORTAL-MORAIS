@@ -17,7 +17,7 @@ const FLUXO = {
 const FIADORES = [{ nome: "FIADOR UM TESTE", cpf: "111.444.777-35", email: "f1@teste.invalid" },
                   { nome: "FIADOR DOIS TESTE", cpf: "246.813.579-28", email: "f2@teste.invalid" }];
 
-function dados({ fluxo = {}, fiadores = FIADORES } = {}) {
+function dados({ fluxo = {}, fiadores = FIADORES, umFiador } = {}) {
   return C.montarDadosContrato({
     venda: { CLIENTES: "COMPRADORA TESTE", CPF: "529.982.247-25",
       COMPRADOR1: { nacionalidade: "brasileira", estadoCivil: "solteira", profissao: "professora", documento: "RG 1234567 SSP/GO",
@@ -26,7 +26,7 @@ function dados({ fluxo = {}, fiadores = FIADORES } = {}) {
     obra: { proprietario: "SPE TESTE LTDA", obraFinalizada: "NÃO" },
     vendedor: { tipo: "PJ", nome: "SPE TESTE LTDA", cpfCnpj: "00.000.000/0001-91", representanteNome: "REPRESENTANTE TESTE" },
     corretor: { nome: "Corretor Teste", creci: "40167", cpfCnpj: "246.813.579-28" },
-    condominio: { nome: "CONDOMÍNIO RESERVA DOS IPÊS", unidade: "17", comissao: 14487.5, fluxo: { ...FLUXO, ...fluxo }, fiadores },
+    condominio: { nome: "CONDOMÍNIO RESERVA DOS IPÊS", unidade: "17", comissao: 14487.5, fluxo: { ...FLUXO, ...fluxo }, fiadores, ...(umFiador === undefined ? {} : { umFiador }) },
     hojeISO: "2026-10-28", meioPagamento: "",
   });
 }
@@ -56,6 +56,31 @@ test("faltas: entrada em 24x sem pós-chaves não exige fiador (30/10/2026)", ()
   // 30/10 à tarde: no 24x não há termo, então nem o fiador informado é conferido
   assert.deepEqual(T.faltas(dados({ fluxo: sem, fiadores: [{ nome: "FIADOR UM TESTE", cpf: "" }] })), []);
   assert.equal(T.faltas(dados({ fiadores: [] })).length, 4);   // com pós-chaves: os dois continuam obrigatórios
+});
+
+test("faltas: venda liberada com um fiador só (diretor, 09/11/2026) — o Fiador 2 vazio não falta; o Fiador 1 continua", () => {
+  const um = dados({ fiadores: [FIADORES[0]], umFiador: true });
+  assert.equal(um.condominio.umFiador, true);
+  assert.equal(T.umFiador(um), true);
+  assert.deepEqual(T.faltas(um), []);
+  // o Fiador 1 continua obrigatório
+  assert.deepEqual(T.faltas(dados({ fiadores: [], umFiador: true })), ["Fiador 1 (termo de confissão): nome", "Fiador 1 (termo de confissão): CPF"]);
+  // Fiador 2 informado pela metade ainda é conferido
+  assert.deepEqual(T.faltas(dados({ fiadores: [FIADORES[0], { nome: "FIADOR DOIS TESTE", cpf: "" }], umFiador: true })), ["Fiador 2 (termo de confissão): CPF"]);
+  // sem a liberação, nada muda: os dois são obrigatórios
+  assert.equal(T.faltas(dados({ fiadores: [FIADORES[0]] })).length, 2);
+  // qualquer valor que não seja true não libera (a flag vem só do GerarContrato)
+  assert.equal(T.faltas(dados({ fiadores: [FIADORES[0]], umFiador: "sim" })).length, 2);
+  // e a venda sem a flag não ganha campo novo (o carimbo das outras vendas não muda)
+  assert.equal("umFiador" in dados().condominio, false);
+});
+
+test("marcadores com um fiador só: FIADOR 2 do quadro diz \"não há\", sem nome nem CPF", () => {
+  const m = T.marcadores(dados({ fiadores: [FIADORES[0]], umFiador: true }), "POS");
+  assert.equal(m.FIADOR1_QUADRO, "FIADOR UM TESTE, CPF nº 111.444.777-35");
+  assert.equal(m.FIADOR2_QUADRO, "não há");
+  assert.equal(m.FIADOR2_NOME, "");
+  assert.equal(m.FIADOR2_CPF, "");
 });
 
 test("marcadores do termo PRÉ: comprador do contrato, fiadores só nome e CPF, 4.1 com o resumo do contrato e o total", () => {

@@ -418,6 +418,12 @@ def mes_de(dt):
     return "SEM DATA"
 
 
+def dia_de(dt):
+    dt = dt or ""
+    m = re.match(r"(\d{2})/\d{2}/\d{4}", dt) or re.match(r"\d{4}-\d{2}-(\d{2})", dt)
+    return int(m.group(1)) if m else 0
+
+
 def num_br(v):
     s = str(v or "").strip()
     if not s:
@@ -460,6 +466,9 @@ def buscar_erp():
             "plano_de_conta": (row.get("plano_de_conta") or row.get("plano de conta") or "").strip(),
             "fornecedor": (row.get("fornecedor") or "").strip(),
             "juros_multa": num_br(jm) or 0,
+            # 09/11/26: a tela lista os lançamentos de cada barra (clique no gráfico)
+            "descricao": re.sub(r"\s+", " ", (row.get("descricao") or "")).strip()[:90],
+            "dia": dia_de(row.get("data_pagamento")),
         })
     print(f"  ERP: {len(orcados)} orçados, {len(pagos)} centros de custo, "
           f"{len(pagamentos_full)} pagamentos", flush=True)
@@ -512,6 +521,7 @@ def buscar_recebimentos_erp():
     c_dt = achar(["data_recebimento", "Data Recebimento", "DATA RECEBIMENTO"], ["data_receb", "data receb", "data"])
     c_cc = achar(["centro_de_custo", "centro de custo", "Centro de Custo", "CENTRO DE CUSTO"], ["centro", "custo", "obra"])
     c_nat = achar(["natureza", "Natureza", "NATUREZA"], ["natureza"])   # 24/10: Venda, Aporte, Empréstimo…
+    c_desc = achar(["descricao", "Descrição", "DESCRICAO", "descrição"], ["descri"])   # 09/11: lista de lançamentos
     if not c_val:
         print(f"  ERP recebimentos: coluna de valor não encontrada em {cols}", flush=True)
         return []
@@ -521,8 +531,13 @@ def buscar_recebimentos_erp():
         v = num_br(row.get(c_val, ""))
         if not cc or not v or v <= 0:
             continue
-        rec.append({"cc": cc, "valor": v, "mes": mes_de((row.get(c_dt, "") if c_dt else "").strip()),
-                    "nat": (row.get(c_nat, "") if c_nat else "").strip()})
+        dt = (row.get(c_dt, "") if c_dt else "").strip()
+        item = {"cc": cc, "valor": v, "mes": mes_de(dt), "nat": (row.get(c_nat, "") if c_nat else "").strip()}
+        if dia_de(dt):
+            item["dia"] = dia_de(dt)
+        if c_desc and (row.get(c_desc) or "").strip():
+            item["descricao"] = re.sub(r"\s+", " ", row.get(c_desc)).strip()[:90]
+        rec.append(item)
     return rec
 
 
@@ -533,8 +548,8 @@ def compactar_pagamentos(lista):
     cabe numa fração disso — e é o que passa pelo Apps Script até o navegador.
     A tela remonta os objetos (ver expandirPagamentos na analise-dados.html).
     Ordem de cada linha: cc, valor, mes, grupo, categoria, plano_de_conta,
-    fornecedor, juros_multa."""
-    campos = ["cc", "mes", "grupo", "categoria", "plano_de_conta", "fornecedor"]
+    fornecedor, juros_multa, descricao, dia (09/11/26)."""
+    campos = ["cc", "mes", "grupo", "categoria", "plano_de_conta", "fornecedor", "descricao"]
     dic = {c: [] for c in campos}
     pos = {c: {} for c in campos}
 
@@ -546,7 +561,8 @@ def compactar_pagamentos(lista):
         return pos[c][v]
     rows = [[i("cc", p["cc"]), round(p["valor"], 2), i("mes", p["mes"]), i("grupo", p["grupo"]),
              i("categoria", p["categoria"]), i("plano_de_conta", p["plano_de_conta"]),
-             i("fornecedor", p["fornecedor"]), round(p["juros_multa"] or 0, 2)] for p in lista]
+             i("fornecedor", p["fornecedor"]), round(p["juros_multa"] or 0, 2),
+             i("descricao", p.get("descricao")), p.get("dia") or 0] for p in lista]
     return {"dic": dic, "rows": rows}
 
 

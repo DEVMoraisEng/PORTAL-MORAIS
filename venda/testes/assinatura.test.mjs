@@ -1495,6 +1495,40 @@ test("vigia 03/11: termo de reserva ENVIADO — a vigia consulta a coluna do ter
   assert.match(c.emails[0].subject, /reserva/i);
 });
 
+/* ---- 09/11/2026 (dono): "sempre que cancela o envelope da reserva tem que apagar a data" ---- */
+const COL_PR_PAG = { "PRÉ-RESERVA - VALOR": "number", "PRÉ-RESERVA - DATA PAGAMENTO": "date", "PRÉ-RESERVA - HISTÓRICO": "rich_text" };
+function cenarioTermoAberto(venda = {}) {
+  const ev = [];
+  return cenario({ colunas: Object.assign(colunasVenda(), COL_PR, COL_PR_PAG), cs: { eventos: ev, status: "running" },
+                   venda: Object.assign({ "PRÉ-RESERVA - ENVELOPE ID": rt("env-1"), "PRÉ-RESERVA - SITUAÇÃO": rt("ENVIADO"),
+                                          "PRÉ-RESERVA - VALOR": num(1000), "PRÉ-RESERVA - DATA PAGAMENTO": dat("2026-11-07") }, venda) });
+}
+test("09/11: cancelar o termo da pré-reserva apaga a DATA PAGAMENTO (o valor fica) e grava no histórico", () => {
+  const c = cenarioTermoAberto();
+  const r = chamarCom(c, "assinaturaCancelar", { doc: "PRE_RESERVA" });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.cancelou, true);
+  assert.equal(r.pagamentoApagado, true);
+  const pr = c.n.pagina.properties;
+  assert.equal(pr["PRÉ-RESERVA - DATA PAGAMENTO"].date, null);
+  assert.equal(pr["PRÉ-RESERVA - VALOR"].number, 1000);
+  assert.match(c.txt("PRÉ-RESERVA - HISTÓRICO"), /: termo cancelado; pagamento 07\/11\/2026 → —$/);
+  assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "", "o contrato não é tocado");
+});
+test("09/11: cancelar o CONTRATO não mexe no pagamento da pré-reserva; termo cancelado sem data não grava nada a mais", () => {
+  const c = cenarioTermoAberto({ "ASSINATURA - ENVELOPE ID": rt(""), "ASSINATURA - SITUAÇÃO": rt("") });
+  assert.equal(c.enviar().ok, true);
+  const r = c.acao("assinaturaCancelar");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.pagamentoApagado, undefined);
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2026-11-07");
+  const s = cenarioTermoAberto({ "PRÉ-RESERVA - DATA PAGAMENTO": { date: null } });
+  const r2 = chamarCom(s, "assinaturaCancelar", { doc: "PRE_RESERVA" });
+  assert.equal(r2.ok, true, JSON.stringify(r2));
+  assert.equal(r2.pagamentoApagado, false);
+  assert.equal(s.txt("PRÉ-RESERVA - HISTÓRICO"), "");
+});
+
 const MSG_DISPENSADA = "O contrato desta unidade foi gerado sem a reserva: a reserva foi dispensada.";
 test("03/11: contrato gerado e termo nunca enviado — reserva DISPENSADA: gerar termo, conta, cônjuge e Enviar do termo recusam", () => {
   const c = cenario({ colunas: Object.assign(colunasVenda(), COL_PR) });   /* VENDA já tem CONTRATO GERADO */

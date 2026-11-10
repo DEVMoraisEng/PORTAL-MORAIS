@@ -273,6 +273,18 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cola.falta{background:#fdf1e7;color:#b26a2b}
 .cola{font-size:11px;color:var(--text3);background:var(--bg3);border-radius:6px;padding:2px 7px;white-space:nowrap}
 .lapis{border:0;background:none;cursor:pointer;color:var(--text3);font-size:13px;padding:0 3px}
+/* 09/11/26 — tipos sem casa modelo própria (aba Casas Modelo) */
+.tc-cab{margin:26px 0 10px}
+.tc-tit{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:15px;letter-spacing:.6px;text-transform:uppercase;color:var(--text)}
+.tc-sub{color:var(--text3);font-size:12.5px;margin-top:3px;max-width:820px;white-space:normal}
+.tc-wrap{border-radius:10px}
+.tc-wrap select{padding:4px 7px;font-size:12.5px;max-width:360px}
+.tc-wrap input{width:100%;min-width:260px;padding:4px 7px;font-size:12.5px}
+.tc-add{border:1px dashed var(--border2);background:none;color:var(--text3);border-radius:6px;padding:3px 9px;font-size:11px;cursor:pointer}
+.tc-add:hover{color:var(--text);border-color:var(--text3)}
+.tc-auto{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:4px;background:rgba(127,127,127,.16);color:var(--text3);margin-right:6px}
+.tc-man{display:inline-block;font-size:9.5px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;padding:1px 6px;border-radius:4px;background:rgba(39,174,96,.16);color:#1e8449;margin-right:6px}
+.tc-casas{white-space:normal;max-width:340px;color:var(--text2,var(--text));font-size:12px}
 .lapis:hover{color:var(--text)}
 #distoverlay .modal{background:var(--sup);border-radius:14px;padding:20px;width:min(420px,92vw);box-shadow:0 18px 50px rgba(0,0,0,.25);max-height:92vh;overflow:auto}
 #distoverlay h3{margin:0 0 6px;font-size:16px;color:var(--text)}
@@ -426,13 +438,29 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 #painel[data-aba] #pn-body>[data-sec],#painel[data-aba] #dossie-wrap,#painel[data-aba] #contrato-wrap{display:none}
 #painel[data-aba="resumo"] #pn-body>[data-sec="resumo"],#painel[data-aba="documentos"] #pn-body>[data-sec="documentos"],
 #painel[data-aba="compradores"] #pn-body>[data-sec="compradores"],#painel[data-aba="contrato"] #pn-body>[data-sec="contrato"],
-#painel[data-aba="andamento"] #pn-body>[data-sec="andamento"],
+#painel[data-aba="andamento"] #pn-body>[data-sec="andamento"],#painel[data-aba="links"] #pn-body>[data-sec="links"],
 #painel[data-aba="documentos"] #dossie-wrap,#painel[data-aba="contrato"] #contrato-wrap,#painel[data-aba="recebimentos"] #contrato-wrap{display:block}
 #painel[data-aba="contrato"] #contrato-wrap>.vb-rec,#painel[data-aba="recebimentos"] #contrato-wrap>:not(.vb-rec){display:none}
 /* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê (venda-dossie.js, evento dossie:compradores) esconde o grupo
    Comprador 2 da aba Compradores. Só no painel da casa de rua (#painel); o cartão do condomínio não muda. */
 #painel[data-compradores="1"] #pn-body [data-comprador2]{display:none}
 /* campos em duas colunas dentro das abas (a lista inteira numa coluna só era o que fazia 16 telas de rolagem) */
+/* 09/11/26 — Resumo do processo (aba Resumo do painel da casa) */
+.proc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 22px}
+.proc-it{border:1px solid var(--border2);border-radius:10px;padding:8px 10px;background:var(--sup);min-width:0}
+.proc-it.ir{cursor:pointer}
+.proc-it.ir:hover{border-color:var(--verde)}
+.proc-rot{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.proc-val{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;margin-top:2px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proc-it.vazio .proc-val{color:var(--text3);font-weight:600}
+.proc-it.sim{border-color:rgba(42,157,92,.45);background:rgba(42,157,92,.10)}
+.proc-it.sim .proc-val{color:var(--verde-esc)}
+.proc-it.nao{border-color:rgba(192,57,43,.35);background:rgba(192,57,43,.07)}
+.proc-it.nao .proc-val{color:#c0392b}
+html[data-tema="escuro"] .proc-it.sim .proc-val{color:#8ce0a5}
+html[data-tema="escuro"] .proc-it.nao .proc-val{color:#ff8a7a}
+.pn-ajuda{padding:0 22px 6px;color:var(--text3);font-size:12.5px;line-height:1.5}
+@media (max-width:600px){ .proc{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .pn-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:0 11px}
 .pn-grade>.campo{padding:0 11px}
 .pn-grade>.campo:has(.msgrid),.pn-grade>.campo:has(textarea){grid-column:1/-1}
@@ -1169,6 +1197,26 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <span class="count" id="mod-count"></span>
         </div>
         <div class="tabela-wrap" id="mod-wrap"><div class="vazio">Carregando…</div></div>
+
+        <!-- 09/11/26 — TIPOS SEM CASA MODELO PRÓPRIA: tipo que tem casa modelo
+             no setor usa a dela (não aparece aqui). Tipo sem casa modelo
+             escolhe o decorado de visita e tem layout/fotos próprios, gravados
+             na base TIPOS DE CASA. -->
+        <div class="tc-cab">
+          <div class="tc-tit">Tipos sem casa modelo própria</div>
+          <div class="tc-sub">Tipo com casa modelo no setor usa a dela. Aqui ficam só os tipos sem casa modelo: escolha qual casa modelo o cliente visita e coloque o layout e as fotos do tipo.</div>
+        </div>
+        <div class="tabela-wrap tc-wrap" id="tc-wrap"><div class="vazio">Carregando…</div></div>
+
+        <!-- 09/11/26 (opção B) — LINK PRÓPRIO DA CASA: por padrão cada casa usa o
+             automático (casa modelo do tipo ou o cadastro do tipo acima). Link
+             preenchido aqui vale mais que o automático; apagar volta ao automático.
+             Grava na própria casa em VENDAS (LAYOUT / FOTOS), via updateVenda. -->
+        <div class="tc-cab">
+          <div class="tc-tit">Links por casa (manual)</div>
+          <div class="tc-sub">Cada casa usa sozinha o layout e as fotos da casa modelo do tipo (ou do tipo acima) — marcado <b>auto</b>. Se uma casa for diferente, coloque o link dela aqui: link preenchido vale mais que o automático. Apagar (✕) volta para o automático.</div>
+        </div>
+        <div class="tabela-wrap tc-wrap" id="lc-wrap"><div class="vazio">Carregando…</div></div>
       </div>
 
       <!-- 22/10/26 — CASAS LIBERADAS SEM TIPO: já saíram do "em breve" no mapa
@@ -1245,7 +1293,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
-<script src="venda/painel-casa.js?v=6"></script>
+<script src="venda/painel-casa.js?v=7"></script>
 <script src="venda/FluxoLivre.js?v=22"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
@@ -2579,6 +2627,7 @@ async function abrirCasasModelo(){
   // escolhido na Planilha, e aí sumiriam casas modelo de outros setores.
   if(!DADOS.hub.length && !DADOS.set.length){ await carregarPlanilha("set"); }
   renderCasasModelo();
+  carregarTiposCasa();   // não espera: a tabela de cima já aparece
 }
 /* preenche um <select> com os valores que existem de fato, preservando a escolha atual */
 function popularSelect(id, valores, rotulo){
@@ -2632,6 +2681,9 @@ function renderCasasModelo(){
       const val=getV(v.valores,c.nome);
       // LAYOUT e FOTOS aqui são links do Drive: URL crua ocupa a linha toda e
       // não dá pra ler. Vira botão + lápis pra trocar o link sem sair da tabela.
+      // 09/11/26: link vazio mostrava célula em branco (clicável, mas ninguém sabia)
+      if((val==null||val==="") && c.tipo==="url" && editavelNaCelula(c))
+        return `<td class="edt" data-col="${esc(c.nome)}"><button type="button" class="tc-add" title="Adicionar link">＋ link</button></td>`;
       if(typeof val==="string" && /^https?:\/\//i.test(val))
         return `<td class="${editavelNaCelula(c)?"edt":""}" data-col="${esc(c.nome)}">`+
                `<a class="bt ghost bt-mini" href="${esc(val)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
@@ -2646,6 +2698,249 @@ function renderCasasModelo(){
   DADOS.mod=lista;
   ligarTabela("mod");
   ordenarDom("mod");   // reaplica a ordem por clique (a tabela foi reconstruída)
+  renderTiposSemModelo();
+  renderLinksCasas();
+}
+
+/* ---------- TIPOS SEM CASA MODELO PRÓPRIA (09/11/26) ----------
+   Regra (Morais): se o tipo tem casa modelo no setor, todas as casas dele usam
+   essa casa modelo — nada a editar aqui. Só o tipo SEM casa modelo própria é
+   editável: escolhe a casa modelo de visita (de outro tipo, mesmo setor) e
+   tem LAYOUT e FOTOS próprios. Grava na base TIPOS DE CASA pelo Apps Script
+   (tipoCasaSalvar); o mapa de vendas lê do dist/mapa_vendas.json ("tipos").
+   Setor/tipo/modelo vêm do mapa_vendas.json porque lá o SETOR já vem deduzido
+   do REF — em VENDAS a coluna SETOR fica vazia na maioria das linhas. */
+const TC={ rows:null, tipos:null };
+function tcNorm(x){ return String(x==null?"":x).trim().toUpperCase(); }
+function tcTipo(x){ return String(x==null?"":x).trim(); }
+function tcChave(setor,tipo){ return tcNorm(setor)+"|"+tcTipo(tipo); }
+function tcEhModelo(r){ return tcNorm(r.modelo)==="SIM"; }
+function tcRotulo(r){ return (r.endereco||"(sem endereço)")+(r.casa?" — C"+r.casa:""); }
+async function carregarTiposCasa(){
+  const [mv, vivo]=await Promise.all([
+    lerEstatico("mapa_vendas.json","mapa_vendas"),
+    ler({action:"tiposCasa"},"tipos_casa")
+  ]);
+  TC.rows = (mv && mv.rows) || TC.rows || [];
+  // o que vem do Apps Script é o mais novo (o dist/ só republica depois)
+  TC.tipos = (vivo && vivo.ok && vivo.tipos) ? vivo.tipos : ((mv && mv.tipos) || TC.tipos || []);
+  renderTiposSemModelo();
+  renderLinksCasas();
+}
+function tcCadastro(setor,tipo){
+  const k=tcChave(setor,tipo);
+  return (TC.tipos||[]).find(t=>tcChave(t.setor,t.tipo)===k) || null;
+}
+function renderTiposSemModelo(){
+  const wrap=document.getElementById("tc-wrap"); if(!wrap) return;
+  if(!TC.rows){ wrap.innerHTML='<div class="vazio">Carregando…</div>'; return; }
+  const podeEditar=editavelNaCelula(campoExatoOuFrag("LAYOUT"));
+  const fSetor=tcNorm(document.getElementById("mod-setor").value);
+  const fTipo=tcTipo(document.getElementById("mod-tipo").value);
+  // agrupa por setor + tipo
+  const grupos=new Map();
+  TC.rows.forEach(r=>{
+    const setor=tcNorm(r.setor), tipo=tcTipo(r.tipo);
+    if(!setor || !tipo) return;
+    const k=setor+"|"+tipo;
+    if(!grupos.has(k)) grupos.set(k,{setor,tipo,casas:[],temModelo:false});
+    const g=grupos.get(k);
+    g.casas.push(r);
+    if(tcEhModelo(r)) g.temModelo=true;
+  });
+  const lista=[...grupos.values()].filter(g=>{
+    if(g.temModelo) return false;                                   // usa a casa modelo própria
+    if(fSetor && g.setor!==fSetor) return false;
+    if(fTipo && g.tipo!==fTipo) return false;
+    // tipo esgotado (todas vendidas) só aparece se já tiver algo cadastrado
+    return g.casas.some(r=>!r.vendida) || !!tcCadastro(g.setor,g.tipo);
+  }).sort((a,b)=>a.setor.localeCompare(b.setor,"pt-BR")||a.tipo.localeCompare(b.tipo,"pt-BR",{numeric:true}));
+  if(!lista.length){
+    wrap.innerHTML='<div class="vazio">Todos os tipos'+(fSetor||fTipo?" deste filtro":"")+' têm casa modelo própria. 🎉</div>';
+    return;
+  }
+  const opcoesModelo=setor=>TC.rows.filter(r=>tcEhModelo(r)&&tcNorm(r.setor)===setor)
+    .sort((a,b)=>tcRotulo(a).localeCompare(tcRotulo(b),"pt-BR",{numeric:true}));
+  const celLink=(g,campo,url)=>{
+    const dados=`data-setor="${esc(g.setor)}" data-tipo="${esc(g.tipo)}" data-campo="${campo}"`;
+    if(url) return `<td ${dados}><a class="bt ghost bt-mini" href="${esc(url)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
+                   (podeEditar?` <button type="button" class="lapis tc-edit" title="Trocar link">✎</button>`:"")+`</td>`;
+    return `<td ${dados}>`+(podeEditar?`<button type="button" class="tc-add tc-edit">＋ link</button>`:"—")+`</td>`;
+  };
+  let html='<table><thead><tr><th>Setor</th><th>Tipo</th><th>Casas do tipo</th><th>Casa modelo (visita)</th><th>Layout</th><th>Fotos</th></tr></thead><tbody>';
+  lista.forEach(g=>{
+    const cad=tcCadastro(g.setor,g.tipo)||{};
+    const mods=opcoesModelo(g.setor);
+    const idSel=String(cad.casaModeloId||"").replace(/-/g,"");
+    const casas=g.casas.slice().sort((a,b)=>tcRotulo(a).localeCompare(tcRotulo(b),"pt-BR",{numeric:true}));
+    const casasTxt=casas.map(r=>tcRotulo(r)+(r.vendida?" (vendida)":"")).join(" · ");
+    let celModelo;
+    if(podeEditar){
+      celModelo=`<td><select class="tc-modelo" data-setor="${esc(g.setor)}" data-tipo="${esc(g.tipo)}">`+
+        `<option value="">— escolher —</option>`+
+        mods.map(r=>{ const id=String(r.id||"").replace(/-/g,"");
+          return `<option value="${esc(r.id)}"${id&&id===idSel?" selected":""}>${esc(tcRotulo(r))} · tipo ${esc(tcTipo(r.tipo)||"?")}</option>`; }).join("")+
+        `</select>${mods.length?"":' <span class="count">sem casa modelo no setor</span>'}</td>`;
+    }else{
+      const m=mods.find(r=>String(r.id||"").replace(/-/g,"")===idSel);
+      celModelo=`<td>${m?esc(tcRotulo(m)):"—"}</td>`;
+    }
+    html+=`<tr><td>${esc(g.setor)}</td><td>${esc(g.tipo)}</td>`+
+          `<td class="tc-casas" title="${esc(casasTxt)}">${casas.length} casa(s): ${esc(casasTxt)}</td>`+
+          celModelo+celLink(g,"LAYOUT",cad.layout)+celLink(g,"FOTOS",cad.fotos)+`</tr>`;
+  });
+  wrap.innerHTML=html+'</tbody></table>';
+  wrap.querySelectorAll(".tc-modelo").forEach(sel=>{
+    sel.onchange=()=>salvarTipoCasa(sel.dataset.setor, sel.dataset.tipo, "CASA MODELO", sel.value, sel);
+  });
+  wrap.onclick=ev=>{
+    const bt=ev.target.closest(".tc-edit"); if(!bt) return;
+    const td=bt.closest("td"); if(!td || td.querySelector("input")) return;
+    const cad=tcCadastro(td.dataset.setor, td.dataset.tipo)||{};
+    const atual=(td.dataset.campo==="LAYOUT"?cad.layout:cad.fotos)||"";
+    const antigo=td.innerHTML;
+    const el=document.createElement("input");
+    el.type="url"; el.value=atual; el.placeholder="Cole o link do Drive…";
+    td.innerHTML=""; td.appendChild(el); el.focus();
+    let fim=false;
+    const encerrar=salvar=>{
+      if(fim) return; fim=true;
+      const novo=el.value.trim();
+      if(!salvar || novo===atual){ td.innerHTML=antigo; return; }
+      if(novo && !/^https?:\/\//i.test(novo)){ td.innerHTML=antigo; toast("O link tem que começar com http:// ou https://"); return; }
+      td.innerHTML='<span class="load"></span>';
+      salvarTipoCasa(td.dataset.setor, td.dataset.tipo, td.dataset.campo, novo, null);
+    };
+    el.addEventListener("blur",()=>encerrar(true));
+    el.addEventListener("keydown",e=>{ if(e.key==="Escape") encerrar(false); if(e.key==="Enter") encerrar(true); });
+  };
+}
+async function salvarTipoCasa(setor, tipo, campo, valor, el){
+  if(el) el.disabled=true;
+  const r=await escrever({action:"tipoCasaSalvar", setor:setor, tipo:tipo, campo:campo, valor:valor}, "Tipo "+tipo+" — "+campo);
+  if(el) el.disabled=false;
+  if(r.ok){
+    // atualiza a cópia local na hora (o dist/ só republica depois)
+    let cad=tcCadastro(setor,tipo);
+    if(!cad){ cad={setor:tcNorm(setor), tipo:tcTipo(tipo), layout:"", fotos:"", casaModeloId:""}; (TC.tipos=TC.tipos||[]).push(cad); }
+    const volta=r.resposta && r.resposta.tipo;
+    if(volta){ Object.assign(cad, volta); }
+    else if(campo==="LAYOUT") cad.layout=valor;
+    else if(campo==="FOTOS") cad.fotos=valor;
+    else cad.casaModeloId=valor;
+    toast(r.enfileirado?"Na fila ✓":"Salvo ✓");
+  }else{
+    toast("Erro: "+erroTexto(r.erro));
+  }
+  renderTiposSemModelo();
+  renderLinksCasas();
+}
+
+/* ---------- LINKS POR CASA — MANUAL (09/11/26, opção B) ----------
+   Mesma regra do mapa de vendas: link preenchido NA CASA vale mais; vazio =
+   automático (casa modelo própria do tipo; sem ela, o cadastro TIPOS DE CASA).
+   O valor da casa sai do vendas.json (DADOS), que já traz as edições locais
+   ainda não republicadas; setor/tipo/modelo saem do mapa_vendas.json. */
+function lcColuna(campo){ return campoExatoOuFrag(campo==="layout"?"LAYOUT":"FOTOS"); }
+function lcRegistro(id){ return (DADOS.hub.length?DADOS.hub:DADOS.set).find(v=>v.id===id) || null; }
+function lcProprio(r,campo){
+  const c=lcColuna(campo), reg=lcRegistro(r.id);
+  if(c && reg){ const v=getV(reg.valores,c.nome); return (typeof v==="string"?v.trim():"") ; }
+  return String(r[campo]||"").trim();
+}
+function lcModelosDoTipo(r){
+  const st=tcNorm(r.setor), tp=tcTipo(r.tipo);
+  if(!st || !tp) return [];
+  return (TC.rows||[]).filter(x=>tcEhModelo(x)&&tcNorm(x.setor)===st&&tcTipo(x.tipo)===tp);
+}
+function lcAuto(r,campo){
+  const mods=lcModelosDoTipo(r);
+  if(mods.length){ const m=mods.find(x=>lcProprio(x,campo)); return m?lcProprio(m,campo):""; }
+  const cad=r.tipo?tcCadastro(r.setor,r.tipo):null;
+  return cad ? (cad[campo]||"") : "";
+}
+function lcModeloRotulo(r){
+  const mods=lcModelosDoTipo(r);
+  if(mods.length) return tcRotulo(mods[mods.length-1]);
+  const cad=r.tipo?tcCadastro(r.setor,r.tipo):null;
+  if(cad && cad.casaModeloId){
+    const alvo=String(cad.casaModeloId).replace(/-/g,"");
+    const m=(TC.rows||[]).find(x=>String(x.id||"").replace(/-/g,"")===alvo);
+    if(m) return tcRotulo(m);
+  }
+  return "—";
+}
+function renderLinksCasas(){
+  const wrap=document.getElementById("lc-wrap"); if(!wrap) return;
+  if(!TC.rows){ wrap.innerHTML='<div class="vazio">Carregando…</div>'; return; }
+  const cL=lcColuna("layout"), cF=lcColuna("fotos");
+  const pode = c => !!(c && editavelNaCelula(c));
+  const fSetor=tcNorm(document.getElementById("mod-setor").value);
+  const fTipo=tcTipo(document.getElementById("mod-tipo").value);
+  const busca=(document.getElementById("mod-busca").value||"").toLowerCase();
+  const lista=TC.rows.filter(r=>{
+    if(tcEhModelo(r) || r.vendida) return false;        // casa modelo: tabela de cima; vendida: fora do mapa
+    if(fSetor && tcNorm(r.setor)!==fSetor) return false;
+    if(fTipo && tcTipo(r.tipo)!==fTipo) return false;
+    if(busca && String(r.endereco||"").toLowerCase().indexOf(busca)<0) return false;
+    return true;
+  }).sort((a,b)=>tcNorm(a.setor).localeCompare(tcNorm(b.setor),"pt-BR")||tcRotulo(a).localeCompare(tcRotulo(b),"pt-BR",{numeric:true}));
+  if(!lista.length){ wrap.innerHTML='<div class="vazio">Nenhuma casa disponível'+(fSetor||fTipo||busca?" neste filtro":"")+'.</div>'; return; }
+  const cel=(r,campo,c)=>{
+    const prop=lcProprio(r,campo), auto=lcAuto(r,campo), ed=pode(c);
+    const dados=`data-id="${esc(r.id)}" data-campo="${campo}"`;
+    if(prop) return `<td ${dados}><span class="tc-man">manual</span><a class="bt ghost bt-mini" href="${esc(prop)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
+      (ed?` <button type="button" class="lapis lc-edit" title="Trocar link">✎</button><button type="button" class="lapis lc-limpar" title="Apagar e voltar ao automático">✕</button>`:"")+`</td>`;
+    if(auto) return `<td ${dados}><span class="tc-auto">auto</span><a class="bt ghost bt-mini" href="${esc(auto)}" target="_blank" rel="noopener">🔗 Abrir</a>`+
+      (ed?` <button type="button" class="lapis lc-edit" title="Colocar um link só desta casa">✎</button>`:"")+`</td>`;
+    return `<td ${dados}>`+(ed?`<button type="button" class="tc-add lc-edit">＋ link</button>`:"—")+`</td>`;
+  };
+  let html='<table><thead><tr><th>Setor</th><th>Endereço</th><th>Tipo</th><th>Casa modelo</th><th>Layout</th><th>Fotos</th></tr></thead><tbody>';
+  lista.forEach(r=>{
+    html+=`<tr><td>${esc(tcNorm(r.setor)||"—")}</td><td><span class="obralink" data-obra="${esc(r.id)}">${esc(tcRotulo(r))}</span></td>`+
+          `<td>${esc(tcTipo(r.tipo)||"—")}</td><td>${esc(lcModeloRotulo(r))}</td>`+cel(r,"layout",cL)+cel(r,"fotos",cF)+`</tr>`;
+  });
+  wrap.innerHTML=html+'</tbody></table>';
+  wrap.onclick=ev=>{
+    const lk=ev.target.closest(".obralink"); if(lk){ abrirObra(lk.dataset.obra); return; }
+    const td=ev.target.closest("td[data-campo]"); if(!td || td.querySelector("input")) return;
+    const r=TC.rows.find(x=>x.id===td.dataset.id); if(!r) return;
+    const campo=td.dataset.campo;
+    if(ev.target.closest(".lc-limpar")){
+      if(confirm("Apagar o link desta casa? Ela volta a usar o automático.")) salvarLinkCasa(r,campo,"",td);
+      return;
+    }
+    if(!ev.target.closest(".lc-edit")) return;
+    const atual=lcProprio(r,campo), antigo=td.innerHTML;
+    const el=document.createElement("input");
+    el.type="url"; el.value=atual; el.placeholder="Link só desta casa (vazio = automático)";
+    td.innerHTML=""; td.appendChild(el); el.focus();
+    let fim=false;
+    const encerrar=salvar=>{
+      if(fim) return; fim=true;
+      const novo=el.value.trim();
+      if(!salvar || novo===atual){ td.innerHTML=antigo; return; }
+      if(novo && !/^https?:\/\//i.test(novo)){ td.innerHTML=antigo; toast("O link tem que começar com http:// ou https://"); return; }
+      salvarLinkCasa(r,campo,novo,td);
+    };
+    el.addEventListener("blur",()=>encerrar(true));
+    el.addEventListener("keydown",e=>{ if(e.key==="Escape") encerrar(false); if(e.key==="Enter") encerrar(true); });
+  };
+}
+async function salvarLinkCasa(r,campo,valor,td){
+  const c=lcColuna(campo); if(!c){ toast("Coluna "+campo.toUpperCase()+" não encontrada"); return; }
+  if(td) td.innerHTML='<span class="load"></span>';
+  registrarEdicao("vendas",r.id,c.nome,valor);
+  const res=await escrever({action:"updateVenda",pageId:r.id,prop:c.nome,tipo:c.tipo,valor:valor},"Editar "+c.nome);
+  if(res.ok){
+    r[campo]=valor;
+    const reg=lcRegistro(r.id); if(reg) setV(reg.valores,c.nome,valor);
+    toast(res.enfileirado?"Na fila ✓":(valor?"Salvo ✓":"Voltou ao automático ✓"));
+  }else{
+    esquecerEdicao("vendas",r.id,c.nome);
+    toast("Erro: "+erroTexto(res.erro));
+  }
+  renderLinksCasas();
 }
 
 /* ---------- CASAS LIBERADAS SEM TIPO (22/10/26) ----------
@@ -4172,17 +4467,51 @@ window.PainelFaltaCampo=function(pageId,falta){
   setTimeout(()=>{ const w=document.getElementById("contrato-wrap"); if(w) ligarMoedas(w); },0);   // máscara de R$ depois de o bloco entrar na tela
   return cols.map(c=>campoHtml(c,getV(PN_V,c.nome),PN_PAGE,false)).join("");
 };
+/* 09/11/2026 (dono): "Resumo do processo" — VENDIDA · SITUAÇÃO DO PROCESSO · TRANSFERÊNCIA DAS LIGAÇÕES · RECEBEU ·
+   GEROU GCAP · PAGOU GCAP · DATA DO GCAP · ENTREGUE. As colunas são achadas pelo venda/painel-casa.js
+   (resolverProcesso); VENDIDA é calculada (mesma régua da planilha: contrato assinado / tem cliente). */
+function pnResumoProcesso(V,pageId,sensPendente){
+  if(!window.PainelCasa||!window.PainelCasa.resolverProcesso) return "";
+  if(painelListaBranca()) return "";        // painel enxuto (Gestor de Vendas): sem as colunas do processo
+  const itens=window.PainelCasa.resolverProcesso(SCHEMA.map(c=>c.nome));
+  const rec=(DADOS.hub.length?DADOS.hub:DADOS.set).find(v=>v.id===pageId)||{valores:V};
+  const fmt=(c,v)=>{
+    if(v==null||v===""||(Array.isArray(v)&&!v.length)) return "";
+    if(c&&c.tipo==="date"){ const d=String(v).slice(0,10).split("-"); return d.length===3?d[2]+"/"+d[1]+"/"+d[0]:String(v); }
+    if(Array.isArray(v)) return v.join(", ");
+    if(v===true) return "SIM"; if(v===false) return "NÃO";
+    return String(v);
+  };
+  const html=itens.map(it=>{
+    let txt="", c=null;
+    if(it.calculado){
+      const rc=reservaContratoDe(V);
+      txt = rc==="RESERVADA" ? "RESERVADA" : ((vendidaDe(rec) || (!sensPendente && !!getV(V,"CLIENTES"))) ? "SIM" : "NÃO");
+    }else{
+      c=campoPorNome(it.coluna); if(!c || nomeExcluido(c.nome,"painel")) return "";
+      txt = (c.sensivel&&sensPendente) ? "…" : fmt(c,getV(V,c.nome));
+    }
+    const n=normNome(txt);
+    const cls = !txt ? " vazio" : (/^(SIM|TRANSFERID)/.test(n) ? " sim" : (/^(NAO|NÃO)/.test(n)||/NAO TRANSFERID|ATRASAD/.test(n) ? " nao" : ""));
+    const ir = it.calculado ? "" : ` ir" onclick="pnTrocarAba('andamento')" title="Abrir no Andamento`;
+    return `<div class="proc-it${cls}${ir}"><div class="proc-rot">${esc(it.rotulo)}</div><div class="proc-val">${esc(txt||"—")}</div></div>`;
+  }).join("");
+  return html ? `<div class="grp" style="margin-top:14px">Resumo do processo</div><div class="proc">${html}</div>` : "";
+}
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
   PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;
-  const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:""};
+  const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:"",links:""};
 
   /* 05/11/2026 (dono): o ENDEREÇO saiu do Resumo — "não tem que ter possibilidade de mudar o endereço". Ele já é o
      título do painel (pn-end, cabecalhoObra) e continua na planilha, nos filtros e no contrato; só não é mais caixa
      de edição aqui, para ninguém (ADM inclusive). */
 
+  /* 09/11/2026 (dono): resumo do processo no topo — só leitura; clicar num item abre o Andamento (onde se edita) */
+  sec.resumo+=pnResumoProcesso(V,pageId,sensPendente);
+
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
-  sec.resumo+='<div class="grp" style="margin-top:14px">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
+  sec.resumo+='<div class="grp">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
     const c=campoPorNome(n); if(!c)return "";
     if(nomeExcluido(c.nome,"painel")) return "";
     const val=getV(V,n);
@@ -4217,7 +4546,7 @@ function renderPainel(V,pageId,sensPendente){
   /* campos do formulário, cada um na aba dele. Compradores e Contrato mantêm os títulos da entrega 14
      (Comprador 1, Comprador 2, Contrato — …); o Andamento é separado por departamento (mesma régua do
      cartão do condomínio). Tudo em duas colunas. */
-  const porAba={compradores:[],contrato:[],documentos:[],andamento:[]};
+  const porAba={compradores:[],contrato:[],documentos:[],andamento:[],links:[]};
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
     const aba=pnAbaDoCampo(nome);
@@ -4243,6 +4572,13 @@ function renderPainel(V,pageId,sensPendente){
   sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
   sec.documentos+=blocoTitulado(porAba.documentos,"Dossiê — observações");
   sec.andamento+=pnPorDepartamento(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");
+  /* 09/11/2026 (dono): aba Links — layout, fotos e localização da casa num lugar só */
+  if(porAba.links.length){
+    sec.links+=blocoTitulado(porAba.links,"Links da casa")+
+      `<div class="pn-ajuda">Vazio = automático: no mapa de vendas a casa usa o layout e as fotos da casa modelo do tipo `+
+      `(ou do cadastro do tipo, na aba Casas Modelo). Link preenchido aqui vale mais que o automático. `+
+      `A localização mostrada no mapa é a da casa modelo (onde o cliente visita).</div>`;
+  }
 
   // Ligações de água e energia: leitura, não edição — o cadastro continua
   // sendo feito no Notion. Só na Secretária de Vendas, que foi onde foi pedido.
@@ -4313,7 +4649,7 @@ function renderPainel(V,pageId,sensPendente){
   }
   if(S.tipo==="ADM"){ sec.resumo+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
   /* ordem das partes = ordem das abas; sem abas (painel-casa.js não carregou) fica a coluna de antes */
-  body.innerHTML=["resumo","documentos","compradores","contrato","andamento"].map(k=>`<div data-sec="${k}">${sec[k]}</div>`).join("");
+  body.innerHTML=["resumo","documentos","compradores","contrato","andamento","links"].map(k=>`<div data-sec="${k}">${sec[k]}</div>`).join("");
   pnDesenharAbas();
   ligarMoedas(body);          // máscara de R$ nos campos de valor
   carregarComentarios(pageId);

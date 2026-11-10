@@ -1109,6 +1109,9 @@ function assinaturaCancelar_(col, sess, p) {
     return est;
   }
   est.cancelou = true;
+  /* 09/11/2026 (dono): "sempre que cancela o envelope da reserva tem que apagar a data" — sem a data, a reserva não entra
+     paga no fluxo (Alterar fluxo e contrato). Só no cancelamento de verdade (descartar rascunho não passa aqui). */
+  if (doc && doc.pre && est.ok) est.pagamentoApagado = prApagarPagamentoAoCancelar_(p.pageId, sess);
   return est;
 }
 

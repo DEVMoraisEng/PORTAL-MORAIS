@@ -325,7 +325,9 @@ var ACOES_ESCRITA = [
   /* r33: forcarAtualizacao escreve a Propriedade GH_ULTIMO e pede um build
      ao GitHub. Não toca no Notion, mas é escrita — e o perfil TESTES não
      dispara build de produção. */
-  "forcarAtualizacao"
+  "forcarAtualizacao",
+  /* 09/11/2026: link / casa modelo de um TIPO sem casa modelo própria (base TIPOS DE CASA) */
+  "tipoCasaSalvar"
 ];
 
 /* r31 — CRIAÇÃO DE REGISTRO NOVO. Estas são as ações protegidas: elas
@@ -535,6 +537,9 @@ function executar_(action, sess, p) {
       case "gerarAtividadesGcap":
         if (!ehAdm_(sess)) return ({ ok: false, erro: "APENAS_ADM" });
         return (criarAtividadesGcap_());
+      /* 09/11/2026 — TIPOS DE CASA (aba Casas Modelo): ver bloco "TIPOS DE CASA" */
+      case "tiposCasa":         return (tiposCasa_(sess, p));
+      case "tipoCasaSalvar":    return (tipoCasaSalvar_(sess, p));
       default:
         /* r35 — GESTÃO DE DOCUMENTOS (OBRA). O bloco do setor mora no FIM
            deste arquivo e tem roteador próprio: permissão, trava do modo
@@ -2892,6 +2897,159 @@ function excluirVenda_(sess, p) {
   // Code.gs da RAS-SEMANAL).
   notion_("PATCH", "/pages/" + p.pageId, { in_trash: true, archived: true });
   return { ok: true };
+}
+
+
+/* ===================== TIPOS DE CASA (09/11/2026) =====================
+ * PROBLEMA: num setor com tipos diferentes, um tipo pode não ter casa modelo
+ * própria e usar o decorado de outro tipo — mas com layout e fotos dele.
+ * Antes, layout/fotos só existiam na casa marcada MODELO? = SIM, então esse
+ * tipo não tinha onde guardar os links (marcar uma casa dele como modelo
+ * seria falso).
+ *
+ * REGRA (definida pelo Morais):
+ *  - tipo que TEM casa modelo própria no setor: todas as casas desse tipo
+ *    usam essa casa modelo (layout, fotos e localização dela). Nada a editar
+ *    aqui — os links continuam na própria casa modelo.
+ *  - tipo SEM casa modelo própria: ganha uma linha nesta base, com a CASA
+ *    MODELO de visita (uma casa MODELO? = SIM do setor, de outro tipo) e o
+ *    LAYOUT e as FOTOS do tipo. A localização vem da casa modelo escolhida.
+ *
+ * A BASE se cria sozinha na primeira gravação, na mesma página do Notion
+ * onde está a VENDAS (a integração cria e já tem acesso). O id fica na
+ * Propriedade do script DB_TIPOS_CASA. Se preferir criar à mão, crie com o
+ * título exato abaixo e as colunas NOME (título), SETOR e TIPO (texto),
+ * LAYOUT e FOTOS (URL) e CASA MODELO (relação com VENDAS) — o código acha
+ * pela busca do Notion. Rodar criarBaseTiposCasa() no editor também cria.
+ *
+ * O fetch_vendas.py lê esta base e publica em dist/mapa_vendas.json (campo
+ * "tipos"), que é o que o mapa de vendas usa.
+ * ===================================================================== */
+var TC_PROP_DB = "DB_TIPOS_CASA";
+var TC_TITULO = "TIPOS DE CASA (MAPA DE VENDAS)";
+var TC_CAMPOS = ["LAYOUT", "FOTOS", "CASA MODELO"];
+
+function tcNorm_(s) { return String(s == null ? "" : s).trim().toUpperCase(); }
+function tcSemHifen_(s) { return String(s == null ? "" : s).replace(/-/g, ""); }
+
+/* Rodar UMA vez no editor, se quiser criar a base antes da primeira gravação. */
+function criarBaseTiposCasa() {
+  var id = tiposCasaDb_(true);
+  console.log("TIPOS DE CASA: base " + id);
+  return id;
+}
+
+function tcProcurarDb_() {
+  try {
+    var r = notion_("POST", "/search", { query: TC_TITULO, filter: { property: "object", value: "database" } });
+    var res = r.results || [];
+    for (var i = 0; i < res.length; i++) {
+      if (res[i].archived || res[i].in_trash) continue;
+      var t = (res[i].title || []).map(function (x) { return x.plain_text; }).join("");
+      if (tcNorm_(t) === TC_TITULO) return tcSemHifen_(res[i].id);
+    }
+  } catch (e) { console.log("TIPOS DE CASA: busca falhou — " + e); }
+  return "";
+}
+
+/* Sobe pelos pais até achar uma PÁGINA (base inline mora dentro de um bloco). */
+function tcPaginaPai_(parent) {
+  for (var i = 0; parent && i < 6; i++) {
+    if (parent.type === "page_id") return parent.page_id;
+    if (parent.type === "block_id") { parent = (notion_("GET", "/blocks/" + parent.block_id, null) || {}).parent; continue; }
+    return "";
+  }
+  return "";
+}
+
+function tiposCasaDb_(criar) {
+  var id = PROPS_.getProperty(TC_PROP_DB);
+  if (id) return id;
+  id = tcProcurarDb_();
+  if (id) { PROPS_.setProperty(TC_PROP_DB, id); return id; }
+  if (!criar) return "";
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    id = PROPS_.getProperty(TC_PROP_DB) || tcProcurarDb_();
+    if (id) { PROPS_.setProperty(TC_PROP_DB, id); return id; }
+    var dbV = notion_("GET", "/databases/" + CONFIG.DB.VENDAS, null);
+    var pai = tcPaginaPai_(dbV.parent);
+    if (!pai) throw "TIPOS_DE_CASA_SEM_PAGINA: a VENDAS não está dentro de uma página — crie a base \"" +
+      TC_TITULO + "\" à mão (ver comentário do bloco TIPOS DE CASA no Code.gs).";
+    var db = notion_("POST", "/databases", {
+      parent: { type: "page_id", page_id: pai },
+      title: [{ type: "text", text: { content: TC_TITULO } }],
+      properties: {
+        "NOME": { title: {} },
+        "SETOR": { rich_text: {} },
+        "TIPO": { rich_text: {} },
+        "LAYOUT": { url: {} },
+        "FOTOS": { url: {} },
+        "CASA MODELO": { relation: { database_id: CONFIG.DB.VENDAS, type: "single_property", single_property: {} } }
+      }
+    });
+    id = tcSemHifen_(db.id);
+    PROPS_.setProperty(TC_PROP_DB, id);
+    console.log("TIPOS DE CASA: base criada " + id);
+    return id;
+  } finally { lock.releaseLock(); }
+}
+
+function tcLinha_(pg) {
+  var p = pg.properties || {};
+  var rel = (p["CASA MODELO"] && p["CASA MODELO"].relation) || [];
+  return {
+    id: pg.id,
+    setor: tcNorm_(texto_(p["SETOR"])),
+    tipo: String(texto_(p["TIPO"]) || "").trim(),
+    layout: url_(p["LAYOUT"]) || "",
+    fotos: url_(p["FOTOS"]) || "",
+    casaModeloId: rel.length ? rel[0].id : ""
+  };
+}
+
+function tiposCasa_(sess, p) {
+  var id = tiposCasaDb_(false);
+  if (!id) return { ok: true, tipos: [] };            // base ainda não criada: nada cadastrado
+  var pgs = queryAll_(id, {});
+  return { ok: true, tipos: pgs.filter(function (pg) { return !pg.archived && !pg.in_trash; }).map(tcLinha_) };
+}
+
+/* p: { setor, tipo, campo: LAYOUT | FOTOS | CASA MODELO, valor }
+   valor = link (LAYOUT/FOTOS) ou id da página da casa modelo em VENDAS; vazio limpa. */
+function tipoCasaSalvar_(sess, p) {
+  var setor = tcNorm_(p.setor), tipo = String(p.tipo == null ? "" : p.tipo).trim();
+  var campo = tcNorm_(p.campo), valor = String(p.valor == null ? "" : p.valor).trim();
+  if (!setor || !tipo) return { ok: false, erro: "FALTA_SETOR_OU_TIPO" };
+  if (TC_CAMPOS.indexOf(campo) < 0) return { ok: false, erro: "CAMPO_INVALIDO: " + campo };
+  if (campo !== "CASA MODELO" && valor && !/^https?:\/\//i.test(valor)) return { ok: false, erro: "LINK_INVALIDO" };
+
+  var props = {};
+  if (campo === "CASA MODELO") props["CASA MODELO"] = { relation: valor ? [{ id: valor }] : [] };
+  else props[campo] = { url: valor || null };
+
+  var dbId = tiposCasaDb_(true);
+  /* Sem LockService aqui de propósito: o lock do script é o mesmo que a
+     reconstrução de cache segura (comCache_), e esperar por ele travaria a
+     gravação. Duas pessoas criando o MESMO tipo no mesmo segundo é raríssimo;
+     se acontecer, quem lê (portal e mapa) fica com a primeira linha. */
+  {
+    var achou = queryAll_(dbId, { filter: { and: [
+      { property: "SETOR", rich_text: { equals: setor } },
+      { property: "TIPO", rich_text: { equals: tipo } }
+    ] } });
+    var pg;
+    if (achou.length) {
+      pg = notion_("PATCH", "/pages/" + achou[0].id, { properties: props });
+    } else {
+      props["NOME"] = { title: [{ text: { content: setor + " · TIPO " + tipo } }] };
+      props["SETOR"] = { rich_text: [{ text: { content: setor } }] };
+      props["TIPO"] = { rich_text: [{ text: { content: tipo } }] };
+      pg = notion_("POST", "/pages", { parent: { database_id: dbId }, properties: props });
+    }
+    return { ok: true, tipo: tcLinha_(pg) };
+  }
 }
 
 /* ===================== NOVA OPÇÃO DE SELECT =====================

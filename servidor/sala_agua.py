@@ -417,6 +417,180 @@ def _limpo(t: str) -> str:
     return _RE_DOC.sub("•••", _RE_VALOR.sub("", str(t or ""))).strip(" —-·")[:240]
 
 
+#: 09/11/2026 (dono): a aba CONTROLE DE CONTAS VENCIDAS ganha STATUS (✓ em dia · ⚠ alerta · ⏳ aguardando a fatura do
+#: mês) e o robô passa a contar nas OBSERVAÇÕES o que fez em cada UC (lançou, mês de referência e link; ou por que não
+#: lançou). O robô nunca grava no Notion: o histórico dele sai dos registros que ele já grava na pasta dele e vai num
+#: arquivo público (dist/agua_contas.json) — sem CPF, sem valor, sem nome de cliente. A tela mistura com o histórico das
+#: pessoas (que continua no Notion), no mesmo formato "▸ data hora · quem".
+URL_PARCELA_MC = "https://acessar.maiscontroleerp.com.br/#/payable-installments/{}"
+MESES_CONTAS = 3              # o mês de hoje e os 2 anteriores
+MAX_HIST = 8                  # registros do robô por UC
+_MES_ABREV = {m: i for i, m in enumerate(["JAN", "FEV", "MAR", "ABR", "MAI", "JUN", "JUL", "AGO", "SET", "OUT", "NOV", "DEZ"], 1)}
+_RE_REF = re.compile(r"\bREF\s+((?:[A-Za-z]{3}\s+A\s+)?[A-Za-z]{3}\s+\d{4})\b", re.I)
+_TXT_RESULTADO = {
+    "DUVIDA": "Não lançado — dúvida: {det}",
+    "PULADO": "Não lançado — pulado: {det}",
+    "SEM_PLACEHOLDER": "Não lançado — há parcela aberta no mês, mas nenhuma é a reservada para a conta: conferir no Mais Controle",
+    "SEM_RECORRENCIA_CRIAR": "Não lançado — o mês não tem parcela: o robô lança à vista na etapa de contas novas",
+}
+
+
+def _ler_csv(arq: pathlib.Path) -> list[dict]:
+    import csv
+    try:
+        with open(arq, encoding="utf-8-sig", newline="") as f:
+            return list(csv.DictReader(f, delimiter=";"))
+    except Exception:
+        return []
+
+
+def _chave_uc(v) -> str:
+    return re.sub(r"[^0-9A-Za-z]", "", str(v or "")).upper().lstrip("0")
+
+
+def _mes_da_ref(ref: str) -> tuple[int, int] | None:
+    """'OUT 2026' / 'JUL A AGO 2026' → (2026, 10) / (2026, 8) — vale o último mês."""
+    p = str(ref or "").upper().split()
+    if len(p) >= 2 and p[-1].isdigit() and p[-2] in _MES_ABREV:
+        return int(p[-1]), _MES_ABREV[p[-2]]
+    return None
+
+
+def _quando(v: str) -> str:
+    return str(v or "").strip()[:16]
+
+
+def _venc(v: str) -> str:
+    m = re.match(r"^(\d{4})-(\d\d)-(\d\d)", str(v or ""))
+    return f"{m.group(3)}/{m.group(2)}/{m.group(1)}" if m else ""
+
+
+def _evento_lancamento(r: dict) -> dict | None:
+    res = str(r.get("resultado") or "").strip().upper()
+    ref = str(r.get("ref") or "").strip().upper()
+    if not res or res == "DRY_RUN":
+        return None
+    det = _limpo(r.get("detalhe"))
+    if res == "LANCADO":
+        v = _venc(r.get("vencimento"))
+        return {"tipo": "fatura", "st": "ok", "ref": ref, "link": True,
+                "t": f"Lançado no Mais Controle — REF {ref}" + (f", vence {v}" if v else "")}
+    if res == "JA_LANCADO":
+        return {"tipo": "fatura", "st": "ok", "ref": ref, "link": True, "t": f"Já estava lançado no Mais Controle — REF {ref}"}
+    t = _TXT_RESULTADO.get(res, "Não lançado — " + res.lower().replace("_", " ") + ": {det}").format(det=det)
+    return {"tipo": "fatura", "st": "alerta", "ref": ref, "t": t + (f" (REF {ref})" if ref and ref not in t else "")}
+
+
+def _evento_criacao(r: dict) -> dict | None:
+    acao = str(r.get("acao") or "").strip().lower()
+    res = str(r.get("resultado") or "").strip().upper()
+    det = _limpo(r.get("detalhe"))
+    m = _RE_REF.search(str(r.get("detalhe") or ""))
+    ref = m.group(1).upper() if m else ""
+    if res == "DRY_RUN" or acao == "plano":
+        return None
+    if acao == "atrasado":
+        if res == "LANCADO":
+            return {"tipo": "fatura", "st": "ok", "ref": ref, "link": True,
+                    "t": "Lançado à vista no Mais Controle (mês sem parcela)" + (f" — REF {ref}" if ref else "")}
+        return {"tipo": "fatura", "st": "alerta", "ref": ref, "t": f"Erro ao lançar à vista: {det}"}
+    if acao == "avaliar" and res == "CASA_DO_CLIENTE":
+        return {"tipo": "fatura", "st": "ok", "ref": ref, "t": "Conta do cliente — não se paga"}
+    if acao in ("recorrencia", "renovacao"):
+        nome = "criada" if acao == "recorrencia" else "renovada"
+        if res == "CRIADA":
+            return {"tipo": "criacao", "st": "ok", "t": f"Recorrência mensal {nome} no Mais Controle", "link": True}
+        return {"tipo": "criacao", "st": "alerta", "t": f"Recorrência não {nome} ({res.lower()}): {det}"}
+    if acao == "avaliar":
+        return {"tipo": "criacao", "st": "alerta", "t": f"Ligação nova em dúvida: {det}"}
+    return None
+
+
+def contas_publicas(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None,
+                    agora: dt.datetime | None = None) -> dict:
+    """O que a aba CONTROLE DE CONTAS VENCIDAS do ligacoes.html lê (dist/agua_contas.json): por UC/matrícula, o
+    STATUS e o histórico do robô (o mais novo primeiro). Só lê a pasta do robô."""
+    hoje = hoje or dt.date.today()
+    agora = agora or dt.datetime.now(dt.timezone.utc)
+    dados = pathlib.Path(pasta) / "dados"
+    if not dados.is_dir():
+        return {"ok": False, "contas": {}}
+    meses, a, m = [], hoje.year, hoje.month
+    for _ in range(MESES_CONTAS):
+        meses.append(f"{a:04d}-{m:02d}")
+        a, m = (a, m - 1) if m > 1 else (a - 1, 12)
+    eventos: dict[str, list] = {}
+    info: dict[str, dict] = {}
+
+    def junta(r: dict, ev: dict | None, quando: str):
+        ch = _chave_uc(r.get("chave"))
+        if not ev or not ch:
+            return
+        ev["q"] = quando
+        eventos.setdefault(ch, []).append(ev)
+        info[ch] = {"obra": str(r.get("obra") or "").strip(), "conc": str(r.get("concessionaria") or "").strip().upper()}
+
+    for mes in sorted(meses):
+        for arq in sorted(dados.glob(f"lancamentos_mc_*_{mes}.csv")):
+            for r in _ler_csv(arq):
+                junta(r, _evento_lancamento(r), _quando(r.get("quando")))
+        for r in _ler_csv(dados / f"criacoes_mc_{mes}.csv"):
+            junta(r, _evento_criacao(r), _quando(r.get("quando")))
+    for r in _ler_csv(pathlib.Path(pasta) / "relatorios" / "casas_do_cliente.csv"):
+        if str(r.get("data") or "")[:7] in meses and str(r.get("decisao") or "").upper() == "CLIENTE":
+            ref = str(r.get("ref") or "").upper()
+            junta(r, {"tipo": "fatura", "st": "ok", "ref": ref, "t": "Conta do cliente — não se paga" + (f" (REF {ref})" if ref else "")},
+                  _quando(r.get("data")))
+    try:
+        parcelas = json.loads((dados / "mc_parcelas.json").read_text(encoding="utf-8"))
+        parcelas = {_chave_uc(k): v for k, v in parcelas.items()}
+    except Exception:
+        parcelas = {}
+
+    # a fatura "do mês" é a referência mais nova que o robô já viu NAQUELA concessionária (a Sanesc cobra com 2 meses
+    # de atraso: REF SET vence em novembro; a Equatorial com 1). UC com referência mais velha = aguardando a fatura.
+    ref_atual: dict[str, tuple] = {}
+    for ch, evs in eventos.items():
+        for e in evs:
+            mr = _mes_da_ref(e.get("ref")) if e["tipo"] == "fatura" else None
+            if mr and mr > ref_atual.get(info[ch]["conc"], (0, 0)):
+                ref_atual[info[ch]["conc"]] = mr
+
+    contas = {}
+    for ch, evs in eventos.items():
+        evs.sort(key=lambda e: e["q"])
+        link = URL_PARCELA_MC.format(parcelas[ch]["id"]) if (parcelas.get(ch) or {}).get("id") else None
+        hist, vistos = [], set()
+        for e in evs:                                   # o mesmo texto no mesmo dia (rodada + lotes) = um registro só
+            if (hist and hist[-1]["t"] == e["t"]) or (e["q"][:10], e["t"]) in vistos:
+                continue
+            vistos.add((e["q"][:10], e["t"]))
+            hist.append({"q": e["q"], "t": e["t"], "st": e["st"], "mc": link if e.get("link") else None})
+        fat = [e for e in evs if e["tipo"] == "fatura"]
+        cri = [e for e in evs if e["tipo"] == "criacao"]
+        ult = fat[-1] if fat else None
+        if ult and ult["st"] == "alerta":
+            st = "alerta"
+        elif ult:
+            mr = _mes_da_ref(ult.get("ref"))
+            if mr:
+                velha = mr < ref_atual.get(info[ch]["conc"], mr)
+            else:
+                velha = str(ult["q"])[:10] < (hoje - dt.timedelta(days=45)).isoformat()
+            st = "aguardando" if velha else "ok"
+        else:
+            st = "aguardando"
+        if cri and cri[-1]["st"] == "alerta":            # recorrência em dúvida segura o alerta até resolver
+            st = "alerta"
+        hist.reverse()
+        # o link é da parcela que o Mais Controle tem HOJE para a UC: só no registro mais novo que tem link
+        com_link = [h for h in hist if h["mc"]]
+        for h in com_link[1:]:
+            h["mc"] = None
+        contas[ch] = dict(info[ch], st=st, ref=(ult or {}).get("ref") or "", mc=link, hist=hist[:MAX_HIST])
+    return {"ok": True, "updated_at": agora.isoformat(timespec="seconds"), "meses": meses, "contas": contas}
+
+
 def problemas_publicos(sala: dict | None, agora: dt.datetime | None = None) -> dict:
     """O que a aba "PROBLEMAS COM AS LIGAÇÕES" do ligacoes.html lê (dist/agua_problemas.json)."""
     agora = agora or dt.datetime.now(dt.timezone.utc)
