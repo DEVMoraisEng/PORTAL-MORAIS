@@ -21,21 +21,41 @@ Saída: 0 tudo certo · 1 houve RECUSADO ou SEM_CONFIRMACAO · 2 trava (saldo, t
 O stdout só leva contagens e, antes delas, "trava: <motivo>" e "índice faltando: <lista>" (sem dado pessoal).
 """
 import argparse
+import calendar
 import datetime as dt
 import html
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
 
 from venda.mc import boletos as B
+from venda.mc import seguradas as S
 
 CENTRAL = Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
 APLICAR = CENTRAL / "BOLETOS_APLICAR.txt"
 PASTA = CENTRAL / "boletos"
-ACOES = ("emitir", "aguardar", "decidir", "pular")
+ACOES = ("emitir", "aguardar", "decidir", "segurada", "pular")
 SEM_INDICE = {"pre", "pos", "balao"}
+
+
+def _unidade_e_nome(descricao: str) -> tuple[str, str]:
+    """"VENDA UNIDADE 12 - FULANO" -> ("12", "FULANO"). Fora desse formato, a descrição inteira fica como nome."""
+    m = re.match(r"\s*VENDA\s+UNIDADE\s+(\S+)\s*-\s*(.*)$", descricao or "", re.I)
+    return (m.group(1), m.group(2).strip()) if m else ("", descricao or "")
+
+
+def _mes_seguinte(mes: str) -> str:
+    a, m = int(mes[:4]), int(mes[5:7])
+    return "%04d-%02d" % (a + (m == 12), m % 12 + 1)
+
+
+def _na_janela_da_previa(hoje: str) -> bool:
+    """Últimos 5 dias do mês: dá tempo de segurar uma parcela do mês seguinte antes da primeira rodada dele."""
+    a, m, d = int(hoje[:4]), int(hoje[5:7]), int(hoje[8:10])
+    return calendar.monthrange(a, m)[1] - d < 5
 
 
 def _montar_linhas(erp, mes, hoje):
@@ -43,7 +63,7 @@ def _montar_linhas(erp, mes, hoje):
     for vid in B.vendas_do_mes(erp, mes):
         v = B.ler_venda(erp, vid)
         for l in B.selecionar(v, mes, hoje):
-            l["comprador"] = str(v.get("description") or "")
+            l["unidade"], l["comprador"] = _unidade_e_nome(str(v.get("description") or ""))
             linhas.append(l)
     return linhas
 
@@ -106,7 +126,7 @@ def _html(rel):
     e = html.escape
     resultado = {r["parcela"]: r for r in rel["resultados"]}
     titulos = {"emitir": "A emitir / emitidos", "aguardar": "Aguardando a data", "decidir": "Para decidir",
-               "pular": "Pulados"}
+               "segurada": "Seguradas", "pular": "Pulados"}
     p = ["<!doctype html><html lang='pt-BR'><head><meta charset='utf-8'><title>Boletos do mês</title>",
          "<style>body{font:14px sans-serif;margin:24px}table{border-collapse:collapse;margin-bottom:24px}"
          "td,th{border:1px solid #bbb;padding:4px 8px;text-align:left}th{background:#eee}</style></head><body>",
@@ -150,14 +170,15 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
     hoje = hoje or dt.date.today().isoformat()
     fora_do_mes = emitir and mes != hoje[:7]
     modo = "emissao" if emitir and APLICAR.exists() and not fora_do_mes else "previa"
-    linhas, resultados, trava, fora, falta = [], [], None, False, []
+    linhas, resultados, trava, fora, falta, saldo, proximo = [], [], None, False, [], None, None
+    seguradas_ok = True
     if fora_do_mes:
         trava = "emissão só no mês vigente"
     nome = _nome_unico(pasta, hoje)
 
     def salvar():
-        rel = {"modo": modo, "mes": mes, "hoje": hoje, "contagem": _contagem(linhas, resultados),
-               "linhas": linhas, "resultados": resultados, "trava": trava}
+        rel = {"modo": modo, "mes": mes, "hoje": hoje, "saldo": saldo, "contagem": _contagem(linhas, resultados),
+               "linhas": linhas, "resultados": resultados, "trava": trava, "proximo_mes": proximo}
         try:
             _gravar(pasta, nome, rel)
         except Exception as ex:
@@ -168,8 +189,12 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
         _segurar_sem_confirmacao(pasta, mes, linhas)
     except Exception as ex:
         fora, trava = True, "ERP fora ao montar a lista: " + (str(ex) or type(ex).__name__)[:200]
+    try:
+        S.aplicar(S.ler(pasta), linhas)
+    except S.SeguradasIlegiveis:
+        seguradas_ok, trava = False, trava or "não consegui ler as parcelas seguradas"
     alvo = [l for l in linhas if l["acao"] == "emitir" and (aprovadas is None or l["parcela"] in aprovadas)]
-    if modo == "emissao" and alvo and not fora:
+    if modo == "emissao" and alvo and not fora and seguradas_ok:
         try:
             trava = B.travas(alvo, B.ler_saldo(erp))
         except Exception as ex:
@@ -182,6 +207,14 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
                 if not APLICAR.exists():
                     trava = "interruptor desligado no meio da rodada"
                     break
+                try:                   # 09/11: o Segurar vale até o último instante antes de cada boleto
+                    marca = S.ler(pasta).get(l["parcela"])
+                except S.SeguradasIlegiveis:
+                    trava = "não consegui ler as parcelas seguradas"
+                    break
+                if marca is not None:
+                    l.update(acao="segurada", motivo=S.motivo(marca))
+                    continue
                 feitas.add(l["parcela"])
                 try:
                     r = B.emitir_uma(erp, l["venda"], l["parcela"], esperar=esperar)
@@ -191,10 +224,27 @@ def rodar(erp, mes: str, emitir: bool, aprovadas: set | None, pasta: Path, hoje:
                 resultados.append(dict(r, venda=l["venda"], parcela=l["parcela"]))
                 salvar()
     c = _contagem(linhas, resultados)
+    if not fora:
+        try:
+            saldo = B.ler_saldo(erp)
+        except Exception:      # o saldo só informa a tela: sem ele, a rodada não muda
+            saldo = None
+        if mes == hoje[:7] and _na_janela_da_previa(hoje):
+            salvar()           # o relatório do mês fica gravado antes da leitura extra, mesmo se ela estourar o prazo
+            seguinte = _mes_seguinte(mes)
+            try:               # só lista, nunca emite; falhar aqui também não muda a rodada
+                previa = _montar_linhas(erp, seguinte, hoje)
+                _aplicar_indices(erp, seguinte, previa)   # mostra já o "decidir" que a rodada do dia 1 vai dar
+                S.aplicar(S.ler(pasta), previa)
+                proximo = {"mes": seguinte, "linhas": previa}
+            except Exception:
+                proximo = {"mes": seguinte, "linhas": [], "falhou": True}
     salvar()
     # 07/11: "a emitir" = escolhidas pela regra; na prévia "emitidos" é sempre 0 e a linha escondia o que vai sair
     fim = "boletos: %d a emitir, %d emitidos, %d aguardando, %d decidir, %d pulados" % (
         c["emitir"], c["emitidos"], c["aguardar"], c["decidir"], c["pular"])
+    if c["segurada"]:
+        fim += ", %d seguradas" % c["segurada"]
     if c["recusados"] or c["sem_confirmacao"]:
         fim += ", %d recusados, %d sem confirmação" % (c["recusados"], c["sem_confirmacao"])
     if trava and not fora:   # saldo, teto, interruptor ou mês: rótulo sem dado pessoal

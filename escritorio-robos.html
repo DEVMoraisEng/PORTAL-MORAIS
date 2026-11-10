@@ -192,6 +192,11 @@ html[data-tema="escuro"] .box h3{color:var(--teal)}
 
 /* vista: sala 3D × lista */
 .salas{display:flex;gap:8px;flex-wrap:wrap}
+/* 09/11: a aba Boletos e Financeiro é a página própria dentro de um quadro; as outras salas somem enquanto ela está aberta */
+#aba-boletos{display:none}
+body.na-boletos main>*:not(#salas):not(#aba-boletos){display:none!important}
+body.na-boletos #aba-boletos{display:block}
+#aba-boletos iframe{display:block;width:100%;min-height:70vh;border:0;background:transparent}
 .salas button{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;padding:9px 16px;border-radius:12px;border:1px solid var(--border2);background:var(--sup);font-weight:700;font-size:14px;color:var(--text2,var(--text3))}
 .salas button[aria-pressed="true"]{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(30,63,88,.25)}
 .salas button .n{font-family:'Barlow Condensed';font-weight:800;font-size:13px;background:var(--st-erro);color:#fff;border-radius:999px;padding:0 7px;line-height:18px}
@@ -315,6 +320,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
   <nav class="salas" id="salas" aria-label="Salas">
     <button type="button" id="s-mc" aria-pressed="true">🏢 Robôs do Mais Controle</button>
     <button type="button" id="s-agua" aria-pressed="false">💧 Água e Energia <span class="n hide" id="s-agua-n"></span></button>
+    <button type="button" id="s-boletos" aria-pressed="false">🧾 Boletos e Financeiro</button>
   </nav>
   <div id="avisos"></div>
   <div class="kpis" id="kpis"></div>
@@ -346,6 +352,7 @@ iframe.pdf{display:block;width:100%;height:min(72vh,720px);border:0;background:#
     <div id="painel-agua-corpo"></div>
   </section>
   <div class="rodape" id="rodape"></div>
+  <section id="aba-boletos" aria-label="Boletos e Financeiro"></section>
 </main>
 
 <div class="veu hide" id="veu"></div>
@@ -394,6 +401,10 @@ const CATALOGO = {
     faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
   documentos: { nome: "Documentos do Orçamento", cargo: "Vendas", ico: "📂", cor: "#a0784a",
     faz: "Todo dia cedo procura em Obras › Orçamento do Mais Controle a matrícula, a certidão mãe, o alvará e o habite-se de cada casa de rua vendida e anexa no dossiê do imóvel o que for novo (fica como “novo, não lido”). Só lê o ERP." },
+  financeiro: { nome: "Financeiro do condomínio", cargo: "Cobrança", ico: "💰", cor: "#1c7a4a",
+    faz: "Mostra, unidade por unidade do Reserva dos Ipês, o que foi recebido, o que vai vencer e o que está vencido. Clique para abrir a página." },
+  boletos:  { nome: "Boletos do mês", cargo: "Cobrança", ico: "🧾", cor: "#1c7a4a",
+    faz: "Emite pela Cobrança Fácil os boletos do mês do Reserva dos Ipês, dias úteis às 10:00. O detalhe de cada parcela está na página Boletos e Financeiro." },
   agua:     { nome: "Água e energia", cargo: "Ligações", ico: "💡", cor: "#2d8fd5",
     faz: "Coleta as contas de água e energia das obras." }
 };
@@ -446,6 +457,7 @@ function montarRobos(D) {
   Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
   /* 04/11: todo robô conhecido tem mesa, mesmo sem tarefa agendada ainda (ex.: anexos da auditoria) */
   ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos"].forEach(pega);
+  pega("financeiro");     // 09/11: não é tarefa do servidor; a mesa só abre a página Boletos e Financeiro
   const PL = D.coordenador, plAtivo = !!(PL && !["terminado", "cancelado"].includes(PL.status));
   mapa.forEach(r => { r.log = ((D.log || {})[r.chave]) || []; });
   /* porteiro: a linha "porteiro: …" mais nova de qualquer rodada */
@@ -467,7 +479,8 @@ function montarRobos(D) {
     const res = r.tarefas.map(t => t.resultado).filter(x => x != null);
     const resRuim = res.some(x => ![0, 267009, 267011, 267014].includes(x));
     let st = "sem", stTexto = "sem notícias", stHora = "";
-    if (r.chave === "porteiro") {
+    if (r.chave === "financeiro") { st = "ok"; stTexto = "clique para abrir"; }
+    else if (r.chave === "porteiro") {
       const P = D.porteiro;          // 04/11: o servidor diz o que os ROBÔS viram por último (o porteiro.log mentia)
       if (P && P.estado && P.estado !== "?") { st = P.estado === "ok" ? "ok" : "erro"; stTexto = P.estado === "ok" ? "logado" : "fora do Mais Controle"; stHora = quando(P.em); }
       else if (ultP) { const logado = /^porteiro: logado/.test(ultP.porteiro || ""); st = logado ? "ok" : "erro"; stTexto = logado ? "logado" : "fora"; stHora = quando(ultP.fim || ultP.inicio); }
@@ -513,7 +526,7 @@ function montarRobos(D) {
       st = "trab"; stTexto = agoraR && agoraR.fase === "esperando a vez" ? "esperando a vez no Mais Controle" : "trabalhando";
       if (agoraR && agoraR.desde) stHora = "desde " + hhmm(dataDe(agoraR.desde));
     }
-    if (st === "sem" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
+    if (st === "sem" && r.chave !== "financeiro" && !r.tarefas.length && !r.rodadas.length && r.chave !== "porteiro" && r.chave !== "fila") { st = "off"; stTexto = "sem tarefa agendada"; }
     const noPlano = plAtivo && PL.fila.find(i => i.chave === r.chave && (i.estado === "esperando" || i.estado === "rodando"));
     if (noPlano && noPlano.estado === "esperando" && st !== "trab") { st = "pedido"; stTexto = "na fila do coordenador (" + (PL.fila.indexOf(noPlano) + 1) + "º)"; }
     const ped = PEDIDOS[r.chave];
@@ -525,7 +538,8 @@ function montarRobos(D) {
   const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
   robos.sort((a, b) => {
     const ia = ordem.indexOf(a.chave), ib = ordem.indexOf(b.chave);
-    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
+    return (a.chave === "financeiro") - (b.chave === "financeiro")   // a mesa nova fica na última vaga do salão
+      || (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || a.cat.nome.localeCompare(b.cat.nome);
   });
   return robos;
 }
@@ -883,7 +897,13 @@ function kpisHtml(robos, D) {
     + card("Porteiro", port && port.ultP ? (port.st === "ok" ? "Logado" : "Fora") : "—", port && port.ultP ? "conferido " + esc(port.stHora) : "sem conferência ainda", port && port.ultP ? (port.st === "ok" ? "ok" : "erro") : "");
 }
 
+function pintarContadorAgua() {
+  const D = DADOS; if (!D || !D.agua) return;
+  const nAgua = montarRobosAgua(D).filter(r => r.st === "erro").length;
+  $("s-agua-n").textContent = nAgua; $("s-agua-n").classList.toggle("hide", !nAgua);
+}
 function pintar() {
+  if (SALA === "boletos") { pintarContadorAgua(); return; }   // 09/11: a aba tem a página própria; a sala 3D não desenha escondida
   const D = DADOS; if (!D) return;
   const agua = SALA === "agua";
   const robos = agua ? montarRobosAgua(D) : montarRobos(D);
@@ -1157,6 +1177,7 @@ function resumoRodada(x) {
   return (x.repeticao ? "na 2ª tentativa · " : "") + (ult ? ult.texto : (x.ok ? "rodada completa" : "falhou"));
 }
 function abrir(chave, manterAbertas) {
+  if (chave === "financeiro") { trocarSala("boletos"); window.scrollTo(0, 0); return; }
   if (chave === "__agenda__" && SALA === "agua") return abrirAgua("agua:coletor", manterAbertas);
   if (chave === "__agenda__") return abrirAgenda(manterAbertas);
   if (String(chave).startsWith("agua:")) return abrirAgua(chave, manterAbertas);
@@ -1233,10 +1254,32 @@ $("bt-agenda").addEventListener("click", () => abrirAgenda());
 
 /* ---------------- sala: Mais Controle ou Água e Energia (04/11) ---------------- */
 let SALA = "mc";
-try { if (localStorage.getItem("morais_escritorio_sala") === "agua") SALA = "agua"; } catch (e) {}
-function trocarSala(s) {
-  SALA = s === "agua" ? "agua" : "mc";
+try { const s = localStorage.getItem("morais_escritorio_sala"); if (s === "agua" || s === "boletos") SALA = s; } catch (e) {}
+function marcarSala() {
   $("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+  $("s-boletos").setAttribute("aria-pressed", SALA === "boletos");
+  document.body.classList.toggle("na-boletos", SALA === "boletos");
+  if (SALA !== "boletos" || $("quadro-boletos")) return;
+  const f = document.createElement("iframe");   // carrega só na primeira vez que a aba abre
+  f.id = "quadro-boletos"; f.title = "Boletos e Financeiro"; f.src = "boletos-financeiro.html?embutido=1";
+  f.addEventListener("load", () => {            // o quadro acompanha a altura da página, sem rolagem dupla
+    try {
+      const corpo = f.contentDocument.body;   // body encolhe junto com a lista; o documentElement só cresce
+      const ajusta = () => { f.style.height = Math.max(corpo.scrollHeight, 200) + "px"; };
+      ajusta();
+      new ResizeObserver(ajusta).observe(f.contentDocument.body);
+    } catch (e) {}
+  });
+  $("aba-boletos").appendChild(f);
+}
+/* 09/11: quem tem só BOLETOS E FINANCEIRO (sem ESCRITÓRIO DE ROBÔS) entra direto na aba, sem as salas dos robôs */
+function soBoletos() {
+  $("s-mc").classList.add("hide"); $("s-agua").classList.add("hide");
+  if (SALA !== "boletos") trocarSala("boletos");
+}
+function trocarSala(s) {
+  SALA = s === "agua" || s === "boletos" ? s : "mc";
+  marcarSala();
   try { localStorage.setItem("morais_escritorio_sala", SALA); } catch (e) {}
   if (ABERTO) fechar();
   pintar();
@@ -1248,7 +1291,8 @@ $("kpis").addEventListener("click", e => {
 });
 $("s-mc").addEventListener("click", () => trocarSala("mc"));
 $("s-agua").addEventListener("click", () => trocarSala("agua"));
-$("s-mc").setAttribute("aria-pressed", SALA === "mc"); $("s-agua").setAttribute("aria-pressed", SALA === "agua");
+$("s-boletos").addEventListener("click", () => trocarSala("boletos"));
+marcarSala();
 
 /* ---------------- vista: sala 3D (padrão) ou lista ---------------- */
 let VISTA = "3d", SALA3D = false;
@@ -1283,6 +1327,7 @@ async function carregar(manual) {
     if (!r || !r.ok) {
       const er = String((r && r.erro) || "");
       if (er === "NAO_AUTORIZADO") { sair(); return; }
+      if (er === "SEM_PERMISSAO") { soBoletos(); return; }
       if (er === "SEM_PERMISSAO") return erroTela(`<b>Sem acesso ao Escritório de Robôs.</b> Peça ao ADM a opção <b>ESCRITÓRIO DE ROBÔS</b> na coluna ACESSOS do LOGINS.`);
       if (/ACAO_DESCONHECIDA/.test(er)) return erroTela(`<b>Falta instalar o EscritorioRobos.gs no Apps Script</b> (projeto PORTAL-LEITURA) e o gancho de uma linha no Melhorias.gs — o passo a passo está no começo do arquivo apps-script/EscritorioRobos.gs.`);
       return erroTela(`<b>Não consegui ler o escritório.</b> ${esc(er || "sem resposta do servidor")}`);
@@ -1299,7 +1344,11 @@ async function carregar(manual) {
     erroTela(`<b>Não consegui carregar.</b> ${esc(e.message || e)}`);
   } finally { CARREGANDO = false; bt.disabled = false; }
 }
-$("bt-recarregar").addEventListener("click", () => carregar(true));
+$("bt-recarregar").addEventListener("click", () => {
+  carregar(true);
+  const quadro = $("quadro-boletos");   // na aba Boletos e Financeiro o Atualizar recarrega também a página de dentro
+  if (quadro && SALA === "boletos") try { quadro.contentWindow.location.reload(); } catch (e) {}
+});
 try { const c = JSON.parse(localStorage.getItem(CACHE_LOCAL) || "null"); if (c && c.versao) { DADOS = c; } } catch (e) {}
 trocarVista(VISTA);
 carregar();

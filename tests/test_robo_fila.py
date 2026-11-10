@@ -413,3 +413,144 @@ def test_main_robo_boletos_passa_pela_vez_no_mc(monkeypatch):
     monkeypatch.setattr(R, "na_vez", lambda nome, f: vistos.append(nome) or 0)
     assert R.main(["--robo", "boletos"]) == 0
     assert vistos == ["boletos"]
+
+
+class FilaDeMentira(R.Fila):
+    def __init__(self, nome="producao"):
+        self.nome, self.marcas = nome, []
+
+    def marcar(self, pid, situacao, resultado=""):
+        self.marcas.append((situacao, resultado))
+
+
+def _pedido(payload):
+    return {"id": "pg", "properties": {R.COL["tipo"]: {"type": "select", "select": {"name": "boleto-segurar"}},
+                                       R.COL["payload"]: {"type": "rich_text", "rich_text": [{"plain_text": json.dumps(payload)}]}}}
+
+
+def test_segurar_entra_pela_mesma_porta_da_fila_e_nao_pede_a_vez_09_11(tmp_path, monkeypatch):
+    import boletos_portal as BP
+    _central(tmp_path, monkeypatch)
+    chamadas = []
+    monkeypatch.setattr(BP, "pedir", lambda a, p, q: chamadas.append((a, p, q)) or (True, "segurada"))
+    monkeypatch.setattr(BP, "publicar", lambda log: chamadas.append("publicou"))
+    monkeypatch.setattr(R, "na_vez", lambda *a, **k: (_ for _ in ()).throw(AssertionError("não pode pedir a vez")))
+    f = FilaDeMentira()
+    assert f.atender(_pedido({"acao": "segurar", "parcela": "a" * 32, "quem": "ADM"})) == "FEITO"
+    assert chamadas == [("segurar", "a" * 32, "ADM"), "publicou"] and f.marcas == [("FEITO", "segurada")]
+
+
+def test_fila_de_teste_nunca_segura_09_11(monkeypatch):
+    import boletos_portal as BP
+    monkeypatch.setattr(BP, "pedir", lambda *a: (_ for _ in ()).throw(AssertionError("não pode chegar aqui")))
+    f = FilaDeMentira("teste")
+    assert f.atender(_pedido({"acao": "segurar", "parcela": "a" * 32, "quem": "ADM"})) == "ERRO"
+
+
+def test_parcela_invalida_nao_chega_ao_arquivo_09_11(monkeypatch):
+    import boletos_portal as BP
+    monkeypatch.setattr(BP, "pedir", lambda *a: (_ for _ in ()).throw(AssertionError("não pode chegar aqui")))
+    f = FilaDeMentira()
+    assert f.atender(_pedido({"acao": "segurar", "parcela": "../../x", "quem": "ADM"})) == "ERRO"
+
+
+def test_erro_ao_gravar_marca_erro_e_nao_derruba_a_fila_09_11(tmp_path, monkeypatch):
+    import boletos_portal as BP
+    _central(tmp_path, monkeypatch)
+    monkeypatch.setattr(BP, "registrar_recusa", lambda p, m: None)
+    monkeypatch.setattr(BP, "publicar", lambda log: None)
+
+    def cai(*a):
+        raise OSError("disco")
+    monkeypatch.setattr(BP, "pedir", cai)
+    f = FilaDeMentira()
+    assert f.atender(_pedido({"acao": "soltar", "parcela": "a" * 32, "quem": "ADM"})) == "ERRO"
+    assert f.marcas[0][0] == "ERRO" and "disco" not in f.marcas[0][1]
+
+
+def test_segurar_recusado_tambem_publica_para_a_tela_avisar_09_11(tmp_path, monkeypatch):
+    import boletos_portal as BP
+    _central(tmp_path, monkeypatch)
+    feitos = []
+    monkeypatch.setattr(BP, "pedir", lambda a, p, q: (False, "parcela fora da lista"))
+    monkeypatch.setattr(BP, "registrar_recusa", lambda p, m: feitos.append((p[:4], m)))
+    monkeypatch.setattr(BP, "publicar", lambda log: feitos.append("publicou"))
+    f = FilaDeMentira()
+    assert f.atender(_pedido({"acao": "segurar", "parcela": "a" * 32, "quem": "ADM"})) == "ERRO"
+    assert feitos == [("aaaa", "parcela fora da lista"), "publicou"]
+
+
+def test_rodada_da_fila_atende_segurar_antes_dos_outros_09_11(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    monkeypatch.setattr(R, "SAUDE", tmp_path / "saude.json")
+    monkeypatch.setattr(R, "passo_coordenador", lambda: None)
+    ordem = []
+
+    class F:
+        nome = "producao"
+
+        def sinal(self):
+            pass
+
+        def pendentes(self):
+            return [_pedido_tipo("mc-venda"), _pedido_tipo("boleto-segurar")]
+
+        def atender(self, linha):
+            ordem.append(R.texto(linha["properties"][R.COL["tipo"]]))
+            return "FEITO"
+    monkeypatch.setattr(R, "carregar", lambda: [F()])
+    R.rodada()
+    assert ordem == ["boleto-segurar", "mc-venda"]
+
+
+def _pedido_tipo(tipo):
+    return {"id": "pg", "properties": {R.COL["tipo"]: {"type": "select", "select": {"name": tipo}}}}
+
+
+def test_antes_da_rodada_de_boletos_atende_os_pedidos_de_segurar_09_11(tmp_path, monkeypatch):
+    _cfg_robos(tmp_path, monkeypatch)
+    ordem = []
+    monkeypatch.setattr(R, "atender_seguradas_pendentes", lambda: ordem.append("seguradas"))
+
+    class Res:
+        returncode, stdout, stderr = 0, "ok\n", ""
+    monkeypatch.setattr(R.subprocess, "run", lambda *a, **k: ordem.append("robo") or Res())
+    import boletos_portal as BP
+    monkeypatch.setattr(BP, "publicar", lambda log: None)
+    assert R.robo_antigo("boletos") == 0
+    assert ordem == ["seguradas", "robo"]
+
+
+def test_sem_conseguir_ler_os_pedidos_de_segurar_nao_emite_09_11(tmp_path, monkeypatch):
+    _cfg_robos(tmp_path, monkeypatch)
+
+    def cai():
+        raise RuntimeError("Notion fora")
+    monkeypatch.setattr(R, "atender_seguradas_pendentes", cai)
+    monkeypatch.setattr(R.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("não pode rodar o robô")))
+    assert R.robo_antigo("boletos") == 1
+
+
+def test_fila_de_teste_fica_fora_dos_pedidos_antes_da_rodada_09_11(monkeypatch):
+    atendidos = []
+
+    class F:
+        def __init__(self, nome):
+            self.nome = nome
+
+        def pendentes_de_segurar(self):
+            return [_pedido({"acao": "segurar", "parcela": "a" * 32, "quem": "ADM"})]
+
+        def segurar_boleto(self, linha, payload):
+            atendidos.append((self.nome, payload["acao"]))
+            return "FEITO"
+    monkeypatch.setattr(R, "carregar", lambda: [F("teste"), F("producao")])
+    R.atender_seguradas_pendentes()
+    assert atendidos == [("producao", "segurar")]
+
+
+def test_import_quebrado_nao_trava_a_fila_09_11(tmp_path, monkeypatch):
+    _central(tmp_path, monkeypatch)
+    monkeypatch.setitem(sys.modules, "boletos_portal", None)
+    f = FilaDeMentira()
+    assert f.atender(_pedido({"acao": "segurar", "parcela": "a" * 32, "quem": "ADM"})) == "ERRO"

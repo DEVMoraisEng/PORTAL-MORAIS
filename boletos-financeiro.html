@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}
+  /* 09/11: dentro da aba do Escritório dos Robôs o cabeçalho é o dele, e o tema acompanha o botão de lá */
+  if(/[?&]embutido=1/.test(location.search)) document.documentElement.classList.add("embutido");
+  addEventListener("storage",function(e){if(e.key==="morais_tema"&&(e.newValue==="claro"||e.newValue==="escuro"))document.documentElement.dataset.tema=e.newValue;});})();</script>
+<title>Boletos e Financeiro · Morais Engenharia</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde-btn:#4cd964;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--border:#b8d0da;--border2:#d0e4ec;--text:#1a3347;--text3:#4a6e86;--sup:#fff;
+  --ok:#1a6b40;--ok-f:#dff3e7;--ru:#a93226;--ru-f:#fae5e2;--al:#8a5a0a;--al-f:#fbf0da;--ma:#1e3f58;--ma-f:#dceaef;
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde-btn:#3cbf5d;
+  --bg:#0e1920;--bg2:#15222c;--border:#2d4757;--border2:#243a4a;--text:#e7eff5;--text3:#9db4c4;--sup:#15222c;
+  --ok:#6fd3a0;--ok-f:#17352a;--ru:#f2998f;--ru-f:#3d1c1a;--al:#eab661;--al-f:#3a2c12;--ma:#a9d2e6;--ma-f:#1a2c38;
+}
+*{box-sizing:border-box}
+.embutido header{display:none}
+.embutido body{background:transparent;min-height:0}
+.embutido main{padding:0}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;min-height:100vh}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1.1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+main{max-width:1240px;margin:0 auto;padding:18px 16px 48px;display:flex;flex-direction:column;gap:18px}
+.quadro{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:12px;min-width:0}
+h2{font-family:'Barlow Condensed';font-weight:700;font-size:24px;margin:0;color:var(--text)}
+.muted{color:var(--text3)}
+.vazio{margin:8px 2px}
+.nota{margin:0;font-size:12.5px}
+.topo{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between}
+.pill{display:inline-block;font-size:12.5px;font-weight:700;border-radius:999px;padding:2px 10px;white-space:nowrap}
+.ok{background:var(--ok-f);color:var(--ok)}.ru{background:var(--ru-f);color:var(--ru)}.al{background:var(--al-f);color:var(--al)}
+.ma{background:var(--ma-f);color:var(--ma)}.ne{border:1px solid var(--border);color:var(--text3)}
+.rola{overflow-x:auto;margin-top:6px}
+.bloco{background:var(--sup);border:1px solid var(--border2);border-left-width:5px;border-radius:10px;padding:12px 14px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.bloco.ru{border-left-color:var(--ru)}.bloco.al{border-left-color:var(--al)}.bloco.ok{border-left-color:var(--ok)}.bloco.ma{border-left-color:var(--azul)}.bloco.ne{border-left-color:var(--border)}
+.bloco.ru,.bloco.al,.bloco.ok,.bloco.ma,.bloco.ne{background:var(--sup);color:var(--text)}
+.bloco-cab{display:flex;flex-wrap:wrap;gap:4px 14px;align-items:baseline;justify-content:space-between}
+h3{font-family:'Barlow Condensed';font-weight:700;font-size:19px;margin:0}
+h3 small{font-size:15px;color:var(--text3);font-weight:600}
+.soma{font-family:Inter;font-size:13px;font-weight:700;color:var(--text3);margin-left:6px}
+.quem{font-size:12.5px;font-weight:700;color:var(--text3)}
+.fazer{margin:0;font-size:13px;color:var(--text3)}
+.selecao{padding:0 2px}
+.chip{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:999px;padding:5px 12px;font-weight:600}
+.chip b{font-family:'Barlow Condensed';font-size:15px;margin-left:3px}
+.chip.ativo{background:var(--azul);border-color:var(--azul);color:#fff}
+#busca-boletos{flex:1 1 220px}
+#ver-unidades{align-self:flex-start}
+table{border-collapse:collapse;width:100%;font-size:13.5px;font-variant-numeric:tabular-nums}
+th{font-size:11.5px;letter-spacing:.04em;text-transform:uppercase;color:var(--text3);text-align:left;font-weight:700}
+td,th{padding:7px 9px;border-bottom:1px solid var(--border2);vertical-align:top}
+.n{text-align:right;white-space:nowrap}
+.mot{min-width:230px}
+.nums{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}
+.num{display:flex;flex-direction:column;align-items:flex-start;gap:0;text-align:left;border:1px solid var(--border2);background:var(--bg2);color:var(--text);border-radius:10px;padding:9px 12px;white-space:normal}
+.num:hover{border-color:var(--azul)}
+.num.ativo{border-color:var(--azul);box-shadow:inset 0 0 0 1px var(--azul)}
+.n-tit{font-size:11.5px;font-weight:600;color:var(--text3)}
+.rotulo{display:block;font-size:11.5px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:var(--text3)}
+.nums b{font-family:'Barlow Condensed';font-weight:700;font-size:25px;font-variant-numeric:tabular-nums}
+.vermelho{color:var(--ru)}
+.aviso{background:var(--al-f);color:var(--al);border-radius:8px;padding:8px 12px;font-size:13.5px}
+.erro{background:var(--ru-f);color:var(--ru);border-radius:8px;padding:12px}
+.filtros{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center}
+input[type=search]{font:inherit;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);min-width:0;flex:0 1 300px}
+button{font:inherit;font-weight:700;font-size:12.5px;border:1px solid var(--azul);color:var(--ma);background:transparent;border-radius:7px;padding:5px 11px;cursor:pointer;white-space:nowrap}
+button:disabled{opacity:.6;cursor:wait}
+.toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:9px;max-width:90vw;z-index:9}
+</style>
+</head>
+<body>
+<header><div class="hbar">
+  <a class="hbtn" href="index.html">← Início</a>
+  <div><div class="htitle">Boletos e Financeiro</div><div class="hsub">Condomínio Reserva dos Ipês</div></div>
+  <div class="hspace"></div>
+  <button class="hbtn" id="bt-recarregar" type="button">↻ Recarregar</button>
+</div></header>
+<main id="tela"><div class="muted">Carregando…</div></main>
+<script src="app.js?v=46"></script>
+<script src="boletos-financeiro.js?v=3"></script>
+<script>
+if (window.top !== window) {   /* 09/11: dentro da aba do Escritório, o login abre na janela inteira, não no quadro */
+  window.sair = function () { try { localStorage.removeItem("morais_sessao"); sessionStorage.removeItem("morais_sessao"); } catch (e) {} top.location.href = "login.html"; };
+  window.irParaLogin = window.sair;
+}
+const S = exigirSessao();
+const $ = id => document.getElementById(id);
+const CACHE_LOCAL = "morais_boletos_financeiro_v1";
+let DADOS = null, PODE = false, BUSCA = "", BUSCA_BOLETOS = "", GRUPO = "todas", COLUNA = "", SO_VENCIDO = false, ATUALIZANDO = false;
+const PEDIDOS = {};
+const ERROS = {
+  APENAS_ADM: "Só ADM e MASTER podem segurar ou soltar.",
+  PEDIDO_INVALIDO: "Esse pedido não é válido.",
+  FILA_NAO_CONFIGURADA: "Falta a Propriedade DB_FILA_ROBO no Apps Script.",
+  FILA_FALHOU: "Não consegui enviar o pedido. Tente de novo em instantes."
+};
+function aviso(txt) { const d = document.createElement("div"); d.className = "toast"; d.textContent = txt; document.body.appendChild(d); setTimeout(() => d.remove(), 5200); }
+function erroTela(html) { $("tela").innerHTML = '<div class="erro">' + html + "</div>"; }
+function pintar() {
+  if (!DADOS) return;
+  const ativo = document.activeElement, id = ativo && ativo.type === "search" ? ativo.id : "", pos = id ? ativo.selectionStart : 0;
+  $("tela").innerHTML = BF.htmlBoletos(DADOS, { podeSegurar: PODE, pedidos: PEDIDOS, grupo: GRUPO, buscaBoletos: BUSCA_BOLETOS }) +
+    BF.htmlFinanceiro(DADOS, { busca: BUSCA, coluna: COLUNA, soVencido: SO_VENCIDO, atualizando: ATUALIZANDO });
+  if (id) { const b = $(id); b.focus(); b.setSelectionRange(pos, pos); }
+}
+async function carregar() {
+  const bt = $("bt-recarregar"); bt.disabled = true;
+  try {
+    let r;
+    try { r = await chamar({ action: "bfBoot" }, 45000); }
+    catch (e) { return erroTela("O Apps Script não respondeu. " + BF.esc(e.message || e)); }
+    if (!r || !r.ok) {
+      const er = String((r && r.erro) || "");
+      if (er === "NAO_AUTORIZADO") { sair(); return; }
+      if (er === "SEM_PERMISSAO") return erroTela("Sem acesso a esta página. Peça ao ADM a opção <b>BOLETOS E FINANCEIRO</b> na coluna ACESSOS da planilha de logins.");
+      if (/ACAO_DESCONHECIDA/.test(er)) return erroTela("Falta instalar o BoletosFinanceiro.gs no Apps Script.");
+      return erroTela("Não consegui ler os dados. " + BF.esc(er || "Sem resposta do servidor."));
+    }
+    PODE = !!r.podeSegurar;
+    if (!r.url) return erroTela(BF.esc(r.aviso || "O servidor ainda não publicou os dados."));
+    const resp = await fetch(r.url, { cache: "no-store" });
+    if (!resp.ok) return erroTela("Não consegui baixar o arquivo (HTTP " + resp.status + ").");
+    const novos = await resp.json();
+    if (!DADOS || novos.gerado !== DADOS.gerado) { for (const k in PEDIDOS) delete PEDIDOS[k]; ATUALIZANDO = false; }
+    DADOS = novos;
+    pintar();
+  } catch (e) {
+    erroTela("Não consegui carregar. " + BF.esc(e.message || e));
+  } finally { bt.disabled = false; }
+}
+async function pedirSegurar(botao) {
+  const acao = botao.dataset.acao, parcela = botao.dataset.parcela;
+  if (botao.dataset.confirmar !== "1") {
+    botao.dataset.confirmar = "1"; botao.textContent = acao === "soltar" ? "Confirmar: soltar?" : "Confirmar: segurar?";
+    setTimeout(() => { if (botao.isConnected && botao.dataset.confirmar === "1") { botao.dataset.confirmar = ""; botao.textContent = acao === "soltar" ? "Soltar" : "Segurar"; } }, 5000);
+    return;
+  }
+  botao.disabled = true; botao.textContent = "Enviando…";
+  let r = null;
+  try { r = await chamar({ action: "bfSegurar", acao, parcela }, 45000); } catch (e) { r = { ok: false, erro: e.message || String(e) }; }
+  if (!r || !r.ok) { const er = String((r && r.erro) || ""); if (er === "NAO_AUTORIZADO") { sair(); return; } aviso(ERROS[er] || "Não deu para pedir: " + er); pintar(); return; }
+  PEDIDOS[parcela] = Date.now();
+  aviso("Pedido enviado. O servidor confirma em cerca de 1 minuto.");
+  pintar();
+  setTimeout(carregar, 90000);
+}
+async function pedirAtualizar() {
+  ATUALIZANDO = true; pintar();
+  let r = null;
+  try { r = await chamar({ action: "bfAtualizar" }, 45000); } catch (e) { r = { ok: false, erro: e.message || String(e) }; }
+  if (!r || !r.ok) { const er = String((r && r.erro) || ""); if (er === "NAO_AUTORIZADO") { sair(); return; } ATUALIZANDO = false; pintar(); aviso(ERROS[er] || "Não deu para pedir: " + er); return; }
+  aviso("Leitura pedida. Os números mudam em alguns minutos.");
+  setTimeout(() => { if (ATUALIZANDO) { ATUALIZANDO = false; pintar(); } }, 10 * 60 * 1000);
+}
+document.addEventListener("click", e => {
+  const seg = e.target.closest(".bt-seg");
+  if (seg) return void pedirSegurar(seg);
+  if (e.target.id === "bt-atualizar") return void pedirAtualizar();
+  if (e.target.id === "ver-unidades") { COLUNA = ""; return void pintar(); }
+  const chip = e.target.closest(".chip");
+  if (chip) { GRUPO = chip.dataset.grupo; return void pintar(); }
+  const num = e.target.closest(".num");
+  if (num) { COLUNA = COLUNA === num.dataset.coluna ? "" : num.dataset.coluna; pintar(); }
+});
+document.addEventListener("input", e => {
+  if (e.target.id === "busca") { BUSCA = e.target.value; pintar(); }
+  if (e.target.id === "busca-boletos") { BUSCA_BOLETOS = e.target.value; pintar(); }
+});
+document.addEventListener("change", e => { if (e.target.id === "so-vencido") { SO_VENCIDO = e.target.checked; pintar(); } });
+$("bt-recarregar").addEventListener("click", carregar);
+carregar();
+setInterval(() => { if (!document.hidden) carregar(); }, 3 * 60 * 1000);
+</script>
+</body>
+</html>
