@@ -203,6 +203,10 @@ html[data-tema="escuro"] tbody tr.lin-semuc td.stick{background:#6e2424 !importa
 /* 09/11/26: registro do robô de água e energia no histórico da observação (vem do dist/agua_contas.json) */
 .txt-hist .h-it.robo .h-q{color:var(--azul-esc)}.txt-hist .h-it.robo.alerta .h-t{color:#92400E}
 .txt-hist .h-it .h-t a{font-weight:700;margin-left:4px}
+.st-ico{display:inline-flex;align-items:center;justify-content:center;width:20px;height:20px;border-radius:50%;
+  font-size:12px;font-weight:900;font-style:normal;margin-right:6px;vertical-align:-1px;cursor:help;line-height:1}
+.st-ico.ok{background:#16A34A;color:#fff}.st-ico.alerta{background:#F59E0B;color:#fff}.st-ico.aguardando{background:#E2E8F0;color:#334155}
+html[data-tema="escuro"] .st-ico.aguardando{background:#334155;color:#e2e8f0}
 html[data-tema="escuro"] .txt-hist .h-it.robo.alerta .h-t{color:#f0c95f}
 .txt-hist .h-t{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .txt-hist .h-vazio{font-size:12px;color:var(--text3);padding:4px 0}
@@ -1211,8 +1215,9 @@ const ABAS = {
   vencidas: {
     titulo: "Controle de contas vencidas no sistema",
     /* 21/10: OBS. CONTAS virou OBSERVAÇÕES com histórico (data de cada registro) */
-    /* 09/11/26: STATUS DA CONTA logo depois da obra, e filtro próprio (ver filtroStatusConta) */
-    colunas: [C.OBRA, CALC.ST_CONTA, C.CONC, C.DT_UC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, confCol("vencidas","OBS")],
+    /* 09/11/26: STATUS DA CONTA = só um ícone antes do endereço (pedido do dono: sem escrita, legenda embaixo
+       dos filtros); filtro próprio "Status da conta" */
+    colunas: [C.OBRA, C.CONC, C.DT_UC, C.UC, C.VENC, C.NASC, C.CPF, C.STATUS, confCol("vencidas","OBS")],
     filtros: [C.CONC],
     statusConta: true,
     sensiveis: true,
@@ -3137,6 +3142,7 @@ function ordenarPor(ctx, i){
 
 function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
   if (!linhas.length) return '<div class="vazio">Nenhuma linha com esses filtros.</div>';
+  const comStatus = ctx === "set" && !!(ABAS[ABA_ATUAL] && ABAS[ABA_ATUAL].statusConta);   // 09/11/26
   const cols = colunas.slice();
   // a 1ª coluna fica congelada à esquerda (class "stick"), como na planilha de
   // vendas: rolando pro lado, você nunca perde de vista de que obra é a linha
@@ -3166,7 +3172,7 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
                     (ed ? ` data-col="${esc(c)}" title="Clique para editar"` : "");
       // a primeira coluna (o endereço) é o link que abre a obra
       const conteudo = (i === 0)
-        ? `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
+        ? (comStatus ? iconeStatusConta(l) : "") + `<span class="obralink" data-obra="${esc(l.id)}" title="Abrir a obra">${celula(l,c,fonte)}</span>`
         : celula(l,c,fonte);
       return `<td${attrs}>${conteudo}</td>`;
     }).join("");
@@ -3687,6 +3693,16 @@ const ST_CONTA_PILL = { ok: "sim", alerta: "alerta", aguardando: "neutro" };
 const ST_CONTA_DICA = { ok: "A conta do mês está lançada no Mais Controle",
                         alerta: "O robô não lançou ou a casa tem um problema — o motivo está nas observações",
                         aguardando: "A fatura do mês ainda não chegou (ou o robô ainda não tem registro desta UC)" };
+const ST_CONTA_ICO  = { ok: "✓", alerta: "⚠", aguardando: "⏳" };
+function iconeStatusConta(l){
+  const s = statusConta(l);
+  return `<span class="st-ico ${s}" title="${esc(ST_CONTA_TXT[s] + " — " + ST_CONTA_DICA[s])}">${ST_CONTA_ICO[s]}</span>`;
+}
+const LEGENDA_ST_CONTA = `<div class="legenda"><b>Status da conta:</b>
+  <span><i class="st-ico ok">✓</i> em dia (lançada no Mais Controle)</span>
+  <span><i class="st-ico alerta">⚠</i> alerta (motivo nas observações)</span>
+  <span><i class="st-ico aguardando">⏳</i> aguardando a fatura do mês</span>
+</div>`;
 let AGUA_CONTAS = null;
 function pintarContasAgua(r){
   if (!r || r.ok === false || !r.contas) return;
@@ -4306,6 +4322,7 @@ function renderAba(){
   const cols = colunasDaAba(ABA_ATUAL);
   let html = "";
   if (def.vencimento) html += LEGENDA_VENC;
+  if (def.statusConta) html += LEGENDA_ST_CONTA;   // 09/11/26
   else if (def.alertaCor) html += LEGENDA_ALERTA;
   /* 04/11/26: legenda da linha vermelha (ligada há 1 mês sem UC) onde ela aparece */
   if (!def.alertaCor && fonte === "ligacoes" && linhas.some(ligadaSemUcMes)) html += LEGENDA_SEM_UC;
