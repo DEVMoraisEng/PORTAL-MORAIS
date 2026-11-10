@@ -974,6 +974,8 @@ html[data-tema="escuro"] #lanc-dlg .lc-csv{border-color:var(--teal);color:var(--
       </div>
       <span class="sel-lbl">Tipo:</span>
       <select id="sel-imo-fluxo" onchange="initObrasFluxo();buildFluxo()"><option value="">Todos</option><option value="COND">Condomínio</option><option value="RUA">Casa de rua</option></select>
+      <span class="sel-lbl">Período:</span>
+      <select id="sel-ano-fluxo" onchange="buildFluxo()" title="Por padrão mostra o ano vigente. A exposição de caixa continua acumulando desde o início da série."></select>
       <label style="font-size:12px;color:var(--text3);display:flex;align-items:center;gap:6px;cursor:pointer;margin-left:4px">
         <input type="checkbox" id="chk-fluxo-soConcluidas" onchange="initObrasFluxo();buildFluxo()" style="cursor:pointer;width:14px;height:14px">
         Somente obras concluídas (todas as casas recebidas)
@@ -1012,7 +1014,7 @@ html[data-tema="escuro"] #lanc-dlg .lc-csv{border-color:var(--teal);color:var(--
     </div>
 
     <!-- Resultado por obra (todas, ordenadas) -->
-    <div class="blk-title" style="margin-top:20px">Resultado por Obra</div>
+    <div class="blk-title" style="margin-top:20px">Resultado por Obra <span style="font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;opacity:.75">· série completa (não muda com o período)</span></div>
     <div id="tbl-fluxo-negativo"></div>
   </div>
 </div>
@@ -3725,7 +3727,24 @@ function buildFluxo(){
   let iS=0,iE=meses.length-1;
   while(iS<=iE&&!(pagMes[meses[iS]]>0)&&!(fatMes[meses[iS]]>0))iS++;
   while(iE>=iS&&!(pagMes[meses[iE]]>0)&&!(fatMes[meses[iE]]>0))iE--;
-  const ms=meses.slice(iS,iE+1);
+  const msAll=meses.slice(iS,iE+1);
+
+  /* 10/11/26: filtro por ano (padrão = ano vigente) ou série completa. A exposição de
+     caixa é um saldo acumulado: continua vindo desde o 1º mês da série, mesmo filtrando o ano. */
+  const selAno=document.getElementById('sel-ano-fluxo');
+  const anos=[...new Set(msAll.map(m=>m.slice(0,4)))].sort().reverse();
+  if(selAno){ const chave=anos.join(','); if(selAno.dataset.anos!==chave){
+      const antes=selAno.dataset.anos?selAno.value:null, hoje=String(new Date().getFullYear());
+      selAno.innerHTML=anos.map(a=>`<option value="${a}">${a}${a===hoje?' (ano vigente)':''}</option>`).join('')+'<option value="">Série completa</option>';
+      selAno.value=antes!==null&&(antes===''||anos.includes(antes))?antes:(anos.includes(hoje)?hoje:(anos[0]||''));
+      selAno.dataset.anos=chave; } }
+  const anoSel=selAno?selAno.value:'';
+  const ms=anoSel?msAll.filter(m=>m.startsWith(anoSel)):msAll;
+  if(!ms.length){
+    document.getElementById('kpi-fluxo-resumo').innerHTML=`<div style="grid-column:1/-1;color:var(--text4);padding:20px;text-align:center">Sem movimentação em ${esc(anoSel)} para os filtros selecionados</div>`;
+    document.getElementById('kpi-fluxo-lucro').innerHTML=''; document.getElementById('tbl-fluxo').innerHTML=''; document.getElementById('tbl-fluxo-negativo').innerHTML='';
+    return;
+  }
 
   const gastos=ms.map(m=>pagMes[m]||0);
   const receitas=ms.map(m=>fatMes[m]||0);
@@ -3738,8 +3757,9 @@ function buildFluxo(){
     FATS_SOC.forEach(f=>{ if(!okCC(f.cc)||!/^\d{4}-\d{2}$/.test(f.mes||''))return; socMes[f.mes]=(socMes[f.mes]||0)+f.valor; });
   }
   const socios=ms.map(m=>socMes[m]||0);
-  const fluxo=ms.map((_,i)=>receitas[i]-gastos[i]+socios[i]);
-  const expCaixa=[];let ac=0;fluxo.forEach(v=>{ac+=v;expCaixa.push(ac);});
+  const expAll={};{let ac=0; msAll.forEach(m=>{ ac+=(fatMes[m]||0)-(pagMes[m]||0)+(socMes[m]||0); expAll[m]=ac; });}
+  const iIni=msAll.indexOf(ms[0]), saldoIni=iIni>0?expAll[msAll[iIni-1]]:0;
+  const expCaixa=ms.map(m=>expAll[m]);
 
   const totalGasto=gastos.reduce((a,b)=>a+b,0);
   const totalRecebido=receitas.reduce((a,b)=>a+b,0);
@@ -3770,7 +3790,7 @@ function buildFluxo(){
 
   // KPI Resumo — 27/10: com resumo ao passar o mouse
   tipNS('f');
-  const perTxt=`${fmtM(ms[0])} a ${fmtM(ms[ms.length-1])} · ${ms.length} meses`;
+  const perTxt=`${fmtM(ms[0])} a ${fmtM(ms[ms.length-1])} · ${ms.length} meses${anoSel?' · ano '+anoSel:' · série completa'}`;
   const filtTxt=[cid&&'cidade '+cid,set&&'setor '+set,prop&&(prop==='morais'?'só Morais':'só investidores'),imo&&(imo==='COND'?'só condomínio':'só casas de rua'),obrasSel&&obrasSel.size&&obrasSel.size+' obra(s) escolhida(s)',soConcluidas&&'só obras concluídas'].filter(Boolean).join(' · ')||'sem filtro (todas as obras)';
   const topCC=(obj,n)=>Object.entries(obj).sort((a,b)=>b[1]-a[1]).slice(0,n).map(([c,v])=>`<tr><td>${esc(c)}</td><td>${fmtBRL(v)}</td></tr>`).join('');
   const nCC=o=>Object.keys(o).filter(k=>o[k]).length;
@@ -3800,7 +3820,8 @@ function buildFluxo(){
   document.getElementById('kpi-fluxo-lucro').innerHTML=kpisLucro.join('');
 
   // Tabela fluxo mensal
-  const rows=ms.map((m,i)=>{
+  const linhaIni=anoSel&&iIni>0?`<tr style="background:var(--bg3)"><td><strong>Antes de ${esc(anoSel)}</strong><div style="font-size:11px;color:var(--text3)">${fmtM(msAll[0])} a ${fmtM(msAll[iIni-1])}</div></td><td class="nr" colspan="${comSoc?3:2}" style="color:var(--text3);font-size:12px">saldo acumulado que vem dos anos anteriores</td><td class="nr" style="${saldoIni<0?'color:#c0392b;font-weight:700':saldoIni>0?'color:#2a9d5c;font-weight:700':''}">${fmtBRL2(saldoIni)}</td><td class="nr">—</td><td class="nr">—</td></tr>`:'';
+  const rows=linhaIni+ms.map((m,i)=>{
     const v=expCaixa[i];
     const corExp=v<0?'color:#c0392b;font-weight:700':v>0?'color:#2a9d5c;font-weight:700':'';
     return`<tr>
