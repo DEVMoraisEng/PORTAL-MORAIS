@@ -215,3 +215,36 @@ def test_segurada_da_previa_que_ganhou_boleto_vai_para_os_pulados_com_soltar(tmp
     g = BP.montar(tmp_path, "2026-11-27", lambda: [], tmp_path / "fin.json")["grupos"]
     assert [i["parcela"] for i in g["seguradas"]] == [ID2]
     assert "boleto" in g["seguradas"][0]["motivo"]
+
+
+# ---------------------------------------------------------------- 11/11/2026: índices para a análise do condomínio
+def test_financeiro_leva_os_indices(tmp_path):
+    ind = tmp_path / "indices-reajuste.json"
+    ind.write_text('{"lido":"2026-11-11 08:01","tabelas":{"INCC-M":{"2026-09":0.42}}}', encoding="utf-8")
+    d = BP.financeiro("2026-11-11", lambda: [], tmp_path / "f.json", indices=ind)
+    assert d["indices"] == {"lido": "2026-11-11 08:01", "tabelas": {"INCC-M": {"2026-09": 0.42}}}
+    assert "indices" not in json.loads((tmp_path / "f.json").read_text(encoding="utf-8"))   # o último bom guarda só o financeiro
+
+
+def test_financeiro_sem_arquivo_ou_com_lixo_nos_indices(tmp_path):
+    assert BP.financeiro("2026-11-11", lambda: [], tmp_path / "f.json", indices=tmp_path / "nao-existe.json")["indices"] == {}
+    for lixo in ("{quebrado", "[1,2]", '{"tabelas":"x"}', '{"lido":"x"}'):
+        (tmp_path / "i.json").write_text(lixo, encoding="utf-8")
+        assert BP.financeiro("2026-11-11", lambda: [], tmp_path / "f.json", indices=tmp_path / "i.json")["indices"] == {}, lixo
+
+
+def test_indices_tambem_quando_o_notion_cai(tmp_path):
+    ind = tmp_path / "i.json"
+    ind.write_text('{"lido":"2026-11-11 08:01","tabelas":{"INCC-M":{"2026-09":0.42}}}', encoding="utf-8")
+
+    def cai():
+        raise RuntimeError("Notion fora")
+    d = BP.financeiro("2026-11-11", cai, tmp_path / "nao-existe.json", indices=ind)
+    assert d["falha_leitura"] is True and d["indices"]["tabelas"]["INCC-M"] == {"2026-09": 0.42}
+
+
+def test_montar_passa_os_indices(tmp_path):
+    ind = tmp_path / "i.json"
+    ind.write_text('{"lido":"2026-11-11 08:01","tabelas":{"INCC-M":{"2026-09":0.42}}}', encoding="utf-8")
+    d = BP.montar(tmp_path, "2026-11-11", lambda: [], tmp_path / "fin.json", indices=ind)
+    assert d["financeiro"]["indices"]["lido"] == "2026-11-11 08:01"
