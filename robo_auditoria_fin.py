@@ -11,8 +11,8 @@ O QUE FAZ (uma vez por dia, de madrugada, pelo GitHub Actions)
   2. Lê o MANUAL do Supabase (editado pela aba Manual do portal) e roda o
      auditor (auditoria_regras.py) em cada pagamento.
   3. Calcula juros, atrasos, contas a pagar e a receber em aberto, os alertas
-     de fiscalização e os cruzamentos com o Notion (conta da obra, obra
-     finalizada, energia/água depois da entrega).
+     de fiscalização e os cruzamentos com o Notion (custo de obra e
+     energia/água depois da ENTREGA da casa).
   4. Dá baixa sozinho no que foi marcado "Corrigir" e já foi corrigido no ERP.
   5. Grava tudo num arquivo do bucket PRIVADO "analise" do Supabase
      (auditoria/auditoria.json). A tela auditoria-financeira.html pede ao
@@ -46,10 +46,10 @@ from datetime import date, datetime, timedelta, timezone
 import pandas as pd
 import requests
 
-from auditoria_regras import (LACUNA_A, LACUNA_E, ROTULOS, Motor, N, cc_tipo,
-                              manual_padrao_linhas)
+from auditoria_regras import (ROTULOS, Motor, N, cc_tipo, manual_padrao_linhas,
+                              nome_atual)
 
-VERSAO = "2026-10-22 af1"
+VERSAO = "2026-11-11 af2"
 TZ = timezone(timedelta(hours=-3))
 HOJE = datetime.now(TZ).date()
 
@@ -76,7 +76,11 @@ CATS_SEM_DOC_OK = {N(x) for x in [
     "Devolução sinal / entrada /  vlr a mais creditado", "Distrato", "Despesa JC pessoal", "Despesa JV pessoal",
     "Mão de Obra Terceirizada"]}   # 23/10: medição de empreiteiro não tem nota/boleto
 CATS_OBRA_DIRETA = {N(x) for x in ["Materiais (Obras)", "Mão de Obra Terceirizada", "Locação de equipamentos"]}
-CATS_UTIL = {N(x) for x in ["Conta de energia", "Conta de água", "Energia (Escritório)", "Fatura de Água"]}
+# 11/11/2026: "Conta de energia/água" viraram "Energia/Água de obra / unidade" e "Fatura de Água"
+# virou "Fatura de Água (Escritório)" no ERP — vale o nome antigo e o novo
+CATS_UTIL = {N(x) for x in ["Energia de obra / unidade", "Água de obra / unidade", "Energia (Escritório)",
+                            "Fatura de Água (Escritório)",
+                            "Conta de energia", "Conta de água", "Fatura de Água"]}
 # cobradas por unidade (mesmo valor várias vezes no mesmo dia é o normal)
 CATS_POR_UNIDADE = {N(x) for x in ["Vistoria de Obra (Caixa / Prefeitura)", "Seguro RCPM (Obra)",
                                    "Seguro Financiamento (MIP/DFI)", "DARF RET (Incorporação)",
@@ -101,8 +105,10 @@ FISCAL_TIPOS = {
                   "Primeiro pagamento nos últimos 60 dias e já soma R$ 20.000 ou mais."),
     "A_CLASSIFICAR": ("Centro de custo \"A CLASSIFICAR\"",
                       "Pagamentos há mais de 30 dias no CC provisório A CLASSIFICAR — já deveriam ter ido para o CC da obra."),
-    "OBRA_FINALIZADA": ("Custo de obra depois do término",
-                        "Material, mão de obra ou locação pagos mais de 60 dias depois da DATA DE TÉRMINO DE OBRA (DOCUMENTOS)."),
+    "OBRA_FINALIZADA": ("Custo de obra depois da entrega",
+                        "Material, mão de obra ou locação pagos mais de 60 dias depois da DATA DA ENTREGA da casa (VENDAS). "
+                        "Até vendida e entregue é custo da casa; depois da entrega é pós-obra. Sem CASA na descrição, "
+                        "só conta quando todas as casas do lote já foram entregues."),
     "UTIL_ENTREGUE": ("Energia/água paga depois da entrega",
                       "Conta de consumo com competência mais de 45 dias depois da DATA DA ENTREGA da casa (VENDAS) — titularidade não transferida?"),
 }
@@ -404,7 +410,7 @@ def preparar_pagamentos(df):
         "f": col(df, "fornecedor").map(txt),
         "d": col(df, "descricao").map(txt),
         "nd": col(df, "numero_documento").map(txt),
-        "c": col(df, "categoria").map(txt),
+        "c": col(df, "categoria").map(lambda v: nome_atual(txt(v))),   # nome antigo -> novo (11/11)
         "g": col(df, "grupo").map(txt),
         "p": col(df, "plano_de_conta").map(txt),
         "fp": col(df, "forma_pagamento").map(txt),
@@ -441,7 +447,7 @@ def aplicar_excecoes(p, excecoes):
         if e.get("fornecedor"):
             m &= nf == N(e["fornecedor"])
         if e.get("categoria"):
-            m &= nc == N(e["categoria"])
+            m &= nc == N(nome_atual(e["categoria"]))
         if e.get("centro_de_custo"):
             m &= ncc == N(e["centro_de_custo"])
         if not (e.get("fornecedor") or e.get("categoria")):
@@ -598,6 +604,55 @@ def fiscalizar(p, lanc):
 # =============================================================================
 # CRUZAMENTOS COM O NOTION (opcionais — sem NOTION_TOKEN, ficam de fora)
 # =============================================================================
+def casas_por_endereco(vendas, pad):
+    """endereço padronizado -> {nº da casa: data da entrega ou None (ainda não entregue)}.
+    Casa sem número vira 0."""
+    casas = defaultdict(dict)
+    for v in vendas:
+        if not v.get("endereco"):
+            continue
+        casa = int(v["casa"]) if isinstance(v.get("casa"), (int, float)) else 0
+        e = dt(v["data_entrega"]) if v.get("data_entrega") else None
+        k = pad(v["endereco"])
+        if casa not in casas[k] or (e and (casas[k][casa] is None or e > casas[k][casa])):
+            casas[k][casa] = e
+    return casas
+
+
+def entrega_do_pagamento(casas, descricao):
+    """Data da entrega que vale para o pagamento, ou None (casa ainda é custo de obra).
+    Com CASA n / CS n na descrição, vale a entrega dessa casa; sem, só quando TODAS as
+    casas conhecidas do lote já foram entregues (vale a última entrega)."""
+    if not casas:
+        return None
+    m = re.search(r"\bCASA\s*0?(\d+)\b|\bCS\s*0?(\d+)\b", N(descricao))
+    if m:
+        return casas.get(int(m.group(1) or m.group(2)))
+    datas = list(casas.values())
+    return max(datas) if all(datas) else None
+
+
+def achados_pos_entrega(p, casas):
+    """OBRA_FINALIZADA (material/mão de obra/locação pagos > 60 dias depois da entrega) e
+    UTIL_ENTREGUE (conta de consumo com competência > 45 dias depois da entrega).
+    p precisa da coluna cc_pad (centro de custo padronizado como o endereço do Notion)."""
+    achados = []
+    for r in p.itertuples():
+        cs = casas.get(r.cc_pad)
+        if not cs:
+            continue
+        cat = N(r.c)
+        if cat in CATS_OBRA_DIRETA and r.dp:
+            e = entrega_do_pagamento(cs, r.d)
+            if e and (r.dp - e).days > 60:
+                achados.append(["OBRA_FINALIZADA", int(r.Index), f"Casa entregue em {e.strftime('%d/%m/%Y')} — pós-obra"])
+        elif cat in CATS_UTIL and r.dc:
+            e = entrega_do_pagamento(cs, r.d)
+            if e and (r.dc - e).days > 45:
+                achados.append(["UTIL_ENTREGUE", int(r.Index), f"Casa entregue em {e.strftime('%d/%m/%Y')}"])
+    return achados
+
+
 def cruzar_notion(p):
     if not os.environ.get("NOTION_TOKEN", "").strip() or ARQUIVO_LOCAL:
         return [], "sem NOTION_TOKEN" if not ARQUIVO_LOCAL else "teste local"
@@ -611,47 +666,13 @@ def cruzar_notion(p):
     p["cc_pad"] = p.cc.map(pad)
     # 1) CONTA da obra (CONTA_OBRA) removido em 28/10 (pedido do Morais)
     try:
-        # 2) obra finalizada — DOCUMENTOS
-        docs = [fad.parse_doc(pg) for pg in fv.ler_banco(fv.DB_DOCS, "DOCUMENTOS")]
-        termino = {}
-        for d in docs:
-            if d.get("endereco") and d.get("data_termino_obra"):
-                t = dt(d["data_termino_obra"])
-                k = pad(d["endereco"])
-                if t and (k not in termino or t > termino[k]):
-                    termino[k] = t
-        for r in p.itertuples():
-            t = termino.get(r.cc_pad)
-            if t and r.dp and (r.dp - t).days > 60 and N(r.c) in CATS_OBRA_DIRETA:
-                achados.append(["OBRA_FINALIZADA", int(r.Index), f"Término da obra em {t.strftime('%d/%m/%Y')}"])
-        log(f"  Notion DOCUMENTOS: {len(termino)} obras com término")
-    except Exception as e:
-        log(f"  ! cruzamento DOCUMENTOS falhou: {e}")
-    try:
-        # 3) energia/água depois da entrega — VENDAS
+        # 2) e 3) custo de obra e energia/água depois da ENTREGA da casa — VENDAS
+        # (11/11, regra do dono: até vendida e entregue é custo da casa; depois é pós-obra.
+        #  Antes o custo de obra olhava a DATA DE TÉRMINO DE OBRA do DOCUMENTOS.)
         vendas = [fad.parse_venda(pg) for pg in fv.ler_banco(fv.DB_VENDAS, "VENDAS")]
-        entrega = defaultdict(dict)          # endereço -> {casa: data}
-        for v in vendas:
-            if v.get("endereco") and v.get("data_entrega"):
-                e = dt(v["data_entrega"])
-                casa = int(v["casa"]) if isinstance(v.get("casa"), (int, float)) else 0
-                if e:
-                    entrega[pad(v["endereco"])][casa] = e
-        for r in p.itertuples():
-            casas = entrega.get(r.cc_pad)
-            if not casas or not r.dc:
-                continue
-            eh_util = N(r.c) in CATS_UTIL or r.sc in (LACUNA_E, LACUNA_A)
-            if not eh_util:
-                continue
-            m = re.search(r"\bCASA\s*0?(\d+)\b|\bCS\s*0?(\d+)\b", N(r.d))
-            if m:
-                e = casas.get(int(m.group(1) or m.group(2)))
-            else:
-                e = max(casas.values()) if casas and len(casas) >= 1 and 0 not in casas else casas.get(0)
-            if e and (r.dc - e).days > 45:
-                achados.append(["UTIL_ENTREGUE", int(r.Index), f"Casa entregue em {e.strftime('%d/%m/%Y')}"])
-        log(f"  Notion VENDAS: {sum(len(x) for x in entrega.values())} casas entregues")
+        casas = casas_por_endereco(vendas, pad)
+        achados.extend(achados_pos_entrega(p, casas))
+        log(f"  Notion VENDAS: {sum(1 for c in casas.values() for e in c.values() if e)} casas entregues")
     except Exception as e:
         log(f"  ! cruzamento VENDAS falhou: {e}")
     return achados, "ok"
@@ -677,7 +698,8 @@ def baixar_corrigidos(validacoes, p):
             continue                        # lançamento alterado/apagado no ERP: fica para conferência manual
         cat_agora = p.at[i, "c"]
         cc_agora = p.at[i, "cc"]
-        mudou_cat = v.get("categoria_atual") and N(cat_agora) != N(v["categoria_atual"])
+        # renomear a categoria no ERP (11/11) não é corrigir o lançamento
+        mudou_cat = v.get("categoria_atual") and N(nome_atual(cat_agora)) != N(nome_atual(v["categoria_atual"]))
         mudou_cc = v.get("centro_de_custo") and N(cc_agora) != N(v["centro_de_custo"])
         resolvido = (tipo == "AUDIT" and (mudou_cat or mudou_cc or p.at[i, "st"] == "OK")) or \
                     (tipo != "AUDIT" and (mudou_cat or mudou_cc))
@@ -759,6 +781,8 @@ def main():
     secoes, cats, textos, origem_manual = carregar_manual()
     log(f"MANUAL: {len(cats)} categorias ({origem_manual})")
     motor = Motor(cats)
+    for aviso in motor.manual_desatualizado:
+        log(f"  ! manual: {aviso}")
 
     p = preparar_pagamentos(dados["pagamentos"])
     log(f"AUDITANDO {len(p)} pagamentos…")
@@ -835,7 +859,7 @@ def main():
     if prev:
         atual = {k: [c, s] for k, c, s in zip(p.k, p.c, p.st)}
         novos = [k for k in atual if k not in prev]
-        recat = [k for k in atual if k in prev and N(prev[k][0]) != N(atual[k][0])]
+        recat = [k for k in atual if k in prev and N(nome_atual(prev[k][0])) != N(nome_atual(atual[k][0]))]
         resolvidos = [k for k in atual if k in prev and prev[k][1] != "OK" and atual[k][1] == "OK"]
         mud = {"anterior": anterior.get("gerado"), "novos": len(novos), "removidos": len([k for k in prev if k not in atual]),
                "recategorizados": len(recat), "resolvidos": len(resolvidos),
@@ -854,7 +878,6 @@ def main():
         "st": dic.enc("st", p.st), "sc": dic.enc("cat", p.sc), "sp": dic.enc("plano", p.sp),
         "m": dic.enc("m", p.m), "a": dic.enc("a", p.a), "tc": dic.enc("tc", p.tc), "ex": [int(x) for x in p.ex],
     }
-    lac = p[p.sc.isin([LACUNA_E, LACUNA_A])]
     conteudo = {
         "versao": VERSAO,
         "gerado": datetime.now(TZ).strftime("%d/%m/%Y %H:%M"),
@@ -866,8 +889,7 @@ def main():
         "dict": dic.listas(),
         "rotulos": ROTULOS,
         "cad": motor.cadastro_erp(zip(p.c, p.p, p.g)),
-        "lacuna": {"n": int(len(lac)), "v": round(float(lac.v.sum()), 2),
-                   "ne": int((lac.sc == LACUNA_E).sum()), "na": int((lac.sc == LACUNA_A).sum())},
+        "manual_pendente": motor.manual_desatualizado,
         "fiscal": fiscal,
         "fiscal_tipos": {k: {"t": v[0], "d": v[1]} for k, v in FISCAL_TIPOS.items()},
         "notion": situacao_notion,
