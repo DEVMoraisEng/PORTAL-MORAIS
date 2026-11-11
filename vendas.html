@@ -1022,7 +1022,6 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
           <option value="">Todas as casas</option>
           <option value="vendida">Vendas em Andamento</option>
           <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
-          <option value="reservada">Reservadas (contrato aguardando assinatura)</option>
           <option value="completo">Processo de vendas completo</option>
         </select>
         <select id="hub-ano" onchange="aplicarFiltros('hub')"><option value="">Todos os anos</option></select>
@@ -1076,7 +1075,6 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
             <option value="">Todas as casas</option>
             <option value="vendida">Vendas em Andamento</option>
             <option value="disponivel">Casas Disponíveis (Com avaliação)</option>
-          <option value="reservada">Reservadas (contrato aguardando assinatura)</option>
             <option value="completo">Processo de vendas completo</option>
           </select>
           <select id="set-ano" onchange="aplicarFiltros('set')"><option value="">Todos os anos</option></select>
@@ -3606,28 +3604,15 @@ function temCliente(rec){
    trocar de "Casas vendidas" pra "Casas disponíveis" mostrava praticamente
    as mesmas linhas (e os dois contadores do informativo somavam a mesma
    obra duas vezes). */
-/* 05/11/2026 (dono), casa de rua: gerar o contrato grava CONTRATO - GERADO EM. Daí em diante quem decide é o
-   contrato: ASSINATURA - SITUAÇÃO = ASSINADO -> vendida; menos de 48 h -> "reservada" (conta à parte, não é
-   vendida nem disponível); 48 h ou mais sem todas as assinaturas -> volta a disponível. Sem a data, a régua de
-   sempre (tem cliente = vendida). Mesma régua do fetch_vendas.py (reserva_contrato) e do RegrasVenda.reservaContrato. */
-const RESERVA_CONTRATO_MS=48*3600*1000;
-function reservaContratoDe(valores){
-  const g=getV(valores||{},"CONTRATO - GERADO EM");
-  const t=g?Date.parse(typeof g==="object"&&g.start?g.start:g):NaN;
-  if(isNaN(t)) return null;
-  if(normNome(getV(valores,"ASSINATURA - SITUAÇÃO")||"")==="ASSINADO") return "VENDIDA";
-  return Date.now()<t+RESERVA_CONTRATO_MS?"RESERVADA":"LIBERADA";
-}
-function vendidaDe(rec){
-  const rc=reservaContratoDe(rec&&rec.valores);
-  return rc ? rc==="VENDIDA" : temCliente(rec);
-}
+/* REGRA TRAVADA PELO DONO (Morais, 11/11/2026), casa de rua: saiu a régua do CONTRATO - GERADO EM / 48 h
+   (e a do SINAL, no fetch_vendas.py). Reserva da casa de rua é só RESERVADA = SIM por 24 h, no mapa de vendas.
+   NÃO ALTERAR sem pedido do próprio Morais — ver REGRAS-TRAVADAS.md. */
+function vendidaDe(rec){ return temCliente(rec); }
 function situacoesDe(valores,rec){
   const arr=[];
-  const r=rec||{valores:valores}, rc=reservaContratoDe(valores);
+  const r=rec||{valores:valores};
   const vendida=vendidaDe(r);
   if(vendida){ arr.push("vendida"); }
-  else if(rc==="RESERVADA"){ arr.push("reservada"); }
   else {
     const vm=getV(valores,"VALOR NA MÃO");
     if(vm!=null && vm!=="") arr.push("disponivel");
@@ -4551,8 +4536,7 @@ function pnResumoProcesso(V,pageId,sensPendente){
   const html=itens.map(it=>{
     let txt="", c=null;
     if(it.calculado){
-      const rc=reservaContratoDe(V);
-      txt = rc==="RESERVADA" ? "RESERVADA" : ((vendidaDe(rec) || (!sensPendente && !!getV(V,"CLIENTES"))) ? "SIM" : "NÃO");
+      txt = (vendidaDe(rec) || (!sensPendente && !!getV(V,"CLIENTES"))) ? "SIM" : "NÃO";
     }else{
       c=campoPorNome(it.coluna); if(!c || nomeExcluido(c.nome,"painel")) return "";
       txt = (c.sensivel&&sensPendente) ? "…" : fmt(c,getV(V,c.nome));
