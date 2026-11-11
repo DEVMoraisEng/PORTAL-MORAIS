@@ -30,6 +30,47 @@ def _partes(p: dict) -> tuple[int, int]:
     return 0, valor
 
 
+def _c_seguro(valor) -> int:
+    try:
+        return _c(valor)
+    except (TypeError, ValueError):
+        return 0
+
+
+def repartir(recebido: int, rec, quitada) -> list:
+    """Reparte o recebido do ERP (centavos, pode ter juros) pelas datas dos recebimentos, na proporção de cada um
+    (11/11/2026, análise do condomínio). A sobra do arredondamento vai no último: a soma é exatamente a do ERP.
+    Sem recebimento com valor: uma linha na data da quitação, ou sem data."""
+    if recebido <= 0:
+        return []
+    pesos = []
+    for item in rec or []:
+        try:
+            d, v = item[0], item[1]
+        except (TypeError, IndexError, KeyError):
+            continue
+        c = _c_seguro(v)
+        if c > 0:
+            pesos.append((str(d or "")[:10], c))
+    if not pesos:
+        return [[str(quitada or "")[:10], _r(recebido)]]
+    total, out, usado = sum(c for _, c in pesos), [], 0
+    for i, (d, c) in enumerate(pesos):
+        parte = recebido - usado if i == len(pesos) - 1 else recebido * c // total
+        usado += parte
+        out.append([d, _r(parte)])
+    return out
+
+
+def parcela_para_tela(p: dict, unidade: str) -> dict:
+    """Uma parcela na lista que a tela usa para filtrar e somar (chaves curtas: o arquivo vai inteiro para a tela)."""
+    recebido, aberto = _partes(p)
+    return {"u": unidade, "t": p.get("tipo") or "", "s": p.get("sub") or "", "d": str(p.get("data") or ""),
+            "o": _r(_c_seguro(p.get("raw")) or _c(p.get("valor"))), "v": _r(_c(p.get("valor"))), "a": _r(aberto),
+            "m": 1 if p.get("permuta") else 0, "q": str(p.get("pagoEm") or ""),
+            "r": repartir(recebido, p.get("rec"), p.get("pagoEm"))}
+
+
 def resumo_da_venda(parcelas: list[dict], hoje: str) -> dict:
     """Os cinco números de uma venda, os dias de atraso da parcela vencida mais antiga e a próxima parcela a vencer."""
     c = dict.fromkeys(CAMPOS, 0)
@@ -87,7 +128,7 @@ def _ordem(unidade: str):
 def montar(linhas: list[dict], hoje: str) -> dict:
     """Linhas do Notion -> totais, unidades, vendas ainda não lançadas e vendas lançadas sem leitura.
     Só entram nos totais as vendas com retrato legível. Linha sem UNIDADE é ignorada."""
-    unidades, nao_lancadas, sem_leitura, titulos = [], [], [], []
+    unidades, nao_lancadas, sem_leitura, titulos, na_tela = [], [], [], [], []
     total = dict.fromkeys(CAMPOS, 0)
     lido = ""
     for linha in linhas:
@@ -105,6 +146,7 @@ def montar(linhas: list[dict], hoje: str) -> dict:
             retrato = json.loads(str(_campo(props, RT.COL_RETRATO) or ""))
             parcelas = retrato["parcelas"]
             r = resumo_da_venda(parcelas, hoje)
+            linhas_tela = [parcela_para_tela(p, unidade) for p in parcelas]
         except (ValueError, KeyError, TypeError, AttributeError):
             sem_leitura.append(unidade)
             continue
@@ -112,6 +154,7 @@ def montar(linhas: list[dict], hoje: str) -> dict:
             total[k] += r["centavos"][k]
         del r["centavos"]
         titulos += [dict(t, unidade=unidade, comprador=comprador) for t in r.pop("titulos")]
+        na_tela += linhas_tela
         r.update(unidade=unidade, comprador=comprador, lido=lido_aqui, erro_leitura="| ERRO" in em)
         unidades.append(r)
         lido = max(lido, lido_aqui)
@@ -120,4 +163,5 @@ def montar(linhas: list[dict], hoje: str) -> dict:
     sem_leitura.sort(key=_ordem)
     titulos.sort(key=lambda t: _ordem(t["unidade"]))   # ordem estável: dentro da unidade segue o vencimento
     return {"hoje": hoje, "lido": lido, "totais": {k: _r(v) for k, v in total.items()}, "unidades": unidades, "titulos": titulos,
-            "nao_lancadas": nao_lancadas, "sem_leitura": sem_leitura}
+            "nao_lancadas": nao_lancadas, "sem_leitura": sem_leitura,
+            "parcelas": sorted(na_tela, key=lambda x: (_ordem(x["u"]), x["d"]))}
