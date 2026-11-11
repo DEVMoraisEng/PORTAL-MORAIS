@@ -1,9 +1,10 @@
 /* boletos-financeiro.js — a tela da página Boletos e Financeiro (09/11/2026). Só monta HTML a partir do arquivo que o
  * servidor publica (servidor/boletos_portal.py); não fala com a rede. Roda no navegador (window.BF) e no node (testes). */
 (function (raiz, fabrica) {
-  if (typeof module === "object" && module.exports) module.exports = fabrica();
-  else raiz.BF = fabrica();
-})(typeof self !== "undefined" ? self : this, function () {
+  /* 11/11/2026: a análise do condomínio (boletos-analise.js) vem antes; sem ela a página mostra o financeiro de antes */
+  if (typeof module === "object" && module.exports) module.exports = fabrica(require("./boletos-analise.js"));
+  else raiz.BF = fabrica(raiz.BA);
+})(typeof self !== "undefined" ? self : this, function (BA) {
   "use strict";
   const TIPOS = { sinal: "Sinal", entrada: "Entrada", pre: "Pré-chaves", pos: "Pós-chaves", balao: "Balão", terceiros: "FGTS ou financiamento" };
   const SUBS = { fgts: "FGTS", financiamento: "Financiamento" };
@@ -205,5 +206,23 @@
     return (agora == null ? Date.now() : agora) - quando > 26 * 3600 * 1000;
   }
 
-  return { htmlBoletos, htmlFinanceiro, brl, dataBr, esc, motivoEmPortugues, estaVelho };
+  /* A página inteira, na ordem de 11/11/2026: filtros, indicadores, gráficos, financeiro por unidade e boletos.
+   * Com parcelas no arquivo, os cinco números e a lista de unidades seguem o filtro da análise. */
+  function htmlPagina(d, e) {
+    e = e || {};
+    const fin = d.financeiro || {};
+    const opFin = { busca: e.busca, coluna: e.coluna, soVencido: e.soVencido, atualizando: e.atualizando, agora: e.agora };
+    const opBol = { podeSegurar: e.podeSegurar, pedidos: e.pedidos, grupo: e.grupo, buscaBoletos: e.buscaBoletos };
+    let topo;
+    if (BA && BA.temAnalise(fin)) {
+      const f = e.filtro || {};
+      topo = BA.htmlFiltros(fin, f) + BA.htmlIndicadores(BA.indicadores(fin, f)) + BA.htmlGraficos(BA.series(fin, f)) +
+        htmlFinanceiro(Object.assign({}, d, { financeiro: Object.assign({}, fin, BA.resumo(fin, f)) }), opFin);
+    } else {
+      topo = '<div class="aviso">A análise aparece depois da próxima leitura do servidor.</div>' + htmlFinanceiro(d, opFin);
+    }
+    return topo + htmlBoletos(d, opBol);
+  }
+
+  return { htmlBoletos, htmlFinanceiro, htmlPagina, brl, dataBr, esc, motivoEmPortugues, estaVelho };
 });
