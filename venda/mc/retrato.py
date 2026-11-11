@@ -146,8 +146,9 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
         texto = "ERRO: " + motivo
         em = " | ERRO %s: %s" % (agora, motivo)   # sem leitura boa não há hora de leitura: a coluna só diz que falhou
     # Limite de leitura: o Notion devolve, ao ler a página, no máximo 25 itens de rich_text por coluna. Cada item grava até 1900
-    # caracteres, então cabem cerca de 47 mil caracteres. Hoje o retrato tem cerca de 240 caracteres por parcela (56 parcelas
-    # = 13,4 mil), o que dá folga para umas 190 parcelas. Venda com bem mais que isso seria lida cortada pelo portal.
+    # caracteres, então cabem cerca de 47 mil caracteres. O retrato tinha cerca de 240 caracteres por parcela (56 parcelas
+    # = 13,4 mil); com os recebimentos (`rec`, 11/11/2026) a folga caiu de umas 190 para umas 180 parcelas (medido na revisão).
+    # Venda com bem mais que isso seria lida cortada pelo portal.
     if not notion.gravar_texto_longo(page_id, props, COL_RETRATO, texto):
         return "sem_coluna"
     notion.gravar_textos(page_id, props, {COL_RETRATO_EM: em})
@@ -187,11 +188,11 @@ def salvar_indices(obter_erp, agora: str, pasta=None) -> bool:
     """Guarda a série do INCC-M e do IPCA + 1% do ERP em <pasta>/indices-reajuste.json para a análise do condomínio
     (11/11/2026). Só LÊ o ERP. Falha não derruba os retratos: o arquivo antigo fica e o log diz só o tipo do erro."""
     import json, os, pathlib
-    from . import boletos as B
-    from . import indices as I
     destino = pathlib.Path(pasta or os.environ.get("MC_CENTRAL") or CENTRAL_PADRAO) / "indices-reajuste.json"
     tmp = destino.with_name("%s.%d.tmp" % (destino.name, os.getpid()))
     try:
+        from . import boletos as B
+        from . import indices as I
         tabelas = I.serie_para_portal(B.ler_tabelas(obter_erp()))
         if not tabelas:
             raise ValueError("sem tabelas")

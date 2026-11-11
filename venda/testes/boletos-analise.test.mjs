@@ -239,3 +239,30 @@ test("rótulo do último mês da linha não passa da borda do desenho", () => {
   const linha = h.slice(h.indexOf("Inadimplência no fim de cada mês"));
   assert.match(linha, /text-anchor="end"[^>]*>out\/26</);
 });
+
+/* ------------------------------------------------------------ consertos da revisão (11/11/2026) */
+test("inadimplência não conta os juros da baixa atrasada como dívida", () => {
+  const s = BA.series(fin([parc({ d: "2026-09-10", v: 1000, a: 0, q: "2026-10-15", r: [["2026-10-15", 1020]] })]), {});
+  assert.equal(s.inadimplencia["2026-09"], 1000);
+});
+test("indicador Recebido deixa a permuta de fora, como diz o documento", () => {
+  const f = fin([parc({ a: 0, q: "2026-10-01", r: [["2026-10-01", 1020]] }), parc({ m: 1, t: "entrada", a: 0, q: "2026-10-01", r: [["2026-10-01", 500]] })]);
+  assert.equal(ind(BA.indicadores(f, {}), "recebido").valor, 1020);
+  assert.equal(BA.resumo(f, {}).totais.recebido, 1520);           // os cinco números seguem iguais aos do servidor
+});
+test("pontualidade e atraso só do comprador: FGTS, financiamento e permuta fora", () => {
+  const L = BA.indicadores(fin([parc({ a: 0, q: "2026-10-10" }), parc({ t: "terceiros", a: 0, q: "2026-12-01" }), parc({ m: 1, a: 0, q: "2026-12-01" })]), {});
+  assert.equal(ind(L, "pontualidade").valor, "100%");
+  assert.equal(ind(L, "atraso").valor, "—");
+});
+test("aviso enquanto houver recebimento sem data (retrato de antes do campo rec)", () => {
+  assert.match(BA.htmlGraficos(BA.series(fin([parc({ a: 0, r: [["", 500]] })]), {})), /recebimento sem data/);
+  assert.doesNotMatch(BA.htmlGraficos(BA.series(fin([parc({ a: 0, r: [["2026-10-10", 500]] })]), {})), /recebimento sem data/);
+});
+test("atalho tem id para o foco voltar depois de repintar", () => {
+  assert.match(BA.htmlFiltros(GAB, {}), /id="f-at-3m"/);
+});
+test("unidade sem comprador não mostra o ponto solto", () => {
+  const h = BA.htmlFiltros(fin([parc({})], { unidades: [{ unidade: "01", comprador: "" }] }), {});
+  assert.match(h, /<option value="01">01<\/option>/);
+});

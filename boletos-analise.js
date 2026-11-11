@@ -116,20 +116,20 @@
   function indicadores(fin, f) {
     const s = filtrar(fin, f), hoje = s.hoje, P = s.parcelas;
     const soma = (lista, g) => lista.reduce((a, p) => a + g(p), 0);
-    const carteira = soma(P, p => c(p.v)), recebido = s.recebimentos.reduce((a, x) => a + x.c, 0);
+    const carteira = soma(P, p => c(p.v)), recebido = s.recebimentos.filter(x => categoria(x.p) !== "permuta").reduce((a, x) => a + x.c, 0);
     const doComprador = P.filter(p => !FORA_DO_COMPRADOR[categoria(p)]);
     const venceu = doComprador.filter(p => p.d < hoje);
     const vencido = soma(venceu, p => Math.max(0, c(p.a))), baseVenc = soma(venceu, p => c(p.v));
     const limite = mesMais(mes(hoje), 11);
     const doze = soma(filtrar(fin, f, true).parcelas.filter(p => categoria(p) !== "permuta" && p.d >= hoje && mes(p.d) <= limite), p => Math.max(0, c(p.a)));
     const comOriginal = P.filter(p => c(p.o) > 0), correcao = soma(comOriginal, p => c(p.v) - c(p.o)), original = soma(comOriginal, p => c(p.o));
-    const quitadas = P.filter(p => p.q && c(p.a) <= 0), emDia = quitadas.filter(p => p.q <= p.d);
+    const quitadas = doComprador.filter(p => p.q && c(p.a) <= 0), emDia = quitadas.filter(p => p.q <= p.d);
     const atrasadas = quitadas.filter(p => p.q > p.d), atraso = atrasadas.length ? soma(atrasadas, p => dias(p.d, p.q)) / atrasadas.length : 0;
     const unidades = new Set(P.map(p => p.u)).size;
     const pct = (a, b) => (b ? num(a / b * 100, 1) : "0,0") + "%";
     return [
       { chave: "carteira", rotulo: "Carteira contratada", valor: r(carteira), sub: P.length + (P.length === 1 ? " parcela de " : " parcelas de ") + unidades + (unidades === 1 ? " unidade" : " unidades") },
-      { chave: "recebido", rotulo: "Recebido", valor: r(recebido), sub: pct(recebido, carteira) + " da carteira, juros incluídos" },
+      { chave: "recebido", rotulo: "Recebido", valor: r(recebido), sub: pct(recebido, carteira) + " da carteira, juros incluídos, sem permuta" },
       { chave: "vencido", rotulo: "Vencido", valor: r(vencido), sub: "Inadimplência " + pct(vencido, baseVenc) + " do que já venceu", alerta: vencido > 0 },
       { chave: "doze", rotulo: "A receber em 12 meses", valor: r(doze), sub: "Do comprador e da Caixa, sem permuta. Não depende do período" },
       { chave: "correcao", rotulo: "Correção monetária", valor: r(correcao), sub: (correcao >= 0 ? "+" : "") + (original ? num(correcao / original * 100, 2) : "0,00") + "% sobre o valor original" },
@@ -168,12 +168,13 @@
       if (m >= mesHoje) return;
       const fim = fimDoMes(m);
       inadimplencia[m] = r(historico.filter(p => p.d < fim).reduce((a, p) =>
-        a + Math.max(0, c(p.a) + (p.r || []).reduce((b, x) => b + (x && x[0] && String(x[0]) > fim ? c(x[1]) : 0), 0)), 0));
+        a + Math.min(c(p.v), Math.max(0, c(p.a) + (p.r || []).reduce((b, x) => b + (x && x[0] && String(x[0]) > fim ? c(x[1]) : 0), 0))), 0));
     });
     const pt = {};
     s.parcelas.forEach(p => { const k = categoria(p), ab = Math.max(0, c(p.a)); if (ab > 0) pt[k] = (pt[k] || 0) + ab; });
     const porTipo = Object.entries(pt).sort((a, b) => b[1] - a[1]).map(([cat, v]) => ({ cat, nome: NOME_CAT[cat], valor: r(v) }));
-    return { meses, mesHoje, recebido, previsto, correcao, indiceUsado, inadimplencia, porTipo };
+    const semData = s.recebimentos.filter(x => !x.data).length;
+    return { meses, mesHoje, recebido, previsto, correcao, indiceUsado, inadimplencia, porTipo, semData };
   }
 
   function atalho(nome, hoje) {
@@ -224,9 +225,9 @@
       '<label class="campo">De <input id="f-de" type="month" value="' + esc(f.de || "") + '"></label>' +
       '<label class="campo">Até <input id="f-ate" type="month" value="' + esc(f.ate || "") + '"></label>' +
       '<div class="campo">Atalhos <div class="atalhos">' + Object.keys(nomesAtalho).map(a =>
-        '<button type="button" class="chip atalho' + (a === atalhoAtivo ? " ativo" : "") + '" data-atalho="' + a + '" aria-pressed="' + (a === atalhoAtivo) + '">' + nomesAtalho[a] + "</button>").join("") + "</div></div>" +
+        '<button type="button" id="f-at-' + a + '" class="chip atalho' + (a === atalhoAtivo ? " ativo" : "") + '" data-atalho="' + a + '" aria-pressed="' + (a === atalhoAtivo) + '">' + nomesAtalho[a] + "</button>").join("") + "</div></div>" +
       '<label class="campo">Tipo <select id="f-tipo">' + opt("", "Todos", f.tipo) + CATEGORIAS.filter(x => cats.has(x.cat)).map(x => opt(x.cat, x.nome, f.tipo)).join("") + "</select></label>" +
-      '<label class="campo">Unidade <select id="f-unidade">' + opt("", "Todas", f.unidade) + unidades.map(u => opt(u.unidade, u.unidade + " · " + u.comprador, f.unidade)).join("") + "</select></label>" +
+      '<label class="campo">Unidade <select id="f-unidade">' + opt("", "Todas", f.unidade) + unidades.map(u => opt(u.unidade, u.comprador ? u.unidade + " · " + u.comprador : u.unidade, f.unidade)).join("") + "</select></label>" +
       '<label class="campo">Situação <select id="f-situacao">' + opt("", "Todas", f.situacao) + opt("pago", "Pago", f.situacao) + opt("avencer", "A vencer", f.situacao) + opt("vencido", "Vencido", f.situacao) + "</select></label>" +
       '<button type="button" id="f-limpar"' + (filtroAtivo(f) ? "" : " disabled") + ">Limpar filtros</button>" +
       '</div><p class="muted nota">O período usa o mês de vencimento da parcela; no dinheiro recebido, o mês em que ele entrou.</p></section>';
@@ -325,7 +326,9 @@
         tabela(["Mês", "Vencido e não pago"], passados.map(m => [mesCurto(m), brl(s.inadimplencia[m])])) : VAZIO);
     const ct = cartao("A receber por tipo", "Onde está o dinheiro que ainda vai entrar.",
       s.porTipo.length ? '<div class="g">' + svgDeitadas(s.porTipo, "var(--s1)") + "</div>" + tabela(["Tipo", "A receber"], s.porTipo.map(x => [x.nome, brl(x.valor)])) : VAZIO);
-    return '<div class="grade">' + cx + cc + ci + ct + "</div>";
+    const aviso = s.semData ? '<div class="aviso">' + s.semData + (s.semData === 1 ? " recebimento sem data" : " recebimentos sem data") +
+      " (leitura de antes de 11/11): fica fora dos meses e conta como já recebido na inadimplência. Some na próxima leitura das 8h.</div>" : "";
+    return aviso + '<div class="grade">' + cx + cc + ci + ct + "</div>";
   }
 
   return { CATEGORIAS, categoria, situacao, temAnalise, filtrar, resumo, indicadores, series, atalho, filtroAtivo, mesBr, mesMais,
