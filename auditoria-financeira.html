@@ -928,6 +928,8 @@ function afDupOutro(f){ const m=f&&f[0]==="DUP"&&/do lançamento (\d+)/.exec(f[1
 function afDupAnexos(f,compacto){ const o=afDupOutro(f); if(!o) return "";
   return compacto?`<div class="small muted" style="margin-top:6px">Anexos do lançamento ${esc(o)}:</div>${afAnexosId(o,true)}`
     :`<div style="margin-top:6px"><span class="small muted">Anexos do lançamento ${esc(o)} (o outro pagamento):</span>${afAnexosId(o,true)}</div>`; }
+/* 11/11 (dono): o link do Mais Controle também no PDF e no Excel dos "a corrigir" */
+function afUrlMcId(id){ const A=((AF_D&&AF_D.anexos)||{}).itens; return A&&id!=null&&id!==""?afUrlMc(A[String(id)]):""; }
 function afUrlMc(it){
   const m=(it&&it.mc)||{}, p=(m.parcelas||[])[0];
   return p&&/^[0-9a-f-]{36}$/i.test(p)?"https://acessar.maiscontroleerp.com.br/#/payable-installments/"+p:"";
@@ -1591,6 +1593,7 @@ function afJanelaPdf(titulo, corpo, paisagem){
   td{padding:4px 6px;border-bottom:1px solid #d0e4ec;vertical-align:top}
   tr{page-break-inside:avoid}tr:nth-child(even) td{background:#f5f9fa}
   .num{text-align:right;white-space:nowrap}.mut{color:#8aacbb}.tot td{font-weight:bold;background:#eaf1f3}
+  a.mc{color:#1e3f58;font-weight:bold;text-decoration:none}a.mcb{display:inline-block;margin-top:3px;color:#fff;background:#2a7fb0;border-radius:4px;padding:1px 6px;font-size:8.5px;font-weight:bold;text-decoration:none;white-space:nowrap}
   .sug{color:#1a6b40;font-weight:bold}.tag{display:inline-block;border:1px solid #b8d0da;border-radius:10px;padding:0 6px;font-size:8.5px;margin-right:3px;color:#5a8099}
   .rod{position:fixed;bottom:0;left:0;right:0;font-size:8.5px;color:#8aacbb;text-align:right}
   @media screen{body{padding:20px;max-width:1100px;margin:auto}}</style></head><body>
@@ -1613,8 +1616,8 @@ function afPdfCorr(){
   const corpo=`<p><b>${fN(L.length)}</b> lançamentos · <b>${fR(tot)}</b> · ${esc({CORRIGIR:"a corrigir",CORRIGIDO:"já corrigidos",TODOS:"a corrigir e corrigidos"}[sel])} · ${esc(afFiltrosTexto())}</p>
     ${grupos.map(g=>`<h2>${esc(g.nome||"—")} — ${fN(g.itens.length)} · ${fR(g.itens.reduce((a,r)=>a+r.valor,0))}</h2>
     <table><thead><tr><th>Pagamento</th><th>ID</th><th>Descrição · fornecedor</th><th>Centro de custo</th><th>Como está</th><th>O que corrigir</th><th class="num">Valor</th><th>Marcado por</th></tr></thead><tbody>
-    ${g.itens.map(r=>`<tr><td>${fD(r.dp)}</td><td>${esc(r.id||"")}</td><td>${esc(r.desc||"—")}<br><span class="mut">${esc(r.forn||"—")}</span></td><td>${esc(r.cc)}</td><td>${esc(r.cat)}<br><span class="mut">${esc(r.tipo)}</span></td>
-      <td>${r.v.obs?esc(r.v.obs)+"<br>":""}${r.sug?`<span class="sug">${esc(r.sug)}</span>`:""}${r.v.status==="CORRIGIDO"?`<br><span class="mut">corrigido ${fD((r.v.corrigido_em||"").slice(0,10))}</span>`:""}</td><td class="num">${fR(r.valor)}</td><td>${esc(r.v.por||"")}<br><span class="mut">${fD((r.v.em||"").slice(0,10))}</span></td></tr>`).join("")}
+    ${g.itens.map(r=>{ const u=afUrlMcId(r.id); return `<tr><td>${fD(r.dp)}</td><td>${u?`<a class="mc" href="${esc(u)}" target="_blank" rel="noopener">${esc(r.id||"")}</a><br><a class="mcb" href="${esc(u)}" target="_blank" rel="noopener">↗ Abrir no Mais Controle</a>`:esc(r.id||"")}</td><td>${esc(r.desc||"—")}<br><span class="mut">${esc(r.forn||"—")}</span></td><td>${esc(r.cc)}</td><td>${esc(r.cat)}<br><span class="mut">${esc(r.tipo)}</span></td>
+      <td>${r.v.obs?esc(r.v.obs)+"<br>":""}${r.sug?`<span class="sug">${esc(r.sug)}</span>`:""}${r.v.status==="CORRIGIDO"?`<br><span class="mut">corrigido ${fD((r.v.corrigido_em||"").slice(0,10))}</span>`:""}</td><td class="num">${fR(r.valor)}</td><td>${esc(r.v.por||"")}<br><span class="mut">${fD((r.v.em||"").slice(0,10))}</span></td></tr>`; }).join("")}
     </tbody></table>`).join("")}`;
   afJanelaPdf("Lançamentos a corrigir no Mais Controle", corpo, true);
 }
@@ -1647,8 +1650,8 @@ function afExportarCSV(qual){
     afCSV("auditoria-lancamentos",["Situação","Validação","ID lançamento","Parcela","Pagamento","Vencimento","Competência","Descrição","Fornecedor","Centro de custo","Responsável obra","Conta bancária","Valor parcela","Valor pago","Juros/multa","Desconto","Plano atual","Categoria atual","Classificação","Plano sugerido","Categoria sugerida","Motivo","Outros alertas","Nº documento","Ordem de compra"],
       L.map(i=>[AF_ST[st(i)].l,V(i),AF_C.id[i],AF_C.np[i],fD(AF_C.dp[i]),fD(AF_C.dv[i]),fD(AF_C.dc[i]),AF_C.d[i],forn(i),ccv(i),rov(i),cbv(i),AF_C.v[i],AF_C.vp[i],AF_C.jm[i],AF_C.de[i],plv(i),cat(i),grv(i),sugPl(i),sug(i),mot(i),alrt(i).join(" | "),AF_C.nd[i],AF_C.oc[i]])); }
   else if(qual==="corr"){ const L=afLinhasCorr();
-    afCSV("auditoria-a-corrigir",["Grupo","Status","Tipo","Pagamento","ID","Descrição","Fornecedor","Centro de custo","Categoria atual","Sugestão","O que corrigir","Justificativa","Valor","Marcado por","Em","Corrigido em"],
-      L.map(r=>[r.grupo,AF_VL[r.v.status].l,r.tipo,fD(r.dp),r.id,r.desc,r.forn,r.cc,r.cat,r.sug,r.v.obs||"",r.v.motivo||"",r.valor,r.v.por||"",fD((r.v.em||"").slice(0,10)),fD((r.v.corrigido_em||"").slice(0,10))])); }
+    afCSV("auditoria-a-corrigir",["Grupo","Status","Tipo","Pagamento","ID","Descrição","Fornecedor","Centro de custo","Categoria atual","Sugestão","O que corrigir","Justificativa","Valor","Marcado por","Em","Corrigido em","Link Mais Controle"],
+      L.map(r=>[r.grupo,AF_VL[r.v.status].l,r.tipo,fD(r.dp),r.id,r.desc,r.forn,r.cc,r.cat,r.sug,r.v.obs||"",r.v.motivo||"",r.valor,r.v.por||"",fD((r.v.em||"").slice(0,10)),fD((r.v.corrigido_em||"").slice(0,10)),afUrlMcId(r.id)])); }
   else if(qual==="pagar"){ afCSV("contas-a-pagar-em-aberto",["Vencimento","Fornecedor","Descrição","Categoria","Centro de custo","Conta","Valor parcela","Em aberto","ID","Parcela"],
       AF_PAGAR_ULT.map(r=>[fD(r[3]),r[1],r[6],r[2],r[0],r[9],r[4],r[5],r[7],r[8]])); }
   else if(qual==="receber"){ afCSV("contas-a-receber-vencidas",["Vencimento","Cliente","Natureza","Centro de custo","Conta","Valor parcela","Em aberto","ID","Parcela"],
