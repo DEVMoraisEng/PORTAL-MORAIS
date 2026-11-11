@@ -246,7 +246,8 @@
   }
   function rotulosX(meses, x, H) {
     const cada = Math.max(1, Math.ceil(meses.length / 12));
-    return meses.map((m, i) => i % cada ? "" : '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--text3)">' + mesCurto(m) + "</text>").join("");
+    const lado = px => px > W - DIR - 18 ? "end" : px < ESQ + 18 ? "start" : "middle";   // rótulo da borda não sai do desenho
+    return meses.map((m, i) => i % cada ? "" : '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="' + lado(x(i)) + '" font-size="10" fill="var(--text3)">' + mesCurto(m) + "</text>").join("");
   }
   function barra(x, y0, larg, alt, cor, dica) {
     if (!(alt > 0)) return "";

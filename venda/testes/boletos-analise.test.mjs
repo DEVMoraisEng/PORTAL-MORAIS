@@ -233,3 +233,9 @@ test("tabela do gráfico mensal tem uma linha por mês, com os números do gráf
   const h = BA.htmlGraficos(s);
   assert.match(h, /<tr><td>out\/26<\/td><td class="n">1\.000,00<\/td><td class="n">1\.000,00<\/td><\/tr>/);
 });
+test("rótulo do último mês da linha não passa da borda do desenho", () => {
+  const f = fin([parc({ d: "2026-01-10", v: 100, a: 100 }), parc({ d: "2026-10-10", v: 100, a: 100 })]);
+  const h = BA.htmlGraficos(BA.series(f, {}));
+  const linha = h.slice(h.indexOf("Inadimplência no fim de cada mês"));
+  assert.match(linha, /text-anchor="end"[^>]*>out\/26</);
+});
