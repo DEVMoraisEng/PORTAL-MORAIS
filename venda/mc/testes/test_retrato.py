@@ -412,3 +412,41 @@ def test_campo_estranho_do_erp_nao_derruba_o_retrato_09_11():
     p = v["tradeReceivable"]["installments"][0]
     p.update(received=False, sumOfReceivedValues="n/d", pendingValue="n/d", receipts=[{"receivedValue": "n/d"}])
     assert RT.normalizar(v, "2026-11-09")["parcelas"]
+
+
+# ---------------------------------------------------------------- 11/11/2026: recebimentos com data (análise do condomínio)
+def test_retrato_guarda_cada_recebimento_com_data_11_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    inst[1]["receipts"] = [{"value": 300.0, "receivingDate": "2026-10-20T00:00:00"},
+                           {"value": 0, "receivingDate": "2026-10-21"},
+                           {"receivedValue": 200.5, "value": 200.0, "date": "2026-10-05"}]
+    p = RT.normalizar(v, "2026-11-11 08:00")["parcelas"]
+    q = next(x for x in p if x["id"] == inst[1]["id"])
+    assert q["rec"] == [["2026-10-05", 200.5], ["2026-10-20", 300.0]]
+
+
+def test_retrato_recebimento_sem_data_e_lixo_11_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    inst[2]["receipts"] = [{"value": 50.0}, {"value": "n/d", "date": "2026-10-01"}, {"value": 10.0, "dateOfReceipt": "2026-09-30T10:00:00"}]
+    q = next(x for x in RT.normalizar(v, "2026-11-11 08:00")["parcelas"] if x["id"] == inst[2]["id"])
+    assert q["rec"] == [["", 50.0], ["2026-09-30", 10.0]]
+
+
+def test_retrato_sem_recebimento_tem_rec_vazio_11_11():
+    v = carregar("base")
+    for p in v["tradeReceivable"]["installments"]:
+        p["receipts"] = []
+    assert all(x["rec"] == [] for x in RT.normalizar(v, "2026-11-11 08:00")["parcelas"])
+
+
+def test_retrato_de_120_parcelas_cabe_na_coluna_do_notion_11_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    modelo = inst[0]
+    inst[:] = [dict(modelo, id="p%03d" % i, receipts=[{"value": 900.0, "receivingDate": "2026-10-05T00:00:00"},
+                                                      {"value": 912.34, "receivingDate": "2026-11-05T00:00:00"}])
+               for i in range(120)]
+    texto = json.dumps(RT.normalizar(v, "2026-11-11 08:00"), ensure_ascii=False, separators=(",", ":"))
+    assert len(texto) < 45000, len(texto)

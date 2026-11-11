@@ -51,6 +51,17 @@ def _recebido(p: dict, valor: float) -> float:
     return round(soma, 2)
 
 
+def _recibos(p: dict) -> list:
+    """[[data, valor]] de cada recebimento com valor (11/11/2026, análise do condomínio), na ordem da data. Mesma ordem
+    de campos de recebimentos.data_do_recibo; o retrato não importa recebimentos, que puxa o erp."""
+    out = []
+    for r in p.get("receipts") or []:
+        valor = D._f(r.get("receivedValue") or r.get("value"))
+        if valor > 0:
+            out.append([str(r.get("receivingDate") or r.get("date") or r.get("dateOfReceipt") or "")[:10], round(valor, 2)])
+    return sorted(out)
+
+
 def normalizar(venda: dict, lido_em: str) -> dict:
     obra = ((venda.get("work") or {}).get("name") or "").strip()
     if obra != OBRA:
@@ -73,7 +84,8 @@ def normalizar(venda: dict, lido_em: str) -> dict:
                          "parcial": D.recebida_em_parte(p),
                          # 09/11/2026: financeiro por unidade. Só acrescenta campos; antecipação e aba Financeiro não os leem.
                          "recebido": _recebido(p, valor), "aberto": _aberto(p, valor),
-                         "permuta": str(p.get("comment") or "").strip().lower().startswith("permuta")})
+                         "permuta": str(p.get("comment") or "").strip().lower().startswith("permuta"),
+                         "rec": _recibos(p)})
     for q, p in zip(parcelas, (venda.get("tradeReceivable") or {}).get("installments") or []):
         if q["pago"]:
             q["pagoEm"] = str(p.get("dateOfReceipt") or "")[:10]
