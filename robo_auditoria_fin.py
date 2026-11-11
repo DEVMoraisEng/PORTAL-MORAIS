@@ -49,7 +49,7 @@ import requests
 from auditoria_regras import (ROTULOS, Motor, N, cc_tipo, manual_padrao_linhas,
                               nome_atual)
 
-VERSAO = "2026-11-11 af2"
+VERSAO = "2026-11-11 af3"
 TZ = timezone(timedelta(hours=-3))
 HOJE = datetime.now(TZ).date()
 

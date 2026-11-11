@@ -19,13 +19,13 @@ CC_ADM = "ESCRITÓRIO - MORAIS ENGENHARIA"
 def manual_antigo():
     """O manual como está no Supabase antes do ajuste: linhas de nome antigo,
     energia/água de obra descontinuadas em Utilidades."""
-    cats = [c for c in manual_padrao_linhas()[1]
-            if c["categoria"] not in ("Energia de obra / unidade", "Água de obra / unidade",
-                                      "Fatura de Água (Escritório)")]
-    for nome, uso, esc in (("Conta de energia", "descontinuada", "ANY"),
-                           ("Conta de água", "descontinuada", "ANY"),
-                           ("Fatura de Água", "ok", "ADM")):
-        cats.append(dict(categoria=nome, secao_id="P1-06", plano="Utilidades", classificacao="Outros",
+    cats = [c for c in manual_padrao_linhas()[1] if c["categoria"] not in ar.RENOMEADAS.values()]
+    for nome, plano, uso, esc in (("Conta de energia", "Utilidades", "descontinuada", "ANY"),
+                                  ("Conta de água", "Utilidades", "descontinuada", "ANY"),
+                                  ("Fatura de Água", "Utilidades", "ok", "ADM"),
+                                  ("Conta de internet", "Utilidades", "descontinuada", "ANY"),
+                                  ("Uso do solo", "TAXAS GERAIS - OBRA E AVERBAÇÃO", "ok", "OBRA")):
+        cats.append(dict(categoria=nome, secao_id="P1-06", plano=plano, classificacao="Outros",
                          escopo=esc, uso=uso, texto="", palavras="", ordem=99, ativo=True))
     return cats
 
@@ -36,6 +36,8 @@ def manual_antigo():
     ("Conta de água", "Água de obra / unidade"),
     ("CONTA DE AGUA", "Água de obra / unidade"),
     ("Fatura de Água", "Fatura de Água (Escritório)"),
+    ("Uso do solo", "Taxa de Uso do Solo (Obra)"),
+    ("Conta de internet", "Internet de obra"),
     ("Energia de obra / unidade", "Energia de obra / unidade"),
     ("Materiais (Obras)", "Materiais (Obras)"),
     ("", ""),
@@ -231,3 +233,57 @@ def test_achados_pos_entrega():
 def test_texto_do_alerta_fala_de_entrega():
     t, d = robo.FISCAL_TIPOS["OBRA_FINALIZADA"]
     assert "entrega" in t.lower() and "ENTREGA" in d
+
+
+# ---------------------------------------------------------------- 11/11 tarde: export velho e mais renomeações
+OBRA_C = "Custos de Obra — Taxas e Legalização"
+
+
+def test_padrao_com_renomeacoes_exclusoes_e_mobiliario():
+    nomes = {c["categoria"]: c for c in manual_padrao_linhas()[1]}
+    for excluida in ("Certidão de Obra", "TLF / Uso do Solo (Obra)", "Uso do solo", "Conta de internet"):
+        assert excluida not in nomes
+    for nova in ("Taxa de Uso do Solo (Obra)", "Internet de obra"):
+        assert nomes[nova]["plano"] == OBRA_C and nomes[nova]["escopo"] == "OBRA" and nomes[nova]["uso"] == "ok"
+    mob = nomes["Mobiliário e decoração (unidade decorada)"]
+    assert (mob["plano"], mob["classificacao"], mob["escopo"]) == ("Materiais", "Materiais", "OBRA")
+    for regra in ar.R:
+        for c in regra[1]:
+            assert c not in ("Certidão de Obra", "TLF / Uso do Solo (Obra)"), regra
+
+
+@pytest.mark.parametrize("cat,plano_velho", [
+    ("Energia de obra / unidade", "Utilidades"),
+    ("Conta de energia", "Utilidades"),
+    ("Água de obra / unidade", "Utilidades"),
+    ("Internet de obra", "Utilidades"),
+    ("Taxa de Uso do Solo (Obra)", "TAXAS GERAIS - OBRA E AVERBAÇÃO"),
+])
+def test_export_com_plano_de_antes_da_renomeacao_nao_e_cadastro(cat, plano_velho):
+    desc = {"Internet de obra": "INTERNET STAND", "Taxa de Uso do Solo (Obra)": "TLF LOTE 3"}.get(
+        nome_atual(cat), "CONTA ENERGIA UC 123456 CASA 1" if "nergia" in cat else "CONTA AGUA UC 123456 CASA 1")
+    st, *_ , alertas, _ = Motor().classificar(desc, "", cat, plano_velho, CC_OBRA)
+    assert st == "OK", (st, alertas)
+    assert Motor().cadastro_erp([(cat, plano_velho, "Materiais")] * 3) == []
+
+
+def test_plano_errado_que_nao_e_o_antigo_continua_cadastro():
+    st, *_ = Motor().classificar("CONTA ENERGIA UC 123456 CASA 1", "", "Energia de obra / unidade",
+                                 "Outras Despesas", CC_OBRA)
+    assert st == "CADASTRO"
+    out = Motor().cadastro_erp([("Energia de obra / unidade", OBRA_C, "Materiais")])
+    assert [x["tipo"] for x in out] == ["CLASSIFICACAO"]
+
+
+def test_internet_escritorio_e_obra():
+    m = Motor()
+    st, sug, *_ = m.classificar("INTERNET STAND", "", "Internet / Celular", "Utilidades", CC_OBRA)
+    assert st == "DIVERGENTE" and sug == "Internet de obra"
+    st, sug, *_ = m.classificar("INTERNET SALA", "", "Conta de internet", "Utilidades", CC_ADM)
+    assert st == "DIVERGENTE" and sug == "Internet / Celular"
+
+
+@pytest.mark.parametrize("desc", ["TLF LOTE 3", "TAXA USO DO SOLO QD 9"])
+def test_taxa_de_uso_do_solo_sugerida_para_taxas_gerais(desc):
+    st, sug, *_ = Motor().classificar(desc, "", "Taxas gerais", "TAXAS GERAIS - OBRA E AVERBAÇÃO", CC_OBRA)
+    assert sug == "Taxa de Uso do Solo (Obra)"

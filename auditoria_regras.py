@@ -138,7 +138,6 @@ CATEGORIAS_PADRAO = [
     ("P1-06", "Energia (Escritório)", _U, "Outros", "ADM", "ok", "Contas de energia das salas 1212/1213, incluindo energia solar. Ex.: ENERGIA SALA 1212, energia solar. Energia de obra ou de casa vai em Energia de obra / unidade."),
     ("P1-06", "Fatura de Água (Escritório)", _U, "Outros", "ADM", "ok", "Contas de água do escritório. Água de obra ou de casa vai em Água de obra / unidade."),
     ("P1-06", "Internet / Celular", _U, "Outros", "ADM", "ok", "Internet fixa (LINQ) e linhas móveis (CLARO) do escritório e da equipe."),
-    ("P1-06", "Conta de internet", _U, "Outros", "ANY", "descontinuada", "Categoria antiga movida para este plano. NÃO usar em novos lançamentos — preferir Internet / Celular. Mantida apenas pelo histórico."),
     ("P1-07", "Condomínio", "Ocupação do Escritório", "Outros", "ADM", "ok", "Condomínio e fundo de reserva das salas. Ex.: JK NEW CONCEPT."),
     ("P1-07", "IPTU - Administrativo", "Ocupação do Escritório", "Outros", "ADM", "ok", "IPTU somente das salas 1212 e 1213. IPTU de terreno de obra NÃO entra aqui."),
     ("P1-08", "Combustível", _V, "Outros", "ANY", "ok", "Abastecimentos da frota e reembolsos de combustível (inclusive de engenheiros)."),
@@ -161,13 +160,13 @@ CATEGORIAS_PADRAO = [
     ("P1-13", "Indenização Trabalhista", "Despesas Jurídicas e Trabalhistas", "Outros", "ADM", "ok", "Acordos e indenizações de processos trabalhistas."),
     ("P1-14", "Financiamento Sala Comercial", "Financiamento de Imóvel (Escritório)", OG, "ADM", "ok", "Parcelas do financiamento das salas 1212/1213. Ex.: FINANCIAMENTO SALA 1212."),
     ("P2-15", "IPTU de Terreno / Obra", _C, "Outros", "OBRA", "ok", "IPTU/ITU de terrenos e lotes em obra. Ex.: IPTU CCI 3, ITU."),
-    ("P2-15", "Certidão de Obra", _C, "Outros", "OBRA", "ok", "Certidões vinculadas a uma obra específica."),
     ("P2-15", "Taxas Cartoriais de Obra", _C, "Outros", "OBRA", "ok", "Emolumentos e taxas de cartório ligadas à obra."),
     ("P2-15", "Regularização de Obra (INSS / CNO / Averbação)", _C, "Outros", "OBRA", "ok", "Guias INSS de regularização, CNO, averbação da construção. Ex.: REGULARIZAÇÃO DE OBRAS - INSS."),
     ("P2-15", "Despachante / Serviços Cartorários", _C, "Outros", "OBRA", "ok", "Serviços de despachante para legalização e documentação das obras."),
     ("P2-15", "Alvará / Habite-se / Licenças de Obra", _C, "Outros", "OBRA", "ok", "Alvará de construção, habite-se, licença ambiental, TCCLAE."),
     ("P2-15", "ART / Taxas CREA de Obra", _C, "Outros", "OBRA", "ok", "ARTs e taxas CREA vinculadas a obra específica."),
-    ("P2-15", "TLF / Uso do Solo (Obra)", _C, "Outros", "OBRA", "ok", "TLF e taxas municipais de obras e lotes específicos (no CC da obra)."),
+    ("P2-15", "Taxa de Uso do Solo (Obra)", _C, "Outros", "OBRA", "ok", "TLF, uso do solo e taxas municipais de obras e lotes específicos (no CC da obra). Era a antiga \"Uso do solo\"; a \"TLF / Uso do Solo (Obra)\" foi excluída e veio para cá (11/11/2026)."),
+    ("P2-15", "Internet de obra", _C, "Outros", "OBRA", "ok", "Internet de obra, stand ou casa decorada, no CC da obra. Era a antiga \"Conta de internet\" (11/11/2026). Internet do escritório continua em Internet / Celular."),
     ("P2-15", "Vistoria de Obra (Caixa / Prefeitura)", _C, "Outros", "OBRA", "ok", "Taxas de vistoria da Caixa (por unidade financiada) e vistorias da prefeitura."),
     ("P2-15", "Energia de obra / unidade", _C, "Outros", "OBRA", "ok",
      "Contas de energia das obras e das casas, no CC da obra/lote, até a entrega da casa ao comprador (depois da entrega a conta é do comprador). Era a antiga \"Conta de energia\". Ex.: ENERGIA UC 1234567 REF OUT/2026 CASA 2."),
@@ -183,6 +182,7 @@ CATEGORIAS_PADRAO = [
     ("P2-18", "Amortização do Financiamento", _A, OG, "OBRA", "ok", "Devolução do principal após a obra."),
     ("P2-18", "Juros Fase de Amortização", _A, "Outros", "OBRA", "ok", "Juros pagos na fase de amortização."),
     ("P3-A", "Materiais (Obras)", "Materiais", "Materiais", "OBRA", "ok", "Todo material de construção aplicado em obra: areia, brita, tintas, verniz, cimento, texturas. Ex.: TINTAS ACRIL PLUS, SÓ BÁSICO. Material de ESCRITÓRIO não entra aqui."),
+    ("P3-A", "Mobiliário e decoração (unidade decorada)", "Materiais", "Materiais", "OBRA", "ok", "Móveis, eletrodomésticos e decoração da casa/unidade decorada de vendas (no CC da obra)."),
     ("P3-A", "Mão de Obra Terceirizada", "Mão de Obra Terceirizada", "Mão de Obra (Terceirizada)", "OBRA", "ok", "Empreiteiros e prestadores de obra: pedreiro, eletricista, pintor, terraplanagem, contratos de serviço de obra. Ex.: CONTRATO SERVIÇOS DE TERRAPLANAGEM."),
     ("P3-A", "Locação de equipamentos", "Equipamentos", "Equipamentos", "OBRA", "ok", "Aluguel de betoneira, andaimes, escoras e equipamentos de obra."),
     ("P3-A", "Sistema de monitoramento", "Mão de Obra Terceirizada", "", "OBRA", "ok", "Monitoramento/alarme de obras e unidades."),
@@ -199,7 +199,6 @@ CATEGORIAS_PADRAO = [
     ("P3-B", "Escritura", _REG, "Outros", "OBRA", "ok", "Custos de lavratura de escritura."),
     ("P3-B", "Registro de lote", _REG, "Outros", "OBRA", "ok", "Registro de imóveis dos lotes/unidades."),
     ("P3-B", "Certidão", _TXG, "Outros", "ANY", "ok", "Certidões avulsas de imóveis/pessoas em transações."),
-    ("P3-B", "Uso do solo", _TXG, "Outros", "OBRA", "ok", "Taxa de uso do solo em transações de lote. Para taxas de OBRA use TLF / Uso do Solo (Obra) em Custos de Obra — Taxas e Legalização."),
     ("P3-C", "Aporte Capital", "Investimento", "", "SOC", "ok", "Aportes dos sócios/investidores nas SPEs. CC: CONTROLE DE APORTES E DISTRIBUIÇÕES."),
     ("P3-C", "Distribuição de Lucros", "Distribuição de Lucros (Somente Fluxo de Caixa)", "", "SOC", "ok", "Distribuições aos sócios. Mesmo CC de aportes."),
     ("P3-C", "Cota Capital", "Integralização de Capital", "", "ANY", "ok", "Cotas de capital (ex.: Sicoob)."),
@@ -241,6 +240,8 @@ TEXTOS_PADRAO = {
         ["Papelaria, móveis, limpeza, lanches, uniformes, estacionamento", "Despesas Administrativas » categoria específica"],
         ["Mais Controle, softwares, assinaturas digitais, cloud", "Tecnologia e Sistemas » Software / Assinatura Digital"],
         ["Energia, água, internet e celular do ESCRITÓRIO", "Utilidades » categoria específica"],
+        ["Internet de obra, stand ou casa decorada", "Custos de Obra — Taxas e Legalização » Internet de obra"],
+        ["Móveis e decoração da unidade decorada", "Materiais » Mobiliário e decoração (unidade decorada)"],
         ["Energia e água de obra ou de casa (até a entrega)", "Custos de Obra — Taxas e Legalização » Energia / Água de obra / unidade"],
         ["Evento de vendas, encontro com corretores", "Venda de casa » Eventos de vendas e relacionamento com corretores"],
         ["Condomínio e IPTU das salas 1212/1213", "Ocupação do Escritório » Condomínio ou IPTU - Administrativo"],
@@ -263,7 +264,7 @@ TEXTOS_PADRAO = {
         ["Regularização de obra, INSS/CNO, averbação", "Custos de Obra — Taxas e Legalização » Regularização de Obra"],
         ["Despachante", "Custos de Obra — Taxas e Legalização » Despachante / Serv. Cartorários"],
         ["Alvará, habite-se, licença ambiental, ART, vistoria Caixa/prefeitura", "Custos de Obra — Taxas e Legalização » categoria específica"],
-        ["TLF / uso do solo de obra ou lote específico", "Custos de Obra — Taxas e Legalização » TLF / Uso do Solo (Obra)"],
+        ["TLF / uso do solo de obra ou lote específico", "Custos de Obra — Taxas e Legalização » Taxa de Uso do Solo (Obra)"],
         ["Seguro RCPM, seguro garantia de término de obra", "Seguros de Obra » categoria específica"],
         ["Juros, correção, MIP/DFI e tarifas Caixa na fase de obra", "Financiamento de Empreendimento — Encargos » categoria específica"],
         ["Devolução do principal do financiamento pós-obra", "Financiamento de Empreendimento — Amortização » categoria específica"],
@@ -299,6 +300,19 @@ RENOMEADAS = {
     "Conta de energia": "Energia de obra / unidade",
     "Conta de água": "Água de obra / unidade",
     "Fatura de Água": "Fatura de Água (Escritório)",
+    "Uso do solo": "Taxa de Uso do Solo (Obra)",
+    "Conta de internet": "Internet de obra",
+}
+# Plano que a categoria tinha ANTES de ser renomeada. A exportação da API de relatórios
+# guarda plano e classificação por lançamento e só os atualiza quando é gerada de novo
+# (conferido em 11/11/2026: o cadastro já estava certo e o CSV ainda vinha com o antigo).
+# Lançamento de categoria renomeada com o plano antigo é exportação velha — não é erro
+# de cadastro, então não vira CADASTRO.
+PLANO_ANTES_DE_RENOMEAR = {
+    "Energia de obra / unidade": "Utilidades",
+    "Água de obra / unidade": "Utilidades",
+    "Internet de obra": "Utilidades",
+    "Taxa de Uso do Solo (Obra)": "TAXAS GERAIS - OBRA E AVERBAÇÃO",
 }
 _RENOMEADAS_N = {N(a): b for a, b in RENOMEADAS.items()}
 
@@ -308,6 +322,12 @@ def nome_atual(cat):
     if not isinstance(cat, str):
         return cat
     return _RENOMEADAS_N.get(N(cat), cat)
+
+
+def export_velho(cat, plano):
+    """True quando o lançamento é de categoria renomeada e o export ainda traz o plano antigo."""
+    antes = PLANO_ANTES_DE_RENOMEAR.get(nome_atual(cat))
+    return bool(antes) and N(plano) == N(antes)
 
 
 def manual_padrao_linhas():
@@ -428,7 +448,7 @@ _r(r"IR S/ APLICAC|IRRF S/ APLICAC", ["IOF / Juros Bancários"], "BANCO")
 # taxas corporativas
 _r(r"ANUIDADE", ["Anuidade CREA"], "CORP")
 _r(r"JUCEG|CONSTITUICAO|ABERTURA (DE |DO )?CNPJ|CNPJ RET|ALTERACAO CONTRATUAL|CONTRATO SOCIAL|\bSCP\b", ["Taxa JUCEG / Abertura CNPJ"], "CORP")
-_r(r"CERTIDAO NEGATIVA|\bCND\b|REGULARIDADE FISCAL", ["Certidão Corporativa", "Certidão de Obra", "Certidão"], "CORP")
+_r(r"CERTIDAO NEGATIVA|\bCND\b|REGULARIDADE FISCAL", ["Certidão Corporativa", "Certidão"], "CORP")
 # bancárias
 _r(r"PACOTE (DE )?SERVICO|TARIFA|\bTED\b|MANUTENCAO (DE |DA )?CONTA|CESTA DE SERVICO|DEBITO PACOTE|TAXA BANCARIA",
    ["Tarifas Bancárias", "Tarifa de Administração Caixa"], "BANCO")
@@ -444,11 +464,11 @@ _r(r"REGULARIZACAO|\bCNO\b|AVERBACAO",
    ["Regularização de Obra (INSS / CNO / Averbação)", "Taxas Cartoriais de Obra", "Despachante / Serviços Cartorários"], "OBRA_TAXA")
 _r(r"DESPACHANTE", ["Despachante / Serviços Cartorários"], "OBRA_TAXA")
 _r(r"\bAVTO\b|ALVARA|HABITE|LICENCA AMBIENTAL|\bAMMA\b|TCCLAE|APROVACAO (DE |DO )?PROJETO|TAXA DE EXPEDIENTE|NUMERO OFICIAL|LICENC|OUTORGA",
-   ["Alvará / Habite-se / Licenças de Obra", "TLF / Uso do Solo (Obra)"], "OBRA_TAXA")
+   ["Alvará / Habite-se / Licenças de Obra", "Taxa de Uso do Solo (Obra)"], "OBRA_TAXA")
 _r(r"\bART\b|\bARTS\b|\bCREA\b|\bTRT\b|\bRRT\b", ["ART / Taxas CREA de Obra", "Anuidade CREA"], "OBRA_TAXA")
-_r(r"\bTLF\b", ["TLF / Uso do Solo (Obra)", "Uso do solo"], "OBRA_TAXA", "OBRA")
+_r(r"\bTLF\b", ["Taxa de Uso do Solo (Obra)"], "OBRA_TAXA", "OBRA")
 _r(r"\bTLF\b", ["TLF / Taxa Municipal (Escritório)"], "CORP", "ADM")
-_r(r"USO DO SOLO", ["TLF / Uso do Solo (Obra)", "Uso do solo"], "OBRA_TAXA")
+_r(r"USO DO SOLO", ["Taxa de Uso do Solo (Obra)"], "OBRA_TAXA")
 _r(r"^(?!.*(REPARO|LIMPEZA|MAO DE OBRA|\bMO\b|PRE VISTORIA|PARA VISTORIA)).*VISTORIA", ["Vistoria de Obra (Caixa / Prefeitura)"], "OBRA_TAXA")
 _r(r"\bRCPM\b|RISCO DE ENGENHARIA", ["Seguro RCPM (Obra)"], "SEG")
 _r(r"SEGURO GARANTIA|GARANTIA DE TERMINO", ["Seguro Garantia de Término de Obra"], "SEG")
@@ -460,12 +480,12 @@ _r(r"AQUISICAO|CESSAO DE DIREITO|LOTEADORA|^LOTE$|PAGAMENTO (DO |DE )?LOTE|PGTO 
    ["Aquisição de terreno"], "TERRENO")
 _r(r"\bITBI\b|\bISTI\b|\bITSI\b", ["ITBI"], "CART")
 _r(r"ESCRITURA", ["Escritura", "Registro de lote", "Taxas Cartoriais de Obra"], "CART")
-_r(r"CERTIDAO (DE )?(INTEIRO TEOR|ONUS|MATRICULA)", ["Certidão", "Certidão de Obra", "Registro de lote"], "CART")
+_r(r"CERTIDAO (DE )?(INTEIRO TEOR|ONUS|MATRICULA)", ["Certidão", "Registro de lote"], "CART")
 _r(r"(?<!BASE )REGISTRO(?! DE PRESSAO)|MATRICULA|\bONR\b",
    ["Registro de lote", "Certidão", "Taxas Cartoriais de Obra", "Regularização de Obra (INSS / CNO / Averbação)", "Escritura"], "CART")
-_r(r"CERTID", ["Certidão", "Certidão de Obra", "Certidão Corporativa", "Taxas Cartoriais de Obra"], "CART")
+_r(r"CERTID", ["Certidão", "Certidão Corporativa", "Taxas Cartoriais de Obra"], "CART")
 _r(r"CARTORIO|EMOLUMENTO|RECONHECIMENTO (DE )?FIRMA|AUTENTICAC|TABELIONATO|PROTESTO",
-   ["Taxas Cartoriais de Obra", "Certidão", "Registro de lote", "Escritura", "Despachante / Serviços Cartorários", "Certidão de Obra"], "CART")
+   ["Taxas Cartoriais de Obra", "Certidão", "Registro de lote", "Escritura", "Despachante / Serviços Cartorários"], "CART")
 # obra — equipamentos, MO, materiais
 _r(r"LOCACAO|ALUGUEL|BETONEIRA|ANDAIME|ESCORA|COMPACTADOR|CONTAINER|MUNCK|\bPLACA VIBRAT|RETROESCAVADEIRA|CARREGADEIRA|MOVIMENTACAO DE TERRA|PLATO|\bMAQUINA",
    ["Locação de equipamentos", "Mão de Obra Terceirizada", "Materiais (Obras)"], "OBRA_DIR")
@@ -614,8 +634,6 @@ class Motor:
             if c in self.M and self.M[c]["uso"] == "ok":
                 return c
         c = acc[0]
-        if c == "Conta de internet":
-            return "Internet / Celular"
         # nome que não existe no manual (ex.: o "IIPVA" do ERP) -> o do manual, se houver
         for x in acc:
             if x in self.M:
@@ -657,7 +675,7 @@ class Motor:
         bill = bool(re.search(r"CONTA|FATURA|\bUC\b|CONSUMO|VIZINH|\bREF\b", d)) or not d
         if util and (bill or util == "N" or not any(h[2] == "descrição" for h in hits)):
             if util == "N":
-                hits.insert(0, (["Internet / Celular", "Conta de internet"], "UTIL", "descrição"))
+                hits.insert(0, (["Internet / Celular"] if scope == "ADM" else ["Internet de obra"], "UTIL", "descrição"))
             elif scope == "ADM":
                 hits.insert(0, (["Energia (Escritório)"] if util == "E" else ["Fatura de Água (Escritório)"], "UTIL", "descrição"))
             else:
@@ -728,8 +746,6 @@ class Motor:
                 status = "DESCONTINUADA"
                 if catg == "PADARIA":
                     suggestion = "Alimentação / Lanches"
-                elif catg == "Conta de internet":
-                    suggestion = "Internet / Celular"
                 elif hits:
                     suggestion = self._best(hits[0][0], scope)
                 motivo = f'"{catg}" é categoria antiga (não usar em novos lançamentos).'
@@ -754,7 +770,7 @@ class Motor:
             flags.append(("CC", ccflag))
 
         # 5) plano x manual
-        if info and info["plano"] and N(info["plano"]) != N(plano):
+        if info and info["plano"] and N(info["plano"]) != N(plano) and not export_velho(catg, plano):
             flags.append(("PLANO", f'No manual, "{catg}" pertence ao plano "{info["plano"]}", mas está em "{plano or "—"}".'))
 
         if status is None:
@@ -804,6 +820,8 @@ class Motor:
             grupo = max(c["grupos"], key=c["grupos"].get)
             info = self.M.get(cat)
             como = f"Plano: {plano or '—'} · Classificação: {grupo or 'Oculta na Gestão (vazio)'}"
+            if info and export_velho(cat, plano):
+                continue        # exportação ainda com o plano de antes da renomeação
             if not info:
                 parecida = difflib.get_close_matches(N(cat), list(self.nomes_norm), n=1, cutoff=0.72)
                 if parecida:
