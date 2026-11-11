@@ -85,3 +85,17 @@ def test_nome_repetido_recusa():
     erp = ErpFake([{"id": "a", "name": "INCC-M"}, {"id": "b", "name": "incc-m "}])
     r = I.rodar(erp, True, {7456: {}, 433: {}})
     assert r[0]["situacao"] == "RECUSADA"
+
+
+# ---------------------------------------------------------------- 11/11/2026: série para a análise do condomínio
+def test_serie_para_portal_um_valor_por_mes():
+    tabs = [{"name": "INCC-M", "periods": [{"date": "2026-09-01", "readjust": 0.42},
+                                         {"date": "2026-08-01T03:00:00", "readjust": 0.31},
+                                         {"date": "", "readjust": 9}, {"date": "2026-07-01", "readjust": "n/d"}]},
+            {"name": " IPCA + 1% a.m. ", "periods": [{"date": "2026-09-01", "readjust": 0.38}]},
+            {"name": "OUTRA", "periods": [{"date": "2026-09-01", "readjust": 1}]}]
+    assert I.serie_para_portal(tabs) == {"INCC-M": {"2026-08": 0.31, "2026-09": 0.42}, "IPCA + 1% a.m.": {"2026-09": 0.38}}
+
+
+def test_serie_para_portal_vazia():
+    assert I.serie_para_portal(None) == {} and I.serie_para_portal([{}]) == {}

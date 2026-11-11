@@ -23,6 +23,7 @@ CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CO
 PASTA = CENTRAL / "boletos"
 CONFIG = CENTRAL / "robos-portal.json"
 ULTIMO_FINANCEIRO = CENTRAL / "financeiro-condominio.json"   # guarda o último bom: o Notion fora não apaga os números
+INDICES = CENTRAL / "indices-reajuste.json"                   # 11/11/2026: gravado pelo robô dos retratos (retrato.salvar_indices)
 BUCKET = "analise"
 CAMINHO = "robos/boletos-financeiro.json"
 GRUPOS = ("emitidos", "a_emitir", "aguardando", "proximo_mes", "decidir", "seguradas", "pulados")
@@ -168,8 +169,24 @@ def _cfg() -> dict:
     return json.loads(CONFIG.read_text(encoding="utf-8")).get("robos") or {}
 
 
-def financeiro(hoje: str, ler_linhas=None, guardado=ULTIMO_FINANCEIRO) -> dict:
-    """Lê a base do condomínio e guarda o resultado. Se o Notion falhar, devolve o último bom com falha_leitura=True."""
+def ler_indices(caminho=INDICES) -> dict:
+    """{"lido", "tabelas"} da série de reajuste, ou {} se o arquivo falta ou não tem a forma esperada."""
+    try:
+        d = json.loads(pathlib.Path(caminho).read_text(encoding="utf-8"))
+    except (ValueError, OSError):
+        return {}
+    if not isinstance(d, dict) or not isinstance(d.get("tabelas"), dict):
+        return {}
+    return {"lido": str(d.get("lido") or ""), "tabelas": d["tabelas"]}
+
+
+def financeiro(hoje: str, ler_linhas=None, guardado=ULTIMO_FINANCEIRO, indices=INDICES) -> dict:
+    """Lê a base do condomínio e guarda o resultado. Se o Notion falhar, devolve o último bom com falha_leitura=True.
+    Os índices vão junto nos dois casos e não entram no arquivo do último bom."""
+    return dict(_financeiro(hoje, ler_linhas, guardado), indices=ler_indices(indices))
+
+
+def _financeiro(hoje: str, ler_linhas, guardado) -> dict:
     try:
         if ler_linhas is None:
             from venda.mc.notion import Notion
@@ -187,7 +204,7 @@ def financeiro(hoje: str, ler_linhas=None, guardado=ULTIMO_FINANCEIRO) -> dict:
             return {"hoje": hoje, "lido": "", "totais": {}, "unidades": [], "nao_lancadas": [], "sem_leitura": [], "falha_leitura": True}
 
 
-def montar(pasta=PASTA, hoje: str | None = None, ler_linhas=None, guardado=ULTIMO_FINANCEIRO) -> dict:
+def montar(pasta=PASTA, hoje: str | None = None, ler_linhas=None, guardado=ULTIMO_FINANCEIRO, indices=INDICES) -> dict:
     hoje = hoje or dt.date.today().isoformat()
     novo = ultimo_relatorio(pasta)                         # a trava e a hora vêm da rodada mais nova
     rel = ultimo_relatorio(pasta, com_linhas=True) or novo  # a lista vem da última que conseguiu montar
@@ -203,7 +220,7 @@ def montar(pasta=PASTA, hoje: str | None = None, ler_linhas=None, guardado=ULTIM
         resumo["proximo_mes"], resumo["proximo_falhou"] = prox.get("mes"), bool(prox.get("falhou"))
     return {"versao": 1, "gerado": dt.datetime.now().isoformat(timespec="seconds"), "rodada": resumo,
             "trava_seguradas": trava_seguradas, "grupos": grupos(rel, seguradas), "recusas": recusas_para_a_tela(pasta, rel),
-            "financeiro": financeiro(hoje, ler_linhas, guardado)}
+            "financeiro": financeiro(hoje, ler_linhas, guardado, indices)}
 
 
 def subir(dados: dict) -> int:

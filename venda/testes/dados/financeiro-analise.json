@@ -1,0 +1,671 @@
+{
+ "hoje": "2026-11-11",
+ "lido": "2026-11-11 08:04",
+ "totais": {
+  "recebido": 8456.0,
+  "a_vencer": 7891.67,
+  "vencido": 1830.4,
+  "caixa": 50000.0,
+  "permuta": 72000.0
+ },
+ "unidades": [
+  {
+   "recebido": 4542.0,
+   "a_vencer": 2076.0,
+   "vencido": 514.0,
+   "caixa": 50000.0,
+   "permuta": 0.0,
+   "dias_atraso": 1,
+   "proxima": {
+    "data": "2026-12-10",
+    "valor": 516.0
+   },
+   "unidade": "01",
+   "comprador": "COMPRADOR A",
+   "lido": "2026-11-11 08:04",
+   "erro_leitura": false
+  },
+  {
+   "recebido": 1914.0,
+   "a_vencer": 815.67,
+   "vencido": 1316.4,
+   "caixa": 0.0,
+   "permuta": 0.0,
+   "dias_atraso": 57,
+   "proxima": {
+    "data": "2026-12-15",
+    "valor": 815.67
+   },
+   "unidade": "02",
+   "comprador": "COMPRADOR B",
+   "lido": "2026-11-11 08:04",
+   "erro_leitura": false
+  },
+  {
+   "recebido": 2000.0,
+   "a_vencer": 5000.0,
+   "vencido": 0.0,
+   "caixa": 0.0,
+   "permuta": 72000.0,
+   "dias_atraso": 0,
+   "proxima": {
+    "data": "2027-01-10",
+    "valor": 5000.0
+   },
+   "unidade": "03",
+   "comprador": "COMPRADOR C",
+   "lido": "2026-11-11 08:04",
+   "erro_leitura": false
+  }
+ ],
+ "titulos": [
+  {
+   "coluna": "recebido",
+   "tipo": "sinal",
+   "sub": "",
+   "data": "2026-03-10",
+   "valor": 1000.0,
+   "pago_em": "2026-03-08",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-04-10",
+   "valor": 500.0,
+   "pago_em": "2026-04-09",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-05-10",
+   "valor": 502.0,
+   "pago_em": "2026-05-09",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-06-10",
+   "valor": 504.0,
+   "pago_em": "2026-06-09",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-07-10",
+   "valor": 506.0,
+   "pago_em": "2026-07-20",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-08-10",
+   "valor": 508.0,
+   "pago_em": "2026-08-09",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-09-10",
+   "valor": 510.0,
+   "pago_em": "2026-09-09",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-10-10",
+   "valor": 512.0,
+   "pago_em": "2026-10-09",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "vencido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-11-10",
+   "valor": 514.0,
+   "pago_em": "",
+   "dias_atraso": 1,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "a_vencer",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-12-10",
+   "valor": 516.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "a_vencer",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2027-01-10",
+   "valor": 518.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "a_vencer",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2027-02-10",
+   "valor": 520.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "a_vencer",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2027-03-10",
+   "valor": 522.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "caixa",
+   "tipo": "terceiros",
+   "sub": "fgts",
+   "data": "2027-06-01",
+   "valor": 50000.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "01",
+   "comprador": "COMPRADOR A"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-07-15",
+   "valor": 800.0,
+   "pago_em": "2026-07-15",
+   "dias_atraso": 0,
+   "unidade": "02",
+   "comprador": "COMPRADOR B"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-08-15",
+   "valor": 814.0,
+   "pago_em": "2026-09-02",
+   "dias_atraso": 0,
+   "unidade": "02",
+   "comprador": "COMPRADOR B"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-09-15",
+   "valor": 300.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "02",
+   "comprador": "COMPRADOR B"
+  },
+  {
+   "coluna": "vencido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-09-15",
+   "valor": 506.4,
+   "pago_em": "",
+   "dias_atraso": 57,
+   "unidade": "02",
+   "comprador": "COMPRADOR B"
+  },
+  {
+   "coluna": "vencido",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-10-15",
+   "valor": 810.0,
+   "pago_em": "",
+   "dias_atraso": 27,
+   "unidade": "02",
+   "comprador": "COMPRADOR B"
+  },
+  {
+   "coluna": "a_vencer",
+   "tipo": "pre",
+   "sub": "",
+   "data": "2026-12-15",
+   "valor": 815.67,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "02",
+   "comprador": "COMPRADOR B"
+  },
+  {
+   "coluna": "recebido",
+   "tipo": "entrada",
+   "sub": "",
+   "data": "2026-10-30",
+   "valor": 2000.0,
+   "pago_em": "2026-10-30",
+   "dias_atraso": 0,
+   "unidade": "03",
+   "comprador": "COMPRADOR C"
+  },
+  {
+   "coluna": "permuta",
+   "tipo": "entrada",
+   "sub": "",
+   "data": "2026-11-20",
+   "valor": 72000.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "03",
+   "comprador": "COMPRADOR C"
+  },
+  {
+   "coluna": "a_vencer",
+   "tipo": "balao",
+   "sub": "",
+   "data": "2027-01-10",
+   "valor": 5000.0,
+   "pago_em": "",
+   "dias_atraso": 0,
+   "unidade": "03",
+   "comprador": "COMPRADOR C"
+  }
+ ],
+ "nao_lancadas": [
+  "04"
+ ],
+ "sem_leitura": [],
+ "parcelas": [
+  {
+   "u": "01",
+   "t": "sinal",
+   "s": "",
+   "d": "2026-03-10",
+   "o": 1000.0,
+   "v": 1000.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-03-08",
+   "r": [
+    [
+     "2026-03-08",
+     1000.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-04-10",
+   "o": 500.0,
+   "v": 500.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-04-09",
+   "r": [
+    [
+     "2026-04-09",
+     500.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-05-10",
+   "o": 500.0,
+   "v": 502.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-05-09",
+   "r": [
+    [
+     "2026-05-09",
+     502.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-06-10",
+   "o": 500.0,
+   "v": 504.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-06-09",
+   "r": [
+    [
+     "2026-06-09",
+     504.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-07-10",
+   "o": 500.0,
+   "v": 506.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-07-20",
+   "r": [
+    [
+     "2026-07-20",
+     506.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-08-10",
+   "o": 500.0,
+   "v": 508.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-08-09",
+   "r": [
+    [
+     "2026-08-09",
+     508.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-09-10",
+   "o": 500.0,
+   "v": 510.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-09-09",
+   "r": [
+    [
+     "2026-09-09",
+     510.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-10-10",
+   "o": 500.0,
+   "v": 512.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-10-09",
+   "r": [
+    [
+     "2026-10-09",
+     512.0
+    ]
+   ]
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-11-10",
+   "o": 500.0,
+   "v": 514.0,
+   "a": 514.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2026-12-10",
+   "o": 500.0,
+   "v": 516.0,
+   "a": 516.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2027-01-10",
+   "o": 500.0,
+   "v": 518.0,
+   "a": 518.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2027-02-10",
+   "o": 500.0,
+   "v": 520.0,
+   "a": 520.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "01",
+   "t": "pre",
+   "s": "",
+   "d": "2027-03-10",
+   "o": 500.0,
+   "v": 522.0,
+   "a": 522.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "01",
+   "t": "terceiros",
+   "s": "fgts",
+   "d": "2027-06-01",
+   "o": 50000.0,
+   "v": 50000.0,
+   "a": 50000.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "02",
+   "t": "pre",
+   "s": "",
+   "d": "2026-07-15",
+   "o": 800.0,
+   "v": 800.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-07-15",
+   "r": [
+    [
+     "2026-07-15",
+     800.0
+    ]
+   ]
+  },
+  {
+   "u": "02",
+   "t": "pre",
+   "s": "",
+   "d": "2026-08-15",
+   "o": 800.0,
+   "v": 804.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-09-02",
+   "r": [
+    [
+     "2026-08-15",
+     404.97
+    ],
+    [
+     "2026-09-02",
+     409.03
+    ]
+   ]
+  },
+  {
+   "u": "02",
+   "t": "pre",
+   "s": "",
+   "d": "2026-09-15",
+   "o": 800.0,
+   "v": 806.4,
+   "a": 506.4,
+   "m": 0,
+   "q": "",
+   "r": [
+    [
+     "2026-09-20",
+     300.0
+    ]
+   ]
+  },
+  {
+   "u": "02",
+   "t": "pre",
+   "s": "",
+   "d": "2026-10-15",
+   "o": 800.0,
+   "v": 810.0,
+   "a": 810.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "02",
+   "t": "pre",
+   "s": "",
+   "d": "2026-12-15",
+   "o": 800.0,
+   "v": 815.67,
+   "a": 815.67,
+   "m": 0,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "03",
+   "t": "entrada",
+   "s": "",
+   "d": "2026-10-30",
+   "o": 2000.0,
+   "v": 2000.0,
+   "a": 0.0,
+   "m": 0,
+   "q": "2026-10-30",
+   "r": [
+    [
+     "2026-10-30",
+     2000.0
+    ]
+   ]
+  },
+  {
+   "u": "03",
+   "t": "entrada",
+   "s": "",
+   "d": "2026-11-20",
+   "o": 72000.0,
+   "v": 72000.0,
+   "a": 72000.0,
+   "m": 1,
+   "q": "",
+   "r": []
+  },
+  {
+   "u": "03",
+   "t": "balao",
+   "s": "",
+   "d": "2027-01-10",
+   "o": 4900.0,
+   "v": 5000.0,
+   "a": 5000.0,
+   "m": 0,
+   "q": "",
+   "r": []
+  }
+ ],
+ "indices": {
+  "lido": "2026-11-11 08:01",
+  "tabelas": {
+   "INCC-M": {
+    "2025-11": 0.3,
+    "2025-12": 0.25,
+    "2026-01": 0.4,
+    "2026-02": 0.35,
+    "2026-03": 0.5,
+    "2026-04": 0.45,
+    "2026-05": 0.6,
+    "2026-06": 0.55,
+    "2026-07": 0.3,
+    "2026-08": 0.2,
+    "2026-09": 0.42
+   },
+   "IPCA + 1% a.m.": {
+    "2026-09": 1.38
+   }
+  }
+ }
+}

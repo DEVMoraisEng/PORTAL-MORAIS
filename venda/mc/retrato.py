@@ -51,6 +51,17 @@ def _recebido(p: dict, valor: float) -> float:
     return round(soma, 2)
 
 
+def _recibos(p: dict) -> list:
+    """[[data, valor]] de cada recebimento com valor (11/11/2026, análise do condomínio), na ordem da data. Mesma ordem
+    de campos de recebimentos.data_do_recibo; o retrato não importa recebimentos, que puxa o erp."""
+    out = []
+    for r in p.get("receipts") or []:
+        valor = D._f(r.get("receivedValue") or r.get("value"))
+        if valor > 0:
+            out.append([str(r.get("receivingDate") or r.get("date") or r.get("dateOfReceipt") or "")[:10], round(valor, 2)])
+    return sorted(out)
+
+
 def normalizar(venda: dict, lido_em: str) -> dict:
     obra = ((venda.get("work") or {}).get("name") or "").strip()
     if obra != OBRA:
@@ -73,7 +84,8 @@ def normalizar(venda: dict, lido_em: str) -> dict:
                          "parcial": D.recebida_em_parte(p),
                          # 09/11/2026: financeiro por unidade. Só acrescenta campos; antecipação e aba Financeiro não os leem.
                          "recebido": _recebido(p, valor), "aberto": _aberto(p, valor),
-                         "permuta": str(p.get("comment") or "").strip().lower().startswith("permuta")})
+                         "permuta": str(p.get("comment") or "").strip().lower().startswith("permuta"),
+                         "rec": _recibos(p)})
     for q, p in zip(parcelas, (venda.get("tradeReceivable") or {}).get("installments") or []):
         if q["pago"]:
             q["pagoEm"] = str(p.get("dateOfReceipt") or "")[:10]
@@ -134,8 +146,9 @@ def gravar_pagina(notion, obter_erp, page_id: str, props: dict, agora: str) -> s
         texto = "ERRO: " + motivo
         em = " | ERRO %s: %s" % (agora, motivo)   # sem leitura boa não há hora de leitura: a coluna só diz que falhou
     # Limite de leitura: o Notion devolve, ao ler a página, no máximo 25 itens de rich_text por coluna. Cada item grava até 1900
-    # caracteres, então cabem cerca de 47 mil caracteres. Hoje o retrato tem cerca de 240 caracteres por parcela (56 parcelas
-    # = 13,4 mil), o que dá folga para umas 190 parcelas. Venda com bem mais que isso seria lida cortada pelo portal.
+    # caracteres, então cabem cerca de 47 mil caracteres. O retrato tinha cerca de 240 caracteres por parcela (56 parcelas
+    # = 13,4 mil); com os recebimentos (`rec`, 11/11/2026) a folga caiu de umas 190 para umas 180 parcelas (medido na revisão).
+    # Venda com bem mais que isso seria lida cortada pelo portal.
     if not notion.gravar_texto_longo(page_id, props, COL_RETRATO, texto):
         return "sem_coluna"
     notion.gravar_textos(page_id, props, {COL_RETRATO_EM: em})
@@ -168,6 +181,33 @@ def atualizar_todas(notion, erp, db_id: str, agora: str) -> tuple[int, int]:
     return ok, erro
 
 
+CENTRAL_PADRAO = "C:/AUTOMAÇÕES MAIS CONTROLE/_central"
+
+
+def salvar_indices(obter_erp, agora: str, pasta=None) -> bool:
+    """Guarda a série do INCC-M e do IPCA + 1% do ERP em <pasta>/indices-reajuste.json para a análise do condomínio
+    (11/11/2026). Só LÊ o ERP. Falha não derruba os retratos: o arquivo antigo fica e o log diz só o tipo do erro."""
+    import json, os, pathlib
+    destino = pathlib.Path(pasta or os.environ.get("MC_CENTRAL") or CENTRAL_PADRAO) / "indices-reajuste.json"
+    tmp = destino.with_name("%s.%d.tmp" % (destino.name, os.getpid()))
+    try:
+        from . import boletos as B
+        from . import indices as I
+        tabelas = I.serie_para_portal(B.ler_tabelas(obter_erp()))
+        if not tabelas:
+            raise ValueError("sem tabelas")
+        tmp.write_text(json.dumps({"lido": agora, "tabelas": tabelas}, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, destino)
+        return True
+    except Exception as e:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        print("índices: falhou %s" % type(e).__name__)
+        return False
+
+
 def main(argv=None) -> int:
     """python -m venda.mc.retrato --page <pageId da VENDAS CONDOMÍNIO>   (uma venda)
        python -m venda.mc.retrato --todas                                (todas; lê DB_VENDAS_COND)
@@ -187,8 +227,15 @@ def main(argv=None) -> int:
         if not db_id:
             print("falta a variável DB_VENDAS_COND (base BANCO DE DADOS VENDAS CONDOMÍNIO)")
             return 2
-        ok, erro = atualizar_todas(Notion(os.environ["NOTION_TOKEN"]), E.do_ambiente, db_id, agora)
-        print("retratos: %d ok, %d erro" % (ok, erro))
+        cliente = []
+
+        def obter():   # um cliente do ERP só, para os retratos e para os índices
+            if not cliente:
+                cliente.append(E.do_ambiente())
+            return cliente[0]
+        ok, erro = atualizar_todas(Notion(os.environ["NOTION_TOKEN"]), obter, db_id, agora)
+        salvar_indices(obter, agora)   # 11/11/2026: série para a análise do condomínio; não muda o código de saída
+        print("retratos: %d ok, %d erro" % (ok, erro))   # a última linha do log continua sendo esta
         return 0 if erro == 0 else 1
     n = Notion(os.environ["NOTION_TOKEN"])
     props = (n.pagina(args.page) or {}).get("properties") or {}

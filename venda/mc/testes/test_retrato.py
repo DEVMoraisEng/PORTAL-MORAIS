@@ -5,6 +5,15 @@ from venda.mc import retrato as RT
 DADOS = pathlib.Path(__file__).parent / "dados" / "antecipacao"
 
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _central_de_teste(monkeypatch, tmp_path):
+    """11/11/2026: o --todas grava indices-reajuste.json em MC_CENTRAL; teste nunca escreve na _central de verdade."""
+    monkeypatch.setenv("MC_CENTRAL", str(tmp_path))
+
+
 def carregar(nome):
     return json.loads((DADOS / (nome + ".json")).read_text(encoding="utf-8"))
 
@@ -412,3 +421,84 @@ def test_campo_estranho_do_erp_nao_derruba_o_retrato_09_11():
     p = v["tradeReceivable"]["installments"][0]
     p.update(received=False, sumOfReceivedValues="n/d", pendingValue="n/d", receipts=[{"receivedValue": "n/d"}])
     assert RT.normalizar(v, "2026-11-09")["parcelas"]
+
+
+# ---------------------------------------------------------------- 11/11/2026: recebimentos com data (análise do condomínio)
+def test_retrato_guarda_cada_recebimento_com_data_11_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    inst[1]["receipts"] = [{"value": 300.0, "receivingDate": "2026-10-20T00:00:00"},
+                           {"value": 0, "receivingDate": "2026-10-21"},
+                           {"receivedValue": 200.5, "value": 200.0, "date": "2026-10-05"}]
+    p = RT.normalizar(v, "2026-11-11 08:00")["parcelas"]
+    q = next(x for x in p if x["id"] == inst[1]["id"])
+    assert q["rec"] == [["2026-10-05", 200.5], ["2026-10-20", 300.0]]
+
+
+def test_retrato_recebimento_sem_data_e_lixo_11_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    inst[2]["receipts"] = [{"value": 50.0}, {"value": "n/d", "date": "2026-10-01"}, {"value": 10.0, "dateOfReceipt": "2026-09-30T10:00:00"}]
+    q = next(x for x in RT.normalizar(v, "2026-11-11 08:00")["parcelas"] if x["id"] == inst[2]["id"])
+    assert q["rec"] == [["", 50.0], ["2026-09-30", 10.0]]
+
+
+def test_retrato_sem_recebimento_tem_rec_vazio_11_11():
+    v = carregar("base")
+    for p in v["tradeReceivable"]["installments"]:
+        p["receipts"] = []
+    assert all(x["rec"] == [] for x in RT.normalizar(v, "2026-11-11 08:00")["parcelas"])
+
+
+def test_retrato_de_120_parcelas_cabe_na_coluna_do_notion_11_11():
+    v = carregar("base")
+    inst = v["tradeReceivable"]["installments"]
+    modelo = inst[0]
+    inst[:] = [dict(modelo, id="p%03d" % i, receipts=[{"value": 900.0, "receivingDate": "2026-10-05T00:00:00"},
+                                                      {"value": 912.34, "receivingDate": "2026-11-05T00:00:00"}])
+               for i in range(120)]
+    texto = json.dumps(RT.normalizar(v, "2026-11-11 08:00"), ensure_ascii=False, separators=(",", ":"))
+    assert len(texto) < 45000, len(texto)
+
+
+class _ErpTabelas:
+    def __init__(self, falha=False):
+        self.falha = falha
+
+    def pedir(self, metodo, caminho, corpo=None, params=None):
+        if self.falha:
+            raise RuntimeError("ERP fora")
+        if caminho == "/readjustment-tables/all":
+            return [{"id": "a", "name": "INCC-M"}]
+        return {"name": "INCC-M", "periods": [{"date": "2026-09-01T03:00:00", "readjust": 0.42}]}
+
+
+def test_salvar_indices_grava_o_arquivo_11_11(tmp_path):
+    assert RT.salvar_indices(lambda: _ErpTabelas(), "2026-11-11 08:03", tmp_path) is True
+    d = json.loads((tmp_path / "indices-reajuste.json").read_text(encoding="utf-8"))
+    assert d == {"lido": "2026-11-11 08:03", "tabelas": {"INCC-M": {"2026-09": 0.42}}}
+    assert list(tmp_path.iterdir()) == [tmp_path / "indices-reajuste.json"]        # sem sobra de arquivo temporário
+
+
+def test_salvar_indices_com_erp_fora_mantem_o_arquivo_antigo_11_11(tmp_path, capsys):
+    (tmp_path / "indices-reajuste.json").write_text('{"lido":"antes","tabelas":{"INCC-M":{"2026-08":0.3}}}', encoding="utf-8")
+    assert RT.salvar_indices(lambda: _ErpTabelas(falha=True), "2026-11-11 08:03", tmp_path) is False
+    assert "antes" in (tmp_path / "indices-reajuste.json").read_text(encoding="utf-8")
+    assert capsys.readouterr().out.strip() == "índices: falhou RuntimeError"
+
+
+def test_todas_le_os_indices_com_o_mesmo_cliente_e_nao_muda_o_codigo_11_11(monkeypatch, tmp_path):
+    monkeypatch.setenv("NOTION_TOKEN", "t")
+    monkeypatch.setenv("DB_VENDAS_COND", "db")
+    monkeypatch.setenv("MC_CENTRAL", str(tmp_path))
+    from venda.mc import erp as erpmod
+    criados = []
+    monkeypatch.setattr(erpmod, "do_ambiente", lambda: criados.append(1) or _ErpTabelas(falha=True))
+    monkeypatch.setattr(N, "Notion", lambda token: object())
+
+    def todas(notion, obter, db, agora):
+        obter()
+        return 3, 0
+    monkeypatch.setattr(RT, "atualizar_todas", todas)
+    assert RT.main(["--todas"]) == 0                         # índices falharam, os retratos não
+    assert criados == [1]                                    # um cliente só para os dois

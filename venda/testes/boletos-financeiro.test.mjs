@@ -289,3 +289,35 @@ test("a página está ligada: início, cache offline, gancho do Apps Script e at
   assert.match(pagina, /src="boletos-financeiro\.js/);
   assert.match(pagina, /action: "bfBoot"/);
 });
+
+/* ------------------------------------------------------------ 11/11/2026: a página com a análise em cima */
+const GAB_ANALISE = JSON.parse(readFileSync(new URL("./dados/financeiro-analise.json", import.meta.url), "utf8"));
+test("página: análise em cima, boletos embaixo", () => {
+  const h = BF.htmlPagina(dados({}, { financeiro: GAB_ANALISE }), { filtro: {} });
+  const ordem = ['aria-label="Filtros"', 'aria-label="Indicadores"', "Recebido × previsto", "Financeiro do condomínio", "Boletos de"].map(x => h.indexOf(x));
+  assert.ok(ordem.every(i => i >= 0), "alguma parte não apareceu: " + ordem);
+  assert.deepEqual([...ordem].sort((a, b) => a - b), ordem);
+});
+test("página com arquivo velho, sem parcelas: aviso e o financeiro de hoje", () => {
+  const velho = Object.assign({}, GAB_ANALISE); delete velho.parcelas;
+  const h = BF.htmlPagina(dados({}, { financeiro: velho }), {});
+  assert.match(h, /A análise aparece depois da próxima leitura do servidor/);
+  assert.doesNotMatch(h, /aria-label="Indicadores"/);
+  assert.match(h, /Financeiro do condomínio[^]*Boletos de/);
+});
+test("página: filtro de unidade muda os cinco números do financeiro", () => {
+  const h = BF.htmlPagina(dados({}, { financeiro: GAB_ANALISE }), { filtro: { unidade: "02" } });
+  const fin = h.slice(h.indexOf("Financeiro do condomínio"));
+  assert.match(fin, /data-coluna="vencido"[^]*?<b class="vermelho">1\.316,40<\/b>/);
+  assert.doesNotMatch(fin, /<td>01<\/td>/);
+});
+test("o html carrega boletos-analise.js antes de boletos-financeiro.js e do script da página", () => {
+  const html = readFileSync(new URL("../../boletos-financeiro.html", import.meta.url), "utf8");
+  const a = html.indexOf("boletos-analise.js"), b = html.indexOf("boletos-financeiro.js"), c = html.indexOf("exigirSessao()");
+  assert.ok(a > 0 && a < b && b < c, [a, b, c].join(" "));
+  assert.match(html, /BF\.htmlPagina\(/);
+});
+test("o service worker guarda boletos-analise.js", () => {
+  const sw = readFileSync(new URL("../../sw.js", import.meta.url), "utf8");
+  assert.match(sw, /"\.\/boletos-analise\.js"/);
+});

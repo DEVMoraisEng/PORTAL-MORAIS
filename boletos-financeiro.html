@@ -18,12 +18,14 @@
   --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde-btn:#4cd964;
   --bg:#EAF1F3;--bg2:#F5F9FA;--border:#b8d0da;--border2:#d0e4ec;--text:#1a3347;--text3:#4a6e86;--sup:#fff;
   --ok:#1a6b40;--ok-f:#dff3e7;--ru:#a93226;--ru-f:#fae5e2;--al:#8a5a0a;--al-f:#fbf0da;--ma:#1e3f58;--ma-f:#dceaef;
+  --s1:#2a78d6;--s2:#eb6834;
 }
 html[data-tema="escuro"]{
   color-scheme:dark;
   --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde-btn:#3cbf5d;
   --bg:#0e1920;--bg2:#15222c;--border:#2d4757;--border2:#243a4a;--text:#e7eff5;--text3:#9db4c4;--sup:#15222c;
   --ok:#6fd3a0;--ok-f:#17352a;--ru:#f2998f;--ru-f:#3d1c1a;--al:#eab661;--al-f:#3a2c12;--ma:#a9d2e6;--ma-f:#1a2c38;
+  --s1:#3987e5;--s2:#d95926;
 }
 *{box-sizing:border-box}
 .embutido header{display:none}
@@ -84,6 +86,23 @@ td,th{padding:7px 9px;border-bottom:1px solid var(--border2);vertical-align:top}
 input[type=search]{font:inherit;padding:6px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text);min-width:0;flex:0 1 300px}
 button{font:inherit;font-weight:700;font-size:12.5px;border:1px solid var(--azul);color:var(--ma);background:transparent;border-radius:7px;padding:5px 11px;cursor:pointer;white-space:nowrap}
 button:disabled{opacity:.6;cursor:wait}
+/* 11/11/2026: análise financeira (filtros, indicadores, gráficos) */
+.campo{display:flex;flex-direction:column;gap:3px;font-size:11.5px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;color:var(--text3)}
+.filtros.analise{align-items:flex-end}
+.filtros.analise select,.filtros.analise input[type=month]{font:inherit;font-size:14px;text-transform:none;letter-spacing:0;font-weight:500;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:6px 9px;min-width:0;max-width:100%}
+.atalhos{display:flex;flex-wrap:wrap;gap:6px}
+.inds{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:10px}
+.ind{display:flex;flex-direction:column;gap:1px;border:1px solid var(--border2);background:var(--bg2);border-radius:10px;padding:9px 12px;min-width:0}
+.ind b{font-family:'Barlow Condensed';font-weight:700;font-size:25px;font-variant-numeric:tabular-nums}
+.grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,460px),1fr));gap:16px}
+.graf h3{font-family:'Barlow Condensed';font-size:19px;margin:0}
+.graf .g{position:relative;overflow-x:auto}
+.graf svg{display:block;width:100%;min-width:460px;height:auto}
+.legenda{display:flex;flex-wrap:wrap;gap:14px;font-size:12.5px;color:var(--text3)}
+.legenda i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.legenda i.s1{background:var(--s1)}.legenda i.s2{background:var(--s2)}
+details.tab summary{cursor:pointer;font-size:12.5px;font-weight:700;color:var(--ma)}
+.dica{position:fixed;pointer-events:none;background:var(--azul-esc);color:#fff;font-size:12.5px;border-radius:7px;padding:6px 9px;white-space:nowrap;transform:translate(-50%,-120%);z-index:8;display:none}
 .toast{position:fixed;left:50%;bottom:20px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:9px;max-width:90vw;z-index:9}
 </style>
 </head>
@@ -96,7 +115,8 @@ button:disabled{opacity:.6;cursor:wait}
 </div></header>
 <main id="tela"><div class="muted">Carregando…</div></main>
 <script src="app.js?v=46"></script>
-<script src="boletos-financeiro.js?v=3"></script>
+<script src="boletos-analise.js?v=1"></script>
+<script src="boletos-financeiro.js?v=4"></script>
 <script>
 if (window.top !== window) {   /* 09/11: dentro da aba do Escritório, o login abre na janela inteira, não no quadro */
   window.sair = function () { try { localStorage.removeItem("morais_sessao"); sessionStorage.removeItem("morais_sessao"); } catch (e) {} top.location.href = "login.html"; };
@@ -106,6 +126,16 @@ const S = exigirSessao();
 const $ = id => document.getElementById(id);
 const CACHE_LOCAL = "morais_boletos_financeiro_v1";
 let DADOS = null, PODE = false, BUSCA = "", BUSCA_BOLETOS = "", GRUPO = "todas", COLUNA = "", SO_VENCIDO = false, ATUALIZANDO = false;
+/* 11/11/2026: o filtro da análise fica só no navegador de quem filtrou */
+const CHAVE_FILTRO = "morais_bf_filtro_v1";
+let FILTRO = {};
+try { const f = JSON.parse(localStorage.getItem(CHAVE_FILTRO) || "{}"); if (f && typeof f === "object" && !Array.isArray(f)) FILTRO = f; } catch (e) {}
+function mudarFiltro(novo) {
+  FILTRO = Object.assign({}, FILTRO, novo);
+  Object.keys(FILTRO).forEach(k => { if (!FILTRO[k]) delete FILTRO[k]; });
+  try { localStorage.setItem(CHAVE_FILTRO, JSON.stringify(FILTRO)); } catch (e) {}
+  pintar();
+}
 const PEDIDOS = {};
 const ERROS = {
   APENAS_ADM: "Só ADM e MASTER podem segurar ou soltar.",
@@ -117,10 +147,11 @@ function aviso(txt) { const d = document.createElement("div"); d.className = "to
 function erroTela(html) { $("tela").innerHTML = '<div class="erro">' + html + "</div>"; }
 function pintar() {
   if (!DADOS) return;
-  const ativo = document.activeElement, id = ativo && ativo.type === "search" ? ativo.id : "", pos = id ? ativo.selectionStart : 0;
-  $("tela").innerHTML = BF.htmlBoletos(DADOS, { podeSegurar: PODE, pedidos: PEDIDOS, grupo: GRUPO, buscaBoletos: BUSCA_BOLETOS }) +
-    BF.htmlFinanceiro(DADOS, { busca: BUSCA, coluna: COLUNA, soVencido: SO_VENCIDO, atualizando: ATUALIZANDO });
-  if (id) { const b = $(id); b.focus(); b.setSelectionRange(pos, pos); }
+  const ativo = document.activeElement, id = ativo && ativo.id && $("tela").contains(ativo) ? ativo.id : "";
+  const pos = id && ativo.type === "search" ? ativo.selectionStart : null;
+  $("tela").innerHTML = BF.htmlPagina(DADOS, { filtro: FILTRO, podeSegurar: PODE, pedidos: PEDIDOS, grupo: GRUPO, buscaBoletos: BUSCA_BOLETOS,
+    busca: BUSCA, coluna: COLUNA, soVencido: SO_VENCIDO, atualizando: ATUALIZANDO });
+  if (id && $(id)) { const b = $(id); b.focus(); if (pos != null) b.setSelectionRange(pos, pos); }
 }
 async function carregar() {
   const bt = $("bt-recarregar"); bt.disabled = true;
@@ -176,6 +207,9 @@ document.addEventListener("click", e => {
   if (seg) return void pedirSegurar(seg);
   if (e.target.id === "bt-atualizar") return void pedirAtualizar();
   if (e.target.id === "ver-unidades") { COLUNA = ""; return void pintar(); }
+  const at = e.target.closest(".atalho");
+  if (at) return void mudarFiltro(BA.atalho(at.dataset.atalho, (DADOS.financeiro || {}).hoje));
+  if (e.target.id === "f-limpar") { FILTRO = {}; return void mudarFiltro({}); }
   const chip = e.target.closest(".chip");
   if (chip) { GRUPO = chip.dataset.grupo; return void pintar(); }
   const num = e.target.closest(".num");
@@ -185,7 +219,17 @@ document.addEventListener("input", e => {
   if (e.target.id === "busca") { BUSCA = e.target.value; pintar(); }
   if (e.target.id === "busca-boletos") { BUSCA_BOLETOS = e.target.value; pintar(); }
 });
-document.addEventListener("change", e => { if (e.target.id === "so-vencido") { SO_VENCIDO = e.target.checked; pintar(); } });
+const CAMPO_FILTRO = { "f-de": "de", "f-ate": "ate", "f-tipo": "tipo", "f-unidade": "unidade", "f-situacao": "situacao" };
+document.addEventListener("change", e => {
+  if (e.target.id === "so-vencido") { SO_VENCIDO = e.target.checked; pintar(); }
+  if (CAMPO_FILTRO[e.target.id]) mudarFiltro({ [CAMPO_FILTRO[e.target.id]]: e.target.value });
+});
+/* Dica dos gráficos: passar o mouse ou tocar na barra; some ao sair ou ao tocar fora */
+const DICA = document.createElement("div"); DICA.className = "dica"; DICA.setAttribute("role", "status"); document.body.appendChild(DICA);
+function mostrarDica(el, x, y) { DICA.textContent = el.dataset.dica; DICA.style.left = x + "px"; DICA.style.top = y + "px"; DICA.style.display = "block"; }
+function alvoDica(e) { return e.target && e.target.closest ? e.target.closest("[data-dica]") : null; }
+document.addEventListener("mousemove", e => { const el = alvoDica(e); if (el) mostrarDica(el, e.clientX, e.clientY); else DICA.style.display = "none"; });
+document.addEventListener("pointerdown", e => { const el = alvoDica(e); if (el && e.pointerType !== "mouse") mostrarDica(el, e.clientX, e.clientY); else if (!el) DICA.style.display = "none"; });
 $("bt-recarregar").addEventListener("click", carregar);
 carregar();
 setInterval(() => { if (!document.hidden) carregar(); }, 3 * 60 * 1000);
