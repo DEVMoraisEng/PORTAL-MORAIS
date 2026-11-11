@@ -135,11 +135,9 @@ CATEGORIAS_PADRAO = [
     ("P1-04", "Eventos e Confraternizações", _D, "Outros", "ADM", "ok", "Eventos, confraternizações e reuniões da equipe. Ex.: GRÁ BISTRO."),
     ("P1-04", "Brindes", _D, "Outros", "ANY", "ok", "Brindes para funcionários, engenheiros e corretores. Ex.: garrafas personalizadas (FASTLASER)."),
     ("P1-05", "Software / Assinatura Digital", "Tecnologia e Sistemas", "Outros", "ADM", "ok", "Mensalidade do Mais Controle, OC Cloud, Claude, Google Play, Box e demais softwares e assinaturas."),
-    ("P1-06", "Energia (Escritório)", _U, "Outros", "ADM", "ok", "Contas de energia das salas 1212/1213, incluindo energia solar. Ex.: ENERGIA SALA 1212, energia solar."),
-    ("P1-06", "Fatura de Água", _U, "Outros", "ADM", "ok", "Contas de água do escritório."),
+    ("P1-06", "Energia (Escritório)", _U, "Outros", "ADM", "ok", "Contas de energia das salas 1212/1213, incluindo energia solar. Ex.: ENERGIA SALA 1212, energia solar. Energia de obra ou de casa vai em Energia de obra / unidade."),
+    ("P1-06", "Fatura de Água (Escritório)", _U, "Outros", "ADM", "ok", "Contas de água do escritório. Água de obra ou de casa vai em Água de obra / unidade."),
     ("P1-06", "Internet / Celular", _U, "Outros", "ADM", "ok", "Internet fixa (LINQ) e linhas móveis (CLARO) do escritório e da equipe."),
-    ("P1-06", "Conta de energia", _U, "Outros", "ANY", "descontinuada", "Categoria antiga movida para este plano. NÃO usar em novos lançamentos — preferir Energia (Escritório). Mantida apenas pelo histórico."),
-    ("P1-06", "Conta de água", _U, "Outros", "ANY", "descontinuada", "Categoria antiga movida para este plano. NÃO usar em novos lançamentos — preferir Fatura de Água. Mantida apenas pelo histórico."),
     ("P1-06", "Conta de internet", _U, "Outros", "ANY", "descontinuada", "Categoria antiga movida para este plano. NÃO usar em novos lançamentos — preferir Internet / Celular. Mantida apenas pelo histórico."),
     ("P1-07", "Condomínio", "Ocupação do Escritório", "Outros", "ADM", "ok", "Condomínio e fundo de reserva das salas. Ex.: JK NEW CONCEPT."),
     ("P1-07", "IPTU - Administrativo", "Ocupação do Escritório", "Outros", "ADM", "ok", "IPTU somente das salas 1212 e 1213. IPTU de terreno de obra NÃO entra aqui."),
@@ -171,6 +169,10 @@ CATEGORIAS_PADRAO = [
     ("P2-15", "ART / Taxas CREA de Obra", _C, "Outros", "OBRA", "ok", "ARTs e taxas CREA vinculadas a obra específica."),
     ("P2-15", "TLF / Uso do Solo (Obra)", _C, "Outros", "OBRA", "ok", "TLF e taxas municipais de obras e lotes específicos (no CC da obra)."),
     ("P2-15", "Vistoria de Obra (Caixa / Prefeitura)", _C, "Outros", "OBRA", "ok", "Taxas de vistoria da Caixa (por unidade financiada) e vistorias da prefeitura."),
+    ("P2-15", "Energia de obra / unidade", _C, "Outros", "OBRA", "ok",
+     "Contas de energia das obras e das casas, no CC da obra/lote, até a entrega da casa ao comprador (depois da entrega a conta é do comprador). Era a antiga \"Conta de energia\". Ex.: ENERGIA UC 1234567 REF OUT/2026 CASA 2."),
+    ("P2-15", "Água de obra / unidade", _C, "Outros", "OBRA", "ok",
+     "Contas de água e esgoto das obras e das casas, no CC da obra/lote, até a entrega da casa ao comprador (depois da entrega a conta é do comprador). Era a antiga \"Conta de água\". Ex.: ÁGUA UC 1234567 REF OUT/2026 CASA 2."),
     ("P2-16", "Seguro RCPM (Obra)", "Seguros de Obra", "Outros", "OBRA", "ok", "Seguro de risco de construção por unidade vendida. Ex.: RCPM - CASA 07."),
     ("P2-16", "Seguro Garantia de Término de Obra", "Seguros de Obra", "Outros", "OBRA", "ok", "Apólices de seguro garantia de término de obra exigidas no financiamento."),
     ("P2-17", "Juros Fase de Obras", _E, "Outros", "OBRA", "ok", "Juros do financiamento durante a construção."),
@@ -189,6 +191,8 @@ CATEGORIAS_PADRAO = [
     ("P3-B", "Aquisição de terreno", "Aquisição de Terreno", "Compra de Terreno", "OBRA", "ok", "Compra de terrenos e lotes (parcelas ao vendedor)."),
     ("P3-B", "Comissão Aquisição de Lote", "Aquisição de Terreno", "Compra de Terreno", "OBRA", "ok", "Comissão de corretor na COMPRA de lote. Somente comissão imobiliária — serviço de obra não entra aqui."),
     ("P3-B", "Comissão Venda de Casa", "Venda de casa", "Outros", "OBRA", "ok", "Comissão de corretor na VENDA de unidades."),
+    ("P3-B", "Eventos de vendas e relacionamento com corretores", "Venda de casa", "Outros", "ANY", "ok",
+     "Eventos de lançamento e venda, cafés e encontros com corretores e imobiliárias. Brinde avulso para corretor continua em Brindes; confraternização da equipe em Eventos e Confraternizações."),
     ("P3-B", "Ganho de Capital", "Venda de casa", "Outros", "ANY", "ok", "DARFs de GCAP pagos à Receita Federal sobre o ganho de capital na venda das casas. O honorário da contabilidade pela apuração do GCAP vai em Honorários Contábeis."),
     ("P3-B", "Adiantamento de comissão", "Gerais e Administrativas", "Outros", "ADIANT", "ok", "Adiantamentos de comissão a corretores (CC específico de adiantamentos)."),
     ("P3-B", "ITBI", _REG, "Outros", "OBRA", "ok", "Imposto de transmissão na compra de imóveis/lotes."),
@@ -204,6 +208,8 @@ CATEGORIAS_PADRAO = [
     ("P3-C", "Débito sem documento após 1 mês", "Outras Despesas", "Outros", "ANY", "generica", "Débitos bancários sem identificação após 30 dias (uso excepcional — investigar sempre)."),
     ("P3-D", "Despesa JC pessoal", "Outras Despesas", "Outros", "ANY", "restrita", "Despesas pessoais dos sócios pagas pela empresa (controle interno; fora da reestruturação)."),
     ("P3-D", "Despesa JV pessoal", "Outras Despesas", "Outros", "ANY", "restrita", "Despesas pessoais dos sócios pagas pela empresa (controle interno; fora da reestruturação)."),
+    ("P3-D", "Imobilizado - Stand de vendas", "Imobilizado (somente fluxo de caixa)", "", "ANY", "restrita",
+     "Construção e montagem do stand de vendas. Plano fora da DRE (só fluxo de caixa) — uso restrito, alinhar com o financeiro antes de usar."),
     ("P3-D", "Outras Despesas", "Outras Despesas", "Outros", "ANY", "generica", "ÚLTIMO RECURSO. Só quando nenhuma categoria específica servir. Descrever detalhadamente. Meta: máx. 2% dos lançamentos do mês."),
     ("P3-D", "Taxas gerais", _TXG, "Outros", "ANY", "generica", "ÚLTIMO RECURSO para taxas não previstas. Antes de usar, verifique Custos de Obra — Taxas e Legalização e Taxas e Registros Corporativos."),
     ("P3-D", "PADARIA", "Despesas Financeiras", "", "ANY", "descontinuada", "NÃO USAR. Categoria antiga mantida só pelo histórico — lanches e padaria vão em Despesas Administrativas » Alimentação / Lanches."),
@@ -235,6 +241,8 @@ TEXTOS_PADRAO = {
         ["Papelaria, móveis, limpeza, lanches, uniformes, estacionamento", "Despesas Administrativas » categoria específica"],
         ["Mais Controle, softwares, assinaturas digitais, cloud", "Tecnologia e Sistemas » Software / Assinatura Digital"],
         ["Energia, água, internet e celular do ESCRITÓRIO", "Utilidades » categoria específica"],
+        ["Energia e água de obra ou de casa (até a entrega)", "Custos de Obra — Taxas e Legalização » Energia / Água de obra / unidade"],
+        ["Evento de vendas, encontro com corretores", "Venda de casa » Eventos de vendas e relacionamento com corretores"],
         ["Condomínio e IPTU das salas 1212/1213", "Ocupação do Escritório » Condomínio ou IPTU - Administrativo"],
         ["Combustível, manutenção e seguro dos carros", "Veículos, Mobilidade e Seguros » categoria específica"],
         ["IRPJ, CSLL, PIS, COFINS, ISS próprio, IRRF s/ serviços", "Impostos Corporativos » categoria específica"],
@@ -275,11 +283,31 @@ TEXTOS_PADRAO = {
         ["Serviço de obra (terraplanagem, empreiteiro) em \"Outras Despesas\"", "Contrato de serviço executado em obra é Mão de Obra Terceirizada, no CC da obra."],
         ["IPTU tudo junto em \"Taxas gerais\"", "IPTU das salas » Ocupação do Escritório; IPTU de terreno de obra » Custos de Obra — Taxas e Legalização."],
         ["Energia/internet em \"Outras Despesas\"", "Contas do escritório vão em Utilidades."],
+        ["Energia/água da casa em Utilidades", "Utilidades é só do escritório. Conta de obra ou de casa vai em Energia de obra / unidade ou Água de obra / unidade, no CC da obra."],
         ["Lançamento misto (ex.: engenheiro + combustível)", "Separar em dois títulos, um por categoria."],
         ["Criar categoria nova por conta própria", "Não criar. Se sentir falta de uma categoria, registrar a dúvida e alinhar com o financeiro — o plano é padronizado."],
     ],
-    "versao": "agosto/2026",
+    "versao": "novembro/2026",
 }
+
+
+# Categorias renomeadas no ERP em 11/11/2026 (o dono aprovou renomear em vez de
+# criar categoria nova: os lançamentos antigos ficam certos sem reclassificar).
+# O histórico baixado e o manual do Supabase podem vir com o nome antigo ou o
+# novo — o motor trata os dois como a mesma categoria (a de nome novo).
+RENOMEADAS = {
+    "Conta de energia": "Energia de obra / unidade",
+    "Conta de água": "Água de obra / unidade",
+    "Fatura de Água": "Fatura de Água (Escritório)",
+}
+_RENOMEADAS_N = {N(a): b for a, b in RENOMEADAS.items()}
+
+
+def nome_atual(cat):
+    """Nome de hoje da categoria (o antigo de RENOMEADAS vira o novo; o resto fica igual)."""
+    if not isinstance(cat, str):
+        return cat
+    return _RENOMEADAS_N.get(N(cat), cat)
 
 
 def manual_padrao_linhas():
@@ -315,10 +343,8 @@ def cc_tipo(cc):
 # 3) REGRAS DE PALAVRAS (assunto da descrição -> categorias aceitas)
 #    (regex, [categorias aceitas], família, escopo opcional 'ADM'/'OBRA')
 # =============================================================================
-LACUNA_E = "Energia de obra/unidade (sem categoria no manual)"
-LACUNA_A = "Água de obra/unidade (sem categoria no manual)"
-LACUNAS = (LACUNA_E, LACUNA_A)
-
+# 11/11/2026: energia e água de obra/casa ganharam categoria (as antigas "Conta de
+# energia"/"Conta de água" renomeadas) — acabaram as "lacunas" do manual.
 R = []
 
 
@@ -563,18 +589,31 @@ class Motor:
             if palavras:
                 rx = re.compile(r"(?<![A-Z0-9])(" + "|".join(re.escape(p) for p in palavras) + r")(?![A-Z0-9])")
                 self.rules_manual.append((rx, [nome], "MANUAL", None))
+        # categorias renomeadas no ERP (11/11/2026): a linha antiga do manual sai; se o
+        # manual ainda não tem a linha de nome novo, vale a do padrão (até alguém
+        # ajustar a aba Manual). Lista do que falta ajustar: self.manual_desatualizado.
+        padrao = {c["categoria"]: c for c in manual_padrao_linhas()[1]}
+        self.manual_desatualizado = []
+        for antigo, novo in RENOMEADAS.items():
+            if antigo in self.M:
+                del self.M[antigo]
+                self.manual_desatualizado.append(f'Linha "{antigo}" no manual — o ERP renomeou para "{novo}".')
+                self.rules_manual = [r for r in self.rules_manual if r[1] != [antigo]]
+            if novo not in self.M:
+                c = padrao[novo]
+                self.M[novo] = dict(plano=c["plano"], classificacao=c["classificacao"], escopo=c["escopo"],
+                                    uso=c["uso"], texto=c["texto"])
+                self.manual_desatualizado.append(f'Falta a linha "{novo}" no manual — usando a do padrão '
+                                                 f'(plano "{c["plano"]}", escopo {c["escopo"]}).')
         self.nomes_norm = {N(k): k for k in self.M}
 
     # ------------------------------------------------------------------
     def _best(self, acc, scope):
+        acc = [nome_atual(c) for c in acc]
         for c in acc:
-            if c in LACUNAS or (c in self.M and self.M[c]["uso"] == "ok"):
+            if c in self.M and self.M[c]["uso"] == "ok":
                 return c
         c = acc[0]
-        if c == "Conta de energia":
-            return LACUNA_E if scope == "OBRA" else "Energia (Escritório)"
-        if c == "Conta de água":
-            return LACUNA_A if scope == "OBRA" else "Fatura de Água"
         if c == "Conta de internet":
             return "Internet / Celular"
         # nome que não existe no manual (ex.: o "IIPVA" do ERP) -> o do manual, se houver
@@ -588,6 +627,7 @@ class Motor:
         d = N(descricao)
         f = N(fornecedor)
         catg = (categoria or "").strip() if isinstance(categoria, str) else ("" if categoria is None or categoria != categoria else str(categoria))
+        catg = nome_atual(catg)
         cct = cc_tipo(centro_de_custo)
         scope = "ADM" if cct == "ADM" else "OBRA"
         info = M.get(catg)
@@ -619,15 +659,15 @@ class Motor:
             if util == "N":
                 hits.insert(0, (["Internet / Celular", "Conta de internet"], "UTIL", "descrição"))
             elif scope == "ADM":
-                hits.insert(0, (["Energia (Escritório)", "Conta de energia"] if util == "E" else ["Fatura de Água", "Conta de água"], "UTIL", "descrição"))
+                hits.insert(0, (["Energia (Escritório)"] if util == "E" else ["Fatura de Água (Escritório)"], "UTIL", "descrição"))
             else:
-                hits.insert(0, (["Conta de energia", LACUNA_E] if util == "E" else ["Conta de água", LACUNA_A], "UTIL_OBRA", "descrição"))
+                hits.insert(0, (["Energia de obra / unidade"] if util == "E" else ["Água de obra / unidade"], "UTIL_OBRA", "descrição"))
 
         suggestion = None
         motivo = ""
         status = None
         desc_hits = [h for h in hits if h[2] == "descrição"]
-        accepted = set(c for h in hits for c in h[0])
+        accepted = set(nome_atual(c) for h in hits for c in h[0])
 
         # 1) descrição vazia / genérica
         insuf = (not d) or bool(GENERIC_EXTRA.search(d)) or (not desc_hits and (len(d) < 3 or bool(GENERIC_DESC.match(d))))
@@ -671,7 +711,7 @@ class Motor:
         elif uso == "restrita":
             status = "NAO_AVALIADO"
             suggestion = None
-            motivo = "Categoria de uso restrito (despesas pessoais dos sócios) — não auditada."
+            motivo = f'"{catg}" é de uso restrito no manual — não auditada.'
         if status is None:
             if uso == "generica":
                 status = "GENERICA"
@@ -688,18 +728,11 @@ class Motor:
                 status = "DESCONTINUADA"
                 if catg == "PADARIA":
                     suggestion = "Alimentação / Lanches"
-                elif scope == "ADM":
-                    suggestion = {"Conta de energia": "Energia (Escritório)", "Conta de água": "Fatura de Água",
-                                  "Conta de internet": "Internet / Celular"}.get(catg)
                 elif catg == "Conta de internet":
                     suggestion = "Internet / Celular"
-                elif catg in ("Conta de energia", "Conta de água"):
-                    suggestion = LACUNA_E if catg == "Conta de energia" else LACUNA_A
                 elif hits:
                     suggestion = self._best(hits[0][0], scope)
                 motivo = f'"{catg}" é categoria antiga (não usar em novos lançamentos).'
-                if suggestion in LACUNAS:
-                    motivo += " Consumo de casa/obra não tem categoria no manual — Utilidades é só do escritório. Decisão pendente do financeiro."
         if status == "DIVERGENTE" and uso != "ok":
             motivo += " (Categoria atual também é " + ("último recurso" if uso == "generica" else "descontinuada") + ".)"
             status = "GENERICA" if uso == "generica" else "DIVERGENTE"
@@ -747,7 +780,7 @@ class Motor:
             flags.append(("DESC", "Descrição vazia ou genérica."))
         if suggestion == catg:
             suggestion = None
-        sug_plano = M[suggestion]["plano"] if suggestion in M else ("(definir no manual)" if suggestion in LACUNAS else None)
+        sug_plano = M[suggestion]["plano"] if suggestion in M else None
         alertas = [fl[1] for fl in flags if fl[1] != motivo]
         return status, suggestion, sug_plano, motivo, alertas, cct
 
@@ -757,7 +790,7 @@ class Motor:
         linhas: iterável de (categoria, plano, grupo). Devolve lista de dicts."""
         cont = {}
         for cat, plano, grupo in linhas:
-            k = (cat or "").strip()
+            k = nome_atual((cat or "").strip())
             if not k:
                 continue
             c = cont.setdefault(k, {"n": 0, "planos": {}, "grupos": {}})
