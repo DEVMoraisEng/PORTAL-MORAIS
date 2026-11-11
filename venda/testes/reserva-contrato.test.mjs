@@ -91,20 +91,11 @@ test("bloco do contrato: 'Reservada até dd/mm hh:mm — 48 h para assinar'; ven
   assert.equal(D.estadoContrato({ gerado: true, reserva: { estado: "RESERVADA", ate: "<b>" } }).reserva, undefined);
 });
 
-test("vendas.html: mesma régua (reservaContratoDe / vendidaDe) e 'reservada' fora de vendida e disponível", () => {
+/* REGRA TRAVADA (Morais, 11/11/2026): na planilha de casas de rua o contrato gerado NÃO reserva mais a casa.
+   Se este teste falhar, alguém mexeu na regra — ver REGRAS-TRAVADAS.md, não ajuste o teste. */
+test("vendas.html: régua do contrato 48 h removida — tem cliente = vendida", () => {
   const html = readFileSync(new URL("../../vendas.html", import.meta.url), "utf8");
-  const trecho = /const RESERVA_CONTRATO_MS=[\s\S]*?\nfunction situacoesDe/.exec(html)[0].replace(/\nfunction situacoesDe$/, "");
-  const getV = (o, n) => o[n];
-  const normNome = (s) => String(s || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
-  const f = new Function("getV", "normNome", "temCliente", trecho + "; return { reservaContratoDe, vendidaDe };");
-  const { reservaContratoDe, vendidaDe } = f(getV, normNome, () => true);
-  assert.equal(reservaContratoDe({}), null);
-  assert.equal(vendidaDe({ valores: {} }), true, "sem contrato gerado: tem cliente = vendida (como sempre)");
-  const agora = new Date().toISOString();
-  assert.equal(reservaContratoDe({ "CONTRATO - GERADO EM": agora }), "RESERVADA");
-  assert.equal(vendidaDe({ valores: { "CONTRATO - GERADO EM": agora } }), false);
-  assert.equal(reservaContratoDe({ "CONTRATO - GERADO EM": new Date(Date.now() - 49 * H).toISOString() }), "LIBERADA");
-  assert.equal(vendidaDe({ valores: { "CONTRATO - GERADO EM": agora, "ASSINATURA - SITUAÇÃO": "ASSINADO" } }), true);
-  assert.match(html, /else if\(rc==="RESERVADA"\)\{ arr\.push\("reservada"\); \}/);
-  assert.equal((html.match(/<option value="reservada">/g) || []).length, 2);
+  assert.doesNotMatch(html, /reservaContratoDe|RESERVA_CONTRATO_MS/);
+  assert.match(html, /function vendidaDe\(rec\)\{ return temCliente\(rec\); \}/);
+  assert.equal((html.match(/<option value="reservada">/g) || []).length, 0);
 });
