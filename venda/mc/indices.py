@@ -44,6 +44,28 @@ def mes_do_periodo(p: dict) -> str:
     return str(p.get("date") or "")[:7]
 
 
+def serie_para_portal(tabelas) -> dict:
+    """{nome da tabela: {AAAA-MM: reajuste do mês}} das tabelas do robô, para a análise do condomínio (11/11/2026).
+    Período sem data ou com reajuste que não é número fica de fora."""
+    nomes = {x["nome"] for x in TABELAS}
+    out = {}
+    for t in tabelas or []:
+        nome = str((t or {}).get("name") or "").strip()
+        if nome not in nomes:
+            continue
+        meses = {}
+        for p in t.get("periods") or []:
+            mes = mes_do_periodo(p)
+            try:
+                v = float(p.get("readjust"))
+            except (TypeError, ValueError):
+                continue
+            if mes:
+                meses[mes] = round(v, 6)
+        out[nome] = dict(sorted(meses.items()))
+    return out
+
+
 def valor(readjust: float, acrescimo) -> float:
     return round(readjust + (acrescimo or 0), 6)
 

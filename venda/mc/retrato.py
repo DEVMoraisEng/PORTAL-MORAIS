@@ -180,6 +180,33 @@ def atualizar_todas(notion, erp, db_id: str, agora: str) -> tuple[int, int]:
     return ok, erro
 
 
+CENTRAL_PADRAO = "C:/AUTOMAÇÕES MAIS CONTROLE/_central"
+
+
+def salvar_indices(obter_erp, agora: str, pasta=None) -> bool:
+    """Guarda a série do INCC-M e do IPCA + 1% do ERP em <pasta>/indices-reajuste.json para a análise do condomínio
+    (11/11/2026). Só LÊ o ERP. Falha não derruba os retratos: o arquivo antigo fica e o log diz só o tipo do erro."""
+    import json, os, pathlib
+    from . import boletos as B
+    from . import indices as I
+    destino = pathlib.Path(pasta or os.environ.get("MC_CENTRAL") or CENTRAL_PADRAO) / "indices-reajuste.json"
+    tmp = destino.with_name("%s.%d.tmp" % (destino.name, os.getpid()))
+    try:
+        tabelas = I.serie_para_portal(B.ler_tabelas(obter_erp()))
+        if not tabelas:
+            raise ValueError("sem tabelas")
+        tmp.write_text(json.dumps({"lido": agora, "tabelas": tabelas}, ensure_ascii=False), encoding="utf-8")
+        os.replace(tmp, destino)
+        return True
+    except Exception as e:
+        try:
+            tmp.unlink()
+        except OSError:
+            pass
+        print("índices: falhou %s" % type(e).__name__)
+        return False
+
+
 def main(argv=None) -> int:
     """python -m venda.mc.retrato --page <pageId da VENDAS CONDOMÍNIO>   (uma venda)
        python -m venda.mc.retrato --todas                                (todas; lê DB_VENDAS_COND)
@@ -199,8 +226,15 @@ def main(argv=None) -> int:
         if not db_id:
             print("falta a variável DB_VENDAS_COND (base BANCO DE DADOS VENDAS CONDOMÍNIO)")
             return 2
-        ok, erro = atualizar_todas(Notion(os.environ["NOTION_TOKEN"]), E.do_ambiente, db_id, agora)
-        print("retratos: %d ok, %d erro" % (ok, erro))
+        cliente = []
+
+        def obter():   # um cliente do ERP só, para os retratos e para os índices
+            if not cliente:
+                cliente.append(E.do_ambiente())
+            return cliente[0]
+        ok, erro = atualizar_todas(Notion(os.environ["NOTION_TOKEN"]), obter, db_id, agora)
+        salvar_indices(obter, agora)   # 11/11/2026: série para a análise do condomínio; não muda o código de saída
+        print("retratos: %d ok, %d erro" % (ok, erro))   # a última linha do log continua sendo esta
         return 0 if erro == 0 else 1
     n = Notion(os.environ["NOTION_TOKEN"])
     props = (n.pagina(args.page) or {}).get("properties") or {}
