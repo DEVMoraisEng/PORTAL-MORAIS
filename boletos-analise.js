@@ -184,5 +184,149 @@
     return { de: "", ate: "" };
   }
 
-  return { CATEGORIAS, categoria, situacao, temAnalise, filtrar, resumo, indicadores, series, atalho, filtroAtivo, mesBr, mesMais };
+  /* ------------------------------------------------------------ HTML */
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, ch => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+  }
+  function brl(v) {
+    const n = Number(v) || 0, s = Math.abs(n).toFixed(2).split(".");
+    return (n < 0 ? "-" : "") + s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".") + "," + s[1];
+  }
+  function curto(v) {   // rótulo do eixo: 1,2 mi / 35 mil / 900
+    const n = Math.abs(Number(v) || 0);
+    if (n >= 1e6) return num(v / 1e6, n % 1e6 ? 1 : 0).replace(",0", "") + " mi";
+    if (n >= 1e3) return (Math.round(v / 100) / 10).toString().replace(".", ",") + " mil";
+    return String(Math.round(v));
+  }
+  const ABREV = ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"];
+  function mesCurto(m) { return ABREV[+m.slice(5, 7) - 1] + "/" + m.slice(2, 4); }
+
+  /* Eixo com 3 a 5 marcas em valores redondos; a última cobre o maior valor sem sobrar um passo inteiro. */
+  function eixo(max) {
+    if (!(max > 0)) return { fim: 1, passo: 1, marcas: [0, 1] };
+    const bruto = max / 4, mag = Math.pow(10, Math.floor(Math.log10(bruto)));
+    const passo = [1, 2, 2.5, 5, 10].map(k => k * mag).find(x => x >= bruto - 1e-9);
+    const n = Math.ceil(max / passo - 1e-9), fim = n * passo;
+    return { fim, passo, marcas: Array.from({ length: n + 1 }, (_, i) => Math.round(i * passo * 100) / 100) };
+  }
+
+  function htmlFiltros(fin, f) {
+    f = f || {};
+    const hoje = hojeDe(fin), P = (fin && fin.parcelas) || [];
+    const atalhoAtivo = ["mes", "3m", "ano", "tudo"].find(a => { const x = atalho(a, hoje); return x.de === (f.de || "") && x.ate === (f.ate || ""); }) || "";
+    const nomesAtalho = { mes: "Este mês", "3m": "Próximos 3 meses", ano: "Este ano", tudo: "Tudo" };
+    const opt = (v, txt, atual) => '<option value="' + esc(v) + '"' + (v === (atual || "") ? " selected" : "") + ">" + esc(txt) + "</option>";
+    const cats = new Set(P.map(categoria)), comParcela = new Set(P.map(p => p.u));
+    const unidades = ((fin && fin.unidades) || []).filter(u => comParcela.has(u.unidade));
+    return '<section class="quadro" aria-label="Filtros"><div class="topo"><div><h2>Análise financeira</h2>' +
+      '<span class="muted">Para a diretoria. Os filtros valem para os indicadores, os gráficos e a lista de unidades.</span></div></div>' +
+      '<div class="filtros analise">' +
+      '<label class="campo">De <input id="f-de" type="month" value="' + esc(f.de || "") + '"></label>' +
+      '<label class="campo">Até <input id="f-ate" type="month" value="' + esc(f.ate || "") + '"></label>' +
+      '<div class="campo">Atalhos <div class="atalhos">' + Object.keys(nomesAtalho).map(a =>
+        '<button type="button" class="chip atalho' + (a === atalhoAtivo ? " ativo" : "") + '" data-atalho="' + a + '" aria-pressed="' + (a === atalhoAtivo) + '">' + nomesAtalho[a] + "</button>").join("") + "</div></div>" +
+      '<label class="campo">Tipo <select id="f-tipo">' + opt("", "Todos", f.tipo) + CATEGORIAS.filter(x => cats.has(x.cat)).map(x => opt(x.cat, x.nome, f.tipo)).join("") + "</select></label>" +
+      '<label class="campo">Unidade <select id="f-unidade">' + opt("", "Todas", f.unidade) + unidades.map(u => opt(u.unidade, u.unidade + " · " + u.comprador, f.unidade)).join("") + "</select></label>" +
+      '<label class="campo">Situação <select id="f-situacao">' + opt("", "Todas", f.situacao) + opt("pago", "Pago", f.situacao) + opt("avencer", "A vencer", f.situacao) + opt("vencido", "Vencido", f.situacao) + "</select></label>" +
+      '<button type="button" id="f-limpar"' + (filtroAtivo(f) ? "" : " disabled") + ">Limpar filtros</button>" +
+      '</div><p class="muted nota">O período usa o mês de vencimento da parcela; no dinheiro recebido, o mês em que ele entrou.</p></section>';
+  }
+
+  function htmlIndicadores(lista) {
+    return '<section class="quadro" aria-label="Indicadores"><h2>Indicadores</h2><div class="inds">' + lista.map(x =>
+      '<div class="ind"><span class="rotulo">' + esc(x.rotulo) + "</span><b" + (x.alerta ? ' class="vermelho"' : "") + ">" +
+      esc(typeof x.valor === "number" ? brl(x.valor) : x.valor) + '</b><span class="n-tit">' + esc(x.sub) + "</span></div>").join("") + "</div></section>";
+  }
+
+  const W = 560, ESQ = 52, TOPO = 12, BAIXO = 26, DIR = 10;
+  function grade(e, h) {
+    return e.marcas.map(v => { const y = TOPO + h - h * v / e.fim;
+      return '<line x1="' + ESQ + '" x2="' + (W - DIR) + '" y1="' + y.toFixed(1) + '" y2="' + y.toFixed(1) + '" stroke="var(--border2)"/>' +
+        '<text x="' + (ESQ - 6) + '" y="' + (y + 4).toFixed(1) + '" text-anchor="end" font-size="10" fill="var(--text3)">' + curto(v) + "</text>"; }).join("");
+  }
+  function rotulosX(meses, x, H) {
+    const cada = Math.max(1, Math.ceil(meses.length / 12));
+    return meses.map((m, i) => i % cada ? "" : '<text x="' + x(i).toFixed(1) + '" y="' + (H - 8) + '" text-anchor="middle" font-size="10" fill="var(--text3)">' + mesCurto(m) + "</text>").join("");
+  }
+  function barra(x, y0, larg, alt, cor, dica) {
+    if (!(alt > 0)) return "";
+    const rr = Math.min(3, larg / 2, alt), y = y0 - alt;
+    return '<path d="M' + x.toFixed(1) + "," + y0.toFixed(1) + " V" + (y + rr).toFixed(1) + " q0,-" + rr.toFixed(1) + " " + rr.toFixed(1) + ",-" + rr.toFixed(1) +
+      " h" + (larg - 2 * rr).toFixed(1) + " q" + rr.toFixed(1) + ",0 " + rr.toFixed(1) + "," + rr.toFixed(1) + " V" + y0.toFixed(1) + ' Z" fill="' + cor + '" data-dica="' + esc(dica) + '"/>';
+  }
+  function svgBarras(meses, series, cores, nomes, dicaExtra, mesHoje, rotulo) {
+    const H = 230, h = H - TOPO - BAIXO, w = W - ESQ - DIR;
+    const e = eixo(Math.max(0, ...meses.map(m => Math.max(...series.map(s => s[m] || 0)))));
+    const g = w / meses.length, n = series.length, bw = Math.max(2, Math.min(16, (g - 4) / n - 2));
+    const centro = i => ESQ + g * i + g / 2;
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(rotulo) + '">' + grade(e, h);
+    meses.forEach((m, i) => {
+      const x0 = centro(i) - (bw * n + 2 * (n - 1)) / 2;
+      series.forEach((sr, k) => { const v = sr[m] || 0;
+        s += barra(x0 + k * (bw + 2), TOPO + h, bw, h * v / e.fim, cores[k], mesCurto(m) + " · " + nomes[k] + ": R$ " + brl(v) + (dicaExtra ? dicaExtra(m) : "")); });
+    });
+    const ih = meses.indexOf(mesHoje);
+    if (ih >= 0) s += '<g class="hoje"><line x1="' + (ESQ + g * ih).toFixed(1) + '" x2="' + (ESQ + g * ih).toFixed(1) + '" y1="' + TOPO + '" y2="' + (TOPO + h) + '" stroke="var(--text3)" stroke-dasharray="3 3"/>' +
+      '<text x="' + (ESQ + g * ih + 4).toFixed(1) + '" y="' + (TOPO + 10) + '" font-size="10" fill="var(--text3)">hoje</text></g>';
+    return s + rotulosX(meses, centro, H) + "</svg>";
+  }
+  function svgLinha(meses, valores, cor, rotulo) {
+    const H = 210, h = H - TOPO - BAIXO, w = W - ESQ - DIR - 6;
+    const e = eixo(Math.max(0, ...meses.map(m => valores[m] || 0)));
+    const g = meses.length > 1 ? w / (meses.length - 1) : 0, x = i => ESQ + 6 + (meses.length > 1 ? g * i : w / 2);
+    const pts = meses.map((m, i) => [x(i), TOPO + h - h * (valores[m] || 0) / e.fim]);
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(rotulo) + '">' + grade(e, h);
+    const caminho = pts.map(p => p[0].toFixed(1) + "," + p[1].toFixed(1)).join(" L");
+    s += '<path d="M' + caminho + " L" + pts[pts.length - 1][0].toFixed(1) + "," + (TOPO + h) + " L" + pts[0][0].toFixed(1) + "," + (TOPO + h) + ' Z" fill="' + cor + '" opacity=".12"/>';
+    s += '<path d="M' + caminho + '" fill="none" stroke="' + cor + '" stroke-width="2"/>';
+    const alvo = Math.max(14, g || w);
+    meses.forEach((m, i) => {
+      const [px, py] = pts[i];
+      s += '<circle cx="' + px.toFixed(1) + '" cy="' + py.toFixed(1) + '" r="' + (i === meses.length - 1 ? 5 : 4) + '" fill="' + cor + '" stroke="var(--sup)" stroke-width="2"/>' +
+        '<rect x="' + (px - alvo / 2).toFixed(1) + '" y="' + TOPO + '" width="' + alvo.toFixed(1) + '" height="' + h + '" fill="transparent" data-dica="' + esc(mesCurto(m) + " · vencido e não pago: R$ " + brl(valores[m] || 0)) + '"/>';
+    });
+    return s + rotulosX(meses, x, H) + "</svg>";
+  }
+  function svgDeitadas(itens, cor) {
+    const linha = 32, H = itens.length * linha + 8, ESQD = 150, max = Math.max(1, ...itens.map(i => i.valor));
+    let s = '<svg viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="A receber por tipo">';
+    itens.forEach((it, i) => {
+      const y = 6 + i * linha, bw = Math.max(2, (W - ESQD - 110) * it.valor / max), rr = 4;
+      s += '<text x="' + (ESQD - 8) + '" y="' + (y + 17) + '" text-anchor="end" font-size="12" fill="var(--text)">' + esc(it.nome) + "</text>" +
+        '<path d="M' + ESQD + "," + (y + 4) + " h" + (bw - rr).toFixed(1) + " q" + rr + ",0 " + rr + "," + rr + " v" + (16 - 2 * rr) + " q0," + rr + " -" + rr + "," + rr + " h-" + (bw - rr).toFixed(1) + ' Z" fill="' + cor + '" data-dica="' + esc(it.nome + ": R$ " + brl(it.valor)) + '"/>' +
+        '<text x="' + (ESQD + bw + 8).toFixed(1) + '" y="' + (y + 17) + '" font-size="12" fill="var(--text3)">R$ ' + curto(it.valor) + "</text>";
+    });
+    return s + "</svg>";
+  }
+  function tabela(cab, linhas) {
+    return '<details class="tab"><summary>Ver em tabela</summary><div class="rola"><table><thead><tr>' + cab.map((c, i) => "<th" + (i ? ' class="n"' : "") + ">" + esc(c) + "</th>").join("") +
+      "</tr></thead><tbody>" + linhas.map(l => "<tr>" + l.map((c, i) => i ? '<td class="n">' + esc(c) + "</td>" : "<td>" + esc(c) + "</td>").join("") + "</tr>").join("") + "</tbody></table></div></details>";
+  }
+  const VAZIO = '<p class="muted vazio">Nada para mostrar neste filtro.</p>';
+  function cartao(titulo, nota, corpo) {
+    return '<section class="quadro graf"><div><h3>' + esc(titulo) + '</h3><p class="muted nota">' + esc(nota) + "</p></div>" + corpo + "</section>";
+  }
+
+  function htmlGraficos(s) {
+    const meses = s.meses || [], passados = meses.filter(m => m < s.mesHoje);
+    const temMes = meses.some(m => (s.recebido[m] || 0) > 0 || (s.previsto[m] || 0) > 0);
+    const cx = cartao("Recebido × previsto por mês", "Até o mês atual, o que entrou contra o que vencia. Depois dele, o que ainda vai entrar. FGTS, financiamento e permuta ficam fora: entram de uma vez e achatariam os outros meses.",
+      temMes ? '<div class="legenda"><span><i class="s1"></i>Recebido</span><span><i class="s2"></i>Previsto</span></div><div class="g">' +
+        svgBarras(meses, [s.recebido, s.previsto], ["var(--s1)", "var(--s2)"], ["Recebido", "Previsto"], null, s.mesHoje, "Recebido e previsto por mês") + "</div>" +
+        tabela(["Mês", "Recebido", "Previsto"], meses.map(m => [mesCurto(m), m > s.mesHoje ? "—" : brl(s.recebido[m]), brl(s.previsto[m])])) : VAZIO);
+    const temCorr = meses.some(m => (s.correcao[m] || 0) !== 0);
+    const dicaIndice = m => { const x = s.indiceUsado[m]; return x ? " · INCC-M de " + mesCurto(x.mes) + ": " + num(x.valor, 2) + "%" : ""; };
+    const cc = cartao("Correção por mês", "Quanto a correção monetária somou às parcelas que vencem em cada mês. Passe o mouse para ver o INCC-M usado, de dois meses antes.",
+      temCorr ? '<div class="g">' + svgBarras(meses, [s.correcao], ["var(--s1)"], ["Correção"], dicaIndice, "", "Correção por mês") + "</div>" +
+        tabela(["Mês", "Correção", "INCC-M usado"], meses.map(m => [mesCurto(m), brl(s.correcao[m]), s.indiceUsado[m] ? mesCurto(s.indiceUsado[m].mes) + ": " + num(s.indiceUsado[m].valor, 2) + "%" : "—"])) : VAZIO);
+    const ci = cartao("Inadimplência no fim de cada mês", "Quanto estava vencido e não pago no último dia de cada mês, refeito com as baixas que o Mais Controle tem hoje.",
+      passados.length ? '<div class="g">' + svgLinha(passados, s.inadimplencia, "var(--ru)", "Inadimplência no fim de cada mês") + "</div>" +
+        tabela(["Mês", "Vencido e não pago"], passados.map(m => [mesCurto(m), brl(s.inadimplencia[m])])) : VAZIO);
+    const ct = cartao("A receber por tipo", "Onde está o dinheiro que ainda vai entrar.",
+      s.porTipo.length ? '<div class="g">' + svgDeitadas(s.porTipo, "var(--s1)") + "</div>" + tabela(["Tipo", "A receber"], s.porTipo.map(x => [x.nome, brl(x.valor)])) : VAZIO);
+    return '<div class="grade">' + cx + cc + ci + ct + "</div>";
+  }
+
+  return { CATEGORIAS, categoria, situacao, temAnalise, filtrar, resumo, indicadores, series, atalho, filtroAtivo, mesBr, mesMais,
+           eixo, htmlFiltros, htmlIndicadores, htmlGraficos };
 });

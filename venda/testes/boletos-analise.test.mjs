@@ -169,3 +169,67 @@ test("atalhos: este mês, próximos 3, este ano, tudo", () => {
   assert.deepEqual(BA.atalho("ano", "2026-11-11"), { de: "2026-01", ate: "2026-12" });
   assert.deepEqual(BA.atalho("tudo", "2026-11-11"), { de: "", ate: "" });
 });
+
+/* ------------------------------------------------------------ HTML (Tarefa 6) */
+test("filtros: período com atalhos, tipo, unidade e situação, com o valor escolhido marcado", () => {
+  const h = BA.htmlFiltros(GAB, { de: "2026-11", ate: "2027-01", tipo: "pre", unidade: "02", situacao: "vencido" });
+  for (const id of ["f-de", "f-ate", "f-tipo", "f-unidade", "f-situacao", "f-limpar"]) assert.match(h, new RegExp('id="' + id + '"'));
+  assert.match(h, /id="f-de"[^>]*value="2026-11"/);
+  assert.match(h, /<option value="pre" selected>Pré-chaves<\/option>/);
+  assert.match(h, /<option value="02" selected>02 · COMPRADOR B<\/option>/);
+  assert.match(h, /<option value="vencido" selected>Vencido<\/option>/);
+  assert.match(h, /data-atalho="3m" aria-pressed="true"/);
+  assert.equal((h.match(/data-atalho=/g) || []).length, 4);
+});
+test("filtros: só os tipos que existem nos dados", () => {
+  const h = BA.htmlFiltros(GAB, {});
+  assert.doesNotMatch(h, /value="pos"/);
+  assert.match(h, /value="permuta"/);
+  assert.match(h, /data-atalho="tudo" aria-pressed="true"/);
+});
+test("nome de comprador passa por esc()", () => {
+  const f = fin([parc({})], { unidades: [{ unidade: "01", comprador: '<img src=x onerror="1">' }] });
+  assert.doesNotMatch(BA.htmlFiltros(f, {}), /<img/);
+});
+test("indicadores: oito cartões, Vencido em vermelho só acima de zero", () => {
+  const h = BA.htmlIndicadores(BA.indicadores(GAB, {}));
+  assert.equal((h.match(/class="ind[ "]/g) || []).length, 8);
+  assert.match(h, /<b class="vermelho">1\.830,40<\/b>/);
+  const z = BA.htmlIndicadores(BA.indicadores(fin([parc({ a: 0, d: "2026-01-10" })]), {}));
+  assert.doesNotMatch(z, /vermelho/);
+});
+test("gráficos: quatro, com título, tabela e legenda no que tem duas séries", () => {
+  const h = BA.htmlGraficos(BA.series(GAB, {}));
+  for (const t of ["Recebido × previsto por mês", "Correção por mês", "Inadimplência no fim de cada mês", "A receber por tipo"]) assert.ok(h.includes(t), t);
+  assert.equal((h.match(/Ver em tabela/g) || []).length, 4);
+  assert.equal((h.match(/class="legenda"/g) || []).length, 1);
+  assert.match(h, /class="legenda"[^]*Recebido[^]*Previsto/);
+});
+test("gráfico mensal marca o mês atual e tem dica em cada barra", () => {
+  const h = BA.htmlGraficos(BA.series(GAB, {}));
+  assert.match(h, /class="hoje"/);
+  assert.match(h, /data-dica="nov\/26 · Previsto: R\$ [\d.,]+"/);
+});
+test("dica da correção diz o INCC-M usado, de dois meses antes", () => {
+  const f = fin([parc({ d: "2026-11-10", o: 1000, v: 1004.2 })], { indices: { tabelas: { "INCC-M": { "2026-09": 0.42 } } } });
+  assert.match(BA.htmlGraficos(BA.series(f, {})), /data-dica="nov\/26 · Correção: R\$ 4,20 · INCC-M de set\/26: 0,42%"/);
+});
+test("eixo: maior marca do eixo cobre o maior valor sem passar de um passo", () => {
+  for (const max of [1, 9, 10, 37, 1234.5, 99999, 1830.4]) {
+    const e = BA.eixo(max);
+    assert.ok(e.fim >= max, "fim " + e.fim + " < " + max);
+    assert.ok(e.fim - e.passo < max, "um passo a mais em " + max);
+    assert.equal(e.marcas.length, Math.round(e.fim / e.passo) + 1);
+  }
+  assert.deepEqual(BA.eixo(0), { fim: 1, passo: 1, marcas: [0, 1] });
+});
+test("gráfico sem dados mostra aviso, não NaN", () => {
+  const h = BA.htmlGraficos(BA.series(fin([]), {}));
+  assert.doesNotMatch(h, /NaN|undefined|Infinity/);
+  assert.match(h, /Nada para mostrar neste filtro/);
+});
+test("tabela do gráfico mensal tem uma linha por mês, com os números do gráfico", () => {
+  const s = BA.series(fin([parc({ d: "2026-10-10", v: 1000, a: 0, r: [["2026-10-10", 1000]] })]), {});
+  const h = BA.htmlGraficos(s);
+  assert.match(h, /<tr><td>out\/26<\/td><td class="n">1\.000,00<\/td><td class="n">1\.000,00<\/td><\/tr>/);
+});
