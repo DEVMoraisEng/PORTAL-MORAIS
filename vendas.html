@@ -2279,6 +2279,7 @@ function condAbrir(id){
     (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
     condLinkVendaHtml(l)+
     condAtualizarVendaHtml(l)+
+    condDistratoHtml(l)+
     '</div>'+
     /* aba Contrato: datas que entram no contrato e o quadro do pro soluto (recolhido); os blocos do contrato,
        assinatura e Mais Controle vêm do venda-dossie.js logo abaixo, em #cd-venda */
@@ -2311,6 +2312,71 @@ function condPodeAtualizarVenda(l){
   if(!l || SO_LEITURA || !window.AtualizarVendaUI) return false;
   if(!String(cdVal(l,"ID PROPOSTA")||"").trim()) return false;
   return !(cdTemArq(cdVal(l,"CONTRATO GERADO"))||!!cdSit(l,"ASSINATURA - SITUAÇÃO"));
+}
+/* 11/11/2026 (dono) — DISTRATO pela Planilha Casas Condomínio (aba Resumo do cartão). É o mesmo distrato da proposta
+   em Simulações (simsStatusInternoAcao, status DISTRATO): a venda é copiada com os arquivos para DISTRATOS
+   CONDOMÍNIO, sai do BANCO DE DADOS VENDAS CONDOMÍNIO, a unidade volta a DISPONÍVEL e a proposta fica DISTRATO.
+   Só com a proposta ligada (ID PROPOSTA) e para quem grava; o servidor confere de novo. */
+function condPodeDistrato(l){
+  return !!l && !SO_LEITURA && !!String(cdVal(l,"ID PROPOSTA")||"").trim();
+}
+function condDistratoHtml(l){
+  if(!l || SO_LEITURA) return "";
+  if(!condPodeDistrato(l)) return '<div class="cd-dica" style="margin-top:10px">Distrato: esta venda não tem proposta ligada (ID PROPOSTA) — faça pela proposta em Simulações.</div>';
+  const un=esc(String(cdVal(l,COND&&COND.titulo||"UNIDADE")||cdVal(l,"UNIDADE")||""));
+  return '<div class="cd-dist" style="margin-top:14px">'+
+    '<button type="button" class="cd-bt" style="background:#6B5A45;border-color:#6B5A45;color:#fff" onclick="condDistratoAbrir()">Distrato</button>'+
+    '<div id="cd-dist-box" style="display:none;margin-top:8px;border:1.5px solid #E7B3A6;background:#FDF1EE;border-radius:10px;padding:12px">'+
+      '<b style="color:#8A2E17">Distrato da unidade '+un+'</b>'+
+      '<div style="font-size:12px;margin:4px 0 8px">A venda é copiada (com os arquivos) para a base <b>DISTRATOS CONDOMÍNIO</b>, sai do BANCO DE DADOS VENDAS CONDOMÍNIO e a unidade volta a <b>DISPONÍVEL</b>. A proposta fica como DISTRATO.</div>'+
+      '<textarea id="cd-dist-motivo" rows="3" placeholder="Motivo do distrato (obrigatório)" style="width:100%;box-sizing:border-box;font:inherit;font-size:13px"></textarea>'+
+      '<div style="display:flex;gap:8px;margin-top:8px"><button type="button" class="cd-bt" id="cd-dist-ok" onclick="condDistrato(COND_ABERTA)">Confirmar distrato</button>'+
+      '<button type="button" class="cd-bt" onclick="condDistratoAbrir(false)">Cancelar</button></div>'+
+    '</div>'+
+    '<div id="cd-dist-aviso" style="font-size:13px;margin-top:8px"></div>'+
+  '</div>';
+}
+function condDistratoAbrir(abrir){
+  const b=document.getElementById("cd-dist-box"); if(!b) return;
+  b.style.display=(abrir===false)?"none":"block";
+  const t=document.getElementById("cd-dist-motivo"); if(t&&abrir!==false) setTimeout(()=>t.focus(),50);
+}
+async function condDistrato(id){
+  const l=COND&&COND.linhas.find(x=>x.id===id); if(!l) return;
+  const av=document.getElementById("cd-dist-aviso");
+  const pid=String(cdVal(l,"ID PROPOSTA")||"").trim();
+  const un=String(cdVal(l,COND.titulo)||cdVal(l,"UNIDADE")||"");
+  const motivo=((document.getElementById("cd-dist-motivo")||{}).value||"").trim();
+  if(!pid){ av.style.color="var(--vermelho)"; av.textContent="Esta venda não tem proposta ligada (ID PROPOSTA)."; return; }
+  if(!motivo){ av.style.color="var(--vermelho)"; av.textContent="Escreva o motivo do distrato."; return; }
+  if(!confirm("Confirmar o DISTRATO da unidade "+un+"?\n\nA venda sai do BANCO DE DADOS VENDAS CONDOMÍNIO (fica guardada em DISTRATOS CONDOMÍNIO) e a unidade volta a DISPONÍVEL.")) return;
+  const ok=document.getElementById("cd-dist-ok"); if(ok) ok.disabled=true;
+  const t0=Date.now();
+  const pintar=()=>{ av.style.color=""; av.innerHTML='<span class="load"></span> Copiando a venda e os arquivos para DISTRATOS CONDOMÍNIO, tirando a linha do banco de vendas e liberando a unidade… '+Math.round((Date.now()-t0)/1000)+' s'; };
+  pintar(); const tm=setInterval(pintar,1000);
+  let r=null;
+  try{ r=await chamar({action:"simsStatusInternoAcao", pageId:pid, status:"DISTRATO", motivo:motivo}, 240000, true); }
+  catch(e){ r={ok:false, erro:(e&&e.name==="AbortError")?"TEMPO_ESGOTADO":"SEM_CONEXAO"}; }
+  clearInterval(tm);
+  if(!r||!r.ok){
+    if(ok) ok.disabled=false;
+    av.style.color="var(--vermelho)";
+    av.textContent=(r&&r.erro==="MODO_TESTE")?"Perfil TESTES não grava.":
+      ((r&&(r.mensagem||r.erro))||"Não gravou.")+((r&&r.erro==="TEMPO_ESGOTADO")?" — o servidor pode ter terminado: clique em ↻ Atualizar antes de repetir.":"");
+    return;
+  }
+  const a=r.arquivos||{};
+  av.style.color="";
+  av.innerHTML='<b>✓ Distrato feito.</b> '+(r.semVenda?"Não havia linha desta proposta no banco de vendas — unidade liberada e proposta marcada como DISTRATO."
+    :'Venda guardada em <b>DISTRATOS CONDOMÍNIO</b>'+(r.distratoUrl?' (<a href="'+esc(r.distratoUrl)+'" target="_blank" rel="noopener">abrir no Notion</a>)':'')+
+     ' e retirada do banco de vendas. Unidade '+esc(String(r.unidade||un))+' DISPONÍVEL.'+
+     '<br><span style="font-size:12px">Arquivos: '+(a.copiados||0)+' copiado(s)'+(a.naFila?' · '+a.naFila+' coluna(s) terminando em segundo plano':'')+
+     ((a.falhas||[]).length?' · <span style="color:var(--vermelho)">'+esc(a.falhas.join("; "))+'</span>':'')+'</span>')+
+    (r.avisoUnidade?'<br><span style="font-size:12px;color:var(--vermelho)">Unidade: '+esc(r.avisoUnidade)+'</span>':'');
+  const b=document.getElementById("cd-dist-box"); if(b) b.style.display="none";
+  /* a linha saiu da base: tira da planilha já (o cartão fica aberto com o resultado) */
+  COND.linhas=COND.linhas.filter(x=>x.id!==id);
+  try{ condRender(); }catch(e){}
 }
 function condAtualizarVendaHtml(l){
   if(!condPodeAtualizarVenda(l)) return "";
