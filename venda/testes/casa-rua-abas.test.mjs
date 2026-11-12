@@ -238,3 +238,11 @@ test("datas de assinatura: rótulo de tela na casa de rua e no condomínio; Noti
   assert.equal(f.rotuloRua("MANDOU TODOS OS DOCS. P/ CORESSPONDENTE?"), "MANDOU TODOS OS DOCS. P/ CORRESPONDENTE?");
   assert.match(vendas, /data-col="\$\{esc\(c\.nome\)\}" title="Ordenar por \$\{esc\(c\.nome\.trim\(\)\)\}">\$\{esc\(rotuloRua\(c\.nome\)\)\}/, "planilha: data-col segue o nome do Notion");
 });
+
+test("pares: ASSINOU E ARMAZENOU + data da Caixa num bloco só, um em cima do outro (12/11)", () => {
+  assert.deepEqual(P.agruparPares(["EMITIU RCPM?", "ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "VALOR DA PARCELA", "DATA DE ASSINATURA DO CONTRATO", "RECEBEU?"]),
+    ["EMITIU RCPM?", ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"], "VALOR DA PARCELA", "RECEBEU?"]);
+  assert.deepEqual(P.agruparPares(["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "RECEBEU?"]), ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "RECEBEU?"], "sem a data, fica sozinho");
+  assert.deepEqual(P.agruparPares(["DATA DE ASSINATURA DO CONTRATO "]), ["DATA DE ASSINATURA DO CONTRATO "]);
+  assert.match(vendas, /pnItens\(nomes\)\.map\(it=>Array\.isArray\(it\)\?`<div class="pn-par">`/);
+});
