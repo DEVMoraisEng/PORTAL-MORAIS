@@ -463,6 +463,8 @@ html[data-tema="escuro"] .proc-it.nao .proc-val{color:#ff8a7a}
 @media (max-width:600px){ .proc{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .pn-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:0 11px}
 .pn-grade>.campo{padding:0 11px}
+.pn-grade>.pn-par{grid-row:span 2;display:grid;grid-template-rows:subgrid;align-items:end}
+.pn-grade>.pn-par>.campo{padding:0 11px}
 .pn-grade>.campo:has(.msgrid),.pn-grade>.campo:has(textarea){grid-column:1/-1}
 .pn-vazio{margin:18px 22px;color:var(--text3);font-size:13px}
 @media (max-width:600px){ .pn-grade{grid-template-columns:1fr} .pn-abas .tab{padding:8px 2px;font-size:11px} }
@@ -1291,7 +1293,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
-<script src="venda/painel-casa.js?v=7"></script>
+<script src="venda/painel-casa.js?v=9"></script>
 <script src="venda/FluxoLivre.js?v=22"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
@@ -1527,6 +1529,12 @@ function ordenarPorPrefixo(campos){
    achava, então o campo entrava DE NOVO na lista geral, além do bloco de resumo.
    Comparar normalizado resolve para qualquer coluna com espaço/acento sobrando. */
 const RESUMO_NORM=RESUMO.map(normNome);
+/* 12/11/2026 (dono): as duas datas de assinatura com nome que diz qual contrato é. Só na TELA — a coluna do Notion
+   continua com o nome antigo (robôs, Apps Script e site de vendas leem por ele). Casa de rua (VENDAS): a compra e venda
+   com a construtora é a DATA DA VENDA; a DATA DE ASSINATURA DO CONTRATO é a da Caixa (fica ~28 dias depois). */
+const ROTULO_DATA_CV="DATA DA ASSINATURA – COMPRA E VENDA (CONSTRUTORA)", ROTULO_DATA_CAIXA="DATA DA ASSINATURA – CONTRATO CAIXA";
+const ROTULOS_RUA={[normNome("DATA DA VENDA")]:ROTULO_DATA_CV,[normNome("DATA DE ASSINATURA DO CONTRATO")]:ROTULO_DATA_CAIXA};
+function rotuloRua(nome){ return ROTULOS_RUA[normNome(nome)]||String(nome||"").trim().replace(/CORESSPONDENTE/g,"CORRESPONDENTE").replace(/\bENTEGOU\b/g,"ENTREGOU"); }
 function camposBase(onde){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome,onde)&&c.nome!=="ENDEREÇO"&&RESUMO_NORM.indexOf(normNome(c.nome))<0); }
 function ordemColunas(){
   // Setor com lista própria (COLUNAS_SETOR): mostra só aquilo, na ordem pedida.
@@ -1951,7 +1959,7 @@ function condRender(){
   }).sort((a,b)=>String(cdVal(a,tit)||"").localeCompare(String(cdVal(b,tit)||""),"pt-BR",{numeric:true}));
   document.getElementById("cd-count").textContent=linhas.length+" unidade(s)";
   if(!COND.linhas.length){ document.getElementById("cd-wrap").innerHTML='<div class="vazio">Nenhuma venda no banco ainda. Marque uma proposta como <b>VENDIDA</b> em Simulações → Propostas para ela aparecer aqui.</div>'; return; }
-  let h='<table><thead><tr>'+cols.map((c,i)=>'<th>'+esc(c.nome)+'</th>'+(i===0?'<th>Etapa</th>':'')).join("")+'</tr></thead><tbody>';
+  let h='<table><thead><tr>'+cols.map((c,i)=>'<th title="'+esc(c.nome)+'">'+esc(cdRotuloTela(c.nome))+'</th>'+(i===0?'<th>Etapa</th>':'')).join("")+'</tr></thead><tbody>';
   linhas.forEach(l=>{
     h+='<tr data-id="'+esc(l.id)+'">'+cols.map((c,i)=>{
       const v=cdVal(l,c.nome), ed=cdEditavel(c)&&i>0;
@@ -2443,7 +2451,9 @@ const CD_AND_GRUPOS=[
   ["CONTRATO",/CONTRATO|PREFERENCIA/]
 ];
 /* 31/10/2026: erros de digitação dos nomes de coluna do Notion só na tela (a coluna não é renomeada) */
-function cdRotuloTela(n){ return String(n||"").replace(/CORESSPONDENTE/g,"CORRESPONDENTE").replace(/\bENTEGOU\b/g,"ENTREGOU"); }
+/* 12/11/2026: no condomínio a DATA DE ASSINATURA DO CONTRATO é a compra e venda e a "… NO BANCO" é a da Caixa (só tela) */
+const ROTULOS_COND={[normNome("DATA DE ASSINATURA DO CONTRATO")]:ROTULO_DATA_CV,[normNome("DATA DE ASSINATURA DO CONTRATO NO BANCO")]:ROTULO_DATA_CAIXA};
+function cdRotuloTela(n){ if(ROTULOS_COND[normNome(n)]) return ROTULOS_COND[normNome(n)]; return String(n||"").replace(/CORESSPONDENTE/g,"CORRESPONDENTE").replace(/\bENTEGOU\b/g,"ENTREGOU"); }
 function condAndamentoHtml(l){
   const cols=condAndamentoCols(); if(!cols.length) return "";
   const campos=cols.map((c,k)=>{
@@ -3712,7 +3722,7 @@ function setaOrd(ctx, colNome){
 /* <th> ordenável: mantém o "stick" da 1ª coluna, guarda o nome em data-col */
 function thCol(c, i, ctx){
   const cls=(i===0?"stick ":"")+"ord"+(ORDEM_TAB[ctx]&&normNome(ORDEM_TAB[ctx].col)===normNome(c.nome)?" ord-ativa":"");
-  return `<th class="${cls}" data-col="${esc(c.nome)}" title="Ordenar por ${esc(c.nome.trim())}">${esc(c.nome.trim())}${setaOrd(ctx,c.nome)}</th>`;
+  return `<th class="${cls}" data-col="${esc(c.nome)}" title="Ordenar por ${esc(c.nome.trim())}">${esc(rotuloRua(c.nome))}${setaOrd(ctx,c.nome)}</th>`;
 }
 function atualizarSetas(ctx){
   document.querySelectorAll("#"+ctx+"-wrap thead th.ord").forEach(th=>{
@@ -4427,22 +4437,22 @@ async function editarToggle(pageId,prop,btn){
    Travado de propósito: input vazio e editável convidaria a digitar por cima e
    apagar o dado real no Notion. */
 function sensPendenteHtml(c){
-  return `<div class="campo"><label>${esc(c.nome.trim())}</label><div class="sens-ro">••• carregando…</div></div>`;
+  return `<div class="campo"><label>${esc(rotuloRua(c.nome))}</label><div class="sens-ro">••• carregando…</div></div>`;
 }
 function sensPendenteResumoHtml(c){
-  return `<div class="ri"><div class="k">${esc(c.nome.trim())}</div><div class="sens-ro">•••</div></div>`;
+  return `<div class="ri"><div class="k">${esc(rotuloRua(c.nome))}</div><div class="sens-ro">•••</div></div>`;
 }
 function campoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteHtml(c);
-  if(bloqueadoParaMim(c)) return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
+  if(bloqueadoParaMim(c)) return `<div class="campo"><label>${esc(rotuloRua(c.nome))} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
   /* Endereço (nome da obra): 05/11/2026 (dono) ninguém muda pelo painel, ADM inclusive — saiu do Resumo; se algum
      caminho ainda pedir a caixa, ela vem só leitura */
-  if(normNome(c.nome)==="ENDERECO") return `<div class="campo"><label>${esc(c.nome.trim())} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
-  return `<div class="campo"><label>${esc(c.nome.trim())}</label>${inputControl(c,valor,pageId)}</div>`;
+  if(normNome(c.nome)==="ENDERECO") return `<div class="campo"><label>${esc(rotuloRua(c.nome))} <span style="color:var(--text4);font-weight:500">(somente leitura)</span></label><div class="ro">${esc(valor||"—")}</div></div>`;
+  return `<div class="campo"><label>${esc(rotuloRua(c.nome))}</label>${inputControl(c,valor,pageId)}</div>`;
 }
 function campoResumoHtml(c,valor,pageId,sensPendente){
   if(c.sensivel && sensPendente) return sensPendenteResumoHtml(c);
-  return `<div class="ri"><div class="k">${esc(c.nome.trim())}</div>${inputControl(c,valor,pageId)}</div>`;
+  return `<div class="ri"><div class="k">${esc(rotuloRua(c.nome))}</div>${inputControl(c,valor,pageId)}</div>`;
 }
 /* 05/11/2026 (dono): a mesma coluna em duas abas (Resumo e Compradores → Comprador 1). Cada caixa leva
    data-espelho=<nome normalizado>; ao editar uma, pnEspelhar põe o valor novo nas outras — nunca duas caixas
@@ -4602,7 +4612,10 @@ function renderPainel(V,pageId,sensPendente){
     const aba=pnAbaDoCampo(nome);
     (porAba[aba]||porAba.andamento).push(nome);
   });
-  const blocoTitulado=(nomes,titulo,antes)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+nomes.map(n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente)).join("")+`</div>`:"";
+  /* 12/11/2026 (dono): pares (ASSINOU E ARMAZENOU… + a data) ficam num bloco só, um em cima do outro (venda/painel-casa.js, PARES) */
+  const pnCampo=n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente);
+  const pnItens=nomes=>{ try{ if(window.PainelCasa&&window.PainelCasa.agruparPares) return window.PainelCasa.agruparPares(nomes); }catch(e){} return nomes; };
+  const blocoTitulado=(nomes,titulo,antes)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+pnItens(nomes).map(it=>Array.isArray(it)?`<div class="pn-par">`+it.map(pnCampo).join("")+`</div>`:pnCampo(it)).join("")+`</div>`:"";
   /* 05/11/2026 (dono): Comprador 1 mostra nome, CPF, WhatsApp e e-mail do Resumo — a MESMA coluna (venda/painel-casa.js,
      ESPELHO_COMPRADOR1); o COMPRADOR 1 - E-MAIL antigo só aparece se tiver algo diferente do Email */
   const espC1=pnEspelhoComprador1(V,pageId,sensPendente);
