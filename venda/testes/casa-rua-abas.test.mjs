@@ -222,7 +222,7 @@ test("resumo do processo acha as colunas pelo nome e pelo padrão", () => {
 });
 
 /* 12/11/2026 (dono): duas datas de assinatura com nome que diz qual contrato é — só na tela */
-test("datas de assinatura: rótulo de tela na casa de rua e no condomínio; Notion com o nome antigo; as duas no Resumo", () => {
+test("datas de assinatura: rótulo de tela na casa de rua e no condomínio; Notion com o nome antigo; Caixa no Andamento", () => {
   const trecho = (ini, fim) => { const i = vendas.indexOf(ini); assert.ok(i >= 0, ini); return vendas.slice(i, vendas.indexOf(fim, i) + fim.length); };
   const fonte = [trecho("const _NORM_CACHE=", "\n"), trecho("function _normNomeBruto(", "\n"), trecho("function normNome(s){", "\n}"),
     trecho("const ROTULO_DATA_CV=", "\n"), trecho("const ROTULOS_RUA=", "\n"), trecho("function rotuloRua(", "\n"),
@@ -234,6 +234,7 @@ test("datas de assinatura: rótulo de tela na casa de rua e no condomínio; Noti
   assert.equal(f.cdRotuloTela("DATA DE ASSINATURA DO CONTRATO"), "DATA DA ASSINATURA – COMPRA E VENDA (CONSTRUTORA)");
   assert.equal(f.cdRotuloTela("DATA DE ASSINATURA DO CONTRATO NO BANCO"), "DATA DA ASSINATURA – CONTRATO CAIXA");
   assert.equal(f.cdRotuloTela("MANDOU P/ CORESSPONDENTE?"), "MANDOU P/ CORRESPONDENTE?");
-  assert.match(vendas, /"DATA DA VENDA","DATA DE ASSINATURA DO CONTRATO","VALOR DE COMPRA/, "as duas datas lado a lado no Resumo");
+  assert.match(vendas, /"Email","DATA DA VENDA","VALOR DE COMPRA/, "Resumo: só a compra e venda; a da Caixa fica no Andamento, junto do assinou e armazenou (dono 12/11)");
+  assert.equal(f.rotuloRua("MANDOU TODOS OS DOCS. P/ CORESSPONDENTE?"), "MANDOU TODOS OS DOCS. P/ CORRESPONDENTE?");
   assert.match(vendas, /data-col="\$\{esc\(c\.nome\)\}" title="Ordenar por \$\{esc\(c\.nome\.trim\(\)\)\}">\$\{esc\(rotuloRua\(c\.nome\)\)\}/, "planilha: data-col segue o nome do Notion");
 });

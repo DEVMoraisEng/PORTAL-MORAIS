@@ -1339,7 +1339,7 @@ let PLANILHA_SETOR=null;
 /* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
 /* 16/10: TELEFONE CORRETOR logo depois de CORRETOR (planilha geral, Secretária de Vendas e painel da casa).
    Enquanto a coluna não existir no Notion, ela simplesmente não aparece. */
-const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","DATA DE ASSINATURA DO CONTRATO","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","TELEFONE CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
+const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","TELEFONE CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
 
 /* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretária de Vendas"
    e foi criado o novo departamento "Gestor de Vendas".
@@ -1532,7 +1532,7 @@ const RESUMO_NORM=RESUMO.map(normNome);
    com a construtora é a DATA DA VENDA; a DATA DE ASSINATURA DO CONTRATO é a da Caixa (fica ~28 dias depois). */
 const ROTULO_DATA_CV="DATA DA ASSINATURA – COMPRA E VENDA (CONSTRUTORA)", ROTULO_DATA_CAIXA="DATA DA ASSINATURA – CONTRATO CAIXA";
 const ROTULOS_RUA={[normNome("DATA DA VENDA")]:ROTULO_DATA_CV,[normNome("DATA DE ASSINATURA DO CONTRATO")]:ROTULO_DATA_CAIXA};
-function rotuloRua(nome){ return ROTULOS_RUA[normNome(nome)]||String(nome||"").trim(); }
+function rotuloRua(nome){ return ROTULOS_RUA[normNome(nome)]||String(nome||"").trim().replace(/CORESSPONDENTE/g,"CORRESPONDENTE").replace(/\bENTEGOU\b/g,"ENTREGOU"); }
 function camposBase(onde){ return SCHEMA.filter(c=>c.tipo!=="rollup"&&c.tipo!=="relation"&&!nomeExcluido(c.nome,onde)&&c.nome!=="ENDEREÇO"&&RESUMO_NORM.indexOf(normNome(c.nome))<0); }
 function ordemColunas(){
   // Setor com lista própria (COLUNAS_SETOR): mostra só aquilo, na ordem pedida.
