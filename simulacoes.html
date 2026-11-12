@@ -324,6 +324,9 @@ td.insumo.link:hover{background:var(--bg3)}
   text-transform:uppercase;padding:7px 14px;border:0;background:transparent;color:var(--text3);cursor:pointer}
 .seg-bt.on{background:var(--azul);color:#fff}
 .seg-bt:hover:not(.on){color:var(--azul)}
+/* 12/11: na aba Propostas os filtros não podem ser cortados ("VEND…" sumia): a linha quebra e cada grupo mantém a largura */
+#tab-propostas > .sec{flex-wrap:wrap;row-gap:8px}
+#tab-propostas > .sec > .seg{flex-shrink:0;flex-wrap:wrap;max-width:100%}
 /* MELHORIAS #8: barras horizontais em HTML puro (sem canvas/biblioteca) */
 .barras{display:flex;flex-direction:column;gap:7px}
 .bl{display:grid;grid-template-columns:minmax(180px,26%) 1fr minmax(120px,auto);gap:12px;align-items:center;font-size:12.5px}
