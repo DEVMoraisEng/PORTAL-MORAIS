@@ -1108,6 +1108,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
         </div>
         <div class="cd-dica">Clique no número da <b>unidade</b> para abrir o card com o fluxo de pagamento. Clique numa célula com fundo azulado para editar.
           Ao preencher a <b>data de assinatura</b>, o <b>dia de pagamento</b> ou a <b>data da entrega</b>, as datas, o nº de parcelas e os valores do fluxo são recalculados.</div>
+        <div id="rp-faixa-cond" style="display:none"></div><!-- 12/11: reservas que caem em 24 h (venda/reserva-prazo-ui.js) -->
         <div class="tabela-wrap" id="cd-wrap"><div class="vazio">Carregando…</div></div>
       </div>
       <div id="cd-card" class="cd-ov" style="display:none" onclick="if(event.target===this)condFechar()"></div>
@@ -1300,6 +1301,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda-dossie.js?v=85"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
+<script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: faixa "a reserva cai amanhã" -->
 <script>
 /* claro/escuro — a escolha vale só para quem clicou, no navegador dele.
    Mesma chave (morais_tema) das outras páginas do portal. */
@@ -1880,7 +1882,11 @@ function cdAddMes(iso,n,dia){
   return y+"-"+String(m).padStart(2,"0")+"-"+String(d).padStart(2,"0");
 }
 
-async function abrirCondominio(){ if(!COND) await condCarregar(false); else condRender(); }
+async function abrirCondominio(){
+  /* 12/11: faixa das reservas que caem em 24 h, com o Adiar para a diretoria (venda/reserva-prazo-ui.js) */
+  try{ if(window.ReservaPrazoUI) ReservaPrazoUI.faixa("rp-faixa-cond"); }catch(e){}   /* a faixa é para todos; o Adiar só para quem o servidor libera */
+  if(!COND) await condCarregar(false); else condRender();
+}
 async function condCarregar(forcar){
   if(COND_CARREGANDO) return; COND_CARREGANDO=true;
   const wrap=document.getElementById("cd-wrap");
