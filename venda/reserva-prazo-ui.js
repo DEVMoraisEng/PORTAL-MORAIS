@@ -76,7 +76,7 @@
     const st = document.createElement("style"); st.id = "rp-estilo";
     st.textContent = `
 .rp-faixas{display:flex;flex-direction:column;gap:6px;margin:0 0 12px}
-.rp-faixa{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#FBE9E7;color:#5E1E16;border-left:5px solid #C0392B;
+.rp-faixa{display:flex;gap:10px;align-items:center;flex-wrap:wrap;background:#FBE9E7;color:#5E1E16;border:1px solid #E8B4AD;
   border-radius:7px;padding:9px 12px;font-size:13.5px;line-height:1.45;min-width:0}
 .rp-faixa span{flex:1 1 260px;min-width:0;overflow-wrap:anywhere}
 .rp-bt{font:600 13px inherit;padding:7px 12px;border-radius:7px;border:1px solid #C0392B;background:#fff;color:#A02C20;cursor:pointer;white-space:nowrap}
