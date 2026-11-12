@@ -88,12 +88,31 @@
    * frente); o primeiro que casar leva o campo, o resto fica em CADASTRO DA CASA */
   var DEPARTAMENTOS = [
     ["REPAROS E VISTORIA", /REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/],
-    ["BANCO E CORRESPONDENTE", /CORR?ESS?PONDENTE|CONFORMIDADE|CONFORME|BANCO|^RECEBEU\?|ENVIO DOS DOC|RCPM|FGTS|FINANCIADO|SUBSIDIO|AGENCIA|PARCELA/],
+    ["BANCO E CORRESPONDENTE", /^DATA DE ASSINATURA DO CONTRATO|CORR?ESS?PONDENTE|CONFORMIDADE|CONFORME|BANCO|^RECEBEU\?|ENVIO DOS DOC|RCPM|FGTS|FINANCIADO|SUBSIDIO|AGENCIA|PARCELA/],
     ["CARTÓRIO E IMPOSTOS", /ITBI|CARTORIO|REGISTRO|GCAP|CADASTRO/],
     ["ENTREGA DA CASA", /VISTORIA|MANUAL|ENTREGA|ENTEGOU|PESQUISA|CONCLUSAO/],
     ["ÁGUA E ENERGIA", /AGUA|ENERGIA|CONTAS|TRANSFERENCIA/],
     ["CONTRATO", /CONTRATO|PREFERENCIA/]
   ];
+  /* 12/11/2026 (dono): a DATA DE ASSINATURA DO CONTRATO (contrato do banco) fica no BANCO E CORRESPONDENTE, logo depois
+   * do ASSINOU E ARMAZENOU CONTRATO DO BANCO? — antes caía em CONTRATO, no fim do Andamento, longe dele. */
+  /* 12/11/2026 (dono): "tem que ficar na mesma lógica, um em cima do outro" — campos que andam juntos viram UM bloco da
+   * grade (a pergunta em cima, a data embaixo, na mesma coluna). [pergunta, data]; o segundo sai de onde estiver. */
+  var PARES = [["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"]];
+  /* nomes -> itens da grade: string (campo sozinho) ou [a, b] (par); só junta quando os dois existem */
+  function agruparPares(nomes) {
+    var lista = (nomes || []).slice(), chaves = lista.map(norm), usado = {}, out = [];
+    lista.forEach(function (nome, i) {
+      if (usado[i]) return;
+      for (var k = 0; k < PARES.length; k++) {
+        if (chaves[i] !== norm(PARES[k][0])) continue;
+        var j = chaves.indexOf(norm(PARES[k][1]));
+        if (j >= 0 && !usado[j]) { usado[i] = usado[j] = true; out.push([nome, lista[j]]); return; }
+      }
+      usado[i] = true; out.push(nome);
+    });
+    return out;
+  }
   var DEP_OUTROS = "CADASTRO DA CASA";
   function departamento(nome) {
     var n = norm(nome);
@@ -180,7 +199,7 @@
   var api = { OCULTOS: OCULTOS, PROCESSO: PROCESSO, resolverProcesso: resolverProcesso, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
               emailAntigoVisivel: emailAntigoVisivel, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
-              ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento,
+              ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento, agruparPares: agruparPares, PARES: PARES,
               colunasDaFalta: colunasDaFalta };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.PainelCasa = api;

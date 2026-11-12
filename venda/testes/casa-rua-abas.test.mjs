@@ -35,6 +35,9 @@ test("Andamento por departamento, coluna nova cai em CADASTRO DA CASA", () => {
   assert.equal(P.departamento("AGUA TRANSFERIDA"), "ÁGUA E ENERGIA");
   assert.equal(P.departamento("DATA DA CONFERÊNCIA (TRANSFERÊNCIA)"), "ÁGUA E ENERGIA");
   assert.equal(P.departamento("ARMAZENOU CONTRATO COMPRA E VENDA?"), "CONTRATO");
+  assert.equal(P.departamento("DATA DE ASSINATURA DO CONTRATO"), "BANCO E CORRESPONDENTE", "junto do assinou e armazenou (12/11)");
+  assert.deepEqual(P.porDepartamento(["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO", "ARMAZENOU CONTRATO COMPRA E VENDA?"])[0].campos,
+    ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"]);
   assert.equal(P.departamento("LAYOUT"), "CADASTRO DA CASA");
   const g = P.porDepartamento(["REF", "ITBI PAGO", "AGUA TRANSFERIDA", "ITBI GERADO"]);
   assert.deepEqual(g.map(x => x.titulo), ["CARTÓRIO E IMPOSTOS", "ÁGUA E ENERGIA", "CADASTRO DA CASA"]);
@@ -216,4 +219,30 @@ test("resumo do processo acha as colunas pelo nome e pelo padrão", () => {
   assert.equal(r[0].calculado, true);
   const sem = P.resolverProcesso(["RECEBEU?"]);
   assert.deepEqual(sem.map(x => x.chave), ["vendida", "recebeu"], "coluna que não existe some");
+});
+
+/* 12/11/2026 (dono): duas datas de assinatura com nome que diz qual contrato é — só na tela */
+test("datas de assinatura: rótulo de tela na casa de rua e no condomínio; Notion com o nome antigo; Caixa no Andamento", () => {
+  const trecho = (ini, fim) => { const i = vendas.indexOf(ini); assert.ok(i >= 0, ini); return vendas.slice(i, vendas.indexOf(fim, i) + fim.length); };
+  const fonte = [trecho("const _NORM_CACHE=", "\n"), trecho("function _normNomeBruto(", "\n"), trecho("function normNome(s){", "\n}"),
+    trecho("const ROTULO_DATA_CV=", "\n"), trecho("const ROTULOS_RUA=", "\n"), trecho("function rotuloRua(", "\n"),
+    trecho("const ROTULOS_COND=", "\n"), trecho("function cdRotuloTela(", "\n")].join("\n");
+  const f = new Function(fonte + "\nreturn { rotuloRua, cdRotuloTela };")();
+  assert.equal(f.rotuloRua("DATA DA VENDA"), "DATA DA ASSINATURA – COMPRA E VENDA (CONSTRUTORA)");
+  assert.equal(f.rotuloRua("data de assinatura do contrato "), "DATA DA ASSINATURA – CONTRATO CAIXA");
+  assert.equal(f.rotuloRua("ITBI PAGO "), "ITBI PAGO");
+  assert.equal(f.cdRotuloTela("DATA DE ASSINATURA DO CONTRATO"), "DATA DA ASSINATURA – COMPRA E VENDA (CONSTRUTORA)");
+  assert.equal(f.cdRotuloTela("DATA DE ASSINATURA DO CONTRATO NO BANCO"), "DATA DA ASSINATURA – CONTRATO CAIXA");
+  assert.equal(f.cdRotuloTela("MANDOU P/ CORESSPONDENTE?"), "MANDOU P/ CORRESPONDENTE?");
+  assert.match(vendas, /"Email","DATA DA VENDA","VALOR DE COMPRA/, "Resumo: só a compra e venda; a da Caixa fica no Andamento, junto do assinou e armazenou (dono 12/11)");
+  assert.equal(f.rotuloRua("MANDOU TODOS OS DOCS. P/ CORESSPONDENTE?"), "MANDOU TODOS OS DOCS. P/ CORRESPONDENTE?");
+  assert.match(vendas, /data-col="\$\{esc\(c\.nome\)\}" title="Ordenar por \$\{esc\(c\.nome\.trim\(\)\)\}">\$\{esc\(rotuloRua\(c\.nome\)\)\}/, "planilha: data-col segue o nome do Notion");
+});
+
+test("pares: ASSINOU E ARMAZENOU + data da Caixa num bloco só, um em cima do outro (12/11)", () => {
+  assert.deepEqual(P.agruparPares(["EMITIU RCPM?", "ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "VALOR DA PARCELA", "DATA DE ASSINATURA DO CONTRATO", "RECEBEU?"]),
+    ["EMITIU RCPM?", ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"], "VALOR DA PARCELA", "RECEBEU?"]);
+  assert.deepEqual(P.agruparPares(["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "RECEBEU?"]), ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "RECEBEU?"], "sem a data, fica sozinho");
+  assert.deepEqual(P.agruparPares(["DATA DE ASSINATURA DO CONTRATO "]), ["DATA DE ASSINATURA DO CONTRATO "]);
+  assert.match(vendas, /pnItens\(nomes\)\.map\(it=>Array\.isArray\(it\)\?`<div class="pn-par">`/);
 });
