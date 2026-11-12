@@ -35,6 +35,9 @@ test("Andamento por departamento, coluna nova cai em CADASTRO DA CASA", () => {
   assert.equal(P.departamento("AGUA TRANSFERIDA"), "ÁGUA E ENERGIA");
   assert.equal(P.departamento("DATA DA CONFERÊNCIA (TRANSFERÊNCIA)"), "ÁGUA E ENERGIA");
   assert.equal(P.departamento("ARMAZENOU CONTRATO COMPRA E VENDA?"), "CONTRATO");
+  assert.equal(P.departamento("DATA DE ASSINATURA DO CONTRATO"), "BANCO E CORRESPONDENTE", "junto do assinou e armazenou (12/11)");
+  assert.deepEqual(P.porDepartamento(["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO", "ARMAZENOU CONTRATO COMPRA E VENDA?"])[0].campos,
+    ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"]);
   assert.equal(P.departamento("LAYOUT"), "CADASTRO DA CASA");
   const g = P.porDepartamento(["REF", "ITBI PAGO", "AGUA TRANSFERIDA", "ITBI GERADO"]);
   assert.deepEqual(g.map(x => x.titulo), ["CARTÓRIO E IMPOSTOS", "ÁGUA E ENERGIA", "CADASTRO DA CASA"]);
