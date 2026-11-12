@@ -720,6 +720,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <button class="bt az" id="bt-planilhaFluxo-xlsx" onclick="planilhaFluxoPortal('xlsx')" title="Valor, avaliação, financiamento (80% da avaliação) e o fluxo padrão de cada unidade à venda">⬇ Tabela de disponibilidades Excel</button>
           </div>
         </div>
+        <div id="rp-faixa-prop" style="display:none"></div><!-- 12/11: reservas que caem em 24 h (venda/reserva-prazo-ui.js) -->
         <div class="kpis k5" id="prop-cortes"></div>
         <div class="card">
           <div class="filtros">
@@ -823,6 +824,7 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 <script src="venda-dossie.js?v=85" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=4" defer></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
+<script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: Adiar / Reabrir reserva e faixa "cai amanhã" -->
 <script src="venda/vgv-condominio.js?v=1"></script><!-- 03/11: VGV da Análise de vendas (período, tipo, rua) --><!-- 31/10: contrato enviado → proposta e unidade VENDIDA -->
 <script>
 /*POLL-INI*/
@@ -3117,6 +3119,8 @@ function propErro(e){
 function propPintar(r){
   if(!r || !r.propostas) return;
   PROPS = r.propostas;
+  /* 12/11: faixa "a reserva da unidade X cai amanhã" + quem pode adiar (venda/reserva-prazo-ui.js) */
+  try{ if(window.ReservaPrazoUI && !window.__rpIniciada){ window.__rpIniciada=1; window.__rpAoTerminar=()=>{ try{ propCarregar(true); }catch(e){} }; ReservaPrazoUI.faixa("rp-faixa-prop"); } }catch(e){}
   propRender(); propKpis(); propRankings(); propAlerta24(); analiseRender();
   propEmailsIniciar();   // r96q (28/10) — aviso de e-mail novo (proposta / correspondente)
   /* r47 — as simulações antigas decidem a linha azul pelo histórico das
@@ -4206,6 +4210,7 @@ function propVer(id){
       </div>
       ${PROP_NORM(p.status)==='RESERVADA'?`<div style="margin-top:8px"><button class="bt" style="background:#7B4FA0;color:#fff" onclick="propPreReservaDaUnidade('${p.id}')">Termo de reserva</button></div>`:""}
       ${PROP_NORM(p.status)==='RESERVADA'&&window.AtualizarVendaUI?AtualizarVendaUI.botaoHtml(p.id,'prop','bt'):""}<!-- 07/11: Atualizar venda pela proposta (venda/atualizar-venda.js) -->
+      ${window.ReservaPrazoUI?ReservaPrazoUI.botoesProposta(p):""}<!-- 12/11: Adiar reserva / Reabrir reserva que caiu (venda/reserva-prazo-ui.js) -->
       <div id="prop-detAviso" class="sim-aviso" style="margin-top:8px"></div>
       <!-- 02/10 (item 10) -->
       <div style="margin-top:10px"><button class="bt" style="background:#B7791F;color:#fff" onclick="propAlerta('${p.id}')">📣 Enviar alerta de pendências ao corretor</button>
