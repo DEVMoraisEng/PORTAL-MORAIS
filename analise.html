@@ -216,6 +216,16 @@ td.insumo.link:hover{background:var(--bg3)}
   text-transform:uppercase;padding:7px 14px;border:0;background:transparent;color:var(--text3);cursor:pointer}
 .seg-bt.on{background:var(--azul);color:#fff}
 .seg-bt:hover:not(.on){color:var(--azul)}
+/* 13/11/2026 (dono): ver os insumos no total ou por etapa do orçamento — vale para todas as abas */
+.visao-bar{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;background:var(--sup);border:1px solid var(--border2);
+  border-radius:12px;padding:10px 14px;margin:0 0 16px}
+.visao-rot{font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--text3);align-self:center}
+.visao-bar .fcampo{margin:0}
+.visao-bar select{min-width:240px}
+.visao-info{font-size:12px;color:var(--text3);align-self:center}
+td.col-etapa{font-size:12px;color:var(--text3);white-space:normal;min-width:140px;max-width:220px}
+tr.clicavel.on td{background:rgba(76,217,100,.14)}
 /* MELHORIAS #8: barras horizontais em HTML puro (sem canvas/biblioteca) */
 .barras{display:flex;flex-direction:column;gap:7px}
 .bl{display:grid;grid-template-columns:minmax(180px,26%) 1fr minmax(120px,auto);gap:12px;align-items:center;font-size:12.5px}
@@ -289,10 +299,35 @@ section > .sec:first-child{margin-top:0}
         <button class="tab" data-tab="curva" onclick="trocarTab('curva')">Curva ABC</button>
       </div></div>
 
+      <!-- 13/11/2026 (dono): "poderia dar para ver pela quantidade total de insumos ou pelos insumos por etapa, em
+           todas as abas". As etapas são as do orçamento de cada obra no Mais Controle (relatório em visão Etapa). -->
+      <div class="visao-bar" id="visao-bar">
+        <span class="visao-rot">Ver insumos</span>
+        <div class="seg" id="seg-visao">
+          <button class="seg-bt on" data-visao="total" onclick="trocarVisao('total')">Total de insumos</button>
+          <button class="seg-bt"    data-visao="etapa" onclick="trocarVisao('etapa')">Por etapa</button>
+        </div>
+        <div class="fcampo hide" id="visao-etapa-cx">
+          <label>Etapa</label>
+          <select id="visao-etapa" onchange="trocarEtapa(this.value)"><option value="">Todas as etapas</option></select>
+        </div>
+        <span class="visao-info" id="visao-info"></span>
+      </div>
+
       <!-- ==================== ABA PRINCIPAL ==================== -->
       <section id="tab-principal">
         <div class="sec"><span class="cond">Panorama</span></div>
         <div class="kpis" id="kpis"><div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div></div>
+
+        <!-- 13/11/2026: só na visão Por etapa -->
+        <div id="etapas-geral" class="hide">
+          <div class="sec"><span class="cond">Orçado × realizado por etapa</span></div>
+          <div class="card">
+            <p class="desc">Todas as obras somadas, etapa por etapa do orçamento. Clique numa etapa para ver só ela em todas as abas
+              (clique de novo para voltar a todas).</p>
+            <div id="t-etapas" class="tbl-wrap"></div>
+          </div>
+        </div>
 
         <div class="sec"><span class="cond">Análise de insumos</span>
           <span style="flex:1"></span>
@@ -375,6 +410,13 @@ section > .sec:first-child{margin-top:0}
         <div id="resultado-obra" class="hide">
           <div class="sec"><span class="cond">Resultado da seleção</span></div>
           <div class="kpis" id="kpis-obra"></div>
+
+          <!-- 13/11/2026: subtotais por etapa da seleção (só na visão Por etapa) -->
+          <div class="card hide" id="card-etapas-obra">
+            <h3>Por etapa</h3>
+            <p class="desc">As obras selecionadas somadas, etapa por etapa. Clique numa etapa para filtrar a tabela de insumos.</p>
+            <div id="t-etapas-obra" class="tbl-wrap"></div>
+          </div>
 
           <!-- MELHORIAS #9 (set/26): ao escolher a obra, o top 5 mais
                discrepante + o grafico aparecem ANTES da tabela cheia — e o
@@ -646,6 +688,9 @@ function iniciar(){
   document.getElementById("conteudo").classList.remove("hide");
   carregarResumo();
   carregarObras();
+  /* 13/11/2026: quem deixou "Por etapa" escolhido volta nela */
+  pintarBarraVisao();
+  if(VISAO==="etapa") trocarVisao("etapa");
   /* PRE-CARREGAMENTO (set/26): a lista consolidada de insumos alimenta duas
      abas (TODOS OS INSUMOS e CURVA ABC) e e a resposta mais pesada da tela.
      Buscar so no clique fazia a aba abrir vazia e ficar em "Carregando...".
@@ -828,7 +873,7 @@ function aplicarObras(r){
 
 /* ---------- KPIs principais ---------- */
 function pintarKpis(){
-  const k = RESUMO.kpis;
+  const k = resumoAtivo().kpis;
   const difCls = k.diferenca>0 ? "vermelho" : k.diferenca<0 ? "verde" : "";
   document.getElementById("kpis").innerHTML = `
     <div class="kpi hero"><div class="lab">Obras analisadas</div>
@@ -898,7 +943,7 @@ function linhasInsumo(arr, tipo){
       '<th class="col-num">Dif quantidade</th><th class="col-num">Dif %</th>'
     : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th>'+
       '<th class="col-num">Dif R$</th><th class="col-num">Dif %</th>';
-  let h='<table><thead><tr><th>Insumo</th><th class="col-un">Un</th>'+cab+'</tr></thead><tbody>';
+  let h='<table><thead><tr><th>Insumo</th>'+thEtapa()+'<th class="col-un">Un</th>'+cab+'</tr></thead><tbody>';
   arr.forEach(it=>{
     /* cor no valor da diferenca, nao so no pill: quem bate o olho na coluna
        entende o sinal sem ler o "+" nem o percentual ao lado */
@@ -916,16 +961,17 @@ function linhasInsumo(arr, tipo){
              `<td class="num${cls}">${it.diferenca>0?"+":""}${fmtBRL(it.diferenca)}</td>`+
              `<td class="num">${pctPill(it.diferenca_pct)}</td>`;
     }
-    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(it.insumo)}">${esc(it.insumo)}</td>`+
-       `<td class="col-un">${esc(it.unidade||"")}</td>`+cels+`</tr>`;
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i,null,this.dataset.e)" data-i="${esc(it.insumo)}"${attrEtapa(it)}>${esc(it.insumo)}</td>`+
+       tdEtapa(it)+`<td class="col-un">${esc(it.unidade||"")}</td>`+cels+`</tr>`;
   });
   return h+'</tbody></table>';
 }
 function pintarTops(){
-  document.getElementById("t-estouro").innerHTML  = linhasInsumo(RESUMO.top_estouro,   "estouro");
-  document.getElementById("t-economia").innerHTML = linhasInsumo(RESUMO.top_economia,  "economia");
-  document.getElementById("t-exatos").innerHTML   = linhasInsumo(RESUMO.mais_exatos,   "exatos");
-  document.getElementById("t-impacto").innerHTML  = linhasInsumo(RESUMO.maior_impacto, "impacto");
+  const R = resumoAtivo();     // 13/11/2026: na visão Por etapa, calculado sobre insumo × etapa
+  document.getElementById("t-estouro").innerHTML  = linhasInsumo(R.top_estouro,   "estouro");
+  document.getElementById("t-economia").innerHTML = linhasInsumo(R.top_economia,  "economia");
+  document.getElementById("t-exatos").innerHTML   = linhasInsumo(R.mais_exatos,   "exatos");
+  document.getElementById("t-impacto").innerHTML  = linhasInsumo(R.maior_impacto, "impacto");
   pintarGraficoTop();
   pintarRankingObras();
   atualizarScrollsTopo();
@@ -1004,15 +1050,29 @@ function normNome(s){
 /* 22/10: "soObras" (Set de endereços normalizados) — vindo do Histórico por
    Insumo, o modal mostra só as obras da base filtrada (setor, nº de casas,
    condomínio, finalizadas, início), e não todas as obras do ERP. */
-async function verObrasDoInsumo(nome, soObras){
+async function verObrasDoInsumo(nome, soObras, etapa){
   if(!nome) return;
   const ov = document.getElementById("ins-ov");
-  document.getElementById("ins-tit").textContent = nome;
+  /* 13/11/2026: na visão Por etapa, só a etapa da linha clicada (ou a escolhida no seletor) */
+  const etp = porEtapa() ? (etapa || ETAPA_SEL || "") : "";
+  document.getElementById("ins-tit").textContent = nome + (etp ? " · " + etapaNome(etp) : "");
   document.getElementById("ins-sub").textContent = "Obras que usam este insumo";
   const body = document.getElementById("ins-body");
   ov.classList.remove("hide");
 
-  let r = _cacheInsObras[nome];
+  let r = _cacheInsObras[nome + "|" + etp];
+  if(!r && porEtapa()){
+    const alvo = normNome(nome), mapa = {};
+    ETP_ROWS.forEach(l => {
+      if(normNome(l.insumo)!==alvo || (etp && l.etapaChave!==etp)) return;
+      const m = mapa[l.obra_nome] || (mapa[l.obra_nome] = { obra_nome:l.obra_nome, unidade:l.unidade, qtd_orcada:0, qtd_realizada:0, ct_orcado:0, ct_realizado:0 });
+      m.qtd_orcada += Number(l.qtd_orcada)||0; m.qtd_realizada += Number(l.qtd_realizada)||0;
+      m.ct_orcado += Number(l.ct_orcado)||0; m.ct_realizado += Number(l.ct_realizado)||0;
+    });
+    const lista = Object.values(mapa).sort((a,b)=> String(a.obra_nome).localeCompare(String(b.obra_nome),"pt-BR"));
+    r = { ok:true, insumo:nome, estrategia:"etapas", total:lista.length, obras:lista };
+    _cacheInsObras[nome + "|" + etp] = r;
+  }
   if(!r){
     body.innerHTML = '<div class="vazio"><span class="load"></span> Buscando…</div>';
     /* set/26: mesma fonte estática do "Analisar seleção". Ver o bloco
@@ -1026,7 +1086,7 @@ async function verObrasDoInsumo(nome, soObras){
        ignorando caixa/acento; quando ela não acha nada, quem tenta o resto
        continua sendo o servidor. */
     if(!r || !(r.obras||[]).length) r = await chamar({action:"analiseInsumoObras", insumo:nome});
-    if(r && r.ok!==false) _cacheInsObras[nome] = r;
+    if(r && r.ok!==false) _cacheInsObras[nome + "|"] = r;
   }
   if(!r || r.ok===false){
     /* Mostra o motivo REAL, inclusive o detalhe que vem do Supabase. Sem
@@ -1089,14 +1149,14 @@ function pintarTop5Obra(linhas){
     box.innerHTML='<div class="vazio">Nenhum insumo '+rotuloSinal()+' nesta seleção.</div>';
     document.getElementById("g-obra").innerHTML=""; return;
   }
-  const cab = '<th>Insumo</th><th class="col-un">Un</th>'+
+  const cab = '<th>Insumo</th>'+thEtapa()+'<th class="col-un">Un</th>'+
     (qtd ? '<th class="col-num">Qtd orçada</th><th class="col-num">Qtd realizada</th><th class="col-num">Dif quantidade</th>'
          : '<th class="col-num">Orçado</th><th class="col-num">Realizado</th><th class="col-num">Dif R$</th>')+
     '<th class="col-num">Dif %</th>';
   const linha = m => {
     const v = valor(m), cls = v>0 ? " acima" : (v<0 ? " abaixo" : "");
-    return `<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
-      `<td class="col-un">${esc(m.unidade||"")}</td>`+
+    return `<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i,null,this.dataset.e)" data-i="${esc(m.insumo)}"${attrEtapa(m)}>${esc(m.insumo)}</td>`+
+      tdEtapa(m)+`<td class="col-un">${esc(m.unidade||"")}</td>`+
       (qtd
         ? `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
           `<td class="num${cls}">${v>0?"+":""}${fmtNum(v)}</td><td class="num">${pctPill(difQtdPct(m))}</td>`
@@ -1123,7 +1183,8 @@ function barrasHtml(itens, valorDe, rotuloDe){
     const v = valorDe(i), pct = Math.abs(v)/max*100;
     return '<div class="bl">'+
       '<div class="bl-nome" title="'+esc(i.insumo)+'">'+esc(i.insumo)+
-        (i.unidade?' <span class="bl-un">'+esc(i.unidade)+'</span>':'')+'</div>'+
+        (i.unidade?' <span class="bl-un">'+esc(i.unidade)+'</span>':'')+
+        (porEtapa()&&i.etapa?' <span class="bl-un">· '+esc(i.etapa)+'</span>':'')+'</div>'+
       '<div class="bl-trilho"><div class="bl-barra'+(v>0?" pos":" neg")+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
       '<div class="bl-val">'+esc(rotuloDe(i))+'</div>'+
     '</div>';
@@ -1141,7 +1202,7 @@ function pintarGraficoTop(){
   /* O backend manda dois blocos: top_estouro (acima) e top_economia
      (abaixo). Junta os dois e deixa o filtrarSinal escolher — assim o
      seletor tem material dos dois lados pra mostrar. */
-  const fonte = (RESUMO.top_estouro||[]).concat(RESUMO.top_economia||[]);
+  const fonte = (resumoAtivo().top_estouro||[]).concat(resumoAtivo().top_economia||[]);
   const base = filtrarSinal(fonte, valorG).slice(0, 12);
   document.getElementById("g-tit").textContent =
     "Top 12 · " + (SINAL==="acima" ? "Maiores estouros " : "Maiores sobras ") + (qtd ? "(quantidade)" : "(preço)");
@@ -1168,7 +1229,7 @@ function pintarRankingObras(){
   const box = document.getElementById("t-ranking");
   if(!box) return;
   if(!OBRAS.length){ box.innerHTML='<div class="vazio">Carregando obras…</div>'; return; }
-  const l = OBRAS.map(o=>{
+  const l = (porEtapa() && OBRAS_ETP ? OBRAS_ETP : OBRAS).map(o=>{
     const orc = Number(o.total_orcado)||0, real = Number(o.total_realizado)||0;
     return { id:o.obra_id, nome:o.obra_nome, orc:orc, real:real,
              dif: real-orc, pct: orc ? (real-orc)/orc*100 : null };
@@ -1241,7 +1302,11 @@ async function analisarSelecao(){
      instantâneo e não gasta execução nenhuma — reabrir o mesmo grupo, ou
      qualquer outro, custa zero requisição depois do primeiro download. */
   let r = null;
-  const j = await carregarDetalheEstatico();
+  /* 13/11/2026: visão Por etapa — as linhas vêm do analise_etapas.json (insumo × etapa), na etapa escolhida */
+  if(VISAO==="etapa" && await carregarEtapas()){
+    r = { ok:true, linhas: linhasEtp().filter(l => _sel.has(l.obra_id)), estatico:true };
+  }
+  const j = r ? null : await carregarDetalheEstatico();
   if(j){
     const p = detPos(j), alvo = _sel;
     const linhas = [];
@@ -1258,6 +1323,10 @@ async function analisarSelecao(){
   if(!r || r.ok===false){ document.getElementById("kpis-obra").innerHTML=
     `<div class="vazio" style="grid-column:1/-1">Erro: ${esc(erroTexto(r&&r.erro))}</div>`; return; }
   DETALHE = r.linhas||[];
+  const ce = document.getElementById("card-etapas-obra");
+  ce.classList.toggle("hide", !porEtapa());
+  if(porEtapa()) document.getElementById("t-etapas-obra").innerHTML =
+    etapasTabelaHtml(etapasResumo(ETP_ROWS.filter(l => _sel.has(l.obra_id))));
   pintarKpisObra(); renderDetalheObra();
   document.getElementById("resultado-obra").scrollIntoView({behavior:"smooth",block:"start"});
 }
@@ -1286,8 +1355,8 @@ function renderDetalheObra(){
   // agrega por insumo+código (o mesmo insumo pode vir de várias obras do grupo)
   const mapa={};
   linhas.forEach(l=>{
-    const ch=(l.codigo||"")+"|"+l.insumo;
-    if(!mapa[ch]) mapa[ch]={codigo:l.codigo,insumo:l.insumo,unidade:l.unidade,
+    const ch=(l.codigo||"")+"|"+l.insumo+(porEtapa()?"|"+l.etapaChave:"");   // 13/11: na visão Por etapa, insumo × etapa
+    if(!mapa[ch]) mapa[ch]={codigo:l.codigo,insumo:l.insumo,unidade:l.unidade,etapa:l.etapa,etapaChave:l.etapaChave,
       qtd_orcada:0,qtd_realizada:0,ct_orcado:0,ct_realizado:0,obras:new Set()};
     const m=mapa[ch];
     m.qtd_orcada+=Number(l.qtd_orcada)||0; m.qtd_realizada+=Number(l.qtd_realizada)||0;
@@ -1316,7 +1385,7 @@ function renderDetalheObra(){
      primeiro, antes da de valor — e a pergunta que mais importa: gastou mais
      material do que o previsto? O dinheiro vem logo depois. */
   const cols=[
-    ["insumo","Insumo",false],["codigo","Cód",false],["unidade","Un",false],
+    ["insumo","Insumo",false],...(porEtapa()?[["etapa","Etapa",false]]:[]),["codigo","Cód",false],["unidade","Un",false],
     ["qtd_orcada","Qtd orç",true],["qtd_realizada","Qtd real",true],
     ["dif_qtd","Dif qtd",true],["dif_qtd_pct","Dif qtd %",true],
     ["ct_orcado","Orçado R$",true],["ct_realizado","Realizado R$",true],
@@ -1329,12 +1398,12 @@ function renderDetalheObra(){
     h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortDetalhe('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
   });
   h+='</tr></thead><tbody>';
-  if(!arr.length) h+='<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  if(!arr.length) h+=`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>`;
   arr.forEach(m=>{
     const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
     const dq = difQtd(m), clsQ = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
-    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
-       `<td class="col-un">${esc(m.codigo||"")}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i,null,this.dataset.e)" data-i="${esc(m.insumo)}"${attrEtapa(m)}>${esc(m.insumo)}</td>`+
+       tdEtapa(m)+`<td class="col-un">${esc(m.codigo||"")}</td><td class="col-un">${esc(m.unidade||"")}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
        `<td class="num${clsQ}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
        `<td class="num">${pctPill(difQtdPct(m))}</td>`+
@@ -1349,12 +1418,13 @@ function renderDetalheObra(){
   pintarTop5Obra(arr);
 }
 function sortDetalhe(col){
-  if(ordDetalhe.col===col) ordDetalhe.dir*=-1; else { ordDetalhe.col=col; ordDetalhe.dir=(col==="insumo"||col==="codigo"||col==="unidade")?1:-1; }
+  if(ordDetalhe.col===col) ordDetalhe.dir*=-1; else { ordDetalhe.col=col; ordDetalhe.dir=(col==="insumo"||col==="codigo"||col==="unidade"||col==="etapa")?1:-1; }
   renderDetalheObra();
 }
 
 /* ==================== ABA INSUMOS ==================== */
 async function carregarInsumos(){
+  if(VISAO==="etapa" && await carregarEtapas()){ if(!INSUMOS_ETP) recalcularEtp(); renderInsumos(); return; }
   if(INSUMOS.length){ renderInsumos(); return; }
   document.getElementById("t-insumos").innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
   const r = await lerAnalise("analise_insumos.json", "analiseInsumos", "analise_insumos");
@@ -1365,7 +1435,7 @@ async function carregarInsumos(){
 function renderInsumos(){
   const termo=(document.getElementById("busca-insumo").value||"").toLowerCase();
   const filtro=document.getElementById("filtro-status-insumo").value;
-  let arr=INSUMOS.slice();
+  let arr=insumosAtivos().slice();
   if(termo) arr=arr.filter(m=>String(m.insumo).toLowerCase().includes(termo));
   if(filtro==="estouro")  arr=arr.filter(m=>(Number(m.diferenca)||0)>0.005);
   if(filtro==="economia") arr=arr.filter(m=>(Number(m.diferenca)||0)<-0.005);
@@ -1379,7 +1449,7 @@ function renderInsumos(){
 
   /* item 9: diferenca de QUANTIDADE antes da de valor, aqui tambem */
   const cols=[
-    ["insumo","Insumo",false],["unidade","Un",false],["obras","Obras",true],
+    ["insumo","Insumo",false],...(porEtapa()?[["etapa","Etapa",false]]:[]),["unidade","Un",false],["obras","Obras",true],
     ["qtd_orcada","Qtd orç",true],["qtd_realizada","Qtd real",true],
     ["dif_qtd","Dif qtd",true],["dif_qtd_pct","Dif qtd %",true],
     ["total_orcado","Orçado R$",true],["total_realizado","Realizado R$",true],
@@ -1392,12 +1462,12 @@ function renderInsumos(){
     h+=`<th class="${s}" style="${n?'text-align:right':''}" onclick="sortInsumos('${k}')">${rot}<span class="arr">${arrIco}</span></th>`;
   });
   h+='</tr></thead><tbody>';
-  if(!arr.length) h+='<tr><td colspan="11" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  if(!arr.length) h+=`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>`;
   arr.forEach(m=>{
     const cls = m.diferenca>0 ? " acima" : (m.diferenca<0 ? " abaixo" : "");
     const dq = difQtd(m), clsQ = dq>0 ? " acima" : (dq<0 ? " abaixo" : "");
-    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
-       `<td class="col-un">${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i,null,this.dataset.e)" data-i="${esc(m.insumo)}"${attrEtapa(m)}>${esc(m.insumo)}</td>`+
+       tdEtapa(m)+`<td class="col-un">${esc(m.unidade||"")}</td><td class="num">${fmtNum(m.obras)}</td>`+
        `<td class="num">${fmtNum(m.qtd_orcada)}</td><td class="num">${fmtNum(m.qtd_realizada)}</td>`+
        `<td class="num${clsQ}">${dq>0?"+":""}${fmtNum(dq)}</td>`+
        `<td class="num">${pctPill(difQtdPct(m))}</td>`+
@@ -1409,7 +1479,7 @@ function renderInsumos(){
   atualizarScrollsTopo();
 }
 function sortInsumos(col){
-  if(ordInsumos.col===col) ordInsumos.dir*=-1; else { ordInsumos.col=col; ordInsumos.dir=(col==="insumo"||col==="unidade")?1:-1; }
+  if(ordInsumos.col===col) ordInsumos.dir*=-1; else { ordInsumos.col=col; ordInsumos.dir=(col==="insumo"||col==="unidade"||col==="etapa")?1:-1; }
   renderInsumos();
 }
 
@@ -1419,6 +1489,7 @@ function sortInsumos(col){
    a classificação inteira roda no navegador. */
 let ABC = [];
 async function carregarCurvaAbc(){
+  if(VISAO==="etapa" && await carregarEtapas()){ if(!INSUMOS_ETP) recalcularEtp(); ABC = classificarAbc(INSUMOS_ETP); renderCurvaAbc(); return; }
   if(!INSUMOS.length){
     document.getElementById("kpis-abc").innerHTML = '<div class="vazio" style="grid-column:1/-1"><span class="load"></span> Carregando…</div>';
     const r = await lerAnalise("analise_insumos.json", "analiseInsumos", "analise_insumos");
@@ -1482,6 +1553,7 @@ function barrasAbcHtml(itens){
     const v = Number(i.total_realizado)||0, pct = v/max*100;
     return '<div class="bl">'+
       '<div class="bl-nome" title="'+esc(i.insumo)+'">'+esc(i.insumo)+
+        (porEtapa()&&i.etapa?' <span class="bl-un">· '+esc(i.etapa)+'</span>':'')+
         ' <span class="pill classe'+i.classe+'">'+i.classe+'</span></div>'+
       '<div class="bl-trilho"><div class="bl-barra classe'+i.classe+'" style="width:'+pct.toFixed(1)+'%"></div></div>'+
       '<div class="bl-val">'+fmtBRL(v)+'</div>'+
@@ -1498,14 +1570,14 @@ function renderCurvaAbc(){
   if(termo) arr = arr.filter(m=>String(m.insumo).toLowerCase().includes(termo));
   if(classeF) arr = arr.filter(m=>m.classe===classeF);
 
-  let h = '<table><thead><tr><th>#</th><th>Insumo</th><th class="col-un">Un</th>'+
+  let h = '<table><thead><tr><th>#</th><th>Insumo</th>'+thEtapa()+'<th class="col-un">Un</th>'+
     '<th class="col-num">Realizado R$</th><th class="col-num">% do total</th>'+
     '<th class="col-num">% acumulado</th><th>Classe</th></tr></thead><tbody>';
-  if(!arr.length) h += '<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>';
+  if(!arr.length) h += `<tr><td colspan="${porEtapa()?8:7}" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado.</td></tr>`;
   arr.forEach(m=>{
     h += `<tr><td class="col-un">${m.rank}</td>`+
-      `<td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
-      `<td class="col-un">${esc(m.unidade||"")}</td>`+
+      `<td class="insumo link" title="Ver em quais obras" onclick="verObrasDoInsumo(this.dataset.i,null,this.dataset.e)" data-i="${esc(m.insumo)}"${attrEtapa(m)}>${esc(m.insumo)}</td>`+
+      tdEtapa(m)+`<td class="col-un">${esc(m.unidade||"")}</td>`+
       `<td class="num">${fmtBRL(m.total_realizado)}</td>`+
       `<td class="num">${m.pctItem.toFixed(2)}%</td>`+
       `<td class="num">${m.pctAcum.toFixed(1)}%</td>`+
@@ -1514,6 +1586,202 @@ function renderCurvaAbc(){
   document.getElementById("t-abc").innerHTML = h+'</tbody></table>';
   atualizarScrollsTopo();
 }
+
+
+/* ===================== VISÃO POR ETAPA (13/11/2026) =====================
+ * Pedido do dono: "poderia ter a visualização por etapa também … dar para ver pela quantidade total de insumos
+ * ou pelos insumos por etapa … em todas as abas".
+ *
+ * FONTE: dist/analise/analise_etapas.json, publicado pelo OR-ADO-REALIZADO (exportar_json.py, montar_etapas).
+ * O Mais Controle dá o Orçado x Realizado por etapa do orçamento de cada obra (relatório em visão Etapa:
+ * a lista de etapas e, para cada uma, os insumos dela). A soma das etapas bate com o total da obra.
+ * Mesmo formato colunar do analise_detalhe.json, com a etapa internada numa tabela à parte ([índice, nome]).
+ *
+ * COMO FICA NA TELA: "Total de insumos" = tudo como antes. "Por etapa" = cada linha vira INSUMO × ETAPA (com a
+ * coluna Etapa), e o seletor "Etapa" deixa uma etapa só, em todas as abas. A mesma etapa em obras diferentes é
+ * juntada pelo NOME (sem acento/caixa); a ordem é a do índice no orçamento.
+ * Baixado só quando alguém escolhe "Por etapa"; fica em memória, como o detalhe. */
+let VISAO = (()=>{ try{ return localStorage.getItem("morais_or_visao")==="etapa" ? "etapa" : "total"; }catch(e){ return "total"; } })();
+let ETAPA_SEL = "";
+let ETP_TUDO = null, _etpProm = null, ETP_ROWS = null, ETP_LISTA = [], ETP_NOME = {};
+let RESUMO_ETP = null, OBRAS_ETP = null, INSUMOS_ETP = null;
+function porEtapa(){ return VISAO==="etapa" && !!ETP_ROWS; }
+function etapaChave(nome){
+  const n = normNome(String(nome||"").replace(/^\s*\d+(\.\d+)*\s*[-–.)]\s*/,""));
+  return n || "(SEM ETAPA)";
+}
+function etapaNome(chave){ return ETP_NOME[chave] || chave || "—"; }
+async function carregarEtapas(){
+  if(ETP_ROWS) return ETP_TUDO;
+  if(_etpProm) return _etpProm;
+  _etpProm = (async ()=>{
+    try{
+      const r = await fetch(ANALISE_DIST + "analise_etapas.json?v=" + Math.floor(Date.now()/3600000), {cache:"default"});
+      if(!r.ok) throw new Error("HTTP "+r.status);
+      const j = await r.json();
+      if(!j || j.ok===false || !j.linhas || !j.obras || !j.etapas) throw new Error("arquivo sem dados");
+      const p = detPos(j);
+      j._chaves = j.etapas.map(e => etapaChave(e[1]));
+      /* nome mais frequente e menor índice de cada etapa (as obras podem ter orçamentos com índices diferentes) */
+      const cont = {}, ordem = {};
+      j.linhas.forEach(l => { const k = j._chaves[l[p.etapa]], e = j.etapas[l[p.etapa]] || ["",""];
+        (cont[k] = cont[k] || {})[e[1]] = ((cont[k]||{})[e[1]]||0) + 1;
+        const ix = parseFloat(e[0]); if(!isNaN(ix) && (ordem[k]==null || ix<ordem[k])) ordem[k] = ix; });
+      ETP_NOME = {};
+      Object.keys(cont).forEach(k => { ETP_NOME[k] = Object.entries(cont[k]).sort((a,b)=>b[1]-a[1])[0][0] || k; });
+      ETP_LISTA = Object.keys(cont).map(k => ({chave:k, nome:ETP_NOME[k], ordem: ordem[k]==null ? 9999 : ordem[k]}))
+        .sort((a,b)=> a.ordem-b.ordem || a.nome.localeCompare(b.nome,"pt-BR"));
+      ETP_ROWS = j.linhas.map(l => { const o = j.obras[l[p.obra]] || ["",""];
+        return { obra_id:o[0], obra_nome:o[1], etapaChave:j._chaves[l[p.etapa]], etapa:"",
+                 codigo:l[p.codigo], insumo:l[p.insumo], unidade:l[p.unidade],
+                 qtd_orcada:l[p.qtd_orcada], qtd_realizada:l[p.qtd_realizada],
+                 ct_orcado:l[p.ct_orcado], ct_realizado:l[p.ct_realizado] }; });
+      ETP_ROWS.forEach(r => r.etapa = etapaNome(r.etapaChave));
+      ETP_TUDO = j;
+      montarSeletorEtapa();
+      return j;
+    }catch(e){
+      console.warn("analise_etapas.json indisponível:", e);
+      return null;
+    }finally{ _etpProm = null; }
+  })();
+  return _etpProm;
+}
+function montarSeletorEtapa(){
+  const sel = document.getElementById("visao-etapa"); if(!sel) return;
+  sel.innerHTML = '<option value="">Todas as etapas</option>' +
+    ETP_LISTA.map(e => `<option value="${esc(e.chave)}">${esc(e.nome)}</option>`).join("");
+  sel.value = ETAPA_SEL;
+}
+/* linhas por etapa da etapa escolhida (todas, se nenhuma) */
+function linhasEtp(rows){
+  rows = rows || ETP_ROWS || [];
+  return ETAPA_SEL ? rows.filter(r => r.etapaChave===ETAPA_SEL) : rows;
+}
+/* = insumo_consolidado do exportar_json.py, só que por INSUMO × ETAPA */
+function consolidarEtp(rows){
+  const mapa = new Map();
+  rows.forEach(r => {
+    const k = normNome(r.insumo)+"|"+normNome(r.unidade)+"|"+r.etapaChave;
+    let m = mapa.get(k);
+    if(!m){ m = { insumo:r.insumo, unidade:r.unidade, codigo:r.codigo, etapa:r.etapa, etapaChave:r.etapaChave,
+                  _obras:new Set(), qtd_orcada:0, qtd_realizada:0, total_orcado:0, total_realizado:0 }; mapa.set(k, m); }
+    m._obras.add(r.obra_id || r.obra_nome);
+    m.qtd_orcada += Number(r.qtd_orcada)||0; m.qtd_realizada += Number(r.qtd_realizada)||0;
+    m.total_orcado += Number(r.ct_orcado)||0; m.total_realizado += Number(r.ct_realizado)||0;
+  });
+  return [...mapa.values()].map(m => { m.obras = m._obras.size; delete m._obras;
+    m.diferenca = m.total_realizado - m.total_orcado;
+    m.diferenca_pct = m.total_orcado ? m.diferenca/m.total_orcado*100 : null; return m; });
+}
+/* o mesmo objeto do analise_resumo.json, calculado sobre a etapa escolhida */
+function resumoEtp(rows, insumos){
+  const obras = new Set(rows.map(r => r.obra_id || r.obra_nome));
+  const orc = insumos.reduce((a,m)=>a+m.total_orcado,0), real = insumos.reduce((a,m)=>a+m.total_realizado,0);
+  const comBase = insumos.filter(m => m.total_orcado>0);
+  const topo = (f, rev) => comBase.slice().sort((a,b)=> rev ? f(b)-f(a) : f(a)-f(b)).slice(0,20);
+  return { ok:true, data_extracao:(RESUMO&&RESUMO.data_extracao)||"",
+    kpis:{ obras:obras.size, total_orcado:orc, total_realizado:real, diferenca:real-orc,
+           diferenca_pct: orc ? (real-orc)/orc*100 : 0, itens_distintos:new Set(insumos.map(m=>normNome(m.insumo)+"|"+normNome(m.unidade))).size },
+    top_estouro: topo(m=>m.diferenca_pct||0, true), top_economia: topo(m=>m.diferenca_pct||0, false),
+    mais_exatos: topo(m=>Math.abs(m.diferenca_pct||0), false),
+    maior_impacto: insumos.slice().sort((a,b)=>Math.abs(b.diferenca)-Math.abs(a.diferenca)).slice(0,20) };
+}
+function obrasEtp(rows){
+  const m = new Map();
+  rows.forEach(r => { const k = r.obra_id || r.obra_nome;
+    const o = m.get(k) || { obra_id:r.obra_id, obra_nome:r.obra_nome, total_orcado:0, total_realizado:0 };
+    o.total_orcado += Number(r.ct_orcado)||0; o.total_realizado += Number(r.ct_realizado)||0; m.set(k, o); });
+  return [...m.values()];
+}
+/* subtotais por etapa: [{chave, nome, obras, orc, real, dif, pct}] na ordem do orçamento */
+function etapasResumo(rows){
+  const m = new Map();
+  rows.forEach(r => { const e = m.get(r.etapaChave) || { chave:r.etapaChave, nome:etapaNome(r.etapaChave), _o:new Set(), orc:0, real:0 };
+    e._o.add(r.obra_id || r.obra_nome); e.orc += Number(r.ct_orcado)||0; e.real += Number(r.ct_realizado)||0; m.set(r.etapaChave, e); });
+  const ordem = {}; ETP_LISTA.forEach((e,i) => ordem[e.chave] = i);
+  return [...m.values()].map(e => { e.obras = e._o.size; delete e._o; e.dif = e.real-e.orc; e.pct = e.orc ? e.dif/e.orc*100 : null; return e; })
+    .sort((a,b)=> (ordem[a.chave]??999) - (ordem[b.chave]??999));
+}
+function etapasTabelaHtml(lista){
+  if(!lista.length) return '<div class="vazio">Sem dados por etapa.</div>';
+  const tot = lista.reduce((a,e)=>({orc:a.orc+e.orc, real:a.real+e.real}), {orc:0, real:0});
+  let h = '<table><thead><tr><th>Etapa</th><th class="col-num">Obras</th><th class="col-num">Orçado</th><th class="col-num">Realizado</th>'+
+          '<th class="col-num">Dif R$</th><th class="col-num">Dif %</th><th class="col-num">% do orçado</th></tr></thead><tbody>';
+  lista.forEach(e => {
+    const cls = e.dif>0 ? " acima" : (e.dif<0 ? " abaixo" : "");
+    h += `<tr class="clicavel${e.chave===ETAPA_SEL?" on":""}" data-e="${esc(e.chave)}" onclick="trocarEtapa(this.dataset.e===ETAPA_SEL?'':this.dataset.e)" title="Ver só esta etapa em todas as abas">`+
+      `<td class="insumo">${esc(e.nome)}</td><td class="num">${fmtNum(e.obras)}</td>`+
+      `<td class="num">${fmtBRL(e.orc)}</td><td class="num">${fmtBRL(e.real)}</td>`+
+      `<td class="num${cls}">${e.dif>0?"+":""}${fmtBRL(e.dif)}</td><td class="num">${pctPill(e.pct)}</td>`+
+      `<td class="num">${tot.orc ? (e.orc/tot.orc*100).toFixed(1)+"%" : "—"}</td></tr>`;
+  });
+  const dt = tot.real-tot.orc;
+  h += `<tr><td class="insumo"><b>TOTAL</b></td><td></td><td class="num"><b>${fmtBRL(tot.orc)}</b></td><td class="num"><b>${fmtBRL(tot.real)}</b></td>`+
+       `<td class="num${dt>0?" acima":(dt<0?" abaixo":"")}"><b>${dt>0?"+":""}${fmtBRL(dt)}</b></td><td class="num">${pctPill(tot.orc?dt/tot.orc*100:null)}</td><td></td></tr>`;
+  return h + '</tbody></table>';
+}
+/* recalcula tudo o que depende da etapa escolhida */
+function recalcularEtp(){
+  if(!ETP_ROWS) return;
+  const rows = linhasEtp();
+  INSUMOS_ETP = consolidarEtp(rows);
+  RESUMO_ETP = resumoEtp(rows, INSUMOS_ETP);
+  OBRAS_ETP = obrasEtp(rows);
+}
+function resumoAtivo(){ return porEtapa() && RESUMO_ETP ? RESUMO_ETP : RESUMO; }
+function insumosAtivos(){ return porEtapa() && INSUMOS_ETP ? INSUMOS_ETP : INSUMOS; }
+function pintarBarraVisao(){
+  document.querySelectorAll("#seg-visao .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.visao===VISAO));
+  document.getElementById("visao-etapa-cx").classList.toggle("hide", VISAO!=="etapa" || !ETP_ROWS);
+  document.getElementById("etapas-geral").classList.toggle("hide", !porEtapa());
+  const info = document.getElementById("visao-info");
+  if(VISAO==="etapa" && !ETP_ROWS) info.textContent = "";
+  else if(porEtapa()) info.innerHTML = ETAPA_SEL ? `Mostrando só a etapa <b>${esc(etapaNome(ETAPA_SEL))}</b> — cada linha é insumo × etapa.`
+                                                 : `Cada linha é <b>insumo × etapa</b> (${ETP_LISTA.length} etapas).`;
+  else info.textContent = "Cada insumo somado em todas as etapas.";
+}
+async function trocarVisao(v){
+  VISAO = v==="etapa" ? "etapa" : "total";
+  try{ localStorage.setItem("morais_or_visao", VISAO); }catch(e){}
+  if(VISAO==="etapa" && !ETP_ROWS){
+    pintarBarraVisao();
+    document.getElementById("visao-info").innerHTML = '<span class="load"></span> Carregando as etapas…';
+    const j = await carregarEtapas();
+    if(!j){
+      VISAO = "total";
+      pintarBarraVisao();
+      document.getElementById("visao-info").textContent =
+        "A leitura por etapa ainda não foi publicada (sai na próxima coleta do Mais Controle). Mostrando o total.";
+      return;
+    }
+  }
+  if(porEtapa()) recalcularEtp();
+  repintarVisao();
+}
+function trocarEtapa(chave){
+  ETAPA_SEL = chave || "";
+  const sel = document.getElementById("visao-etapa"); if(sel) sel.value = ETAPA_SEL;
+  recalcularEtp();
+  repintarVisao();
+}
+/* repinta a Visão Geral e a aba aberta; as outras se repintam ao abrir (trocarTab) */
+function repintarVisao(){
+  pintarBarraVisao();
+  if(porEtapa()) document.getElementById("t-etapas").innerHTML = etapasTabelaHtml(etapasResumo(ETP_ROWS));
+  if(RESUMO){ pintarKpis(); pintarTops(); }
+  _cacheInsObrasLimpar();
+  const aberta = (document.querySelector(".tab.on")||{}).dataset||{};
+  if(aberta.tab==="obra" && !document.getElementById("resultado-obra").classList.contains("hide")) analisarSelecao();
+  if(aberta.tab==="insumos") carregarInsumos();
+  if(aberta.tab==="historico") carregarHistorico();
+  if(aberta.tab==="curva") carregarCurvaAbc();
+}
+function _cacheInsObrasLimpar(){ Object.keys(_cacheInsObras).forEach(k => delete _cacheInsObras[k]); }
+/* coluna/atributo de etapa nas tabelas de insumo */
+function thEtapa(){ return porEtapa() ? '<th>Etapa</th>' : ''; }
+function tdEtapa(m){ return porEtapa() ? `<td class="col-etapa">${esc(m.etapa||"")}</td>` : ''; }
+function attrEtapa(m){ return porEtapa() && m.etapaChave ? ` data-e="${esc(m.etapaChave)}"` : ''; }
 
 /* ---------- abas ---------- */
 /* ==================== ABA HISTÓRICO POR INSUMO (22/10/26) ====================
@@ -1568,10 +1836,12 @@ async function carregarDocsObras(){
   })();
   return _histDocsProm;
 }
+/* 13/11/2026: na visão Por etapa o histórico sai do analise_etapas.json (mesmo formato colunar, com a coluna etapa) */
+function histFonte(){ return porEtapa() ? ETP_TUDO : DET_TUDO; }
 async function carregarHistorico(){
   const box=document.getElementById("t-hist");
-  if(!DET_TUDO || !HIST_DOCS) box.innerHTML='<div class="vazio"><span class="load"></span> Carregando o histórico das obras…</div>';
-  const [j,docs]=await Promise.all([carregarDetalheEstatico(), carregarDocsObras()]);
+  if(!histFonte() || !HIST_DOCS) box.innerHTML='<div class="vazio"><span class="load"></span> Carregando o histórico das obras…</div>';
+  const [j,docs]=await Promise.all([VISAO==="etapa" ? carregarEtapas().then(x=>x||carregarDetalheEstatico()) : carregarDetalheEstatico(), carregarDocsObras()]);
   if(!j){ box.innerHTML='<div class="vazio">Não foi possível carregar o detalhe das obras.</div>'; return; }
   if(!docs){
     document.getElementById("hist-base").value="todas";
@@ -1603,7 +1873,8 @@ function isoMesesAtras(n){
   return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
 }
 function calcularHistorico(){
-  const j=DET_TUDO, p=detPos(j), docs=HIST_DOCS||{};
+  const j=histFonte(), p=detPos(j), docs=HIST_DOCS||{};
+  const etp=porEtapa() && j===ETP_TUDO;
   const base=document.getElementById("hist-base").value;
   const per=document.getElementById("hist-periodo").value;
   let de=null, ate=null;
@@ -1649,9 +1920,11 @@ function calcularHistorico(){
   for(let i=0;i<j.linhas.length;i++){
     const l=j.linhas[i], oi=l[p.obra];
     if(!entra[oi]) continue;
-    const k=normNome(l[p.insumo])+"|"+normNome(l[p.unidade]);
+    const ek=etp ? j._chaves[l[p.etapa]] : "";
+    if(etp && ETAPA_SEL && ek!==ETAPA_SEL) continue;
+    const k=normNome(l[p.insumo])+"|"+normNome(l[p.unidade])+(etp?"|"+ek:"");
     let g=grupos.get(k);
-    if(!g){ g={insumo:l[p.insumo], unidade:l[p.unidade], porObra:new Map()}; grupos.set(k,g); }
+    if(!g){ g={insumo:l[p.insumo], unidade:l[p.unidade], etapaChave:ek, etapa:etp?etapaNome(ek):"", porObra:new Map()}; grupos.set(k,g); }
     const e=g.porObra.get(oi)||{o:0,r:0};
     e.o+=Number(l[p.qtd_orcada])||0; e.r+=Number(l[p.qtd_realizada])||0;
     g.porObra.set(oi,e);
@@ -1669,7 +1942,7 @@ function calcularHistorico(){
     freq.forEach((c,q)=>{ if(c>modaN || (c===modaN && q<moda)){ moda=q; modaN=c; } });
     if(modaN<2){ moda=null; modaN=0; }
     const media=soma/n, mediaOrc=somaO/n;
-    out.push({ insumo:g.insumo, unidade:g.unidade, obras:n, media, moda, modaN,
+    out.push({ insumo:g.insumo, unidade:g.unidade, etapa:g.etapa, etapaChave:g.etapaChave, obras:n, media, moda, modaN,
       min:Math.min(...pedidas.map(e=>e.r)), max:Math.max(...pedidas.map(e=>e.r)),
       media_orc:mediaOrc, dif_pct: mediaOrc>0 ? (media-mediaOrc)/mediaOrc*100 : null });
   });
@@ -1677,7 +1950,7 @@ function calcularHistorico(){
 }
 function renderHistorico(){
   const box=document.getElementById("t-hist");
-  if(!DET_TUDO){ carregarHistorico(); return; }
+  if(!histFonte()){ carregarHistorico(); return; }
   const r=calcularHistorico();
   const termo=(document.getElementById("busca-hist").value||"").toLowerCase();
   const minO=Number(document.getElementById("hist-min").value)||1;
@@ -1703,7 +1976,7 @@ function renderHistorico(){
   });
 
   const cols=[
-    ["insumo","Insumo",false],["unidade","Un",false],
+    ["insumo","Insumo",false],...(porEtapa()?[["etapa","Etapa",false]]:[]),["unidade","Un",false],
     ["obras", document.getElementById("hist-zeros").value==="dentro" ? "Obras na média" : "Obras que pediram", true],
     ["media","Média pedida / obra",true],["moda","Moda pedida / obra",true],
     ["min","Mín",true],["max","Máx",true],
@@ -1718,8 +1991,8 @@ function renderHistorico(){
   h+='</tr></thead><tbody>';
   if(!arr.length) h+=`<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:22px">Nada encontrado com estes filtros.</td></tr>`;
   arr.forEach(m=>{
-    h+=`<tr><td class="insumo link" title="Ver em quais obras (só as dos filtros acima)" onclick="verObrasDoInsumo(this.dataset.i, HIST_BASE_NOMES)" data-i="${esc(m.insumo)}">${esc(m.insumo)}</td>`+
-       `<td class="col-un">${esc(m.unidade||"")}</td>`+
+    h+=`<tr><td class="insumo link" title="Ver em quais obras (só as dos filtros acima)" onclick="verObrasDoInsumo(this.dataset.i, HIST_BASE_NOMES, this.dataset.e)" data-i="${esc(m.insumo)}"${attrEtapa(m)}>${esc(m.insumo)}</td>`+
+       tdEtapa(m)+`<td class="col-un">${esc(m.unidade||"")}</td>`+
        `<td class="num">${fmtNum(m.obras)}</td>`+
        `<td class="num"><b>${fmtNum(m.media)}</b></td>`+
        `<td class="num">${m.moda==null?'<span title="Nenhuma quantidade se repetiu" style="color:var(--text3)">—</span>'
@@ -1732,7 +2005,7 @@ function renderHistorico(){
   atualizarScrollsTopo();
 }
 function sortHistorico(col){
-  if(ordHist.col===col) ordHist.dir*=-1; else { ordHist.col=col; ordHist.dir=(col==="insumo"||col==="unidade")?1:-1; }
+  if(ordHist.col===col) ordHist.dir*=-1; else { ordHist.col=col; ordHist.dir=(col==="insumo"||col==="unidade"||col==="etapa")?1:-1; }
   renderHistorico();
 }
 

@@ -444,6 +444,41 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 /* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê (venda-dossie.js, evento dossie:compradores) esconde o grupo
    Comprador 2 da aba Compradores. Só no painel da casa de rua (#painel); o cartão do condomínio não muda. */
 #painel[data-compradores="1"] #pn-body [data-comprador2]{display:none}
+/* 13/11/2026 (dono): "algumas pessoas preferem ver em lista igual era antes" — modo LISTA do painel da casa de rua.
+   Volta a ser a coluna lateral à direita (como antes de 05/11), campos numa coluna só, o resumo do processo parado
+   no topo (#pn-topo) e duas abas: "Todas as etapas" (venda → compradores → contrato → contrato/Clicksign/recebimentos
+   → etapas do processo → links, nessa ordem) e "Documentos" (dossiê + arquivos). O modo abas não muda.
+   Quem escolhe é a pessoa (botão no cabeçalho; fica guardado no navegador dela). */
+.pn-bts{display:flex;gap:6px;flex:0 0 auto;align-items:flex-start}
+.pn-modo-bt{white-space:nowrap}
+.pn-topo{display:none}
+#painel[data-modo="lista"]{top:0;right:0;left:auto;transform:none;width:min(640px,100vw);height:100vh;height:100dvh;border-radius:0}
+#painel[data-modo="lista"] .pn-topo{display:block;padding:0 0 10px;border-bottom:1px solid var(--border2);max-height:34vh;overflow:auto}
+#painel[data-modo="lista"] .pn-topo:empty{display:none}
+#painel[data-modo="lista"] .pn-topo .grp{margin-top:6px!important}
+#painel[data-modo="lista"] .pn-topo .proc{grid-template-columns:repeat(4,minmax(0,1fr))}
+#painel[data-modo="lista"] #pn-body .proc-wrap{display:none}
+#painel[data-modo="lista"] #pn-body{display:flex;flex-direction:column}
+#painel[data-modo="lista"] #pn-body>[data-sec="resumo"]{order:1}
+#painel[data-modo="lista"] #pn-body>[data-sec="compradores"]{order:2}
+#painel[data-modo="lista"] #pn-body>[data-sec="contrato"]{order:3}
+#painel[data-modo="lista"] #contrato-wrap{order:4}
+#painel[data-modo="lista"] #pn-body>[data-sec="andamento"]{order:5}
+#painel[data-modo="lista"] #pn-body>[data-sec="links"]{order:6}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:not([data-sec="documentos"]),#painel[data-aba="lista-etapas"] #contrato-wrap,
+#painel[data-aba="lista-documentos"] #pn-body>[data-sec="documentos"],#painel[data-aba="lista-documentos"] #dossie-wrap{display:block}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:empty{display:none}
+#painel[data-modo="lista"] .pn-grade{grid-template-columns:1fr}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:not(:empty)::before,#painel[data-aba="lista-etapas"] #contrato-wrap:not(:empty)::before{
+  display:block;margin:18px 22px 0;padding:6px 10px;border-radius:8px;background:rgba(76,217,100,.12);color:var(--verde-txt,var(--verde,#2e9e57));
+  font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec="resumo"]::before{content:"Venda";margin-top:10px}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec="compradores"]::before{content:"Compradores"}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec="contrato"]::before{content:"Contrato — dados"}
+#painel[data-aba="lista-etapas"] #contrato-wrap::before{content:"Contrato, assinatura e recebimentos"}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec="andamento"]::before{content:"Etapas do processo (ordem da planilha)"}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec="links"]::before{content:"Links da casa"}
+@media (max-width:600px){ #painel[data-modo="lista"] .pn-topo .proc{grid-template-columns:repeat(2,minmax(0,1fr))} .pn-modo-bt{padding:6px 8px;font-size:12px} }
 /* campos em duas colunas dentro das abas (a lista inteira numa coluna só era o que fazia 16 telas de rolagem) */
 /* 09/11/26 — Resumo do processo (aba Resumo do painel da casa) */
 .proc{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;padding:0 22px}
@@ -1236,7 +1271,8 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
   <div class="overlay" id="overlay" onclick="fecharObra()"></div>
   <aside class="painel" id="painel" role="dialog" aria-modal="true" aria-labelledby="pn-end" tabindex="-1">
-    <div class="ph"><div class="pn-tit"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div></div><button type="button" class="cd-bt" id="pn-fechar" onclick="fecharObra()">✕ Fechar</button></div>
+    <div class="ph"><div class="pn-tit"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div></div><div class="pn-bts"><button type="button" class="cd-bt pn-modo-bt" id="pn-modo" onclick="pnTrocarModo()" title="Trocar entre a visualização em abas (etapas) e em lista lateral">☰ Ver em lista</button><button type="button" class="cd-bt" id="pn-fechar" onclick="fecharObra()">✕ Fechar</button></div></div>
+    <div class="pn-topo" id="pn-topo"></div>
     <div class="pn-abas cd-abas" id="pn-abas"></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
@@ -4489,6 +4525,17 @@ function pnEspelhar(prop,valor,el){
    (venda/painel-casa.js decide onde fica cada campo); nada muda no Notion nem no jeito de salvar. Sem o
    painel-casa.js o painel volta a ser a coluna de antes (sem data-aba nada é escondido). */
 let PN_ABA="resumo";
+/* 13/11/2026 (dono): modo do painel — "abas" (padrão, por etapas) ou "lista" (coluna lateral, como era antes).
+   Guardado no navegador de cada pessoa; o perfil enxuto do Gestor de Vendas também pode escolher. */
+let PN_MODO=(()=>{ try{ return localStorage.getItem("morais_pn_modo")==="lista"?"lista":"abas"; }catch(e){ return "abas"; } })();
+let PN_ABA_LISTA="etapas";
+function pnModoLista(){ return PN_MODO==="lista" && !!(window.PainelCasa && window.PainelCasa.ABAS_LISTA); }
+function pnTrocarModo(){
+  PN_MODO = PN_MODO==="lista" ? "abas" : "lista";
+  try{ localStorage.setItem("morais_pn_modo",PN_MODO); }catch(e){}
+  pnDesenharAbas();
+  const body=document.getElementById("pn-body"); if(body) body.scrollTop=0;
+}
 function pnAbas(){ return (window.PainelCasa && window.PainelCasa.ABAS) || null; }
 function pnTemAba(aba){
   const sec=document.querySelector('#pn-body>[data-sec="'+aba+'"]');
@@ -4501,6 +4548,22 @@ function pnDesenharAbas(){
   const barra=document.getElementById("pn-abas"), painel=document.getElementById("painel");
   const abas=pnAbas();
   if(!barra||!painel) return;
+  const btModo=document.getElementById("pn-modo");
+  const topo=document.getElementById("pn-topo");
+  if(pnModoLista()){
+    /* lista: resumo do processo parado no topo + duas abas (todas as etapas | documentos) */
+    painel.setAttribute("data-modo","lista");
+    if(btModo){ btModo.textContent="▦ Ver em abas"; btModo.setAttribute("aria-pressed","true"); }
+    if(topo){ const pw=document.querySelector("#pn-body .proc-wrap"); topo.innerHTML=pw?pw.innerHTML:""; }
+    const al=window.PainelCasa.ABAS_LISTA;
+    if(!al.some(a=>a[0]===PN_ABA_LISTA)) PN_ABA_LISTA=al[0][0];
+    barra.innerHTML='<div class="tabs" role="tablist">'+al.map(a=>'<button type="button" role="tab" class="tab'+(a[0]===PN_ABA_LISTA?" on":"")+'" aria-selected="'+(a[0]===PN_ABA_LISTA)+'" data-aba="'+a[0]+'" onclick="pnTrocarAba(this.dataset.aba)">'+a[1]+'</button>').join("")+'</div>';
+    painel.setAttribute("data-aba","lista-"+PN_ABA_LISTA);
+    return;
+  }
+  painel.removeAttribute("data-modo");
+  if(topo) topo.innerHTML="";
+  if(btModo){ btModo.textContent="☰ Ver em lista"; btModo.setAttribute("aria-pressed","false"); }
   if(!abas){ barra.innerHTML=""; painel.removeAttribute("data-aba"); return; }
   const vis=abas.filter(a=>pnTemAba(a[0]));
   if(!vis.length){ barra.innerHTML=""; painel.removeAttribute("data-aba"); return; }
@@ -4509,6 +4572,18 @@ function pnDesenharAbas(){
   painel.setAttribute("data-aba",PN_ABA);
 }
 function pnTrocarAba(aba){
+  if(pnModoLista()){
+    /* no modo lista só há "etapas" e "documentos"; quem pede outra aba (ex.: clique no resumo do processo, que
+       aponta para o Andamento) cai em Todas as etapas, rolando até a parte pedida */
+    const alvo = aba==="documentos" ? "documentos" : "etapas";
+    PN_ABA_LISTA=alvo;
+    const painel=document.getElementById("painel"); if(painel) painel.setAttribute("data-aba","lista-"+alvo);
+    document.querySelectorAll("#pn-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===alvo; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
+    const body=document.getElementById("pn-body"); if(!body) return;
+    const sec=(aba!=="etapas"&&aba!=="documentos") ? (aba==="recebimentos"?document.getElementById("contrato-wrap"):body.querySelector(':scope>[data-sec="'+aba+'"]')) : null;
+    if(sec && sec.offsetParent) body.scrollTop = Math.max(0, sec.offsetTop - body.offsetTop - 6); else body.scrollTop=0;
+    return;
+  }
   const abas=pnAbas(); if(!abas||!abas.some(a=>a[0]===aba)) return;
   PN_ABA=aba;
   const painel=document.getElementById("painel"); if(painel) painel.setAttribute("data-aba",aba);
@@ -4516,8 +4591,9 @@ function pnTrocarAba(aba){
   const body=document.getElementById("pn-body"); if(body) body.scrollTop=0;
 }
 function pnAbaDoCampo(nome){ try{ return window.PainelCasa&&window.PainelCasa.abaDoCampo ? window.PainelCasa.abaDoCampo(nome) : "andamento"; }catch(e){ return "andamento"; } }
-function pnPorDepartamento(nomes){
-  try{ if(window.PainelCasa&&window.PainelCasa.porDepartamento) return window.PainelCasa.porDepartamento(nomes); }catch(e){}
+/* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha da Secretária de Vendas (venda/painel-casa.js, porEtapa) */
+function pnPorEtapa(nomes){
+  try{ if(window.PainelCasa&&window.PainelCasa.porEtapa) return window.PainelCasa.porEtapa(nomes); }catch(e){}
   return nomes.length?[{titulo:"Preenchimento",campos:nomes}]:[];
 }
 /* 04/11/2026 (dono): o que falta para gerar o contrato da casa vira a caixa do campo dentro da aba Contrato
@@ -4559,10 +4635,11 @@ function pnResumoProcesso(V,pageId,sensPendente){
     }
     const n=normNome(txt);
     const cls = !txt ? " vazio" : (/^(SIM|TRANSFERID)/.test(n) ? " sim" : (/^(NAO|NÃO)/.test(n)||/NAO TRANSFERID|ATRASAD/.test(n) ? " nao" : ""));
-    const ir = it.calculado ? "" : ` ir" onclick="pnTrocarAba('andamento')" title="Abrir no Andamento`;
+    const ir = it.calculado ? "" : ` ir" onclick="pnTrocarAba('andamento')" title="Abrir nas etapas do processo`;
     return `<div class="proc-it${cls}${ir}"><div class="proc-rot">${esc(it.rotulo)}</div><div class="proc-val">${esc(txt||"—")}</div></div>`;
   }).join("");
-  return html ? `<div class="grp" style="margin-top:14px">Resumo do processo</div><div class="proc">${html}</div>` : "";
+  /* .proc-wrap: no modo lista o mesmo HTML vai para o topo parado do painel (#pn-topo) e este some do Resumo */
+  return html ? `<div class="proc-wrap"><div class="grp" style="margin-top:14px">Resumo do processo</div><div class="proc">${html}</div></div>` : "";
 }
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
@@ -4610,8 +4687,8 @@ function renderPainel(V,pageId,sensPendente){
   if(chips.length) sec.resumo+=`<div class="chips">${chips.join("")}</div>`;
 
   /* campos do formulário, cada um na aba dele. Compradores e Contrato mantêm os títulos da entrega 14
-     (Comprador 1, Comprador 2, Contrato — …); o Andamento é separado por departamento (mesma régua do
-     cartão do condomínio). Tudo em duas colunas. */
+     (Comprador 1, Comprador 2, Contrato — …); o Andamento é separado em ETAPAS na ordem da planilha de casas de rua
+     (13/11/2026). Duas colunas no modo abas, uma no modo lista. */
   const porAba={compradores:[],contrato:[],documentos:[],andamento:[],links:[]};
   ordemFormulario().forEach(nome=>{
     const c=campoPorNome(nome); if(!c) return;
@@ -4640,7 +4717,7 @@ function renderPainel(V,pageId,sensPendente){
   sec.compradores+=porGrupo(porAba.compradores,"Compradores",true);
   sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
   sec.documentos+=blocoTitulado(porAba.documentos,"Dossiê — observações");
-  sec.andamento+=pnPorDepartamento(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");
+  sec.andamento+=pnPorEtapa(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");
   /* 09/11/2026 (dono): aba Links — layout, fotos e localização da casa num lugar só */
   if(porAba.links.length){
     sec.links+=blocoTitulado(porAba.links,"Links da casa")+
