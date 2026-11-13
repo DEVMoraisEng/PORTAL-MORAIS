@@ -643,10 +643,13 @@ const _END_VALIDADOS={};
 /* ---------- abas ---------- */
 function pintarTabs(){
   const nAl=alertasEnd().length+alertasRobo().length+alertasMc().length+alertasCampos().length+alertasConta().length;
-  document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"],["contas","Contas bancárias"],["investidores","Cadastros investidores"]].map(([k,r])=>
+  /* 13/11/2026 (dono): abas "Contas bancárias" e "Cadastros investidores" removidas do portal. As funções
+     pintarContas/pintarInvestidores ficam no arquivo (sem botão) — as contas continuam sendo lidas para a escolha
+     da conta na obra e para os alertas. */
+  document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"]].map(([k,r])=>
     `<button class="tab ${ABA===k?"on":""}" title="${({obras:"Lista de obras e formulário de obra nova",atividades:"Atividades por pessoa — abre nas suas",alertas:"O que falta preencher ou decidir",contas:"Contas do Mais Controle e quais aparecem para escolha",investidores:"Cadastro de proprietários/investidores (só consulta)"})[k]||""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
 }
-function pintar(){ pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else if(ABA==="investidores") pintarInvestidores(); else if(ABA==="contas") pintarContas(); else pintarAlertas(); }
+function pintar(){ if(ABA!=="obras"&&ABA!=="atividades"&&ABA!=="alertas") ABA="obras"; pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else pintarAlertas(); }
 
 /* ===================== ABA OBRAS ===================== */
 let BUSCA="", SETOR="";
