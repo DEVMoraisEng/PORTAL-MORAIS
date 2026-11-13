@@ -287,3 +287,29 @@ def test_internet_escritorio_e_obra():
 def test_taxa_de_uso_do_solo_sugerida_para_taxas_gerais(desc):
     st, sug, *_ = Motor().classificar(desc, "", "Taxas gerais", "TAXAS GERAIS - OBRA E AVERBAÇÃO", CC_OBRA)
     assert sug == "Taxa de Uso do Solo (Obra)"
+
+
+# ---------------------------------------------------------------- eventos de venda (regra do dono 11/11/2026)
+CC_COND = "CONDOMÍNIO FICTICIO"
+
+
+@pytest.mark.parametrize("desc,cat,plano", [
+    ("SALGADOS PARA DIA D DE VENDAS", "Marketing", "Despesas Administrativas"),
+    ("SALGADOS CAFÉ DA MANHA CORRETORES", "Alimentação / Lanches", "Despesas Administrativas"),
+    ("BOLO DE CENOURA - DIA D", "Marketing", "Despesas Administrativas"),
+    ("LOCAÇÃO DE MESAS PARA EVENTO DE LANÇAMENTO", "Locação de equipamentos", "Equipamentos"),
+])
+def test_lanche_de_evento_de_venda_sugere_eventos_de_vendas(desc, cat, plano):
+    st, sug, *_ = Motor().classificar(desc, "", cat, plano, CC_COND)
+    assert st == "DIVERGENTE" and sug == "Eventos de vendas e relacionamento com corretores"
+
+
+@pytest.mark.parametrize("desc", ["SALGADOS PARA CAFÉ DA MANHÃ - RODADA DE NEGÓCIOS", "BOLOS PARA MEETING"])
+def test_eventos_de_vendas_nao_e_mais_divergente(desc):
+    st, *_ = Motor().classificar(desc, "", "Eventos de vendas e relacionamento com corretores", "Venda de casa", CC_COND)
+    assert st != "DIVERGENTE"
+
+
+def test_lanche_do_escritorio_continua_alimentacao():
+    st, sug, *_ = Motor().classificar("CAFE E BOLOS DO ESCRITORIO", "", "Marketing", "", CC_ADM)
+    assert sug == "Alimentação / Lanches"
