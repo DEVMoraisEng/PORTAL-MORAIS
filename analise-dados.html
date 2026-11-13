@@ -4986,6 +4986,51 @@ function ccVer(tipo){
   if(!d.open) d.showModal(); }
 function ccLanc(cc){ if(!CC_VER) return; const n=nzC(cc), {tipo,ml}=CC_VER;
   lancAbrir({titulo:cc,sub:(tipo==='esc'?'Escritório':'Pós-obra')+' · '+fmtM(ml[0])+' a '+fmtM(ml[ml.length-1])+' · todos os lançamentos do centro de custo (os que não contam aparecem na categoria deles)',pag:p=>ml.includes(p.mes)&&nzC(p.cc||'')===n}); }
+/* ============ OPERACIONAL × NÃO OPERACIONAL: O QUE ENTRA (13/11/26) ============
+   Pedido do dono: descrever melhor o que é entrada/saída operacional e não
+   operacional, com botão para ver. Mesma regra do dashAgg/recOp/pagOp:
+   - entrada operacional = recebimento cuja NATUREZA é Receita (Configurações › 4)
+     e cujo CC não é de sócios nem "não conta";
+   - saída operacional = custo de obra, terreno, custo de venda, escritório e pós-obra;
+   - todo o resto é não operacional. Período = 12 meses do card. Clique numa linha
+     = lançamentos daquela linha. */
+let OP_MESES=[], OPV_F=[];
+const ROT_REC={receita:'Receita',socios:'Movimento dos sócios',nao:'Não conta'};
+function opMotivoRec(f){ const c=ccInfo(f.cc||''), nat=f.nat||'(sem natureza)';
+  if(c.tipo==='soc') return 'Recebido em CC de sócios/aportes · '+nat;
+  if(c.tipo==='ign') return 'Recebido em CC que não conta ('+(f.cc||'')+') · '+nat;
+  return 'Natureza "'+nat+'" = '+(ROT_REC[natDest(f.nat)]||natDest(f.nat)); }
+function opMotivoPag(p){ const k=cls(p), cat=p.categoria||'(sem categoria)';
+  if(k.t==='obra'&&k.i==='obra') return 'Custo de obra'; if(k.t==='obra'&&k.i==='ter') return 'Compra de terreno';
+  if(k.t==='obra'&&k.i==='venda') return 'Custo de venda (comissão, RET, ganho de capital)';
+  if(k.t==='esc'&&k.i==='conta') return 'Escritório'; if(k.t==='pos'&&k.i==='conta') return 'Pós-obra';
+  if(k.i==='soc') return 'Sócios (aporte/distribuição/cota) · '+cat;
+  if(k.t==='ign') return 'CC que não conta · '+(p.cc||'');
+  return 'Categoria que não conta ('+(ROT_TIPO[k.t]||k.t)+') · '+cat; }
+function opVer(){
+  const ml=OP_MESES.length?OP_MESES:[], set=new Set(ml); OPV_F=[];
+  const grupo=(lista,motivo)=>{ const g={}; lista.forEach(x=>{ const m=motivo(x); const o=g[m]||(g[m]={m,n:0,v:0}); o.n++; o.v+=x.valor||0; }); return Object.values(g).sort((a,b)=>b.v-a.v); };
+  const R=FATS_TODOS.filter(f=>set.has(f.mes)), Pg=(window._pagFull||[]).filter(p=>set.has(p.mes));
+  const eo=grupo(R.filter(f=>recOp(f)),opMotivoRec), en=grupo(R.filter(f=>!recOp(f)),opMotivoRec);
+  const so=grupo(Pg.filter(p=>pagOp(p)),opMotivoPag), sn=grupo(Pg.filter(p=>!pagOp(p)),opMotivoPag);
+  const tab=(tit,desc,L,ehRec,cor)=>{ const t=L.reduce((a,x)=>a+x.v,0), n=L.reduce((a,x)=>a+x.n,0);
+    const linhas=L.map(x=>{ const i=OPV_F.length; OPV_F.push({titulo:tit+' · '+x.m,sub:fmtM(ml[0])+' a '+fmtM(ml[ml.length-1]),[ehRec?'rec':'pag']:ehRec?(f=>set.has(f.mes)&&opMotivoRec(f)===x.m&&recOp(f)===(cor==='g')):(p=>set.has(p.mes)&&opMotivoPag(p)===x.m&&pagOp(p)===(cor==='g'||cor==='ro'))});
+      return `<tr class="cc-l" onclick="lancAbrir(OPV_F[${i}])" title="Ver os lançamentos"><td>${esc(x.m)}</td><td class="nr">${x.n}</td><td class="nr ${cor==='g'?'g':''}">${fmtBRL(x.v)}</td><td class="nr">${t?fmtN(x.v/t*100,1)+'%':'—'}</td></tr>`; }).join('');
+    return `<div class="cc-sec">${tit} · ${fmtBRL(t)}</div><div class="lc-s" style="margin:-2px 0 6px">${desc}</div><table class="lc-t cc-t"><thead><tr><th>${ehRec?'Natureza / motivo':'Item / motivo'}</th><th class="nr">Lanç.</th><th class="nr">Valor</th><th class="nr">%</th></tr></thead><tbody>${linhas||'<tr><td colspan="4" class="lc-vz">Nada no período.</td></tr>'}</tbody><tfoot><tr><td>Total</td><td class="nr">${n}</td><td class="nr"><b>${fmtBRL(t)}</b></td><td></td></tr></tfoot></table>`; };
+  const regras=`<table class="lc-t cc-t"><thead><tr><th></th><th>Operacional (o que a empresa faz)</th><th>Não operacional</th></tr></thead><tbody>
+    <tr><td><b>Entradas</b></td><td>Recebimentos com natureza marcada como <b>Receita</b> (Venda, Prestação de serviços, Execução de obras… — Configurações › 4), fora dos CCs de sócios e dos CCs que não contam.</td><td>Aportes de capital e de investidor, empréstimos, estornos e qualquer natureza que não seja Receita; e qualquer recebimento em CC de sócios ou que não conta.</td></tr>
+    <tr><td><b>Saídas</b></td><td>Custo de obra, compra de terreno, custo de venda (comissão, RET, ganho de capital), escritório e pós-obra.</td><td>Distribuição de lucros, aportes e cota capital; categorias marcadas "não conta" (devoluções, distratos, adiantamentos, despesas pessoais JC/JV, pagamentos duplicados…); e CCs que não contam.</td></tr>
+    </tbody></table>`;
+  let d=document.getElementById('lanc-dlg');
+  if(!d){ d=document.createElement('dialog'); d.id='lanc-dlg'; document.body.appendChild(d); d.addEventListener('click',e=>{ if(e.target===d) d.close(); }); }
+  d.innerHTML=`<div class="lc-h"><div><h3>Operacional × não operacional · o que entra em cada lado</h3><div class="lc-s">${ml.length?fmtM(ml[0])+' a '+fmtM(ml[ml.length-1]):''} · mesmo período dos cards (12 meses). Clique numa linha para ver os lançamentos.</div></div><button type="button" class="lc-x" onclick="document.getElementById('lanc-dlg').close()" aria-label="Fechar">✕</button></div>
+  <div class="lc-tw">${regras}
+  ${tab('Entradas operacionais','Recebimentos de receita da empresa.',eo,true,'g')}
+  ${tab('Saídas operacionais','O que custa produzir e vender as casas e manter a empresa.',so,false,'ro')}
+  ${tab('Entradas não operacionais','Dinheiro que entrou mas não é receita.',en,true,'n')}
+  ${tab('Saídas não operacionais','Dinheiro que saiu mas não é custo da operação.',sn,false,'n')}</div>
+  <div class="lc-pe">Para mudar o lado de uma natureza de recebimento, use Configurações › 4; de uma categoria de pagamento, Configurações › 3; de um centro de custo, Configurações › 2. Vale para todas as telas.</div>`;
+  if(!d.open) d.showModal(); }
 let DASH_MODO=(()=>{ try{ return JSON.parse(localStorage.getItem('ad_dash_modo')||'{}'); }catch(e){ return {}; } })();
 function tipNS(ns){ TIP_NS=ns; TIPS[ns]={}; }
 function dashModo(k,v){ DASH_MODO[k]=v; if(k==='OBV'&&v==='rua') {} try{ localStorage.setItem('ad_dash_modo',JSON.stringify(DASH_MODO)); }catch(e){}
@@ -5128,10 +5173,11 @@ function dashNovo(P){
         pag:p=>p.mes===m12[i]&&pagOp(p)===op, rec:f=>f.mes===m12[i]&&/^\d{4}-\d{2}$/.test(f.mes||'')&&recOp(f)===op}),
       bars:[{n:'Entradas',cor:VERDE,v:m12.map(m=>dS(fe,[m]))},{n:'Saídas',cor:'#c0392b',v:m12.map(m=>-dS(fs,[m]))}],
       lines:[{n:op?'Resultado':'Saldo',cor:op?cv('--text','#223'):'#d4a017',v:m12.map(m=>dS(fe,[m])-dS(fs,[m])),w:3}].concat(op?[]:[{n:'Média móvel 12 meses do saldo',cor:cv('--text','#223'),dash:'6 4',w:2.4,v:m12.map(m=>{ const ul=[...Array(12)].map((_,i)=>mAdd(m,-i)); return (dS(fe,ul)-dS(fs,ul))/12; })}]),
-      nota:op?'Entradas: recebimentos com natureza Receita. Saídas: obra, terreno, venda, escritório e pós-obra.':'Entradas: aportes, empréstimos, estornos. Saídas: distribuições, financiamento da sala, devoluções e o que é marcado "não conta".'});
+      nota:op?'Entradas: recebimentos com natureza Receita. Saídas: obra, terreno, venda, escritório e pós-obra.':'Entradas: aportes, empréstimos, estornos. Saídas: distribuições, devoluções, distratos e o que é marcado "não conta".'});
     const mm=(dS(fe,m12)-dS(fs,m12))/12, refM=Math.max(1,(dS(fe,m12)+dS(fs,m12))/24), pctM=Math.abs(mm)/refM*100;
     const medTxt=op?'':`<div class="dv-s" style="margin:-4px 0 6px" data-tip="opSn:12">Média do saldo nos 12 meses: <b style="color:${pctM<=15?'var(--verde)':'#c0392b'}">${fmtBRL(mm)}/mês</b> · ${pctM<=15?'✓ perto de zero':'⚠ longe de zero'} (${fmtN(pctM,0)}% da média de entradas + saídas). A longo prazo deve tender a zero.</div>`;
-    return dcard(op?'#2a9d5c':'#b08d1a',op?'⚙':'🏦',op?'Operacional':'Não operacional',op?'o que a empresa faz':'aportes, distribuições e o resto','','<div class="dt-w">'+tab+'</div>'+medTxt+ch+`<div class="dv-s">Resultado de caixa do período (pago e recebido no mês), não lucro das obras.</div>`); };
+    return dcard(op?'#2a9d5c':'#b08d1a',op?'⚙':'🏦',op?'Operacional':'Não operacional',op?'o que a empresa faz':'aportes, distribuições e o resto',`<button type="button" class="dc-bt" onclick="opVer()" title="O que entra como operacional e como não operacional">🔎 Ver o que entra</button>`,'<div class="dt-w">'+tab+'</div>'+medTxt+ch+`<div class="dv-s">Resultado de caixa do período (pago e recebido no mês), não lucro das obras.</div>`); };
+  OP_MESES=m12.slice();   // 13/11/26: período do "Ver o que entra"
   h+=`<div class="dg c2">${opCard(true)}${opCard(false)}</div>`;
   return h;
 }
