@@ -478,6 +478,9 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 #painel[data-aba="lista-etapas"] #contrato-wrap::before{content:"Contrato, assinatura e recebimentos"}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec="andamento"]::before{content:"Etapas do processo (ordem da planilha)"}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec="links"]::before{content:"Links da casa"}
+/* 13/11/2026: Comentários / Distrato / Administração no fim da lista (no modo abas ficam no Resumo) */
+#painel[data-modo="lista"] #pn-body>.pn-rodape{order:7}
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec].pn-rodape::before{content:none;display:none}
 @media (max-width:600px){ #painel[data-modo="lista"] .pn-topo .proc{grid-template-columns:repeat(2,minmax(0,1fr))} .pn-modo-bt{padding:6px 8px;font-size:12px} }
 /* campos em duas colunas dentro das abas (a lista inteira numa coluna só era o que fazia 16 telas de rolagem) */
 /* 09/11/26 — Resumo do processo (aba Resumo do painel da casa) */
@@ -4644,7 +4647,11 @@ function pnResumoProcesso(V,pageId,sensPendente){
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
   PN_V=V; PN_PAGE=pageId; PN_SENS=!!sensPendente;
-  const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:"",links:""};
+  const sec={resumo:"",documentos:"",compradores:"",contrato:"",andamento:"",links:"",
+    /* 13/11/2026 (dono): "na visualização em lista faltou os comentários" — Comentários, Distrato e Administração
+       ficam numa parte própria no FIM do painel (.pn-rodape). No modo abas ela continua dentro do Resumo (mesmo
+       data-sec, logo depois dele); no modo lista vai para o fim de "Todas as etapas", depois dos Links. */
+    rodape:""};
 
   /* 05/11/2026 (dono): o ENDEREÇO saiu do Resumo — "não tem que ter possibilidade de mudar o endereço". Ele já é o
      título do painel (pn-end, cabecalhoObra) e continua na planilha, nos filtros e no contrato; só não é mais caixa
@@ -4775,7 +4782,7 @@ function renderPainel(V,pageId,sensPendente){
   // escrita direto pelo painel. O conteúdo em si é carregado depois, por
   // carregarComentarios() — aqui só entra a casca (senão travaria o resto
   // do painel esperando a API de comentários responder).
-  sec.resumo+=`<div class="grp">Comentários</div><div class="campo">`+
+  sec.rodape+=`<div class="grp">Comentários</div><div class="campo">`+
     `<div class="coment-lista" id="coment-lista"><div class="coment-vazio"><span class="load"></span> Carregando…</div></div>`+
     `<div class="coment-novo"><textarea id="coment-texto" placeholder="Escrever um comentário..." rows="2"></textarea>`+
     `<button type="button" class="bt az bt-mini" id="coment-btn" onclick='enviarComentario(${jsArg(pageId)})'>Enviar</button></div>`+
@@ -4789,13 +4796,14 @@ function renderPainel(V,pageId,sensPendente){
      recusaria de qualquer forma (MODO_TESTE), mas mostrar um botão vermelho
      que só dá erro é pedir pra alguém tentar. */
   if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S) && !SO_LEITURA){
-    sec.resumo+=`<div class="grp">Distrato</div><div class="campo">`+
+    sec.rodape+=`<div class="grp">Distrato</div><div class="campo">`+
       `<button class="bt danger" onclick='pedirDistrato(${jsArg(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;
   }
-  if(S.tipo==="ADM"){ sec.resumo+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
+  if(S.tipo==="ADM"){ sec.rodape+=`<div class="grp">Administração</div><div class="campo"><button class="bt danger" onclick='excluirObra(${jsArg(pageId)})'>Excluir esta obra</button></div>`; }
   /* ordem das partes = ordem das abas; sem abas (painel-casa.js não carregou) fica a coluna de antes */
   body.innerHTML=["resumo","documentos","compradores","contrato","andamento","links"].map(k=>`<div data-sec="${k}">${sec[k]}</div>`).join("");
+  body.insertAdjacentHTML("beforeend",`<div data-sec="resumo" class="pn-rodape">${sec.rodape}</div>`);
   pnDesenharAbas();
   ligarMoedas(body);          // máscara de R$ nos campos de valor
   carregarComentarios(pageId);
