@@ -191,6 +191,14 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .cd-chips button{border:1.5px solid var(--border);background:var(--bg2);color:var(--text);border-radius:20px;padding:4px 12px;font:700 12px 'Barlow',sans-serif;cursor:pointer}
 .cd-chips button.on{background:var(--ac);border-color:var(--ac);color:#fff}
 .dc-h .dc-tg+.dc-tg{margin-left:6px}
+/* 13/11/26: botão "Ver centros de custo" no cabeçalho dos cards Escritório / Pós-obra */
+.dc-bt{margin-left:auto;border:1.5px solid var(--border);background:transparent;color:var(--text3);border-radius:8px;padding:5px 11px;
+  font:700 11.5px 'Barlow',sans-serif;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;white-space:nowrap}
+.dc-bt:hover{border-color:var(--ac);color:var(--text)}
+.cc-t tr.cc-l{cursor:pointer}.cc-t tr.cc-l:hover td{background:rgba(127,140,141,.12)}
+.cc-tag{display:inline-block;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:10px;background:rgba(127,140,141,.18);color:var(--text3);margin-left:6px}
+.cc-tag.man{background:rgba(212,160,23,.2);color:#b7860f}
+.cc-sec{font:800 12px 'Barlow',sans-serif;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:14px 0 6px}
 .dt-w .dtc td{font-size:clamp(11px,calc((100cqi - 200px) / 48),17px)}
 .dt-w .dt td{font-size:clamp(11px,calc((100cqi - 175px) / 34),19px)}
 .dt-w .dt tr.tot td{font-size:clamp(11.5px,calc((100cqi - 175px) / 32),21px)}
@@ -4936,6 +4944,48 @@ function lancCSV(){ if(!LANC_L) return; const F=lancFiltro(), q=v=>'"'+String(v=
   const linhas=[['Tipo','Data','Origem','Centro de custo','Categoria','Plano de conta','Fornecedor','Descrição','Valor','Aviso']].concat(F.map(x=>[x.t==='R'?'Recebimento':'Pagamento',x.data,x.orig==='box'?'Box':'MC',x.cc,x.g,x.plano,x.forn,x.desc,String((x.v||0).toFixed(2)).replace('.',','),x.dup]));
   const b=new Blob(['﻿'+linhas.map(l=>l.map(q).join(';')).join('\r\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(b); a.download=(LANC_L.o.titulo||'lancamentos').replace(/[^\w\- ]+/g,' ').replace(/\s+/g,'_')+'.csv'; document.body.appendChild(a); a.click(); setTimeout(()=>{ URL.revokeObjectURL(a.href); a.remove(); },500); }
+/* ============ VER CENTROS DE CUSTO (13/11/26) ============
+   Pedido do dono: um botão que mostra QUAIS centros de custo estão entrando no
+   Escritório (e no Pós-obra), no mesmo período dos cards (desde mar/26). Para
+   cada CC: por que ele entra (regra automática ou Configurações › 2), quanto
+   conta, quanto fica de fora e por quais categorias. Mostra também os CCs que
+   parecem do mesmo tipo pelo nome mas estão fora. Clique no CC = lançamentos. */
+let CC_MESES=[], CC_VER=null;
+function ccMotivo(cc,tipo){ const n=nzC(cc);
+  if((CFG.ccs[n]||{}).tipo) return {t:'Configurações › 2',man:true};
+  if(tipo==='esc'){ if(/ESCRIT/.test(n)) return {t:'tem ESCRITÓRIO no nome'}; if(/FOLHA DE PAGAMENTO/.test(n)) return {t:'folha de pagamento'};
+    if(/^EMPRESA$/.test(n)) return {t:'CC "EMPRESA"'}; if(/^REEMBOLSO EMPRESA/.test(n)) return {t:'reembolso da empresa'}; if(/^SALA 1212/.test(n)) return {t:'sala 1212'}; }
+  if(tipo==='pos') return {t:'pós-obra da Morais Engenharia'};
+  if(/MOURA DANTAS/.test(n)) return {t:'Moura Dantas fica fora (01/10)'};
+  return {t:'regra automática'}; }
+function ccVer(tipo){
+  const ml=CC_MESES.length?CC_MESES:[]; const rot=tipo==='esc'?'Escritório':'Pós-obra';
+  const por={};
+  (window._pagFull||[]).forEach(p=>{ if(!ml.includes(p.mes)) return; const k=cls(p), n=nzC(p.cc||'');
+    const parece=tipo==='esc'?/ESCRIT/.test(n):/POS OBRA/.test(n);
+    if(k.t!==tipo&&!parece) return;
+    const o=por[n]||(por[n]={cc:p.cc||'(sem centro de custo)',tipo:k.t,n:0,v:0,nf:0,vf:0,fora:{}});
+    if(k.t===tipo&&k.i==='conta'){ o.n++; o.v+=p.valor||0; }
+    else { o.nf++; o.vf+=p.valor||0; const c=(k.t!==tipo?'CC: '+(ROT_TIPO[k.t]||k.t):(k.i==='soc'?'Sócios':p.categoria||'(sem categoria)')); o.fora[c]=(o.fora[c]||0)+(p.valor||0); } });
+  const L=Object.values(por), dentro=L.filter(o=>o.tipo===tipo).sort((a,b)=>b.v-a.v), fora=L.filter(o=>o.tipo!==tipo).sort((a,b)=>b.vf-a.vf);
+  const tot=dentro.reduce((a,o)=>a+o.v,0), totF=dentro.reduce((a,o)=>a+o.vf,0), nL=dentro.reduce((a,o)=>a+o.n,0);
+  CC_VER={tipo,ml};
+  const foraTxt=o=>Object.entries(o.fora).sort((a,b)=>b[1]-a[1]).map(([c,v])=>`${esc(c)} ${fmtBRL(v)}`).join(' · ');
+  const lin=(o,dentro)=>{ const m=ccMotivo(o.cc,dentro?tipo:o.tipo);
+    return `<tr class="cc-l" data-cc="${esc(o.cc)}" onclick="ccLanc(this.dataset.cc)" title="Ver os lançamentos deste centro de custo"><td><b>${esc(o.cc)}</b><span class="cc-tag${m.man?' man':''}">${esc(m.t)}</span></td>`+
+      (dentro?`<td class="nr">${o.n}</td><td class="nr"><b>${fmtBRL(o.v)}</b></td><td class="nr">${tot?fmtN(o.v/tot*100,1)+'%':'—'}</td><td>${o.vf?`<span style="color:var(--text3)">${fmtBRL(o.vf)} — ${foraTxt(o)}</span>`:'—'}</td></tr>`
+             :`<td class="nr">${o.nf}</td><td class="nr">${fmtBRL(o.vf)}</td><td colspan="2">${esc(ROT_TIPO[o.tipo]||o.tipo)}</td></tr>`); };
+  let d=document.getElementById('lanc-dlg');
+  if(!d){ d=document.createElement('dialog'); d.id='lanc-dlg'; document.body.appendChild(d); d.addEventListener('click',e=>{ if(e.target===d) d.close(); }); }
+  d.innerHTML=`<div class="lc-h"><div><h3>${rot} · centros de custo considerados</h3><div class="lc-s">${ml.length?fmtM(ml[0])+' a '+fmtM(ml[ml.length-1]):''} · mesmo período dos cards. Clique num centro de custo para ver os lançamentos.</div></div><button type="button" class="lc-x" onclick="document.getElementById('lanc-dlg').close()" aria-label="Fechar">✕</button></div>
+  <div class="lc-tot"><b>${fmtBRL(tot)}</b> em ${nL} lançamento${nL===1?'':'s'} de ${dentro.length} centro${dentro.length===1?'':'s'} de custo${totF?` · fora do custo nesses CCs: ${fmtBRL(totF)}`:''}</div>
+  <div class="lc-tw"><table class="lc-t cc-t"><thead><tr><th>Centro de custo · por que entra</th><th class="nr">Lanç.</th><th class="nr">Conta no ${rot.toLowerCase()}</th><th class="nr">%</th><th>Fica de fora (categoria)</th></tr></thead><tbody>${dentro.map(o=>lin(o,true)).join('')||'<tr><td colspan="5" class="lc-vz">Nenhum centro de custo.</td></tr>'}</tbody>
+  <tfoot><tr><td>Total</td><td class="nr">${nL}</td><td class="nr"><b>${fmtBRL(tot)}</b></td><td></td><td>${totF?fmtBRL(totF):''}</td></tr></tfoot></table>
+  ${fora.length?`<div class="cc-sec">Parecem do ${rot.toLowerCase()} pelo nome, mas NÃO entram</div><table class="lc-t cc-t"><thead><tr><th>Centro de custo</th><th class="nr">Lanç.</th><th class="nr">Valor</th><th colspan="2">Tratado como</th></tr></thead><tbody>${fora.map(o=>lin(o,false)).join('')}</tbody></table>`:''}</div>
+  <div class="lc-pe">Para tirar ou incluir um centro de custo, mude o <b>tipo</b> dele em Configurações › 2; para tirar uma categoria, Configurações › 3. Vale para todas as telas.</div>`;
+  if(!d.open) d.showModal(); }
+function ccLanc(cc){ if(!CC_VER) return; const n=nzC(cc), {tipo,ml}=CC_VER;
+  lancAbrir({titulo:cc,sub:(tipo==='esc'?'Escritório':'Pós-obra')+' · '+fmtM(ml[0])+' a '+fmtM(ml[ml.length-1])+' · todos os lançamentos do centro de custo (os que não contam aparecem na categoria deles)',pag:p=>ml.includes(p.mes)&&nzC(p.cc||'')===n}); }
 let DASH_MODO=(()=>{ try{ return JSON.parse(localStorage.getItem('ad_dash_modo')||'{}'); }catch(e){ return {}; } })();
 function tipNS(ns){ TIP_NS=ns; TIPS[ns]={}; }
 function dashModo(k,v){ DASH_MODO[k]=v; if(k==='OBV'&&v==='rua') {} try{ localStorage.setItem('ad_dash_modo',JSON.stringify(DASH_MODO)); }catch(e){}
@@ -5059,7 +5109,9 @@ function dashNovo(P){
     dashChart('rPos',mE,{titulo:'Pós-obra ÷ obra',ttl:'Pós-obra ÷ custo de obra · 3 meses antes de cada mês',pct:true,meta:1,lines:[{n:'Pós-obra ÷ obra',cor:'#2bb3a3',v:rP}],h:170,nota:'Custo de obra sem terreno, casas de rua + condomínio.',
       extra:i=>razaoTri(mE[i],'pos','Pós-obra',m=>dS('oR',[m])+dS('oC',[m]),'Custo de obra'),
       lanc:i=>triOk(mE[i])?{titulo:'Pós-obra · '+fmtM(tri(mE[i])[0])+' a '+fmtM(tri(mE[i])[2]),sub:'Os 3 meses que entram na conta de '+fmtM(mE[i]),pag:pK(tri(mE[i]),k=>k.t==='pos'&&k.i==='conta')}:null});
-  h+=`<div class="dg c2">${dcard('#295778','🏢','Escritório','custo fixo · meta ≤ 4% do VGV','',escBody)}${dcard('#2bb3a3','🔧','Pós-obra','assistência · meta ≤ 1% do custo de obra','',posBody)}</div>`;
+  CC_MESES=mE.slice();   // 13/11/26: período do "Ver centros de custo"
+  const btCC=t=>`<button type="button" class="dc-bt" onclick="ccVer('${t}')" title="Quais centros de custo estão sendo considerados">🔎 Ver centros de custo</button>`;
+  h+=`<div class="dg c2">${dcard('#295778','🏢','Escritório','custo fixo · meta ≤ 4% do VGV',btCC('esc'),escBody)}${dcard('#2bb3a3','🔧','Pós-obra','assistência · meta ≤ 1% do custo de obra',btCC('pos'),posBody)}</div>`;
   // ---------- Obras: casas de rua × condomínio ----------
   DASH_PP={mes,ano,m12,mA};
   h+=`<div class="dg c1">${obrasCard()}</div>`;
