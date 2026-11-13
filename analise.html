@@ -224,6 +224,8 @@ td.insumo.link:hover{background:var(--bg3)}
 .visao-bar .fcampo{margin:0}
 .visao-bar select{min-width:240px}
 .visao-info{font-size:12px;color:var(--text3);align-self:center}
+.visao-msg{font-size:12px;color:var(--text3);align-self:center;max-width:420px}
+.visao-msg:empty{display:none}
 td.col-etapa{font-size:12px;color:var(--text3);white-space:normal;min-width:140px;max-width:220px}
 tr.clicavel.on td{background:rgba(76,217,100,.14)}
 /* MELHORIAS #8: barras horizontais em HTML puro (sem canvas/biblioteca) */
@@ -432,6 +434,10 @@ section > .sec:first-child{margin-top:0}
             <h3 id="titulo-detalhe">Insumos</h3>
             <p class="desc">Clique nos títulos das colunas para ordenar. Use os filtros para refinar.</p>
             <div class="filtros">
+              <!-- 13/11/2026 (dono): "não achei como trocar para visualizar por etapa" — o seletor também junto da tabela -->
+              <div class="fcampo"><label>Ver insumos</label><select class="visao-sel" onchange="trocarVisao(this.value)"><option value="total">Total de insumos</option><option value="etapa">Por etapa</option></select></div>
+              <div class="fcampo visao-etapa-local hide"><label>Etapa</label><select class="visao-etapa-sel" onchange="trocarEtapa(this.value)"><option value="">Todas as etapas</option></select></div>
+              <span class="visao-msg"></span>
               <div class="fcampo">
                 <label>Buscar insumo</label>
                 <input type="text" id="busca-insumo-obra" placeholder="nome ou código…" oninput="renderDetalheObra()">
@@ -458,6 +464,10 @@ section > .sec:first-child{margin-top:0}
           <h3>Consolidado por insumo — todas as obras</h3>
           <p class="desc">Cada insumo somado em todas as obras. Clique nos títulos para ordenar.</p>
           <div class="filtros">
+              <!-- 13/11/2026 (dono): "não achei como trocar para visualizar por etapa" — o seletor também junto da tabela -->
+              <div class="fcampo"><label>Ver insumos</label><select class="visao-sel" onchange="trocarVisao(this.value)"><option value="total">Total de insumos</option><option value="etapa">Por etapa</option></select></div>
+              <div class="fcampo visao-etapa-local hide"><label>Etapa</label><select class="visao-etapa-sel" onchange="trocarEtapa(this.value)"><option value="">Todas as etapas</option></select></div>
+              <span class="visao-msg"></span>
             <div class="fcampo">
               <label>Buscar insumo</label>
               <input type="text" id="busca-insumo" placeholder="nome do insumo…" oninput="renderInsumos()">
@@ -488,6 +498,10 @@ section > .sec:first-child{margin-top:0}
             <b>OBRA FINALIZADA?</b> = SIM no banco DOCUMENTOS (casado pelo endereço).
             Clique no insumo para ver obra a obra.</p>
           <div class="filtros">
+              <!-- 13/11/2026 (dono): "não achei como trocar para visualizar por etapa" — o seletor também junto da tabela -->
+              <div class="fcampo"><label>Ver insumos</label><select class="visao-sel" onchange="trocarVisao(this.value)"><option value="total">Total de insumos</option><option value="etapa">Por etapa</option></select></div>
+              <div class="fcampo visao-etapa-local hide"><label>Etapa</label><select class="visao-etapa-sel" onchange="trocarEtapa(this.value)"><option value="">Todas as etapas</option></select></div>
+              <span class="visao-msg"></span>
             <div class="fcampo">
               <label>Obras</label>
               <select id="hist-base" onchange="renderHistorico()">
@@ -580,6 +594,10 @@ section > .sec:first-child{margin-top:0}
         <div class="sec"><span class="cond">Todos os insumos classificados</span></div>
         <div class="card">
           <div class="filtros">
+              <!-- 13/11/2026 (dono): "não achei como trocar para visualizar por etapa" — o seletor também junto da tabela -->
+              <div class="fcampo"><label>Ver insumos</label><select class="visao-sel" onchange="trocarVisao(this.value)"><option value="total">Total de insumos</option><option value="etapa">Por etapa</option></select></div>
+              <div class="fcampo visao-etapa-local hide"><label>Etapa</label><select class="visao-etapa-sel" onchange="trocarEtapa(this.value)"><option value="">Todas as etapas</option></select></div>
+              <span class="visao-msg"></span>
             <div class="fcampo">
               <label>Buscar insumo</label>
               <input type="text" id="busca-abc" placeholder="nome do insumo…" oninput="renderCurvaAbc()">
@@ -1648,10 +1666,9 @@ async function carregarEtapas(){
   return _etpProm;
 }
 function montarSeletorEtapa(){
-  const sel = document.getElementById("visao-etapa"); if(!sel) return;
-  sel.innerHTML = '<option value="">Todas as etapas</option>' +
+  const ops = '<option value="">Todas as etapas</option>' +
     ETP_LISTA.map(e => `<option value="${esc(e.chave)}">${esc(e.nome)}</option>`).join("");
-  sel.value = ETAPA_SEL;
+  document.querySelectorAll("#visao-etapa, .visao-etapa-sel").forEach(sel => { sel.innerHTML = ops; sel.value = ETAPA_SEL; });
 }
 /* linhas por etapa da etapa escolhida (todas, se nenhuma) */
 function linhasEtp(rows){
@@ -1735,6 +1752,11 @@ function pintarBarraVisao(){
   document.querySelectorAll("#seg-visao .seg-bt").forEach(b=>b.classList.toggle("on", b.dataset.visao===VISAO));
   document.getElementById("visao-etapa-cx").classList.toggle("hide", VISAO!=="etapa" || !ETP_ROWS);
   document.getElementById("etapas-geral").classList.toggle("hide", !porEtapa());
+  /* seletores junto das tabelas (Por obra, Insumos, Histórico, Curva ABC) acompanham a barra do topo */
+  document.querySelectorAll(".visao-sel").forEach(x => x.value = VISAO);
+  document.querySelectorAll(".visao-etapa-local").forEach(x => x.classList.toggle("hide", !porEtapa()));
+  document.querySelectorAll(".visao-etapa-sel").forEach(x => x.value = ETAPA_SEL);
+  document.querySelectorAll(".visao-msg").forEach(x => x.textContent = "");
   const info = document.getElementById("visao-info");
   if(VISAO==="etapa" && !ETP_ROWS) info.textContent = "";
   else if(porEtapa()) info.innerHTML = ETAPA_SEL ? `Mostrando só a etapa <b>${esc(etapaNome(ETAPA_SEL))}</b> — cada linha é insumo × etapa.`
@@ -1747,12 +1769,14 @@ async function trocarVisao(v){
   if(VISAO==="etapa" && !ETP_ROWS){
     pintarBarraVisao();
     document.getElementById("visao-info").innerHTML = '<span class="load"></span> Carregando as etapas…';
+    document.querySelectorAll(".visao-msg").forEach(x => x.innerHTML = '<span class="load"></span> Carregando as etapas…');
     const j = await carregarEtapas();
     if(!j){
       VISAO = "total";
       pintarBarraVisao();
-      document.getElementById("visao-info").textContent =
-        "A leitura por etapa ainda não foi publicada (sai na próxima coleta do Mais Controle). Mostrando o total.";
+      const msg = "A leitura por etapa ainda não foi publicada (sai na próxima coleta do Mais Controle). Mostrando o total.";
+      document.getElementById("visao-info").textContent = msg;
+      document.querySelectorAll(".visao-msg").forEach(x => x.textContent = msg);
       return;
     }
   }
@@ -1761,7 +1785,7 @@ async function trocarVisao(v){
 }
 function trocarEtapa(chave){
   ETAPA_SEL = chave || "";
-  const sel = document.getElementById("visao-etapa"); if(sel) sel.value = ETAPA_SEL;
+  document.querySelectorAll("#visao-etapa, .visao-etapa-sel").forEach(sel => sel.value = ETAPA_SEL);
   recalcularEtp();
   repintarVisao();
 }
