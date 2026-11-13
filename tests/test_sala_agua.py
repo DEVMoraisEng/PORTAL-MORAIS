@@ -262,3 +262,20 @@ def test_contas_publicas_status_e_historico(tmp_path):
 
 def test_contas_publicas_sem_pasta(tmp_path):
     assert A.contas_publicas(tmp_path / "nada")["ok"] is False
+
+
+def test_duvida_de_recorrencia_so_sai_com_parcela_futura_na_obra_certa():
+    # 13/11/2026 (dono): "como o robô vai saber se realmente foi resolvido?" — pelo retrato do Mais Controle
+    hoje = dt.date(2026, 11, 13)
+    obra = "CASSIMIRO J MARQUES DE ABREU QD 18 LT 08-11 B2 CS 2"
+    def ret(parcelas):
+        return {"chaves": {"449240901230": {"parcelas": parcelas}}}
+    certa = {"a": {"data": "2026-12-20", "pago": False, "obra": "CASSIMIRO J MARQUES DE ABREU QD 18 LT 08-11 B2"}}
+    outra = {"a": {"data": "2026-12-20", "pago": False, "obra": "CASSIMIRO J MARQUES DE ABREU QD 18 LT 08-11 B3"}}
+    passada = {"a": {"data": "2026-11-01", "pago": False, "obra": "CASSIMIRO J MARQUES DE ABREU QD 18 LT 08-11 B2"}}
+    assert A.recorrencia_resolvida("449240901230", obra, ret(certa), hoje) is True
+    assert A.recorrencia_resolvida("449240901230", obra, ret(outra), hoje) is False      # ainda na B3
+    assert A.recorrencia_resolvida("449240901230", obra, ret(passada), hoje) is False    # sem parcela futura
+    assert A.recorrencia_resolvida("449240901230", obra, None, hoje) is False             # sem retrato
+    sem_obra = {"a": {"data": "2026-12-20", "pago": False}}
+    assert A.recorrencia_resolvida("449240901230", obra, ret(sem_obra), hoje) is False    # retrato antigo, sem obra
