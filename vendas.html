@@ -2327,6 +2327,7 @@ function condAbrir(id){
     /* aba Resumo: valores, link para completar a venda e pendências */
     '<div data-sec="resumo">'+
     '<div class="cd-kpis" id="cd-kpis">'+condKpisHtml(l,fx)+'</div>'+
+    condCorrespondenteHtml(l)+
     (g("PENDÊNCIAS")&&g("PENDÊNCIAS")!=="nenhuma"?'<div class="cd-falta" style="margin-top:8px"><b>Pendências do cadastro:</b> '+esc(g("PENDÊNCIAS"))+'</div>':'')+
     condLinkVendaHtml(l)+
     condAtualizarVendaHtml(l)+
@@ -2356,6 +2357,25 @@ function condAbrir(id){
     window.__avAoAplicar=async()=>{ try{ await condCarregar(true); if(COND&&COND.linhas.some(x=>x.id===id)) condAbrir(id); }catch(e){} };
     setTimeout(()=>{ try{ AtualizarVendaUI.aviso("av-aviso-cond", pid); }catch(e){} }, 900);
   }
+}
+/* 13/11/2026 (dono) — CORRESPONDENTE na aba Resumo do cartão. É a coluna select CORRESPONDENTE do BANCO DE DADOS
+   VENDAS CONDOMÍNIO (fica fora do Andamento pelo CD_AND_FORA). Salva sozinha pelo mesmo caminho do Andamento
+   (condAndSalvar → simsVendaSalvar); quem só lê vê o nome. Sem a coluna na base, não aparece. */
+function condCorrespondenteCol(){
+  return ((COND&&COND.colunas)||[]).find(c=>/^CORR?ESS?PONDENTE$/.test(cdNorm(c.nome)))||null;
+}
+function condCorrespondenteHtml(l){
+  const c=condCorrespondenteCol(); if(!c||!l) return "";
+  const v=String(cdVal(l,c.nome)||"");
+  const caixa=x=>'<div class="cd-corr" style="margin-top:10px;display:flex;align-items:center;gap:8px;flex-wrap:wrap">'+
+    '<label for="cd-corr" style="font-weight:700;color:var(--azul)">Correspondente</label>'+x+'</div>';
+  if(SO_LEITURA||c.tipo!=="select") return caixa('<b>'+esc(v||"—")+'</b>');
+  const ops=(c.opcoes||[]).slice(); if(v&&ops.indexOf(v)<0) ops.unshift(v);
+  const chave=esc(l.id+"|"+c.nome);
+  return caixa('<select id="cd-corr" data-and-key="'+chave+'" style="min-width:200px" '+
+      'onchange="condAndSalvar(COND_ABERTA,condCorrespondenteCol().nome,this.value,\'cd-corr-st\')">'+
+      '<option value="">—</option>'+ops.map(o=>'<option'+(o===v?" selected":"")+'>'+esc(o)+'</option>').join("")+'</select>'+
+    '<span class="st" id="cd-corr-st" data-and-st="'+chave+'" style="font-size:12px"></span>');
 }
 /* 07/11/2026 — botão "Atualizar venda pela proposta" na aba Resumo: só com proposta ligada, sem contrato gerado
    e para quem grava (o servidor confere tudo de novo antes de gravar) */
