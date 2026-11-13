@@ -126,7 +126,7 @@ CATEGORIAS_PADRAO = [
     ("P1-03", "Serviços financeiros", _H, "Outros", "ADM", "ok", "Serviços financeiros de prestadores fixos da equipe (distinto do BPO terceirizado)."),
     ("P1-04", "Material Escritório", _D, "Outros", "ADM", "ok", "Papelaria, itens de escritório, móveis, decoração, eletrônicos de uso interno. Ex.: cadeiras, tablet."),
     ("P1-04", "Limpeza do Escritório", _D, "Outros", "ADM", "ok", "Diarista e produtos/serviços de limpeza do escritório. Ex.: diarista, produtos de limpeza."),
-    ("P1-04", "Alimentação / Lanches", _D, "Outros", "ADM", "ok", "Lanches, coffee-break, supermercado e bolos do dia a dia. Eventos e confraternizações maiores vão em Eventos e Confraternizações."),
+    ("P1-04", "Alimentação / Lanches", _D, "Outros", "ADM", "ok", "Lanches, coffee-break, supermercado e bolos do dia a dia. Eventos e confraternizações maiores vão em Eventos e Confraternizações; lanche de evento de venda ou de corretores vai em Eventos de vendas e relacionamento com corretores."),
     ("P1-04", "Uniformes", _D, "Outros", "ADM", "ok", "Uniformes e camisetas da equipe. Ex.: GRUPO DIALETO."),
     ("P1-04", "Estacionamento / Frete", _D, "Outros", "ADM", "ok", "Estacionamentos (Multipark, reembolsos) e fretes de documentos/pequenos volumes. Ex.: motoboy, Multipark."),
     ("P1-04", "Certificado Digital", _D, "Outros", "ADM", "ok", "Certificados digitais e-CNPJ/e-CPF e renovações."),
@@ -408,6 +408,10 @@ _r(r"\bBPO\b", ["BPO Financeiro", "Serviços financeiros"], "HON")
 _r(r"CONSULTORIA|RECRUTAMENTO|PBQP|\bNAUE\b|FECHAMENTO DE VAGA", ["Consultoria / Recrutamento"], "HON")
 _r(r"\bSST\b|E-?SOCIAL|PCMSO|\bPGR\b|EXAME (ADMISSIONAL|PERIODICO|DEMISSIONAL)|MEDICINA DO TRABALHO|\bASO\b",
    ["SST / Medicina do Trabalho"], "HON")
+# venda: lanche/evento ligado a venda, corretor ou lançamento (regra do dono 11/11/2026)
+_r(r"(?=.*(CORRETOR|\bDIA D\b|MEETING|RODADA DE NEGOCIO|LANCAMENTO|PLANTAO|EVENTO DE VENDA|DE VENDAS|IMOBILIARIA))"
+   r"(?=.*(LANCHE|\bCAFE\b|COFFEE|SALGAD|\bBOLOS?\b|\bDOCES?\b|PIZZA|REFRIGERANTE|BUFFET|CHURRASCO|ALMOCO|MESAS?\b|\bEVENTO\b))",
+   ["Eventos de vendas e relacionamento com corretores"], "VENDA")
 # administrativas
 _r(r"(MATERIA(L|IS)|COMPRAS?|ITENS)( DIVERSOS)? (DE |DO |PARA )?ESCRITORIO|PAPEL A4|PAPELARIA|PORTA CANETA|LIXEIRA|CANETA|"
    r"TONER|CARTUCHO|CADEIRA|TABLET|NOTEBOOK|MONITOR|MOVEI?S? (DO|PARA) ESCRITORIO|DECORACAO", ["Material Escritório"], "ADMIN")
@@ -662,6 +666,9 @@ class Motor:
         for rx, acc, fam in RF:
             if f and rx.search(f):
                 hits.append((acc, fam, "fornecedor"))
+        # lanche/evento de venda (regra do dono 11/11/2026) prevalece sobre Alimentação, Locação etc.
+        if any(h[1] == "VENDA" for h in hits):
+            hits = [h for h in hits if h[1] == "VENDA"]
 
         # --- utilidades: energia / água / internet
         util = None
