@@ -31,30 +31,22 @@ function ctxNovo(colunas, extra) {
 const COL = [{ nome: "CORRESPONDENTE", tipo: "select", opcoes: ["ALFA CRED", "BETA"] }];
 const linha = (v) => ({ id: "L1", v: Object.assign({ "UNIDADE": "99" }, v) });
 
-test("o cartão põe o correspondente na aba Resumo", () => {
+test("o correspondente é o 3º cartão, depois de Valor de venda e Comissão", () => {
+  const k = trecho(vendas, "function condKpisHtml(l,fx)");
+  assert.match(k, /<small>Comissão<\/small>'\+com\+'<\/div>'\+\s*condCorrespondenteHtml\(l\);/);
   const resumo = vendas.slice(vendas.indexOf("'<div data-sec=\"resumo\">'+"), vendas.indexOf("condLinkVendaHtml(l)+"));
-  assert.match(resumo, /condCorrespondenteHtml\(l\)\+/);
+  assert.doesNotMatch(resumo, /condCorrespondenteHtml/, "não aparece duas vezes");
 });
 
-test("lista com as opções da coluna, valor atual marcado, salva pelo Andamento", () => {
+test("travado: mostra o nome, sem lista e sem salvar", () => {
   const h = ctxNovo(COL).condCorrespondenteHtml(linha({ CORRESPONDENTE: "BETA" }));
-  assert.match(h, /<select id="cd-corr"/);
-  assert.match(h, /<option selected>BETA<\/option>/);
-  assert.match(h, /<option>ALFA CRED<\/option>/);
-  assert.match(h, /condAndSalvar\(COND_ABERTA,condCorrespondenteCol\(\)\.nome,this\.value,'cd-corr-st'\)/);
-  assert.match(h, /data-and-key="L1\|CORRESPONDENTE"/);
-  assert.match(h, /data-and-st="L1\|CORRESPONDENTE"/);
+  assert.equal(h, '<div class="cd-kpi"><small>Correspondente</small><b>BETA</b></div>');
+  assert.doesNotMatch(h, /<select|condAndSalvar/);
 });
 
-test("valor fora da lista continua aparecendo", () => {
-  const h = ctxNovo(COL).condCorrespondenteHtml(linha({ CORRESPONDENTE: "GAMA" }));
-  assert.match(h, /<option selected>GAMA<\/option>/);
-});
-
-test("só leitura vê o nome; sem a coluna não aparece", () => {
-  const ctx = ctxNovo(COL); ctx.SO_LEITURA = true;
-  const h = ctx.condCorrespondenteHtml(linha({ CORRESPONDENTE: "BETA" }));
-  assert.doesNotMatch(h, /<select/); assert.match(h, /<b>BETA<\/b>/);
+test("vazio mostra traço e avisa; sem a coluna não aparece", () => {
+  const h = ctxNovo(COL).condCorrespondenteHtml(linha({}));
+  assert.match(h, /<b>—<\/b><span>não veio da proposta<\/span>/);
   assert.equal(ctxNovo([]).condCorrespondenteHtml(linha({})), "");
 });
 
