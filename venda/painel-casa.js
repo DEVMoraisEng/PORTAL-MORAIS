@@ -75,6 +75,11 @@
   /* 09/11/2026 (dono): aba LINKS — layout, fotos e localização saíram do fim do Andamento ("cadastro da casa") */
   var ABAS = [["resumo", "Resumo"], ["documentos", "Documentos"], ["compradores", "Compradores"],
               ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["andamento", "Andamento"], ["links", "Links"]];
+  /* 13/11/2026 (dono): "algumas pessoas preferem ver em lista igual era antes" — o painel tem os dois jeitos. Em
+   * LISTA ele volta a ser a coluna lateral à direita, com o resumo do processo parado no topo e só duas abas: tudo
+   * do processo, na ordem (venda, compradores, contrato, etapas, links), e os documentos. Quem escolhe é a pessoa
+   * (fica guardado no navegador dela). */
+  var ABAS_LISTA = [["etapas", "Todas as etapas"], ["documentos", "Documentos"]];
   var RE_LINKS = /^(LAYOUT|FOTOS?|LOCALIZACAO)\b/;
   function abaDoCampo(nome) {
     var n = norm(nome), g = GRUPO[n] || "";
@@ -84,16 +89,43 @@
     if (/^DOSSIE/.test(n)) return "documentos";
     return "andamento";
   }
-  /* grupos do Andamento (mesma régua do cartão do condomínio, CD_AND_GRUPOS do vendas.html, com os reparos na
-   * frente); o primeiro que casar leva o campo, o resto fica em CADASTRO DA CASA */
-  var DEPARTAMENTOS = [
+  /* 13/11/2026 (dono): "perdeu a ordem dos processos" — o Andamento era separado por DEPARTAMENTO (banco, cartório,
+   * entrega…), e cada departamento juntava campos de pontos diferentes do processo (RECEBEU? ia para o banco, lá em
+   * cima, antes do cartório; GCAP ia para o cartório, antes da entrega). Agora são ETAPAS na MESMA ORDEM das colunas
+   * da planilha de casas de rua da Secretária de Vendas (ORDEM_PREFIXOS do vendas.html): cada etapa é um trecho
+   * contínuo daquela ordem, então ler o Andamento de cima para baixo = ler a planilha da esquerda para a direita.
+   * O primeiro padrão que casar leva o campo; dentro da etapa vale a ordem recebida (a da planilha). Coluna nova que
+   * não casar com nenhuma etapa cai em OUTROS CAMPOS, no fim. */
+  var ETAPAS = [
+    ["AVALIAÇÃO E VALORES", /^AVALIACAO|^VALIDADE|^VALOR NA MAO|^COMISSAO/],
+    ["CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE", /^ARMAZENOU CONTRATO COMPRA|^EMITIU RCPM|^MANDOU TODOS OS DOC|^DATA DE ENVIO DOS DOC/],
+    ["CONFORMIDADE E CONTRATO DO BANCO", /^MANDOU P\/ ?CONFORMIDADE|^PROCESSO CONFORME|^ASSINOU E ARMAZENOU CONTRATO DO BANCO|^DATA DE ASSINATURA DO CONTRATO|^VALOR DA PARCELA|^TEVE FGTS|^VALOR DO FGTS|^VALOR DA RENDA|^RENDA|^VALOR FINANCIADO|^VALOR DO SUBSIDIO/],
+    ["PROTOCOLOS DE TRANSFERÊNCIA (ÁGUA E ENERGIA)", /^(TEM )?PROTOCOLO DE TRANS/],
+    ["TAXA DE VISTORIA E AGÊNCIA", /^RECEBEU TAXA VISTORIA|^AGENCIA/],
+    ["PREFEITURA, ITBI E CARTÓRIO", /^TEM NUMERO DE CADASTRO|CADASTRO PREFEITURA|^ITBI|^DEU ENTRADA NO CARTORIO|^FICOU PRONTO O REGISTRO/],
+    ["DEVOLUÇÃO E RECEBIMENTO DO BANCO", /^DEVOLVEU NO BANCO|^RECEBEU\??$/],
+    ["VISTORIA E ENTREGA DA CASA", /^CASA APTA|^AGENDOU PRE.?VISTORIA|^DATA DA PRE.?VISTORIA|^TEM MANUAL|^AGUA TRANSFERIDA|^ENERGIA TRANSFERIDA|^ENTR?EGOU A CASA|^DATA DA ENTREGA|^PREENCHEU A PESQUISA|\(TRANSFERENCIA\)|VERIFICACAO DAS CONTAS|CONCLUSAO/],
+    ["GCAP", /GCAP/],
     ["REPAROS E VISTORIA", /REPARO|ANEXAR AQUIVO|ANEXAR ARQUIVO|TITULARIDADES/],
-    ["BANCO E CORRESPONDENTE", /^DATA DE ASSINATURA DO CONTRATO|CORR?ESS?PONDENTE|CONFORMIDADE|CONFORME|BANCO|^RECEBEU\?|ENVIO DOS DOC|RCPM|FGTS|FINANCIADO|SUBSIDIO|AGENCIA|PARCELA/],
-    ["CARTÓRIO E IMPOSTOS", /ITBI|CARTORIO|REGISTRO|GCAP|CADASTRO/],
-    ["ENTREGA DA CASA", /VISTORIA|MANUAL|ENTREGA|ENTEGOU|PESQUISA|CONCLUSAO/],
-    ["ÁGUA E ENERGIA", /AGUA|ENERGIA|CONTAS|TRANSFERENCIA/],
-    ["CONTRATO", /CONTRATO|PREFERENCIA/]
+    ["CADASTRO DA CASA", /^SITUACAO$|^REF$|^CIDADE|^SETOR$|^CASA$|^ENG\.? ?RESPONS|^MODELO\?|^RESERVADA|^TIPO|^DATA DA RESERVA/]
   ];
+  var ETAPA_OUTROS = "OUTROS CAMPOS";
+  /* título da etapa da coluna (sem o número) */
+  function etapa(nome) {
+    var n = norm(nome);
+    for (var i = 0; i < ETAPAS.length; i++) if (ETAPAS[i][1].test(n)) return ETAPAS[i][0];
+    return ETAPA_OUTROS;
+  }
+  /* nomes -> [{titulo:"1 · AVALIAÇÃO E VALORES", etapa, campos}] na ordem das etapas (dentro de cada uma, a ordem
+   * recebida); etapa sem campo não aparece, e a numeração segue só as que aparecem */
+  function porEtapa(nomes) {
+    var ordem = ETAPAS.map(function (d) { return d[0]; }).concat([ETAPA_OUTROS]), caixas = {};
+    ordem.forEach(function (d) { caixas[d] = []; });
+    (nomes || []).forEach(function (nome) { caixas[etapa(nome)].push(nome); });
+    var k = 0;
+    return ordem.filter(function (d) { return caixas[d].length; })
+      .map(function (d) { k++; return { titulo: k + " · " + d, etapa: d, campos: caixas[d] }; });
+  }
   /* 12/11/2026 (dono): a DATA DE ASSINATURA DO CONTRATO (contrato do banco) fica no BANCO E CORRESPONDENTE, logo depois
    * do ASSINOU E ARMAZENOU CONTRATO DO BANCO? — antes caía em CONTRATO, no fim do Andamento, longe dele. */
   /* 12/11/2026 (dono): "tem que ficar na mesma lógica, um em cima do outro" — campos que andam juntos viram UM bloco da
@@ -113,20 +145,6 @@
     });
     return out;
   }
-  var DEP_OUTROS = "CADASTRO DA CASA";
-  function departamento(nome) {
-    var n = norm(nome);
-    for (var i = 0; i < DEPARTAMENTOS.length; i++) if (DEPARTAMENTOS[i][1].test(n)) return DEPARTAMENTOS[i][0];
-    return DEP_OUTROS;
-  }
-  /* nomes na ordem dos departamentos (dentro de cada um, a ordem recebida) */
-  function porDepartamento(nomes) {
-    var ordem = DEPARTAMENTOS.map(function (d) { return d[0]; }).concat([DEP_OUTROS]), caixas = {};
-    ordem.forEach(function (d) { caixas[d] = []; });
-    (nomes || []).forEach(function (nome) { caixas[departamento(nome)].push(nome); });
-    return ordem.filter(function (d) { return caixas[d].length; }).map(function (d) { return { titulo: d, campos: caixas[d] }; });
-  }
-
   /* 04/11/2026 (dono): "na hora de gerar contrato, os campos que tiverem faltando, deixe editar naquele mesmo lugar".
    * Frase do faltasContrato (venda/ContratoVenda.js, casa de rua) -> colunas da VENDAS que resolvem. As colunas são as
    * que o GerarContrato.gs lê (RegrasVenda.COL, ContratoVenda.COLUNAS). Vendedor, loteamento e corretor têm o
@@ -199,7 +217,9 @@
   var api = { OCULTOS: OCULTOS, PROCESSO: PROCESSO, resolverProcesso: resolverProcesso, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
               emailAntigoVisivel: emailAntigoVisivel, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
-              ABAS: ABAS, abaDoCampo: abaDoCampo, departamento: departamento, porDepartamento: porDepartamento, agruparPares: agruparPares, PARES: PARES,
+              ABAS: ABAS, ABAS_LISTA: ABAS_LISTA, abaDoCampo: abaDoCampo, ETAPAS: ETAPAS, etapa: etapa, porEtapa: porEtapa,
+              /* nomes antigos (antes de 13/11 eram departamentos): continuam respondendo, agora por etapa */
+              departamento: etapa, porDepartamento: porEtapa, agruparPares: agruparPares, PARES: PARES,
               colunasDaFalta: colunasDaFalta };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.PainelCasa = api;
