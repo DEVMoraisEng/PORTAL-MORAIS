@@ -506,6 +506,29 @@ def _evento_criacao(r: dict) -> dict | None:
     return None
 
 
+def _numeros_obra(obra: str) -> list:
+    """Os números de quadra/lote/bloco da obra, sem a casa ('... QD 18 LT 08-11 B2 CS 2' -> ['18', '08', '11', 'B2'])."""
+    o = re.sub(r"\s*CS\s*\d+\s*$", "", str(obra or "").upper())
+    return re.findall(r"\d+[A-Z]?|\bB\d+\b", o.split("QD", 1)[-1]) if "QD" in o else re.findall(r"\d+[A-Z]?", o)
+
+
+def recorrencia_resolvida(chave: str, obra: str, retrato: dict | None, hoje: dt.date) -> bool:
+    """A dúvida de recorrência foi resolvida no Mais Controle? (dono, 13/11/2026: "como o robô vai saber se
+    realmente foi resolvido?") Sim quando o retrato que o robô tirou do ERP na última rodada mostra parcela
+    futura em aberto para a UC NA OBRA DO NOTION (mesma quadra/lote/bloco). Sem retrato, sem obra na parcela
+    ou só parcela em outra obra: continua em dúvida."""
+    info = ((retrato or {}).get("chaves") or {}).get(_chave_uc(chave))
+    if not info:
+        return False
+    alvo = _numeros_obra(obra)
+    for p in (info.get("parcelas") or {}).values():
+        if p.get("pago") or str(p.get("data") or "") <= hoje.isoformat():
+            continue
+        if p.get("obra") and alvo and _numeros_obra(p["obra"]) == alvo:
+            return True
+    return False
+
+
 def contas_publicas(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None,
                     agora: dt.datetime | None = None) -> dict:
     """O que a aba CONTROLE DE CONTAS VENCIDAS do ligacoes.html lê (dist/agua_contas.json): por UC/matrícula, o
@@ -546,6 +569,11 @@ def contas_publicas(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None,
         parcelas = {_chave_uc(k): v for k, v in parcelas.items()}
     except Exception:
         parcelas = {}
+    try:
+        retrato = json.loads((dados / "parcelas_retrato.json").read_text(encoding="utf-8"))
+        retrato["chaves"] = {_chave_uc(k): v for k, v in (retrato.get("chaves") or {}).items()}
+    except Exception:
+        retrato = None
 
     # a fatura "do mês" é a referência mais nova que o robô já viu NAQUELA concessionária (a Sanesc cobra com 2 meses
     # de atraso: REF SET vence em novembro; a Equatorial com 1). UC com referência mais velha = aguardando a fatura.
@@ -580,7 +608,10 @@ def contas_publicas(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None,
             st = "aguardando" if velha else "ok"
         else:
             st = "aguardando"
-        if cri and cri[-1]["st"] == "alerta":            # recorrência em dúvida segura o alerta até resolver
+        # recorrência em dúvida segura o alerta até resolver — e "resolvido" é o Mais Controle mostrar parcela
+        # futura na obra certa (13/11/2026: Cassimiro B2, TB 18 QD 49 LT 37 e RPB 24 LT 01 ficavam em alerta
+        # depois de a equipe resolver à mão)
+        if cri and cri[-1]["st"] == "alerta" and not recorrencia_resolvida(ch, info[ch]["obra"], retrato, hoje):
             st = "alerta"
         hist.reverse()
         # o link é da parcela que o Mais Controle tem HOJE para a UC: só no registro mais novo que tem link
