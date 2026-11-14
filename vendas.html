@@ -2518,6 +2518,11 @@ function condPdfFluxo(id){
   const corpo=document.createElement("div"); corpo.innerHTML=condQuadroHtml(l,fx);
   corpo.querySelectorAll(".cd-falta,.cd-aviso,.cd-abat").forEach(x=>x.remove());
   const w=window.open("","_blank"); if(!w){ alert("O navegador bloqueou a janela — libere pop-ups para o portal e clique de novo."); return; }
+  /* 14/11/2026 (dono): "coloque nesse pdf que os valores sofrem correções de INCC na pré-chave e IPCA + 1% pós-chave" —
+     os mesmos índices que o Alterar fluxo mostra em cada linha (FluxoLivre.TIPOS); a frase do pós só sai se houver pós-chaves */
+  const temPos=/p[óo]s-chaves/i.test(corpo.textContent||"");
+  const corr="Os valores acima são os de hoje. As parcelas pré-chaves e os balões são corrigidos pelo INCC-M"+
+    (temPos?"; as parcelas pós-chaves, pelo IPCA + 1% ao mês":"")+". O sinal não tem correção.";
   const tit="Fluxo de pagamento - Unidade "+(g(COND.titulo)||"")+" - "+(g("CONDOMÍNIO")||"");
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(tit)+'</title><style>'+
     'body{font-family:Inter,Arial,sans-serif;color:#1a3347;margin:28px}h1{font-size:20px;margin:0 0 4px;color:#295778}'+
@@ -2525,9 +2530,11 @@ function condPdfFluxo(id){
     'th{background:#295778;color:#fff;padding:7px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #d0e4ec}'+
     'td.r{text-align:right;white-space:nowrap}tr.gr td{background:#dceaef;font-weight:800;font-size:11.5px;color:#295778}'+
     'tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}.cd-etapa{display:none}small{color:#5a8099}'+
+    '.corr{margin-top:14px;padding:9px 12px;border:1px solid #d0e4ec;border-left:3px solid #295778;font-size:12.5px;line-height:1.45}'+
     '.rod{margin-top:18px;font-size:11.5px;color:#5a8099}@media print{body{margin:12mm}}</style></head><body>'+
     '<h1>'+esc(tit)+'</h1><div class="sub">'+esc(g("PROPONENTE")||"")+' · valores sujeitos a reajuste conforme o contrato</div>'+
-    corpo.innerHTML+'<div class="rod">Morais Engenharia · gerado em '+new Date().toLocaleDateString("pt-BR")+'</div>'+
+    corpo.innerHTML+'<div class="corr"><b>Correção dos valores.</b> '+corr+'</div>'+
+    '<div class="rod">Morais Engenharia · gerado em '+new Date().toLocaleDateString("pt-BR")+'</div>'+
     '<script>setTimeout(function(){window.print()},300)<\/script></body></html>');
   w.document.close();
 }
