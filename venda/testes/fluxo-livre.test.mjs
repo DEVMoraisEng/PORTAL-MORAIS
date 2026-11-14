@@ -523,3 +523,22 @@ test("sinal mínimo: reduzir o financiamento não sobe o mínimo (a diferença v
   const proposta = casa(305000, 244800, 10000);
   assert.deepEqual(erroMinimo(F.validar(casa(305000, 200000, 10000, 12), proposta)), []);
 });
+
+/* 14/11/2026 (dono): "tá autorizado fazer com a entrada de 10.000,00" — exceção por venda: a coluna SINAL MÍNIMO
+   AUTORIZADO da venda (padrao.sinalMinimo) troca o mínimo calculado da casa. Sem ela, nada muda. Dados FALSOS. */
+test("sinal mínimo autorizado na venda vale no lugar do mínimo da casa; sem autorização a trava continua", () => {
+  const proposta = casa(380000, 244800, 20000);
+  const f = casa(380000, 244800, 12000);
+  assert.ok(F.sinalMinimoCasa(f, proposta) > 12000);
+  assert.equal(erroMinimo(F.validar(f, proposta)).length, 1);
+  const autorizada = { ...proposta, sinalMinimo: 10000 };
+  assert.equal(F.sinalMinimoCasa(f, autorizada), 10000);
+  assert.deepEqual(erroMinimo(F.validar(f, autorizada)), []);
+  /* abaixo do autorizado continua recusado, e a autorização não vai para o texto gravado */
+  assert.match(erroMinimo(F.validar(casa(380000, 244800, 9000), autorizada)).join(";"), /mínimo: R\$ 10\.000,00/);
+  assert.ok(!/sinalMinimo/.test(F.serializar({ ...f, sinalMinimo: 10000 })));
+  /* Trazer reserva e sinal da proposta não sobe o sinal acima do autorizado */
+  const al = F.alinharComProposta(f, autorizada);
+  assert.ok(!al.erro, al.erro);
+  assert.equal(al.linhas.filter((l) => l.t === "sinal").reduce((s, l) => s + l.v * l.n, 0), 12000);
+});

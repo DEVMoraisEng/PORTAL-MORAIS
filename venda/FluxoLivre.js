@@ -306,6 +306,8 @@ var FluxoLivre = (function () {
     if (isoValida(o.assinatura)) out.assinatura = o.assinatura;   /* 31/10: início dos prazos do sinal (não é gravado) */
     if (isoValida(o.hoje)) out.hoje = o.hoje;   /* 07/11: data de hoje de quem chama (tela/servidor), para travar vencimento no passado */
     if (o.semComissao === true) out.semComissao = true;   /* 30/10: desconto "isentar a comissão" = venda direta */
+    /* 14/11/2026 (dono): sinal mínimo autorizado para ESTA venda (coluna SINAL MÍNIMO AUTORIZADO; só vem na proposta, não é gravado) */
+    if (Number(o.sinalMinimo) > 0) out.sinalMinimo = Math.round(Number(o.sinalMinimo) * 100) / 100;
     return out;
   }
 
@@ -680,6 +682,9 @@ var FluxoLivre = (function () {
      entrada = valor − financiamento − FGTS − subsídio; até R$ 60.200 o sinal é R$ 10.000; acima, cresce na proporção. */
   function sinalMinimoCasa(f, padrao) {
     f = normalizar(f);
+    /* 14/11/2026 (dono): "tá autorizado fazer com a entrada de 10.000,00" — a exceção da venda vale no lugar da conta */
+    var aut = padrao ? Number(normalizar(padrao).sinalMinimo) : 0;
+    if (aut > 0) return aut;
     /* com a proposta, vale o financiamento dela (a carta): reduzir o financiamento joga a diferença nas parcelas e não sobe o sinal (dono 05/11) */
     var base = padrao ? normalizar(padrao).linhas : f.linhas;
     var B0 = (c(f.valor) - somaC(base.filter(function (l) { return l.t === "fin" || l.t === "fgts" || l.t === "subsidio"; }))) / 100;

@@ -562,6 +562,9 @@ html[data-tema="escuro"] .proc-it.nao .proc-val{color:#ff8a7a}
 .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
 .cd-cardbox .tbl-fx td.vb-fx-tot{white-space:normal!important}
 .cd-cardbox .tbl-fx th{white-space:normal;line-height:1.2}
+/* 14/11/2026 (dono: "a sugestão tá sumindo"): a regra da planilha (#cd-wrap td: sem quebra, corta o que passa) pegava
+   também as células do Alterar fluxo — "sugestão: R$ 1.89…", "reajuste IPCA + 1% a…". Aqui o texto quebra e nada é cortado */
+#cd-wrap .tbl-fx td{white-space:normal;max-width:none;overflow:visible;text-overflow:clip}
 details.cd-dobra{border:1.5px solid var(--border2);border-radius:10px;background:var(--bg2);margin:0 0 14px}
 details.cd-dobra>summary{cursor:pointer;padding:9px 12px;font-weight:700;font-size:13px;color:var(--azul)}
 details.cd-dobra>div{padding:0 12px 12px}
@@ -1334,7 +1337,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=46"></script>
 <script src="venda/painel-casa.js?v=9"></script>
-<script src="venda/FluxoLivre.js?v=22"></script><!-- 29/10: Alterar fluxo -->
+<script src="venda/FluxoLivre.js?v=23"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
 <script src="venda-dossie.js?v=86"></script>
