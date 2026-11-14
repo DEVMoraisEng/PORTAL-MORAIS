@@ -721,8 +721,11 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
             <a class="bt az" style="text-decoration:none" href="https://devmoraiseng.github.io/SIMULADOR-RESERVA-DO-IP-S/tabela.html" target="_blank" rel="noopener" title="Abre a tabela numa aba nova: SIMULAR e SUBIR PASTA de cada unidade abrem em outra aba">📋 Abrir tabela de disponibilidades</a>
             <button class="bt az" id="bt-planilhaFluxo-pdf" onclick="planilhaFluxoPortal('pdf')" title="Valor, avaliação, financiamento (80% da avaliação) e o fluxo padrão de cada unidade à venda">⬇ Tabela de disponibilidades PDF</button>
             <button class="bt az" id="bt-planilhaFluxo-xlsx" onclick="planilhaFluxoPortal('xlsx')" title="Valor, avaliação, financiamento (80% da avaliação) e o fluxo padrão de cada unidade à venda">⬇ Tabela de disponibilidades Excel</button>
+            <!-- 14/11/2026 (dono) — fluxo personalizado sem proposta e sem dado de cliente; só no portal (venda/fluxo-personalizado.js) -->
+            <button class="bt verde" id="bt-fxp" onclick="fluxoPersonalizadoAbrir('')" title="Monta um fluxo de pagamento para mostrar ao cliente, sem enviar proposta e sem dados dele. Nada é gravado.">✎ Fluxo personalizado</button>
           </div>
         </div>
+        <div id="fxp-caixa"></div>
         <div id="rp-faixa-prop" style="display:none"></div><!-- 12/11: reservas que caem em 24 h (venda/reserva-prazo-ui.js) -->
         <div class="kpis k5" id="prop-cortes"></div>
         <div class="card">
@@ -824,7 +827,8 @@ html[data-tema="escuro"] .sim-tot td{background:var(--azul-esc)}
 
 <script src="app.js?v=46"></script>
 <script src="venda/FluxoLivre.js?v=23" defer></script><!-- 29/10: Alterar fluxo -->
-<script src="venda-dossie.js?v=85" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
+<script src="venda/fluxo-personalizado.js?v=1" defer></script><!-- 14/11: fluxo personalizado sem proposta (só no portal) -->
+<script src="venda-dossie.js?v=87" defer></script><!-- 28/10: termo de reserva pela proposta (VendaBlocos.montarPreReserva) -->
 <script src="venda/contrato-vendida.js?v=4" defer></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: Adiar / Reabrir reserva e faixa "cai amanhã" -->
@@ -2279,6 +2283,34 @@ async function altPropSalvar(){
   UNS=[];
   try{ await propCarregar(true); simCarregarUnidades(true); }catch(e){}
   setTimeout(()=>{ try{ propVer(p.id); }catch(e){} }, 400);
+}
+
+/* 14/11/2026 (dono) — FLUXO PERSONALIZADO sem proposta e sem dado de cliente, só no portal (o site do corretor não tem).
+   id vazio: abre em branco na barra da aba; id de proposta: abre dentro dela, já com a unidade e os valores dela.
+   Não grava nada: a proposta fica como está. A conta e a tela moram em venda/fluxo-personalizado.js. */
+async function fluxoPersonalizadoAbrir(id){
+  const p = id ? PROPS.find(x=>x.id===id) : null;
+  const cx = document.getElementById(p ? "fxp-prop" : "fxp-caixa"); if(!cx) return;
+  if(cx.dataset.aberto==="1" && !cx.innerHTML.trim()) cx.dataset.aberto="";
+  if(cx.dataset.aberto==="1"){ cx.scrollIntoView({behavior:"smooth", block:"start"}); return; }
+  cx.dataset.aberto="1";
+  cx.innerHTML='<div class="sim-aviso ok"><span class="load"></span> Carregando as unidades e a conta do fluxo…</div>';
+  try{ await Promise.all([altCarregarCalc(), altGarantirUnidades()]); if(typeof FluxoPersonalizado==="undefined") throw new Error("fluxo-personalizado"); }
+  catch(e){ cx.innerHTML='<div class="sim-aviso err">Não consegui carregar a conta do fluxo agora. Tente de novo.</div>'; cx.dataset.aberto=""; return; }
+  const unidades = UNS.filter(u=>Number(u.valorVenda)>0 && Number(u.avaliacao)>0)
+    .map(u=>({unidade:u.unidade, tipo:u.tipo, valorVenda:Number(u.valorVenda)||0, avaliacao:Number(u.avaliacao)||0, estado:novoEstadoUn(u)}));
+  let inicial = {};
+  if(p){
+    const d = p.dados||{};
+    inicial = {unidade:p.unidade, fin:Number(p.valorFinanciado)||0, fgts:(Number(d.saldoFgts!=null?d.saldoFgts:p.fgts)||0)+(Number(d.saldoFgtsConjuge)||0),
+               sub:Number(p.subsidio)||Number(d.subsidio)||0, sinal:Number(p.valorEntrada)||0, nSinal:Number(d.sinalParcelas)||4,
+               prazo:altPrazo(d.prazoEntrada||p.prazoEntrada), primeira:d.primeiraParcela||"",
+               diluir:(d.diluicao&&d.diluicao.length?d.diluicao.slice(0,2):[0,0]).map(x=>Number(x)||0)};
+  }
+  FluxoPersonalizado.abrir(cx, {unidades, inicial, logo:SIMULADOR_URL+"assets/logo-ipes-arvore.jpg",
+    origem: p ? "Aberto com os valores da proposta "+(p.proposta||"")+" — a proposta não muda." : "",
+    aoFechar:()=>{ cx.dataset.aberto=""; }});
+  cx.scrollIntoView({behavior:"smooth", block:"start"});
 }
 
 /* 07/11/2026 (dono) — PLANILHA DO FLUXO PADRÃO (o mesmo gerador do mapa: planilha-fluxo.js do simulador) */
@@ -4169,7 +4201,9 @@ function propVer(id){
     <div class="alt-acoes">
       ${podeGravar?`<button class="bt verde" onclick="altPropAbrir('${p.id}')">✎ Alterar unidade / valor financiado</button>`:""}
       <button class="bt az" onclick="fluxoPdf('prop','${p.id}')">📄 Gerar PDF do fluxo</button>
+      <button class="bt ghost" onclick="fluxoPersonalizadoAbrir('${p.id}')" title="Abre o fluxo personalizado já com a unidade e os valores desta proposta. Não muda a proposta: nada é gravado.">✎ Fluxo personalizado (não grava)</button>
     </div>
+    <div id="fxp-prop"></div>
     <div id="alt-prop"></div>
     ${propResumoValores(p)}
     ${propQuadroFluxo(p)}
