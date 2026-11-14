@@ -2524,18 +2524,31 @@ function condPdfFluxo(id){
   const corr="Os valores acima são os de hoje. As parcelas pré-chaves e os balões são corrigidos pelo INCC-M"+
     (temPos?"; as parcelas pós-chaves, pelo IPCA + 1% ao mês":"")+". O sinal não tem correção.";
   const tit="Fluxo de pagamento - Unidade "+(g(COND.titulo)||"")+" - "+(g("CONDOMÍNIO")||"");
+  /* 14/11/2026 (dono): "um papel timbrado ou pelo menos a logo da Morais nesse pdf, pra ficar mais organizado" —
+     cabeçalho com a logo (endereço completo: a janela é about:blank), faixa nas cores da marca e rodapé; a impressão
+     espera a logo carregar (ou 2,5 s) e as cores de fundo saem mesmo sem "gráficos de plano de fundo" marcado */
+  const logo=new URL("img/logo.png",location.href).href;
   w.document.write('<!doctype html><html><head><meta charset="utf-8"><title>'+esc(tit)+'</title><style>'+
-    'body{font-family:Inter,Arial,sans-serif;color:#1a3347;margin:28px}h1{font-size:20px;margin:0 0 4px;color:#295778}'+
-    '.sub{color:#5a8099;font-size:13px;margin-bottom:16px}table{width:100%;border-collapse:collapse;font-size:13px}'+
+    '*{-webkit-print-color-adjust:exact;print-color-adjust:exact}'+
+    'body{font-family:Inter,Arial,sans-serif;color:#1a3347;margin:28px}'+
+    '.tim{display:flex;align-items:center;gap:18px}.tim img{height:84px;width:84px;flex:0 0 auto}'+
+    '.tim .doc{flex:1;text-align:right}.tim .rot{font-size:11px;font-weight:800;letter-spacing:.12em;color:#5a8099;text-transform:uppercase}'+
+    'h1{font-size:20px;margin:2px 0 4px;color:#295778}.sub{color:#5a8099;font-size:13px}'+
+    '.faixa{height:4px;margin:12px 0 18px;background:linear-gradient(90deg,#295778 0,#295778 70%,#8FDCD2 70%,#8FDCD2 100%)}'+
+    'table{width:100%;border-collapse:collapse;font-size:13px}'+
     'th{background:#295778;color:#fff;padding:7px 10px;text-align:left}td{padding:7px 10px;border-bottom:1px solid #d0e4ec}'+
     'td.r{text-align:right;white-space:nowrap}tr.gr td{background:#dceaef;font-weight:800;font-size:11.5px;color:#295778}'+
     'tr.tot td{background:#FBEEC8;font-weight:800;color:#7A4A16}.cd-etapa{display:none}small{color:#5a8099}'+
     '.corr{margin-top:14px;padding:9px 12px;border:1px solid #d0e4ec;border-left:3px solid #295778;font-size:12.5px;line-height:1.45}'+
-    '.rod{margin-top:18px;font-size:11.5px;color:#5a8099}@media print{body{margin:12mm}}</style></head><body>'+
-    '<h1>'+esc(tit)+'</h1><div class="sub">'+esc(g("PROPONENTE")||"")+' · valores sujeitos a reajuste conforme o contrato</div>'+
+    '.rod{margin-top:22px;padding-top:8px;border-top:1px solid #d0e4ec;display:flex;justify-content:space-between;gap:12px;font-size:11.5px;color:#5a8099}'+
+    '.rod b{color:#295778}@page{margin:12mm}@media print{body{margin:0}}</style></head><body>'+
+    '<div class="tim"><img id="logo" src="'+esc(logo)+'" alt="Morais Engenharia e Construção">'+
+    '<div class="doc"><div class="rot">Fluxo de pagamento</div><h1>Unidade '+esc(g(COND.titulo)||"")+' · '+esc(g("CONDOMÍNIO")||"")+'</h1>'+
+    '<div class="sub">'+esc(g("PROPONENTE")||"")+'</div></div></div><div class="faixa"></div>'+
     corpo.innerHTML+'<div class="corr"><b>Correção dos valores.</b> '+corr+'</div>'+
-    '<div class="rod">Morais Engenharia · gerado em '+new Date().toLocaleDateString("pt-BR")+'</div>'+
-    '<script>setTimeout(function(){window.print()},300)<\/script></body></html>');
+    '<div class="rod"><span><b>Morais Engenharia e Construção</b></span><span>Valores sujeitos a reajuste conforme o contrato · gerado em '+new Date().toLocaleDateString("pt-BR")+'</span></div>'+
+    '<script>(function(){var ok=0,i=document.getElementById("logo");function p(){if(ok)return;ok=1;setTimeout(function(){window.print()},150)}'+
+    'if(i.complete)p();else{i.onload=p;i.onerror=function(){i.style.display="none";p()};setTimeout(p,2500)}})()<\/script></body></html>');
   w.document.close();
 }
 function condTelaVendaHtml(){
