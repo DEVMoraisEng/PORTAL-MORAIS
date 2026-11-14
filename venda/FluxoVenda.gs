@@ -6,6 +6,7 @@
  * histórico (Propriedade FLUXO_HIST_<página>).
  * Etapa 1 (este arquivo): tela, gravação e histórico. Etapa 2: o contrato lê a lista (ContratoVenda.gruposFluxo).
  * Até a etapa 3 o robô do Mais Controle para quando a venda tem fluxo alterado. */
+var FLUXO_SINAL_AUT = "SINAL MÍNIMO AUTORIZADO";
 var FLUXO_COL = "FLUXO PERSONALIZADO", FLUXO_HIST = "FLUXO_HIST_", FLUXO_HIST_MAX = 8500;
 /* dono 29/10: mudar o VALOR DA CASA só Julio Cesar e João Vitor — os logins do portal ficam na Propriedade
    FLUXO_PRECO_USUARIOS (separados por vírgula). Vazia = ninguém muda o valor da casa. */
@@ -93,7 +94,12 @@ function fluxoPadrao_(pg) {
   var cond = ctrDadosCondominio_(ctrPorChave_(pg.properties)).condominio;
   cond.valorParaEntrada = ctrValorParaEntrada_(cond.idProposta);
   /* 31/10: a pré-reserva paga entra como 1ª parcela do sinal (abatida dele), como no contrato */
-  return FluxoLivre.doPadrao(cond.fluxo, ContratoVenda.excedenteSinal(cond), ContratoVenda.preReservaPaga(cond));
+  var padrao = FluxoLivre.doPadrao(cond.fluxo, ContratoVenda.excedenteSinal(cond), ContratoVenda.preReservaPaga(cond));
+  /* 14/11/2026 (dono): exceção por venda — a coluna SINAL MÍNIMO AUTORIZADO (número) troca o mínimo calculado do sinal.
+     Vazia ou sem a coluna = a regra de sempre (FluxoLivre.sinalMinimoCasa). */
+  var aut = ctrNum_(ctrCampo_(ctrPorChave_(pg.properties), FLUXO_SINAL_AUT));
+  if (aut && aut > 0) padrao.sinalMinimo = aut;
+  return padrao;
 }
 
 /* Ação "salvarFluxo": p.fluxo = { valor, linhas } | p.voltar = true (volta ao fluxo do simulador); p.motivo;
