@@ -227,9 +227,11 @@ test("com reserva o restante do sinal se divide livre, só nos prazos do sinal e
   const p = F.doPadrao(gavetas, 0, { valor: 3000, data: "2026-10-28" });
   const troca = (linhas) => Object.assign({}, p, { linhas });
   const fixos = p.linhas.filter((l) => l.t !== "sinal");
-  /* restante (7.000) em 2 parcelas: ato e 90 dias */
-  const ok = troca([fixos[0], { t: "sinal", v: 2000, n: 1, d: "2026-10-30", i: 1, x: "" }, { t: "sinal", v: 5000, n: 1, d: "2027-01-30", i: 1, x: "" }, ...fixos.slice(1)]);
+  /* restante (7.000) em 2 parcelas: ato e 30 dias (14/11/2026, dono: duas parcelas é sempre 0+30 — ato e 90 dias não salva mais) */
+  const ok = troca([fixos[0], { t: "sinal", v: 2000, n: 1, d: "2026-10-30", i: 1, x: "" }, { t: "sinal", v: 5000, n: 1, d: "2026-11-30", i: 1, x: "" }, ...fixos.slice(1)]);
   assert.deepEqual(F.validar(ok, p).erros, []);
+  const pulou = troca([fixos[0], { t: "sinal", v: 2000, n: 1, d: "2026-10-30", i: 1, x: "" }, { t: "sinal", v: 5000, n: 1, d: "2027-01-30", i: 1, x: "" }, ...fixos.slice(1)]);
+  assert.match(F.validar(pulou, p).erros.join(";"), /sinal vence em 30\/01\/2027: o sinal é ato \+ 30 \+ 60 \+ 90 dias, sem pular prazo — esta parcela vence em 30\/11\/2026/);
   /* depois de 90 dias = recusado */
   const tarde = troca([fixos[0], { t: "sinal", v: 7000, n: 1, d: "2027-02-28", i: 1, x: "" }, ...fixos.slice(1)]);
   assert.match(F.validar(tarde, p).erros.join(";"), /só nos prazos do sinal: de 30\/10\/2026 a 30\/01\/2027/);
