@@ -4369,6 +4369,8 @@
   /* 31/10/2026: o cartão avisa a aba aberta — o Financeiro só lê quando abre */
   function abaCondominio(aba) { if (blocosCond) blocosCond.abrirAba(aba); }
   window.VendaBlocos = { montar: montarCondominio, soltar: soltarCondominio, montarPreReserva: montarPreReserva, soltarPreReserva: soltarPreReserva, aba: abaCondominio };
+  /* 13/11/2026: cartão Sinal pago do Resumo (vendas.html) — o mesmo retrato da aba Financeiro, sem abrir o ERP */
+  window.VendaBlocos.financeiro = function (id) { return chamarVenda({ action: "financeiroEstado", pageId: id }, 60000); };
 
   function garantirBloco(body) {
     var id = obraAberta();

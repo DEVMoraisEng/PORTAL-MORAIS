@@ -33,7 +33,7 @@ const linha = (v) => ({ id: "L1", v: Object.assign({ "UNIDADE": "99" }, v) });
 
 test("o correspondente é o 3º cartão, depois de Valor de venda e Comissão", () => {
   const k = trecho(vendas, "function condKpisHtml(l,fx)");
-  assert.match(k, /<small>Comissão<\/small>'\+com\+'<\/div>'\+\s*condCorrespondenteHtml\(l\);/);
+  assert.match(k, /<small>Comissão<\/small>'\+com\+'<\/div>'\+\s*condCorrespondenteHtml\(l\)\+/);
   const resumo = vendas.slice(vendas.indexOf("'<div data-sec=\"resumo\">'+"), vendas.indexOf("condLinkVendaHtml(l)+"));
   assert.doesNotMatch(resumo, /condCorrespondenteHtml/, "não aparece duas vezes");
 });

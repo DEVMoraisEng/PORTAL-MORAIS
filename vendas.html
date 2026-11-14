@@ -375,7 +375,7 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .cd-cardbox{background:var(--sup);border-radius:14px;max-width:880px;margin:0 auto;padding:20px 22px;box-shadow:0 12px 40px rgba(0,0,0,.35)}
 .cd-cardbox h3{margin:0;font-family:'Barlow Condensed',sans-serif;font-size:24px;color:var(--azul)}
 .cd-cardbox .sub{color:var(--text3);font-size:13px;margin:2px 0 14px}
-.cd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:16px}
+.cd-kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:10px;margin-bottom:16px}
 .cd-kpi{border:1.5px solid var(--border2);border-radius:10px;padding:10px 12px;background:var(--bg2)}
 .cd-kpi small{display:block;font-size:11px;color:var(--text3);font-weight:700;letter-spacing:.05em;text-transform:uppercase}
 .cd-kpi b{font-size:19px;color:var(--azul)}
@@ -1337,7 +1337,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=22"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=85"></script>
+<script src="venda-dossie.js?v=86"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: faixa "a reserva cai amanhã" -->
@@ -2275,7 +2275,8 @@ function condKpisHtml(l,fx){
   return '<div class="cd-kpi"><small>Valor de venda</small><b>'+cdBRL(fx.alterado?fx.valor:g("VALOR DE VENDA"))+'</b>'+
       (mudouPreco?'<span>alterado no fluxo · proposta '+cdBRL(vProp)+'</span>':'')+'</div>'+
     '<div class="cd-kpi"><small>Comissão</small>'+com+'</div>'+
-    condCorrespondenteHtml(l);
+    condCorrespondenteHtml(l)+
+    condResumoMaisHtml(l);
 }
 /* 31/10/2026: "como se chega", o quadro do pro soluto e os avisos — redesenhados sozinhos quando o fluxo é salvo */
 function condQuadroHtml(l,fx){
@@ -2351,6 +2352,7 @@ function condAbrir(id){
     '</div>';
   document.getElementById("cd-card").style.display="block";
   if(window.VendaBlocos){ VendaBlocos.montar(document.getElementById("cd-venda"),id); if(VendaBlocos.aba) VendaBlocos.aba(COND_ABA); }   /* entrega 7: contrato, assinatura e Mais Controle da linha */
+  condSinalLer(id);   /* 13/11/2026: cartão Sinal pago do Resumo */
   /* 07/11: a proposta mudou depois da reserva? (venda/atualizar-venda.js) */
   if(condPodeAtualizarVenda(l)){
     const pid=String(cdVal(l,"ID PROPOSTA"));
@@ -2369,6 +2371,63 @@ function condCorrespondenteHtml(l){
   const v=String(cdVal(l,c.nome)||"").trim();
   return '<div class="cd-kpi"><small>Correspondente</small><b>'+esc(v||"—")+'</b>'+
     (v?'':'<span>não veio da proposta</span>')+'</div>';
+}
+/* 13/11/2026 (dono) — mais 5 cartões travados no Resumo, no layout de Valor de venda/Comissão: financiamento, sinal,
+   reserva, assinatura da compra e venda e corretor (com WhatsApp). Só leitura. O sinal pago vem do retrato das parcelas
+   do Mais Controle (financeiroEstado — o mesmo da aba Financeiro, guardado, sem abrir o ERP), lido depois de abrir o
+   cartão; a reserva que cai hoje/amanhã vem da faixa da Planilha (ReservaPrazoUI), sem chamada nova. */
+const CD_SINAL_LIDO={};   /* pageId → {pago, total, lidoEm} | {sem:"motivo"} */
+function cdDataBR(v){ const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/); return m?m[3]+"/"+m[2]+"/"+m[1]:""; }
+function cdKpi(rot,b,sp,id){ return '<div class="cd-kpi"'+(id?' id="'+id+'"':'')+'><small>'+rot+'</small><b>'+b+'</b>'+(sp?'<span>'+sp+'</span>':'')+'</div>'; }
+function condSinalTotal(l){ return ["VALOR SINAL ATO","VALOR SINAL 30 DIAS","VALOR SINAL 60 DIAS","VALOR SINAL 90 DIAS"].reduce((a,n)=>a+(Number(cdVal(l,n))||0),0); }
+function condSinalHtml(l){
+  const tot=condSinalTotal(l), lido=CD_SINAL_LIDO[l.id];
+  if(lido&&lido.total!=null){
+    const t=lido.total||tot;
+    const det=lido.pago>=t&&t>0?'sinal quitado':(lido.abertas?lido.abertas+' em aberto'+(lido.atrasadas?' · '+lido.atrasadas+' atrasada(s)':''):'');
+    return cdKpi("Sinal pago",esc(cdBRL(lido.pago)),(t?'de '+esc(cdBRL(t)):'')+(t&&det?' · ':'')+det,"cd-kpi-sinal");
+  }
+  return cdKpi("Sinal",esc(tot?cdBRL(tot):"—"),lido&&lido.sem?esc(lido.sem):(tot?'conferindo o que já foi pago…':''),"cd-kpi-sinal");
+}
+async function condSinalLer(id){
+  const vb=window.VendaBlocos; if(!vb||!vb.financeiro||CD_SINAL_LIDO[id]) return;
+  let r=null; try{ r=await vb.financeiro(id); }catch(e){ r=null; }
+  if(!r||!r.ok) CD_SINAL_LIDO[id]={sem:"não deu para ler o pago agora"};
+  else if(!r.lancada) CD_SINAL_LIDO[id]={sem:"venda ainda não lançada no Mais Controle"};
+  else if(r.semLeitura) CD_SINAL_LIDO[id]={sem:"parcelas ainda não lidas do Mais Controle"};
+  else{
+    const ps=(r.parcelas||[]).filter(x=>/^SINAL/i.test(String(x.grupo||"")));
+    if(!ps.length) CD_SINAL_LIDO[id]={sem:"sem parcelas de sinal no Mais Controle"};
+    else CD_SINAL_LIDO[id]={pago:ps.filter(x=>x.situacao==="paga").reduce((a,x)=>a+(Number(x.valor)||0),0),
+      total:ps.reduce((a,x)=>a+(Number(x.valor)||0),0), abertas:ps.filter(x=>x.situacao!=="paga").length,
+      atrasadas:ps.filter(x=>x.situacao==="atrasada").length};
+  }
+  const el=document.getElementById("cd-kpi-sinal"), l=COND&&COND.linhas.find(x=>x.id===id);
+  if(el&&l&&COND_ABERTA===id) el.outerHTML=condSinalHtml(l);
+}
+function condReservaHtml(l){
+  const aSit=cdSit(l,"ASSINATURA - SITUAÇÃO");
+  if(aSit==="ASSINADO") return cdKpi("Reserva","Vendida","contrato assinado");
+  if(cdTemArq(cdVal(l,"CONTRATO GERADO"))||aSit) return cdKpi("Reserva","Contrato gerado","a reserva não cai mais");
+  const un=cdNorm(cdVal(l,COND&&COND.titulo||"UNIDADE")||cdVal(l,"UNIDADE"));
+  const lista=(()=>{ const u=window.ReservaPrazoUI, e=u&&u._t&&u._t.estado; return (e&&e.reservas)||[]; })();
+  const v=lista.find(x=>cdNorm(x.unidade)===un&&un);
+  if(v) return cdKpi("Reserva",'<span style="display:inline;font-size:inherit;color:var(--vermelho)">'+(v.quando==="venceu"?"Venceu":v.quando==="hoje"?"Cai hoje":"Cai amanhã")+'</span>',"sem contrato gerado");
+  const lim=cdDataBR(cdVal(l,"PRÉ-RESERVA - DATA LIMITE"));
+  return cdKpi("Reserva","Reservada",lim?"cai em "+lim+" sem contrato":"5 dias para gerar o contrato");
+}
+function condResumoMaisHtml(l){
+  if(!l) return "";
+  const g=n=>cdVal(l,n);
+  const cred=Number(g("VALOR DO CRÉDITO"))||0, fgts=Number(g("VALOR DO FGTS"))||0;
+  const fin=cdKpi("Financiamento",esc(cred?cdBRL(cred):"—"),fgts?"FGTS "+esc(cdBRL(fgts)):(cred?"":"sem valor de crédito na venda"));
+  const ass=g("DATA DE ASSINATURA DO CONTRATO"), aSit=cdSit(l,"ASSINATURA - SITUAÇÃO");
+  const assH=cdKpi("Compra e venda",esc(cdDataBR(ass)||"—"),aSit==="ASSINADO"?"assinado por todos":aSit==="ENVIADO"?"em assinatura":aSit?esc(aSit.toLowerCase()):"contrato ainda não assinado");
+  const cor=String(g("CORRETOR")||"").trim(), cel=String(g("CELULAR CORRETOR")||"").replace(/\D/g,"");
+  const wa=cel.length>=10?(cel.length<=11?"55"+cel:cel):"";
+  const corH=cdKpi("Corretor",'<span style="display:block;font-size:15px;line-height:1.25;color:var(--azul)">'+esc(cor||"—")+'</span>',
+    wa?'<a href="https://wa.me/'+wa+'" target="_blank" rel="noopener" style="color:var(--azul);font-weight:700">WhatsApp '+esc(cel.length===11?"("+cel.slice(0,2)+") "+cel.slice(2,7)+"-"+cel.slice(7):cel)+'</a>':(g("IMOBILIÁRIA")?esc(g("IMOBILIÁRIA")):""));
+  return fin+condSinalHtml(l)+condReservaHtml(l)+assH+corH;
 }
 /* 07/11/2026 — botão "Atualizar venda pela proposta" na aba Resumo: só com proposta ligada, sem contrato gerado
    e para quem grava (o servidor confere tudo de novo antes de gravar) */
