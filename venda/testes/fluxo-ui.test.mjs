@@ -406,3 +406,15 @@ test("editor: quantidade da pré-chaves mostra quantas cabem; partes no mesmo m�
   assert.match(botao(h, "c-fluxo-salvar"), /disabled/);
   assert.equal(botao(D.htmlFluxoVivo(editor({ motivo: "teste", linhas: duas.map((l) => ({ ...l })), padrao: { valor: 100000, linhas: duas } }), ""), "c-fluxo-encaixar"), "");
 });
+
+test("editor: coluna Última mostra o vencimento da última parcela (14/11, dono); linha de uma parcela fica com traço", () => {
+  const h = D.htmlContrato(estado(fechado), { fluxoEd: editor() });
+  assert.match(h, /<th>A cada \(meses\)<\/th><th>Última<\/th><th>Descrição<\/th>/);
+  const celula = (k) => (h.match(new RegExp('<td class="vb-fx-fim" data-k="' + k + '"[^>]*>([^<]*)</td>')) || [])[1];
+  assert.equal(celula(0), "—");            /* sinal: uma parcela */
+  assert.equal(celula(1), "10/07/2028");   /* 20 parcelas mensais a partir de 10/12/2026 */
+  /* toda linha tem as mesmas 10 colunas do cabeçalho (o layout do cartão do condomínio conta as colunas pela posição) */
+  const linhasTab = h.split("<tr data-fx-linha=").slice(1).map((t) => t.split("</tr>")[0]);
+  assert.equal(linhasTab.length, 3);
+  for (const t of linhasTab) assert.equal((t.match(/<td[\s>]/g) || []).length, 10, t.slice(0, 60));
+});
