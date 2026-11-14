@@ -1432,7 +1432,7 @@
         ' title="Cada parte da pré-chaves termina antes da próxima e até outubro/2028; o total da linha não muda">Encaixar as pré-chaves</button></div>';
     if (r.erros.some(function (x) { return /use Corrigir datas/.test(x); }))
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-datas"' + dis +
-        ' title="Leva cada parcela que venceria no passado para o 1º mês que pode, no mesmo dia; o total da linha não muda">Corrigir datas</button></div>';
+        ' title="Leva cada parcela que venceria no passado para o 1º mês que pode, no mesmo dia, e o sinal para os prazos em ordem (ato, 30, 60 e 90 dias); o total da linha não muda">Corrigir datas</button></div>';
     var faltas = r.erros.filter(function (x) { return !/^(Faltam|Sobram) /.test(x) && errosBem.indexOf(x) < 0; });
     if (!motivoOk) faltas.push("Falta o motivo" + (mudouPreco ? " (e o motivo da mudança no valor da casa)" : ""));
     if (faltas.length) h += '<ul class="dz-msg">' + faltas.slice(0, 6).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>";

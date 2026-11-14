@@ -46,6 +46,49 @@ var FluxoLivre = (function () {
     var a = Math.floor(t / 12), m = t % 12, ult = new Date(Date.UTC(a, m + 1, 0)).getUTCDate();
     return a + "-" + ("0" + (m + 1)).slice(-2) + "-" + ("0" + Math.min(p[2], ult)).slice(-2);
   }
+  function maisDias(iso, dias) {
+    var p = String(iso).split("-").map(Number), d = new Date(Date.UTC(p[0], p[1] - 1, p[2] + dias));
+    return d.getUTCFullYear() + "-" + ("0" + (d.getUTCMonth() + 1)).slice(-2) + "-" + ("0" + d.getUTCDate()).slice(-2);
+  }
+  /* 14/11/2026 (dono, unidade 40 — o sinal de 10 mil ficou em 90 dias, fev/2027, com o 30 e o 60 vazios): "sinal sempre é
+     0+30+60+90 (ou só até 60, ou só até 30); sempre que tiver somente duas parcelas é 0+30". As parcelas do sinal ocupam
+     os prazos EM ORDEM, sem pular: 1 = ato; 2 = ato + 30; 3 = ato + 30 + 60; 4 = ato + 30 + 60 + 90. Com reserva paga
+     (que entra no lugar do ato), o restante pode começar no prazo seguinte, mas também sem pular.
+     Prazos = os da proposta (padrao.prazosSinal: assinatura e as datas de 30/60/90 da venda) ou assinatura + 30/60/90 dias;
+     sem assinatura conhecida, conta a partir da 1ª parcela do sinal (com 3 dias de folga).
+     → { prazos, erradas: [{ k, j, d, certa }] (k = linha, j = parcela dentro da linha), demais: bool } */
+  function sinalNosPrazos(f, padrao) {
+    var linhas = f.linhas || [], P = [];
+    linhas.forEach(function (l, k) {
+      if (l.t !== "sinal" || !isoValida(l.d)) return;
+      for (var j = 0; j < Math.max(1, l.n | 0) && j < 12; j++) P.push({ k: k, j: j, d: maisMeses(l.d, j * (l.i || 1)) });
+    });
+    P.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : a.k - b.k || a.j - b.j; });
+    if (!P.length) return { prazos: [], erradas: [], demais: false };
+    var pz = (padrao && padrao.prazosSinal) || f.prazosSinal || null, exato = !!pz;
+    /* sem os prazos da venda (contrato conferindo sem a proposta), a conta é por dias e aceita 3 dias de folga:
+       30/60/90 dias × 1/2/3 meses diferem até 2 dias — pular um prazo (30 dias) nunca passa */
+    function longe(a, b) { return Math.abs(Date.parse(a + "T00:00:00Z") - Date.parse(b + "T00:00:00Z")) > 3 * 864e5; }
+    if (!pz) {
+      var ass = isoValida(f.assinatura) ? f.assinatura : (padrao && isoValida(padrao.assinatura) ? padrao.assinatura : P[0].d);
+      pz = [ass, maisDias(ass, 30), maisDias(ass, 60), maisDias(ass, 90)];
+    }
+    var temPR = linhas.some(function (l) { return l.t === "prereserva"; }), ini = 0;
+    if (temPR) {
+      /* a reserva entra no lugar do ato: o restante pode começar em 30 dias — ou onde começa o da proposta, se a reserva cobriu mais */
+      var maxIni = 1, sP = ((padrao && padrao.linhas) || []).filter(function (l) { return l.t === "sinal" && isoValida(l.d); })
+        .map(function (l) { return l.d; }).sort();
+      if (sP.length) maxIni = Math.max(1, pz.indexOf(sP[0]));
+      var q = pz.indexOf(P[0].d);
+      if (q > 0 && q <= maxIni && q + P.length <= 4) ini = q;
+    }
+    var erradas = [];
+    P.forEach(function (x, n) {
+      var certa = pz[ini + n] || "";
+      if (certa && (exato ? x.d !== certa : longe(x.d, certa))) erradas.push({ k: x.k, j: x.j, d: x.d, certa: certa });
+    });
+    return { prazos: pz, erradas: erradas, demais: ini + P.length > 4 };
+  }
   function dataBR(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
   function moeda(v) {
     var s = (Math.abs(c(v)) / 100).toFixed(2).split("."), i = s[0].replace(/\B(?=(\d{3})+(?!\d))/g, ".");
@@ -304,6 +347,7 @@ var FluxoLivre = (function () {
     });
     var out = { valor: Math.round((Number(o.valor) || 0) * 100) / 100, entrega: String(o.entrega || "").slice(0, 10), linhas: linhas };
     if (isoValida(o.assinatura)) out.assinatura = o.assinatura;   /* 31/10: início dos prazos do sinal (não é gravado) */
+    if (Array.isArray(o.prazosSinal) && o.prazosSinal.length === 4 && o.prazosSinal.every(isoValida)) out.prazosSinal = o.prazosSinal.slice();   /* 14/11: prazos do sinal (ato/30/60/90) da venda — não é gravado */
     if (isoValida(o.hoje)) out.hoje = o.hoje;   /* 07/11: data de hoje de quem chama (tela/servidor), para travar vencimento no passado */
     if (o.semComissao === true) out.semComissao = true;   /* 30/10: desconto "isentar a comissão" = venda direta */
     /* 14/11/2026 (dono): sinal mínimo autorizado para ESTA venda (coluna SINAL MÍNIMO AUTORIZADO; só vem na proposta, não é gravado) */
@@ -328,6 +372,23 @@ var FluxoLivre = (function () {
     f = normalizar(f);
     var ref = refVencimento(f, padrao).d, mudou = [];
     if (!ref) return { erro: "Falta a data de assinatura" };
+    /* 14/11/2026 (dono): o sinal vai para os prazos em ordem (ato, 30, 60, 90). Linha de sinal com mais de uma parcela
+       vira uma linha por parcela, porque 30/60/90 dias não é "mesmo dia do mês seguinte". Os valores não mudam. */
+    var sp = sinalNosPrazos(f, padrao ? normalizar(padrao) : null), certaDe = {};
+    sp.erradas.forEach(function (e) { certaDe[e.k + ":" + e.j] = e.certa; });
+    var abertas = [], andou = [];
+    f.linhas.forEach(function (l, k) {
+      var n = Math.max(1, l.n | 0), tem = false;
+      for (var j = 0; j < n; j++) if (certaDe[k + ":" + j]) tem = true;
+      if (l.t !== "sinal" || !tem) { abertas.push(l); return; }
+      for (var j2 = 0; j2 < n; j2++) {
+        abertas.push({ t: "sinal", v: (j2 === n - 1 && n > 1 && positivo(l.u)) ? l.u : l.v, n: 1,
+                       d: certaDe[k + ":" + j2] || maisMeses(l.d, j2 * (l.i || 1)), i: 1, x: l.x });
+        andou.push(abertas.length - 1);
+      }
+    });
+    f = { valor: f.valor, entrega: f.entrega, assinatura: f.assinatura, hoje: f.hoje, linhas: abertas };
+    mudou = andou;
     var linhas = f.linhas.map(function (l, k) {
       if (!(l.t === "pre" || l.t === "balao" || l.t === "pos") || !isoValida(l.d) || l.d > ref) return l;
       var d = l.d, g = 0;
@@ -488,6 +549,12 @@ var FluxoLivre = (function () {
         avisos.push("Linha " + (k + 1) + ": " + tp.nome.toLowerCase() + " vence depois da entrega das chaves (" + dataBR(ultima) + ")");
       if (entrega && l.t === "pos" && l.d <= entrega) avisos.push("Linha " + (k + 1) + ": pós-chaves vence antes da entrega das chaves");
     });
+    /* 14/11/2026 (dono): sinal sempre 0+30+60+90, sem pular prazo (duas parcelas = ato + 30) */
+    var sp = sinalNosPrazos(f, padrao ? normalizar(padrao) : null);
+    sp.erradas.forEach(function (e) {
+      erroLinha(e.k, "sinal vence em " + dataBR(e.d) + ": o sinal é ato + 30 + 60 + 90 dias, sem pular prazo — esta parcela vence em " + dataBR(e.certa) + " — use Corrigir datas");
+    });
+    if (sp.demais) erros.push("O sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
     /* 07/11/2026 (dono): uma parcela pré-chaves por mês e um balão por mês.
        08/11/2026 (dono, duas partes de 11 deixavam um mês sem parcela): mês sem parcela no meio não salva mais */
     var ocup = {}, bal = {}, minM = null, maxM = null;
@@ -1013,6 +1080,7 @@ var FluxoLivre = (function () {
     um("subsidio", fl.subsidio, "");
     var out = { valor: positivo(fl.valorVenda) ? fl.valorVenda : 0, entrega: isoValida(fl.entrega) ? fl.entrega : "", linhas: L };
     if (ass) out.assinatura = ass;
+    if (ass && isoValida(fl.data30) && isoValida(fl.data60) && isoValida(fl.data90)) out.prazosSinal = [ass, fl.data30, fl.data60, fl.data90];
     return out;
   }
 
