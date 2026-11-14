@@ -1084,7 +1084,7 @@
         (p === prazoAgora) + '"' + dis + ">" + p + "x</button>";
     }).join(" ") + ' <span class="dz-nota">refaz pré-chaves, balões e pós-chaves pela conta do simulador; sinal, financiamento e FGTS ficam</span></div>';
     h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
-      "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
+      "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Última</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
       /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca maior que a carta de aprovação)" — o
@@ -1094,13 +1094,13 @@
         h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">até ' + esc(F.moeda(carta)) + " (carta de aprovação)</div></td><td></td>" +
           '<td><input type="text" inputmode="decimal" data-fx="v" data-k="' + k + '" value="' + esc(numBR(l.v)) + '"' + dis + ' style="width:7.5em;text-align:right"' +
           ' aria-label="Valor do financiamento, até ' + esc(F.moeda(carta)) + '">' +
-          "</td><td>" + esc(l.n) + "</td><td>—</td><td></td><td></td>" +
+          "</td><td>" + esc(l.n) + "</td><td>—</td><td></td><td></td><td></td>" +
           '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
         return;
       }
       if (tp.fixo) {
         h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "fixo — vem da proposta") + '</div></td><td></td>' +
-          '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td>" +
+          '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td><td></td>" +
           '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
         return;
       }
@@ -1124,6 +1124,8 @@
         })() +
         '<td><input type="date" data-fx="d" data-k="' + k + '" value="' + esc(l.d) + '"' + dis + "></td>" +
         '<td><input type="number" min="1" max="24" data-fx="i" data-k="' + k + '" value="' + esc(l.i || 1) + '"' + dis + ' style="width:4em"></td>' +
+        /* 14/11 (dono): coluna "Última" — o vencimento da última parcela da linha (1ª data + (qtde − 1) × intervalo) */
+        '<td class="vb-fx-fim" data-k="' + k + '" style="white-space:nowrap">' + esc(ultimaDataFx(l)) + "</td>" +
         /* 03/11: na permuta, a descrição é o resumo do bem (formulário "Dados do bem") */
         (l.t === "permuta" && l.b ? '<td style="min-width:10em">' + esc(F.resumoBem(F.normalizarBem(l.b)) || l.x || "") + "</td>"
           : '<td><input type="text" maxlength="120" data-fx="x" data-k="' + k + '" value="' + esc(l.x || "") + '"' + dis +
@@ -1161,6 +1163,14 @@
      ajuste automático com cadeado. Estado só da tela (não é gravado): ed.travadas { k: true } = linhas que a pessoa
      mexeu ou travou; ed.ajustadas { k: true } = o que o simulador mudou na última conta; ed.sugestao { k: valor de cada }
      = o que cada linha precisaria quando as travas não deixam fechar. A conta mora em FluxoLivre.guiar. ---- */
+  /* 14/11/2026 (dono): vencimento da última parcela da linha, para a coluna "Última" do Alterar fluxo; "—" em linha
+     de uma parcela só ou sem data */
+  function ultimaDataFx(l) {
+    var n = l ? parseInt(l.n, 10) || 0 : 0;
+    if (n < 2 || !/^\d{4}-\d{2}-\d{2}$/.test(String(l.d || ""))) return "—";
+    var F = FL();
+    return F.dataBR(F.maisMeses(l.d, (n - 1) * (parseInt(l.i, 10) || 1))) || "—";
+  }
   function ajustavelFx(l) { return !!l && (l.t === "pre" || l.t === "balao" || l.t === "pos"); }
   function htmlTrava(k, trav, dis) {
     return '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-trava" data-k="' + k + '" aria-pressed="' + trav + '"' + dis +
@@ -4067,6 +4077,8 @@
         else if (campo === "t") l.t = alvo.value;
         var tot = raiz.querySelector('.vb-fx-tot[data-k="' + alvo.getAttribute("data-k") + '"]');
         if (tot) tot.textContent = FL().moeda(FL().totalLinha(l));
+        var fim = raiz.querySelector('.vb-fx-fim[data-k="' + alvo.getAttribute("data-k") + '"]');
+        if (fim) fim.textContent = ultimaDataFx(l);
         /* 04/11: valor ou quantidade de pré-chaves/balão/pós-chaves — a linha trava na hora; o simulador refaz as soltas
            depois de uma pausa na digitação */
         var kk = Number(alvo.getAttribute("data-k"));

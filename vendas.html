@@ -531,21 +531,23 @@ html[data-tema="escuro"] .proc-it.nao .proc-val{color:#ff8a7a}
   .cd-cardbox .vb-conf .dz-corr input,.cd-cardbox .vb-conf .dz-corr select{width:100%;flex:1 1 auto!important}
   .cd-cardbox .vb-conf div[style*="overflow-x"],.cd-cardbox .vb-fin div[style*="overflow-x"]{overflow-x:visible!important}
   /* 31/10/2026 (PR do prazo 24/36/48): o editor do Alterar fluxo também vira blocos — cada linha em duas colunas, o
-     nome do campo em cima (pela posição da coluna: tipo, ↻, valor, qtde, 1ª data, a cada, descrição, total, ✕) */
+     nome do campo em cima (pela posição da coluna: tipo, ↻, valor, qtde, 1ª data, a cada, última, descrição, total, ✕;
+     14/11: entrou a coluna Última) */
   .cd-cardbox .vb-fx-tab{overflow-x:visible!important}
   .cd-cardbox .tbl-fx thead{display:none}
   .cd-cardbox .tbl-fx,.cd-cardbox .tbl-fx tbody{display:block;width:100%}
   .cd-cardbox .tbl-fx tr{display:grid;grid-template-columns:1fr 1fr;gap:6px 10px;border:1.5px solid var(--border2);border-radius:10px;padding:8px 10px;margin:0 0 8px;background:var(--sup)}
   .cd-cardbox .tbl-fx td{display:block;padding:0!important;border:0!important;text-align:left!important;min-width:0;background:transparent!important}
   .cd-cardbox .tbl-fx td:empty{display:none}
-  .cd-cardbox .tbl-fx td:nth-child(1),.cd-cardbox .tbl-fx td:nth-child(7){grid-column:1/-1}
-  .cd-cardbox .tbl-fx td:nth-child(n+3):nth-child(-n+8)::before{display:block;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
+  .cd-cardbox .tbl-fx td:nth-child(1),.cd-cardbox .tbl-fx td:nth-child(8){grid-column:1/-1}
+  .cd-cardbox .tbl-fx td:nth-child(n+3):nth-child(-n+9)::before{display:block;font-size:10.5px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.04em}
   .cd-cardbox .tbl-fx td:nth-child(3)::before{content:"Valor de cada (R$)"}
   .cd-cardbox .tbl-fx td:nth-child(4)::before{content:"Qtde"}
   .cd-cardbox .tbl-fx td:nth-child(5)::before{content:"1ª data"}
   .cd-cardbox .tbl-fx td:nth-child(6)::before{content:"A cada (meses)"}
-  .cd-cardbox .tbl-fx td:nth-child(7)::before{content:"Descrição"}
-  .cd-cardbox .tbl-fx td:nth-child(8)::before{content:"Total"}
+  .cd-cardbox .tbl-fx td:nth-child(7)::before{content:"Última"}
+  .cd-cardbox .tbl-fx td:nth-child(8)::before{content:"Descrição"}
+  .cd-cardbox .tbl-fx td:nth-child(9)::before{content:"Total"}
   .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
 }
 /* 31/10/2026 (dono): no cartão do condomínio o contrato aparece só como "Contrato gerado", sem o nome do arquivo */
@@ -556,9 +558,9 @@ html[data-tema="escuro"] .proc-it.nao .proc-val{color:#ff8a7a}
 .cd-cardbox .tbl-fx{table-layout:fixed;width:100%}
 .cd-cardbox .tbl-fx th,.cd-cardbox .tbl-fx td{padding:4px 3px;vertical-align:top;overflow-wrap:anywhere}
 /* 04/11: a última coluna leva 🔒 + ✕ lado a lado (fluxo guiado) — 11%, tirados do tipo, da descrição e do total */
-.cd-cardbox .tbl-fx th:nth-child(1){width:15%}.cd-cardbox .tbl-fx th:nth-child(2){width:5%}.cd-cardbox .tbl-fx th:nth-child(3){width:13%}
-.cd-cardbox .tbl-fx th:nth-child(4){width:7%}.cd-cardbox .tbl-fx th:nth-child(5){width:16%}.cd-cardbox .tbl-fx th:nth-child(6){width:7%}
-.cd-cardbox .tbl-fx th:nth-child(7){width:12%}.cd-cardbox .tbl-fx th:nth-child(8){width:14%}.cd-cardbox .tbl-fx th:nth-child(9){width:11%}
+.cd-cardbox .tbl-fx th:nth-child(1){width:14%}.cd-cardbox .tbl-fx th:nth-child(2){width:5%}.cd-cardbox .tbl-fx th:nth-child(3){width:12%}
+.cd-cardbox .tbl-fx th:nth-child(4){width:7%}.cd-cardbox .tbl-fx th:nth-child(5){width:15%}.cd-cardbox .tbl-fx th:nth-child(6){width:6%}
+.cd-cardbox .tbl-fx th:nth-child(7){width:10%}.cd-cardbox .tbl-fx th:nth-child(8){width:9%}.cd-cardbox .tbl-fx th:nth-child(9){width:12%}.cd-cardbox .tbl-fx th:nth-child(10){width:10%}
 .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
 .cd-cardbox .tbl-fx td.vb-fx-tot{white-space:normal!important}
 .cd-cardbox .tbl-fx th{white-space:normal;line-height:1.2}
@@ -1340,7 +1342,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=23"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=86"></script>
+<script src="venda-dossie.js?v=87"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: faixa "a reserva cai amanhã" -->
