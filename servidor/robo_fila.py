@@ -723,8 +723,16 @@ def robo_antigo(nome: str) -> int:
             codigo, fim = r.returncode, ((r.stdout or "").strip().splitlines() or [""])[-1]
             if codigo:
                 fim = ((r.stderr or "").strip().splitlines() or [fim])[-1]
-        except subprocess.TimeoutExpired:
+        except subprocess.TimeoutExpired as e:
             codigo, fim = 124, "passou de %d min" % (PRAZO_ROBO_ANTIGO_S // 60)
+            try:            # 16/11: guarda o que o robô já tinha dito (antes a saída se perdia no prazo esgotado)
+                def _txt(b):
+                    return b.decode("utf-8", "replace") if isinstance(b, bytes) else (b or "")
+                (LOGS / ("saida-%s.txt" % nome)).write_text("%s %s código 124 (passou de %d min)\n%s\n%s" % (
+                    agora_iso(), script, PRAZO_ROBO_ANTIGO_S // 60, _txt(e.stdout)[-60000:], _txt(e.stderr)[-20000:]),
+                    encoding="utf-8")
+            except Exception:
+                pass
         log("[%s] %s código %s %s" % (nome, script, codigo, str(fim)[:200]))
         try:                    # 04/11: a saída inteira da última rodada de cada robô (o log só guarda a última linha)
             if "r" in locals():

@@ -96,8 +96,45 @@ CANCELADA = {"CANCELED", "CANCELLED", "CANCELADO", "CANCELADA", "REJECTED", "REF
              "RECUSADO", "RECUSADA", "DENIED", "NEGADO", "NEGADA"}
 
 
+#: 16/11: a saída só aparecia no fim (a fila guarda o stdout) — este arquivo mostra, linha a linha, onde o robô está
+AO_VIVO = CENTRAL / "logs" / "ocs-ao-vivo.txt"
+#: 16/11: 1ª rodada gravando ficou parada >20 min sem dizer onde. Passou disto, o robô sai sozinho com o passo na
+#: última linha (a fila só derrubava em 40 min e sem guardar a saída).
+LIMITE_S = int(os.environ.get("OCS_LIMITE_S") or 25 * 60)
+_PASSO = {"txt": "começando"}
+
+
 def log(*a):
     print(*a, flush=True)
+    try:
+        with open(AO_VIVO, "a", encoding="utf-8") as f:
+            f.write("%s %s\n" % (time.strftime("%H:%M:%S"), " ".join(str(x) for x in a)))
+    except Exception:       # noqa: BLE001 — o arquivo é só para acompanhar
+        pass
+
+
+def passo(txt: str) -> None:
+    """Marca onde o robô está (vai para o ocs-ao-vivo.txt e para a mensagem se o tempo estourar)."""
+    _PASSO["txt"] = txt
+    try:
+        with open(AO_VIVO, "a", encoding="utf-8") as f:
+            f.write("%s   … %s\n" % (time.strftime("%H:%M:%S"), txt))
+    except Exception:       # noqa: BLE001
+        pass
+
+
+def vigia(limite_s: int = LIMITE_S):
+    """Relógio de segurança: se a rodada passar de `limite_s`, imprime o passo onde parou e encerra (código 1).
+    Não fecha o Chrome central (os._exit não passa pelo aba.fechar) — no máximo sobra a aba do robô aberta."""
+    import threading
+
+    def estourou():
+        log("FALHOU: a rodada passou de %d min parada em: %s" % (limite_s // 60, _PASSO["txt"]))
+        os._exit(1)
+    t = threading.Timer(limite_s, estourou)
+    t.daemon = True
+    t.start()
+    return t
 
 
 def N(s) -> str:
@@ -775,6 +812,17 @@ class Tela:
                 pass
         self.page.on("response", ouvir)
 
+        def janela(d):
+            """16/11: janela nativa (confirm/alert) depois de Salvar trava a página até alguém responder — o robô
+            responde OK (é a confirmação da ação que ele mesmo pediu) e anota o texto."""
+            try:
+                log("   janela do MC: \"%s\" → OK" % (d.message or "")[:150])
+                d.accept()
+            except Exception:       # noqa: BLE001
+                pass
+        self.page.on("dialog", janela)
+        self.page.set_default_timeout(30000)
+
     def ir(self, hash_: str, esperar_texto: str = "", seg: float = 40) -> None:
         self.page.evaluate("() => { location.hash = '#/home' }")
         self.page.wait_for_timeout(1200)
@@ -925,7 +973,9 @@ _JS_LANCAMENTOS = r"""() => {
 def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, str]:
     """16/11 (dono): OC aprovada e SEM lançamento → Aprovação "Aguardando aprovação" (o Status da Compra fica como está).
     Só mexe se a tela mostra "Aprovado"; confere relendo a OC."""
+    passo("OC %s (voltar): abrindo a OC" % oc.get("numero"))
     tela.abrir_oc(oc["oc_id"])
+    passo("OC %s (voltar): lendo o campo Aprovação" % oc.get("numero"))
     ap = tela.campo("Aprovação", "aprov")
     if not ap:
         raise RuntimeError("não achei o campo Aprovação na OC")
@@ -936,13 +986,16 @@ def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, st
     if not aplicar:
         return "SIMULADO", "faria: Aprovação \"%s\" → \"Aguardando aprovação\" (sem lançamento; falta a chave OCS_APLICAR.txt)" % ap["atual"]
     marca = len(tela.escritas)
+    passo("OC %s (voltar): escolhendo \"Aguardando aprovação\"" % oc.get("numero"))
     tela.escolher("aprov", ap, "Aguardando aprovação")
     tela.confirmar_se_perguntar()
     tela.page.wait_for_timeout(1000)
+    passo("OC %s (voltar): clicando Salvar" % oc.get("numero"))
     tela.clicar_botao("Salvar")
     tela.confirmar_se_perguntar()
     tela.page.wait_for_timeout(3000)
     ok, rotas = tela.gravou(marca)
+    passo("OC %s (voltar): conferindo (gravações: %s)" % (oc.get("numero"), rotas))
     tela.abrir_oc(oc["oc_id"])
     ap2 = tela.campo("Aprovação", "aprov")
     if _sim(ap2, "Aguardando aprovação"):
@@ -1265,6 +1318,12 @@ def executar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
 def main() -> int:
     if DESCOBRIR:
         return descobrir()
+    try:
+        AO_VIVO.parent.mkdir(parents=True, exist_ok=True)
+        AO_VIVO.write_text("", encoding="utf-8")
+    except Exception:       # noqa: BLE001
+        pass
+    vigia()
     aplicar = CHAVE_APLICAR.exists()
     log("modo: %s" % ("GRAVA no Mais Controle (OCS_APLICAR.txt existe)" if aplicar else
                       "SIMULAÇÃO — nada é salvo no Mais Controle (falta _central\\OCS_APLICAR.txt)"))
@@ -1285,7 +1344,9 @@ def main() -> int:
     try:
         # 1-2. OCs novas → Supabase (o alerta do mapa)
         try:
+            passo("lendo as OCs do Mais Controle")
             nos, est = ler_ocs(aba)
+            passo("separando as OCs da conferência (%d lidas)" % len(nos))
             ocs = [oc_do_no(n) for n in nos]
             if nos and not any(o["fornecedor"] for o in ocs):
                 raise RuntimeError("as OCs vieram sem o fornecedor — rode com DESCOBRIR=1 e mande a saída")
@@ -1312,7 +1373,9 @@ def main() -> int:
                 return True
             novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento)
             guardar_com_lancamento(com_lanc)
+            passo("conferindo os arquivos (NF) das OCs")
             ea = com_anexos(aba, novas + atual, existentes, tem_arquivo={o["oc_id"]: o.get("tem_arquivo") for o in ocs})
+            passo("gravando %d linha(s) no Supabase" % len(novas + atual))
             sb.gravar(novas + atual)
             log("OCs lidas: %d (novas desde %s; antigas sem lançamento desde %s) · novas na conferência: %d · "
                 "atualizadas: %d" % (est["ocs"], A_PARTIR_DE, antigas_desde(), len(novas), len(atual)))
@@ -1343,6 +1406,7 @@ def main() -> int:
             erro_leitura = str(e)[:300]
             log("  ! leitura das OCs: %s" % erro_leitura)
         # 3. SIM do engenheiro → Mais Controle
+        passo("lendo os SIM dos engenheiros no Supabase")
         pend = sb.pendentes()
         if SO:
             pend = [p for p in pend if str(p.get("numero")) == SO]
@@ -1350,6 +1414,7 @@ def main() -> int:
         tela = Tela(aba) if pend else None
         for linha in pend:
             rot = "OC %s (%s)" % (linha.get("numero"), linha.get("acao"))
+            passo("%s: atendendo o SIM" % rot)
             try:
                 sit, msg = executar(tela, linha, aplicar)
             except Exception as e:      # noqa: BLE001
@@ -1362,6 +1427,7 @@ def main() -> int:
                 log("   %s: não consegui gravar o resultado no Supabase (%s)" % (rot, e))
                 cont["ERRO"] += 1
     finally:
+        passo("fechando a aba do robô")
         aba.fechar()
     resumo = "%d nova(s) · %d voltada(s) p/ aguardando · %d feita(s) · %d simulada(s) · %d com erro" % (
         len(novas), cont.get("voltou", 0), cont["FEITO"], cont["SIMULADO"], cont["ERRO"])
