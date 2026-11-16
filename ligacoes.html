@@ -209,6 +209,9 @@ html[data-tema="escuro"] tbody tr.lin-semuc td.stick{background:#6e2424 !importa
 .st-ico.ok{background:#16A34A;color:#fff}.st-ico.alerta{background:#F59E0B;color:#fff}.st-ico.aguardando{background:#E2E8F0;color:#334155}
 html[data-tema="escuro"] .st-ico.aguardando{background:#334155;color:#e2e8f0}
 html[data-tema="escuro"] .txt-hist .h-it.robo.alerta .h-t{color:#f0c95f}
+.txt-sit{margin:0 0 8px;padding:8px 10px;border:1px solid var(--border);border-radius:8px;background:var(--sup)}
+.txt-sit select{margin-left:6px}.txt-sit .small{margin-top:4px;color:var(--text3)}
+.st-ico.resolvido{background:#2563EB;color:#fff}.st-ico.andamento{background:#7C3AED;color:#fff}
 .txt-hist .h-t{white-space:pre-wrap;font-size:13px;word-break:break-word}
 .txt-hist .h-vazio{font-size:12px;color:var(--text3);padding:4px 0}
 td.sens{color:var(--text4)}
@@ -672,6 +675,17 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
       <div class="txt-sub" id="txt-sub"></div>
       <!-- 21/10: OBS. CONFERÊNCIA — histórico (só leitura) acima do campo do registro novo -->
       <div class="txt-hist" id="txt-hist" style="display:none"></div>
+      <!-- 16/11/26 (dono): quem confere marca a situação do alerta do robô -->
+      <div class="txt-sit" id="txt-sit" style="display:none">
+        <label><b>Situação do alerta:</b>
+          <select id="txt-sit-sel">
+            <option value="">— só uma observação —</option>
+            <option value="RESOLVIDO">✔ Resolvido</option>
+            <option value="EM ANDAMENTO">🔧 Em andamento</option>
+            <option value="NÃO É PROBLEMA">✔ Não é problema</option>
+          </select></label>
+        <div class="small" id="txt-sit-alertas"></div>
+      </div>
       <textarea class="txt-area" id="txt-area" placeholder="Escreva aqui. Enter pula de linha."></textarea>
       <div class="txt-dica">Enter pula de linha · Ctrl+Enter salva · Esc fecha</div>
       <div class="modal-acoes">
@@ -3333,8 +3347,17 @@ function abrirCaixaTexto(linha, col, fonte, campo){
   CX_TEXTO.historico = !!(cfH && cfH.papel === "OBS");
   if (CX_TEXTO.historico){
     hist.innerHTML = obsHistoricoHtml(obsHistorico(linha, cfH)); hist.style.display = "";   // 09/11/26: com o robô
+    const sitBox = document.getElementById("txt-sit");
+    const abertos = cfH.aba === "vencidas" ? alertasRoboDaLinha(linha) : [];
+    CX_TEXTO.alertas = abertos;
+    document.getElementById("txt-sit-sel").value = "";
+    sitBox.style.display = abertos.length ? "" : "none";
+    document.getElementById("txt-sit-alertas").textContent = abertos.length
+      ? "Alertas abertos: " + abertos.join(" · ") + ". Marque e escreva o que foi feito; se o robô apontar algo novo, volta a ⚠."
+      : "";
     ta.value = ""; ta.placeholder = "Novo registro — entra no histórico com a data e a hora de agora. Enter pula de linha.";
   } else {
+    document.getElementById("txt-sit").style.display = "none";
     hist.style.display = "none"; hist.innerHTML = "";
     ta.value = (atual == null ? "" : String(atual)); ta.placeholder = "Escreva aqui. Enter pula de linha.";
   }
@@ -3354,6 +3377,11 @@ async function salvarCaixaTexto(){
   let novo = document.getElementById("txt-area").value;
   const atual = getL(linha, col);
   if (CX_TEXTO.historico){
+    const sit = (CX_TEXTO.alertas || []).length ? document.getElementById("txt-sit-sel").value : "";
+    if (sit){
+      if (!novo.trim()){ toast("Escreva o que foi feito (ou por que não é problema)."); return; }
+      novo = SIT_MARCA + sit + "\n" + SIT_ALERTAS + CX_TEXTO.alertas.join(" · ") + "\n" + novo.trim();
+    }
     if (!novo.trim()){ fecharCaixaTexto(); return; }
     const ant = confTextoObs(linha, confDe(col));   // inclui a observação antiga, se ainda não migrou
     novo = confNovaEntrada(novo) + (ant ? "\n\n" + ant : "");
@@ -3689,12 +3717,15 @@ function pintarProblemasAgua(r){
  * O robô NUNCA grava no Notion: os registros dele só aparecem aqui, misturados com os das pessoas pela data, no mesmo
  * formato "▸ data hora · quem". Ao escrever uma observação, só o texto das pessoas vai para o Notion (confTextoObs). */
 const ROBO_NOME = "Robô água e energia";
-const ST_CONTA_TXT  = { ok: "✓ EM DIA", alerta: "⚠ ALERTA", aguardando: "⏳ AGUARDANDO FATURA" };
-const ST_CONTA_PILL = { ok: "sim", alerta: "alerta", aguardando: "neutro" };
+const ST_CONTA_TXT  = { ok: "✓ EM DIA", alerta: "⚠ ALERTA", aguardando: "⏳ AGUARDANDO FATURA",
+                        resolvido: "✔ RESOLVIDO PELA EQUIPE", andamento: "🔧 EM ANDAMENTO" };
+const ST_CONTA_PILL = { ok: "sim", alerta: "alerta", aguardando: "neutro", resolvido: "sim", andamento: "neutro" };
 const ST_CONTA_DICA = { ok: "A conta do mês está lançada no Mais Controle",
                         alerta: "O robô não lançou ou a casa tem um problema — o motivo está nas observações",
-                        aguardando: "A fatura do mês ainda não chegou (ou o robô ainda não tem registro desta UC)" };
-const ST_CONTA_ICO  = { ok: "✓", alerta: "⚠", aguardando: "⏳" };
+                        aguardando: "A fatura do mês ainda não chegou (ou o robô ainda não tem registro desta UC)",
+                        resolvido: "A equipe marcou o alerta como resolvido (ou não é problema) — volta a alerta se o robô apontar algo novo",
+                        andamento: "A equipe está cuidando do alerta — o que foi feito está nas observações" };
+const ST_CONTA_ICO  = { ok: "✓", alerta: "⚠", aguardando: "⏳", resolvido: "✔", andamento: "🔧" };
 function iconeStatusConta(l){
   const s = statusConta(l);
   return `<span class="st-ico ${s}" onclick="filtrarStatusConta('${s}')" title="${esc(ST_CONTA_TXT[s] + " — " + ST_CONTA_DICA[s] + ". Clique para ver só estas")}">${ST_CONTA_ICO[s]}</span>`;
@@ -3710,6 +3741,8 @@ const LEGENDA_ST_CONTA = `<div class="legenda"><b>Status da conta:</b>
   <span class="st-leg" onclick="filtrarStatusConta('ok')" title="Clique para ver só estas"><i class="st-ico ok">✓</i> em dia (lançada no Mais Controle)</span>
   <span class="st-leg" onclick="filtrarStatusConta('alerta')" title="Clique para ver só estas"><i class="st-ico alerta">⚠</i> alerta (motivo nas observações)</span>
   <span class="st-leg" onclick="filtrarStatusConta('aguardando')" title="Clique para ver só estas"><i class="st-ico aguardando">⏳</i> aguardando a fatura do mês</span>
+  <span class="st-leg" onclick="filtrarStatusConta('andamento')" title="Clique para ver só estas"><i class="st-ico andamento">🔧</i> em andamento (equipe)</span>
+  <span class="st-leg" onclick="filtrarStatusConta('resolvido')" title="Clique para ver só estas"><i class="st-ico resolvido">✔</i> resolvido pela equipe</span>
   <span class="small">— clique num ícone para filtrar</span>
 </div>`;
 let AGUA_CONTAS = null;
@@ -3727,7 +3760,59 @@ function problemasRoboDaLinha(l){
   if (!l || !l.id) return [];
   return (idxProblemas().robo[idNotion(l.id)] || []).filter(it => it.titulo);
 }
+/* 16/11/26 (dono): quem confere marca a situação do alerta no quadro de observações (registro que começa com
+   "SITUAÇÃO: RESOLVIDO | EM ANDAMENTO | NÃO É PROBLEMA" e guarda, na linha "Alertas:", o que estava aberto). A marca
+   vale enquanto o robô só apontar esses mesmos alertas: alerta novo volta a ⚠. O que a própria tela vê (ligada sem
+   UC, linha ou UC repetida) não se marca: some quando a célula é corrigida. */
+const SIT_MARCA = "SITUAÇÃO: ", SIT_ALERTAS = "Alertas: ";
+function alertasLocaisDaLinha(l){
+  const ix = idxProblemas(), out = [];
+  if (ligadaSemUcProb(l)) out.push("Ligada sem UC/matrícula");
+  if ((ix.casa[normN(l.obra) + "|" + normN(sel(l, C.CONC))] || []).length > 1) out.push("Linha repetida");
+  const u = ucChaveProb(l);
+  if (u && ix.uc[u] && ix.uc[u].size > 1) out.push("UC/matrícula repetida");
+  return out;
+}
+/* os alertas do robô nesta casa, cada um com uma chave que não muda de uma rodada para a outra */
+function alertasRoboDaLinha(l){
+  const out = [];
+  (problemasRoboDaLinha(l) || []).forEach(it => {
+    if (it.grupo === "sem_uc" || String(it.grupo || "").indexOf("dup_") === 0 || it.grupo === "repetida") return;  // a tela já vê
+    out.push(String(it.titulo || it.grupo).replace(/[<>&·]/g, "").trim());
+  });
+  const r = contaRobo(l);
+  if (r && r.st === "alerta"){
+    const a = (r.hist || []).find(h => h.st === "alerta");
+    if (a) out.push("Robô " + String(a.q || "").slice(0, 10) + ": " + String(a.t || "").replace(/[·\n]/g, " ").slice(0, 60).trim());
+  }
+  return out.filter((x, i) => out.indexOf(x) === i);
+}
+function situacaoDaLinha(l){
+  const cf = confDe(confNome("vencidas", "OBS"));
+  if (!cf) return null;
+  const h = confHistorico(confTextoObs(l, cf));      // o mais novo primeiro
+  for (const x of h){
+    const tx = String(x.texto || "");
+    if (!tx.startsWith(SIT_MARCA)) continue;
+    const linhas = tx.split("\n");
+    const sit = linhas[0].slice(SIT_MARCA.length).trim().toUpperCase();
+    const al = linhas.find(z => z.startsWith(SIT_ALERTAS));
+    return { sit: sit, alertas: al ? al.slice(SIT_ALERTAS.length).split(" · ").map(z => z.trim()).filter(Boolean) : [],
+             quando: x.quando };
+  }
+  return null;
+}
 function statusConta(l){
+  if (alertasLocaisDaLinha(l).length) return "alerta";
+  const robo = alertasRoboDaLinha(l);
+  if (robo.length){
+    const m = situacaoDaLinha(l);
+    if (m && robo.every(a => m.alertas.indexOf(a) >= 0)){
+      if (m.sit === "EM ANDAMENTO") return "andamento";
+      if (m.sit === "RESOLVIDO" || m.sit === "NÃO É PROBLEMA") return "resolvido";
+    }
+    return "alerta";
+  }
   if (problemasDaLinha(l).length) return "alerta";
   const r = contaRobo(l);
   return (r && ST_CONTA_TXT[r.st]) ? r.st : "aguardando";
@@ -4313,6 +4398,8 @@ function renderAba(){
            <option value="alerta">Status da conta: ${ST_CONTA_TXT.alerta}</option>
            <option value="ok">Status da conta: ${ST_CONTA_TXT.ok}</option>
            <option value="aguardando">Status da conta: ${ST_CONTA_TXT.aguardando}</option>
+           <option value="andamento">Status da conta: ${ST_CONTA_TXT.andamento}</option>
+           <option value="resolvido">Status da conta: ${ST_CONTA_TXT.resolvido}</option>
          </select>`);
     }
     if (def.pdf){
