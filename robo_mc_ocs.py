@@ -641,10 +641,13 @@ def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple
             esp.pop(k, None)
     cursor = _cursor(v)
     if cursor:
-        v["first"], v["after"] = 50, None
-    # 16/11: a consulta da tela traz "first: 10" escrito na própria consulta (205 páginas para 2047 OCs) — pede 50
+        v["after"] = None
+        if "$first" in visto["query"]:
+            v["first"] = 50
+    # 16/11: a consulta da tela traz "first: 10" escrito na própria consulta (205 páginas para 2047 OCs) — tenta 40;
+    # se o MC recusar (PAGINATION_MAX_ITEMS), desce pela metade até 10 (o que a própria tela usa)
     if "$first" not in visto["query"]:
-        visto = dict(visto, query=re.sub(r"\bfirst:\s*\d+", "first: 50", visto["query"], count=1))
+        visto = dict(visto, query=re.sub(r"\bfirst:\s*\d+", "first: 40", visto["query"], count=1))
     est = {"paginas": 0, "ocs": 0, "cursor": cursor, "fonte": "graphql"}
     todas, ids = [], set()
     for _ in range(400):
@@ -653,9 +656,16 @@ def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple
             raise RuntimeError("GraphQL de Compras respondeu HTTP %s: %s" % (st, (txt or "")[:200]))
         j = json.loads(txt or "{}")
         if j.get("errors"):
-            if "PAGINATION_MAX_ITEMS" in str(j["errors"]) and cursor and v["first"] > 5:
-                v["first"] = max(5, v["first"] // 2)
-                continue
+            if "PAGINATION_MAX_ITEMS" in str(j["errors"]):
+                if "$first" in visto["query"] and v.get("first", 0) > 5:
+                    v["first"] = max(5, v["first"] // 2)
+                    continue
+                # 16/11 (1ª simulação): "first: 50" na consulta passou do máximo do MC — volta até o que a tela usa (10)
+                m = re.search(r"\bfirst:\s*(\d+)", visto["query"])
+                if m and int(m.group(1)) > 10:
+                    novo = max(10, int(m.group(1)) // 2)
+                    visto = dict(visto, query=visto["query"][:m.start(1)] + str(novo) + visto["query"][m.end(1):])
+                    continue
             raise RuntimeError("GraphQL de Compras recusou a lista de OCs: %s" % str(j["errors"])[:300])
         nos, info = _lista_da_resposta(j)
         est["paginas"] += 1
