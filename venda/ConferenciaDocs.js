@@ -175,10 +175,25 @@ var ConferenciaDocs = (function () {
     if ((m = /^(\d{2})(\d{2})(\d{4})$/.exec(t))) return m[3] + m[2] + m[1];
     return "";
   }
+  var CPF_LIDO_INVALIDO = "a IA leu um CPF que não existe — confira no documento";
+
+  /* 16/11/2026 (bancada da leitura): foto com duas identidades (o casal lado a lado) fazia a IA ler a primeira
+     pessoa. Dizer o primeiro nome de quem se confere levou o acerto de 98% a 100% — vai como contexto do pedido. */
+  function contextoLeitura(it) {
+    if (!it || it.tipo !== "identidade") return "";
+    var nome = ((it.campos || []).filter(function (c) { return c.campo === "nome"; })[0] || {}).esperado;
+    var primeiro = chave(nome).split(/[^A-Z0-9]+/).filter(Boolean)[0];
+    return primeiro ? "Se o arquivo mostrar mais de uma pessoa ou documento, leia só os dados da pessoa cujo primeiro nome é " + primeiro + "." : "";
+  }
+
   /* Uma linha do resultado: { situacao: "ok" | "diverge" | "ilegivel" | "falta", esperado, lido }
      "falta" (07/11/2026): vazio no cadastro e lido no documento — o "Corrigir aqui" oferece o valor do documento. */
   function comparar(campo, esperado, lido) {
     if (!txt(lido)) return { situacao: "ilegivel", esperado: esperado, lido: "" };
+    /* 16/11/2026 (bancada da leitura): CPF lido que não fecha o dígito verificador não existe — é a IA que leu
+       errado, não o cadastro que diverge. Vira "ilegível" com o motivo, nunca "diverge". */
+    if (campo === "cpf" && !R().cpfValido(lido))
+      return { situacao: "ilegivel", esperado: esperado, lido: "", motivo: CPF_LIDO_INVALIDO };
     var ok;
     if (campo === "cpf") ok = so(esperado) === so(lido);
     else if (campo === "rg") { var a = so(esperado), b = so(lido); ok = !!a && !!b && (a.indexOf(b) >= 0 || b.indexOf(a) >= 0); }
@@ -203,6 +218,7 @@ var ConferenciaDocs = (function () {
         if (c.opcional) {   /* vazio no cadastro: só aparece se o documento trouxer o valor */
           var lidoOp = l.ok && !docErrado ? txt(lidoDe(it.tipo, c.campo, l.leitura)) : "";
           if (!lidoOp) return;
+          if (c.campo === "cpf" && !R().cpfValido(lidoOp)) return;   /* 16/11/2026: não oferecer CPF que não existe */
           base.situacao = "falta"; base.esperado = ""; base.lido = lidoOp;
           linhas.push(base);
           return;
@@ -259,6 +275,7 @@ var ConferenciaDocs = (function () {
   }
 
   var api = { COL: COL, COLUNAS: COLUNAS, plano: plano, comparar: comparar, lidoDe: lidoDe, resultado: resultado, resumo: resumo,
+              contextoLeitura: contextoLeitura,
               nomeConfere: nomeConfere, enderecoConfere: enderecoConfere, civilConfere: civilConfere, dataISO: dataISO,
               camposParaCorrigir: camposParaCorrigir, contagemArquivos: contagemArquivos, anexosMudaram: anexosMudaram };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

@@ -65,7 +65,7 @@ function conferirDocumentos_(col, sess, p) {
     if (leituras[it.id]) return;
     if (!it.partes.length) { leituras[it.id] = { ok: false, erro: "ARQUIVO_NAO_LEGIVEL" }; return; }
     if (ia.erro) { leituras[it.id] = { ok: false, erro: ia.erro }; return; }
-    var pedido = ia.leitor.montarPedido(it.tipo, it.partes, ia.chave, ia.modelo, "");
+    var pedido = ia.leitor.montarPedido(it.tipo, it.partes, ia.chave, ia.modelo, ConferenciaDocs.contextoLeitura(it));   /* 16/11: primeiro nome */
     if (pedido.erro) { leituras[it.id] = { ok: false, erro: pedido.erro }; return; }
     envio.push(it);
     it.req = { url: pedido.url, method: "post", contentType: "application/json", muteHttpExceptions: true,
