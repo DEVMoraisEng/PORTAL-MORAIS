@@ -88,6 +88,15 @@ class Notion:
             return json.loads(r.read().decode())
 
 
+def _sem_opcao_segurar(e) -> bool:
+    """Resposta 400 do Notion dizendo que a opção "boleto-segurar" não existe na coluna TIPO."""
+    try:
+        msg = str(json.loads(e.read().decode("utf-8", "replace")).get("message") or "")
+    except Exception:
+        return False
+    return "boleto-segurar" in msg and "not found" in msg
+
+
 def texto(prop) -> str:
     if not prop:
         return ""
@@ -202,10 +211,18 @@ class Fila:
         self.pode_gravar_recebimento = bool(cfg.get("pode_gravar_recebimento")) and APLICAR_RECEBIMENTO.exists()
 
     def pendentes_de_segurar(self) -> list:
-        r = self.notion.api("POST", "/databases/%s/query" % self.db, {
-            "filter": {"and": [{"property": COL["tipo"], "select": {"equals": "boleto-segurar"}},
-                               {"property": COL["situacao"], "select": {"equals": "PENDENTE"}}]},
-            "sorts": [{"property": COL["pedido_em"], "direction": "ascending"}], "page_size": 50})
+        try:
+            r = self.notion.api("POST", "/databases/%s/query" % self.db, {
+                "filter": {"and": [{"property": COL["tipo"], "select": {"equals": "boleto-segurar"}},
+                                   {"property": COL["situacao"], "select": {"equals": "PENDENTE"}}]},
+                "sorts": [{"property": COL["pedido_em"], "direction": "ascending"}], "page_size": 50})
+        except urllib.error.HTTPError as e:
+            # 16/11: o Notion só cria a opção do select no 1º pedido gravado com ela. Sem a opção, a busca volta 400
+            # "select option ... not found" — quer dizer que nunca houve Segurar. Os boletos ficaram de 11 a 16/11 sem
+            # emitir por causa disso. Qualquer outro erro continua impedindo a emissão.
+            if e.code == 400 and _sem_opcao_segurar(e):
+                return []
+            raise
         return r.get("results") or []
 
     def sinal(self) -> None:

@@ -75,6 +75,30 @@ def fila(linhas, nome="teste"):
     return f
 
 
+class NotionErro400:
+    def __init__(self, mensagem):
+        self.mensagem = mensagem
+
+    def api(self, metodo, caminho, corpo=None):
+        import io
+        import urllib.error
+        corpo = json.dumps({"object": "error", "status": 400, "message": self.mensagem}).encode()
+        raise urllib.error.HTTPError("https://api.notion.com" + caminho, 400, "Bad Request", {}, io.BytesIO(corpo))
+
+
+def test_16_11_sem_opcao_boleto_segurar_e_nenhum_pedido_e_outro_erro_continua_travando():
+    """Fila que nunca teve Segurar não tem a opção no select: o Notion responde 400 e os boletos pararam de 11 a 16/11."""
+    import urllib.error
+    import pytest
+    f = fila([])
+    f.notion = NotionErro400('select option "boleto-segurar" not found for property "TIPO". '
+                             'Available options: "mc-venda", "SINAL".')
+    assert f.pendentes_de_segurar() == []
+    f.notion = NotionErro400('Could not find property with name or id: TIPO')
+    with pytest.raises(urllib.error.HTTPError):
+        f.pendentes_de_segurar()
+
+
 def test_pego_recente_espera_e_pego_velho_volta():
     agora = dt.datetime.now(dt.timezone.utc)
     recente = (agora - dt.timedelta(minutes=2)).isoformat()
