@@ -559,9 +559,13 @@ def compactar_pagamentos(lista):
             pos[c][v] = len(dic[c])
             dic[c].append(v)
         return pos[c][v]
-    rows = [[i("cc", p["cc"]), round(p["valor"], 2), i("mes", p["mes"]), i("grupo", p["grupo"]),
+    # 16/11/26: o Mais Controle rateia um pagamento entre obras com várias casas decimais
+    # (ex.: 173,427244386751). Arredondar CADA parte para centavos fazia a soma do mês sair
+    # alguns centavos diferente da planilha do MC (R$ 0,06 de dez/25 a out/26). Guardamos
+    # 6 casas: a soma bate com a planilha e a tela arredonda só na hora de mostrar.
+    rows = [[i("cc", p["cc"]), round(p["valor"], 6), i("mes", p["mes"]), i("grupo", p["grupo"]),
              i("categoria", p["categoria"]), i("plano_de_conta", p["plano_de_conta"]),
-             i("fornecedor", p["fornecedor"]), round(p["juros_multa"] or 0, 2),
+             i("fornecedor", p["fornecedor"]), round(p["juros_multa"] or 0, 6),
              i("descricao", p.get("descricao")), p.get("dia") or 0] for p in lista]
     return {"dic": dic, "rows": rows}
 
