@@ -1,2 +1,5 @@
 __pycache__/
 *.pyc
+
+# 16/11: testes rodados fora do Windows criam a pasta do _central com este nome — nunca vai para o repositório
+C:*
