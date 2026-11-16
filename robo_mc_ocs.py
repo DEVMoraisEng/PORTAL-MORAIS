@@ -20,7 +20,8 @@ Os dois rodam juntos neste script (uma aba do porteiro só, um de cada vez no Ma
     python servidor\\robo_fila.py --robo ocs
   1. lê as OCs no GraphQL de Compras do MC — o MESMO pedido que a tela Compras › Ordem de Compra faz (o robô copia
      a consulta e os filtros da própria tela, como o robô de medidores faz com as solicitações);
-  2. guarda as OCs dos fornecedores acima (criadas a partir de OCS_A_PARTIR_DE) na tabela oc_conferencia do
+  2. guarda as OCs dos fornecedores acima (criadas a partir de OCS_A_PARTIR_DE e, da Rocha / VIDRO ALVES, também as
+     ANTIGAS ainda sem lançamento e sem aprovação — últimos OCS_ANTIGAS_MESES meses) na tabela oc_conferencia do
      Supabase ORÇADO/REALIZADO — o Mapa de Obras lê dali pelo Apps Script (ações ocLista / ocResponder);
   3. para cada OC com SIM e ainda não feita, faz a mudança no MC PELA TELA (os mesmos campos e botões que uma
      pessoa usa), confere relendo a tela e grava o resultado na linha (FEITO / ERRO / SIMULADO).
@@ -62,6 +63,13 @@ EXEMPLO = os.environ.get("OCS_EXEMPLO", "").strip()
 SO = os.environ.get("OCS_SO", "").strip()
 #: 16/11 (dono): o alerta vale para as OCs GERADAS daqui para frente — as antigas já foram pagas/conferidas à mão.
 A_PARTIR_DE = os.environ.get("OCS_A_PARTIR_DE", "2026-11-16").strip()
+#: 16/11 (dono, tarde): também entram as OCs ANTIGAS da Rocha / VIDRO ALVES que ainda NÃO têm lançamento criado (o
+#: pagamento não saiu) e ainda não foram aprovadas — com o SIM o robô aprova igual. Até quantos meses para trás:
+ANTIGAS_MESES = int(os.environ.get("OCS_ANTIGAS_MESES") or 6)
+#: OC antiga em que a lista não diz se tem lançamento: o robô abre "$ Lançamento" na tela. No máximo isto por rodada
+#: (as que têm lançamento ficam anotadas em _central\ocs-com-lancamento.json e não são abertas de novo).
+MAX_CONFERIR = int(os.environ.get("OCS_MAX_CONFERIR") or 30)
+COM_LANCAMENTO = CENTRAL / "ocs-com-lancamento.json"
 MAX_TENTATIVAS = 3          # ERRO volta a ser tentado até aqui; depois fica para fazer à mão (o mapa mostra)
 TABELA = "oc_conferencia"
 MC = "https://acessar.maiscontroleerp.com.br/"
@@ -175,6 +183,7 @@ def mesma_data(texto, d: dt.date) -> bool:
 # ------------------------------------------------------------------------------------------- OC do GraphQL
 _CH_FORN = re.compile(r"supplier|participant|provider|vendor|fornec|seller", re.I)
 _CH_OBRA = re.compile(r"work|obra|costcent|cost_cent", re.I)
+_CH_LANC = re.compile(r"payable|lancament|installment|financial", re.I)
 _NOMES = ("name", "nome", "tradeName", "fantasyName", "companyName", "corporateName", "description", "title")
 
 
@@ -237,6 +246,19 @@ def oc_do_no(no: dict) -> dict:
         num = int(num) if num is not None else None
     except (TypeError, ValueError):
         num = None
+    tem_lanc = None                 # True/False se a lista diz; None = a lista não traz (o robô confere na tela)
+    for k, v in no.items():
+        if _CH_LANC.search(k) and not _CH_FORN.search(k):
+            if isinstance(v, bool):
+                tem_lanc = v
+            elif isinstance(v, (list, dict)):
+                tem_lanc = bool(v)
+            elif isinstance(v, (int, float)):
+                tem_lanc = v > 0
+            elif v is None:
+                tem_lanc = False
+            if tem_lanc:
+                break
     criada = str(_primeiro(no, ("creationDate", "createdAt", "creationDateTime", "createdDate", "date")) or "")[:10]
     aprov = str(_primeiro(no, ("approvalStatus", "approval", "approvalSituation")) or "")
     status = str(_primeiro(no, ("purchaseStatus", "deliveryStatus", "status", "situation")) or "")
@@ -245,29 +267,43 @@ def oc_do_no(no: dict) -> dict:
             "descricao": str(_primeiro(no, ("description", "title")) or "")[:300] or None,
             "criada_em": criada if re.match(r"^\d{4}-\d\d-\d\d$", criada) else None,
             "aprovacao_mc": aprov.upper() or None, "status_compra_mc": status.upper() or None,
-            "cancelada": N(aprov) in CANCELADA or N(status) in CANCELADA}
+            "cancelada": N(aprov) in CANCELADA or N(status) in CANCELADA, "tem_lancamento": tem_lanc}
 
 
-def interessa(oc: dict, desde: str = A_PARTIR_DE) -> tuple[str, str] | None:
-    """(fornecedor da lista, ação) se a OC entra na conferência; None se não."""
+def antigas_desde(hoje: dt.date | None = None) -> str:
+    hoje = hoje or dt.date.today()
+    m = hoje.month - ANTIGAS_MESES
+    ano, mes = hoje.year + (m - 1) // 12, (m - 1) % 12 + 1
+    return dt.date(ano, mes, 1).isoformat()
+
+
+def interessa(oc: dict, desde: str = A_PARTIR_DE, antigas: str | None = None) -> tuple[str, str, bool] | None:
+    """(fornecedor da lista, ação, antiga?) se a OC pode entrar na conferência; None se não.
+    Nova = criada a partir de `desde`. Antiga = de `antigas` até `desde`, só de APROVAR (Rocha / VIDRO ALVES) e só se
+    não tiver lançamento (a lista dizendo que tem, fica fora; sem saber, quem chama confere na tela)."""
     if not oc.get("oc_id") or not re.match(r"^[0-9a-fA-F-]{36}$", oc["oc_id"]):
         return None
     f = acao_do_fornecedor(oc.get("fornecedor"))
     if not f:
         return None
-    if oc.get("criada_em") and oc["criada_em"] < desde:
+    if not oc.get("criada_em") or oc["criada_em"] >= desde:
+        return f[0], f[1], False
+    if f[1] != "APROVAR" or oc["criada_em"] < (antigas or antigas_desde()) or oc.get("tem_lancamento") is True:
         return None
-    return f
+    return f[0], f[1], True
 
 
-def linhas_novas_e_atualizadas(ocs: list, existentes: dict) -> tuple[list, list]:
-    """(novas, atualizar). Nova OC de APROVAR que já chega APROVADA no MC não vira alerta (alguém já liberou).
-    A linha que já existe só recebe os campos do MC — nunca a resposta do engenheiro."""
+def linhas_novas_e_atualizadas(ocs: list, existentes: dict, sem_lancamento=None,
+                               antigas: str | None = None) -> tuple[list, list]:
+    """(novas, atualizar). OC de APROVAR que já está APROVADA no MC não vira alerta (alguém já liberou).
+    OC antiga em que a lista não diz se há lançamento: `sem_lancamento(oc)` decide (True = entra; None = não deu para
+    saber agora, fica para a próxima rodada). A linha que já existe só recebe os campos do MC — nunca a resposta."""
     novas, atual = [], []
     agora = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     for oc in ocs:
-        f = interessa(oc)
-        if not f:
+        f = interessa(oc, antigas=antigas) if oc.get("oc_id") not in existentes else \
+            (acao_do_fornecedor(oc.get("fornecedor")) or (None, None)) + (False,)
+        if not f or not f[0]:
             continue
         mc = {k: oc.get(k) for k in ("numero", "obra", "descricao", "criada_em", "aprovacao_mc", "status_compra_mc",
                                      "cancelada")}
@@ -278,6 +314,8 @@ def linhas_novas_e_atualizadas(ocs: list, existentes: dict) -> tuple[list, list]
         if oc.get("cancelada"):
             continue
         if f[1] == "APROVAR" and N(oc.get("aprovacao_mc")) in APROVADO:
+            continue
+        if f[2] and oc.get("tem_lancamento") is None and not (sem_lancamento and sem_lancamento(oc)):
             continue
         novas.append(dict(mc, oc_id=oc["oc_id"], fornecedor=oc.get("fornecedor") or f[0], acao=f[1]))
     return novas, atual
@@ -400,8 +438,9 @@ def capturar_lista(aba) -> dict:
     return visto
 
 
-def ler_ocs(aba, desde: str = A_PARTIR_DE, hoje: dt.date | None = None) -> tuple[list, dict]:
+def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple[list, dict]:
     hoje = hoje or dt.date.today()
+    desde = desde or min(A_PARTIR_DE, antigas_desde(hoje))
     visto = capturar_lista(aba)
     v = json.loads(json.dumps(visto["vars"]))
     esp = v.get("specification") if isinstance(v.get("specification"), dict) else None
@@ -657,14 +696,20 @@ def aprovar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
                        % ((ap2 or {}).get("atual"), (st2 or {}).get("atual"), rotas if not ok else "gravação ok"))
 
 
-def _abrir_lancamento(tela: Tela, linha: dict):
-    """OC › $ Lançamento › (1 lançamento vinculado) › Ir para lançamento → página com a janela Editar lançamento."""
-    tela.abrir_oc(linha["oc_id"])
+def lancamentos_vinculados(tela: Tela, oc_id: str) -> int:
+    """Quantos lançamentos a OC tem (janela "$ Lançamento › Lançamentos vinculados"). Só olha, não muda nada."""
+    tela.abrir_oc(oc_id)
     tela.clicar_botao("Lançamento", exato=False)
     if not tela.esperar_texto("Lançamentos vinculados", 20):
         raise RuntimeError("cliquei em $ Lançamento e a janela Lançamentos vinculados não abriu")
     tela.page.wait_for_timeout(1200)
-    n = tela.page.evaluate(r"""() => {
+    n = tela.page.evaluate(_JS_LANCAMENTOS)
+    if n < 0:
+        raise RuntimeError("não achei a janela Lançamentos vinculados")
+    return n
+
+
+_JS_LANCAMENTOS = r"""() => {
       const m = [...document.querySelectorAll('.modal, [role=dialog]')].find(x => (x.offsetWidth || x.offsetHeight)
                  && /Lan[cç]amentos vinculados/i.test(x.innerText));
       if (!m) return -1;
@@ -674,13 +719,16 @@ def _abrir_lancamento(tela: Tela, linha: dict):
       linhas.forEach(r => { if (![...linhas].some(o => o !== r && r.contains(o))) marcadas.add(r); });
       [...marcadas].forEach((r, i) => r.setAttribute('data-robo-lanc', String(i)));
       return marcadas.size;
-    }""")
+    }"""
+
+
+def _abrir_lancamento(tela: Tela, linha: dict):
+    """OC › $ Lançamento › (1 lançamento vinculado) › Ir para lançamento → página com a janela Editar lançamento."""
+    n = lancamentos_vinculados(tela, linha["oc_id"])
     if n == 0:
         raise RuntimeError("a OC não tem lançamento vinculado no MC — o pagamento ainda não foi lançado")
     if n > 1:
         raise RuntimeError("a OC tem %d lançamentos vinculados — não sei qual mudar; fazer à mão" % n)
-    if n < 0:
-        raise RuntimeError("não achei a janela Lançamentos vinculados")
     ctx, antes = tela.page.context, len(tela.page.context.pages)
     tela.page.evaluate(r"""() => {
       const r = document.querySelector('[data-robo-lanc="0"]');
@@ -833,17 +881,18 @@ def descobrir() -> int:
             f = acao_do_fornecedor(oc["fornecedor"])
             if f:
                 achadas.append((oc["numero"], f[1], oc["criada_em"], oc["aprovacao_mc"], oc["status_compra_mc"],
+                                {True: "sim", False: "não", None: "a lista não diz"}[oc["tem_lancamento"]],
                                 (oc["obra"] or "SEM OBRA")[:40]))
         log("aprovação (códigos): %s" % aprov)
         log("status da compra (códigos): %s" % stat)
         log("fornecedores mais frequentes: %s" % sorted(forn.items(), key=lambda x: -x[1])[:25])
         log("OCs dos fornecedores da lista (todas as datas lidas): %d" % len(achadas))
         for a in achadas[:30]:
-            log("   OC %s · %s · criada %s · aprovação %s · status %s · obra %s" % a)
+            log("   OC %s · %s · criada %s · aprovação %s · status %s · lançamento: %s · obra %s" % a)
         if EXEMPLO:
             alvo = next((no for no in nos if str(oc_do_no(no)["numero"]) == EXEMPLO), None)
             if not alvo:
-                log("OC %s não está na lista lida (só as criadas desde %s) — use uma mais nova" % (EXEMPLO, A_PARTIR_DE))
+                log("OC %s não está na lista lida (só as criadas desde %s) — use uma mais nova" % (EXEMPLO, min(A_PARTIR_DE, antigas_desde())))
             else:
                 tela = Tela(aba)
                 tela.abrir_oc(alvo["id"])
@@ -870,6 +919,20 @@ def descobrir() -> int:
 
 
 # ------------------------------------------------------------------------------------------- rodada
+def ler_com_lancamento() -> set:
+    try:
+        return set(json.loads(COM_LANCAMENTO.read_text(encoding="utf-8")) or [])
+    except Exception:       # noqa: BLE001 — sem o arquivo, só confere de novo
+        return set()
+
+
+def guardar_com_lancamento(ids: set) -> None:
+    try:
+        COM_LANCAMENTO.write_text(json.dumps(sorted(ids)), encoding="utf-8")
+    except Exception:       # noqa: BLE001
+        pass
+
+
 def executar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
     if linha.get("acao") == "APROVAR":
         return aprovar(tela, linha, aplicar)
@@ -905,10 +968,36 @@ def main() -> int:
             ocs = [oc_do_no(n) for n in nos]
             if nos and not any(o["fornecedor"] for o in ocs):
                 raise RuntimeError("as OCs vieram sem o fornecedor — rode com DESCOBRIR=1 e mande a saída")
-            novas, atual = linhas_novas_e_atualizadas(ocs, existentes)
+            com_lanc = ler_com_lancamento()
+            conf = {"vistas": 0, "sem": 0, "com": 0}
+            tela_c = Tela(aba)
+
+            def sem_lancamento(oc):
+                """OC antiga sem a informação na lista: abre "$ Lançamento" (limite por rodada; as com lançamento
+                ficam anotadas e não são abertas de novo)."""
+                if oc["oc_id"] in com_lanc or conf["vistas"] >= MAX_CONFERIR:
+                    return None
+                conf["vistas"] += 1
+                try:
+                    n = lancamentos_vinculados(tela_c, oc["oc_id"])
+                except Exception as e:      # noqa: BLE001 — fica para a próxima rodada
+                    log("   OC %s antiga: não consegui ver o lançamento (%s)" % (oc.get("numero"), str(e)[:120]))
+                    return None
+                if n:
+                    com_lanc.add(oc["oc_id"])
+                    conf["com"] += 1
+                    return False
+                conf["sem"] += 1
+                return True
+            novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento)
+            guardar_com_lancamento(com_lanc)
             sb.gravar(novas + atual)
-            log("OCs lidas: %d (desde %s) · novas na conferência: %d · atualizadas: %d"
-                % (est["ocs"], A_PARTIR_DE, len(novas), len(atual)))
+            log("OCs lidas: %d (novas desde %s; antigas sem lançamento desde %s) · novas na conferência: %d · "
+                "atualizadas: %d" % (est["ocs"], A_PARTIR_DE, antigas_desde(), len(novas), len(atual)))
+            if conf["vistas"]:
+                log("   OCs antigas conferidas na tela: %d (sem lançamento: %d · com: %d%s)" % (
+                    conf["vistas"], conf["sem"], conf["com"],
+                    " · limite da rodada, o resto fica para a próxima" if conf["vistas"] >= MAX_CONFERIR else ""))
             for x in novas:
                 log("   nova: OC %s · %s · %s" % (x.get("numero"), x["acao"], (x.get("obra") or "sem obra")[:40]))
         except Exception as e:      # noqa: BLE001 — a leitura falhar não impede de atender os SIM já marcados

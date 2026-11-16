@@ -67,14 +67,41 @@ def test_oc_do_no_acha_os_campos():
     assert oc["numero"] == 8312 and oc["fornecedor"] == "Rocha Mármores e Granitos"
     assert oc["obra"] == "52 QD 81 LT 12" and oc["criada_em"] == "2026-11-16"
     assert oc["aprovacao_mc"] == "AWAITING" and not oc["cancelada"]
-    assert ro.interessa(oc) == ("ROCHA MARMORES E GRANITOS", "APROVAR")
+    assert ro.interessa(oc) == ("ROCHA MARMORES E GRANITOS", "APROVAR", False)
 
 
-def test_oc_antiga_ou_de_outro_fornecedor_nao_entra():
-    velha = ro.oc_do_no(dict(NO, creationDate="2026-10-01"))
-    assert ro.interessa(velha) is None
+def test_oc_antiga_so_da_rocha_vidro_e_sem_lancamento():
+    sem = ro.oc_do_no(dict(NO, creationDate="2026-10-01", tradePayables=[]))
+    assert sem["tem_lancamento"] is False
+    assert ro.interessa(sem, antigas="2026-05-01") == ("ROCHA MARMORES E GRANITOS", "APROVAR", True)
+    com = ro.oc_do_no(dict(NO, creationDate="2026-10-01", tradePayables=[{"id": "x"}]))
+    assert com["tem_lancamento"] is True and ro.interessa(com, antigas="2026-05-01") is None
+    muito_velha = ro.oc_do_no(dict(NO, creationDate="2026-01-10", tradePayables=[]))
+    assert ro.interessa(muito_velha, antigas="2026-05-01") is None
+    fabio = ro.oc_do_no(dict(NO, creationDate="2026-10-01", tradePayables=[], supplier={"name": "Serralheria do Fabio"}))
+    assert ro.interessa(fabio, antigas="2026-05-01") is None        # Fabio antigo: a ação precisa do lançamento
     outro = ro.oc_do_no(dict(NO, supplier={"name": "Casa do Construtor"}))
     assert ro.interessa(outro) is None
+
+
+def test_antiga_sem_informacao_confere_na_tela():
+    a = ro.oc_do_no(dict(NO, id="55555555-5555-5555-5555-555555555555", creationDate="2026-10-01"))
+    b = ro.oc_do_no(dict(NO, id="66666666-6666-6666-6666-666666666666", creationDate="2026-10-02"))
+    assert a["tem_lancamento"] is None
+    vistos = []
+
+    def sem_lanc(oc):
+        vistos.append(oc["numero"])
+        return oc["oc_id"] == a["oc_id"]
+    novas, _ = ro.linhas_novas_e_atualizadas([a, b], {}, sem_lanc, antigas="2026-05-01")
+    assert [x["oc_id"] for x in novas] == [a["oc_id"]] and len(vistos) == 2
+    novas, _ = ro.linhas_novas_e_atualizadas([a], {}, None, antigas="2026-05-01")
+    assert novas == []                     # sem como conferir: fica para a próxima rodada
+
+
+def test_antigas_desde_meses_atras():
+    assert ro.antigas_desde(dt.date(2026, 11, 16)) == "2026-05-01"
+    assert ro.antigas_desde(dt.date(2026, 3, 2)) == "2025-09-01"
 
 
 def test_novas_e_atualizadas_nao_mexem_na_resposta():

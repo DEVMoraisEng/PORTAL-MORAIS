@@ -533,9 +533,13 @@ serviço foi finalizado (OBRA · FORNECEDOR · Nº OC · DATA DA OC · ENGENHEIR
   (OC que já está aprovada não é mexida);
 - Serralheria do Fabio → no lançamento da OC, **vencimento da 2ª parcela = próximo dia útil** depois do SIM
   (parcela já paga não é mexida; OC com mais de um lançamento vinculado = erro, fazer à mão).
+- Quem responde: só engenheiros (acesso OBRAS / DOCUMENTOS, ou ADM). Estagiário não — o dono libera depois.
 
 Robô `robo_mc_ocs.py` (`python servidor\robo_fila.py --robo ocs`): lê as OCs pelo GraphQL de Compras (o mesmo pedido
-da tela Ordem de Compra), põe as novas (criadas a partir de `OCS_A_PARTIR_DE`, padrão 2026-11-16) na tabela
+da tela Ordem de Compra), põe as novas (criadas a partir de `OCS_A_PARTIR_DE`, padrão 2026-11-16) — e, da Rocha /
+VIDRO ALVES, também as **antigas ainda sem lançamento e sem aprovação** dos últimos `OCS_ANTIGAS_MESES` (6) meses (pedido
+do dono, 16/11 tarde; quando a lista não diz se há lançamento, o robô abre "$ Lançamento" na tela, até `OCS_MAX_CONFERIR`
+(30) por rodada, e anota as que têm em `_central\ocs-com-lancamento.json`) — na tabela
 `oc_conferencia` do Supabase ORÇADO/REALIZADO e, para cada SIM, faz a mudança **pela tela** do MC (mesmos campos e
 botões de uma pessoa), relê para conferir e grava FEITO / ERRO / SIMULADO na linha. Só pelo porteiro.
 
