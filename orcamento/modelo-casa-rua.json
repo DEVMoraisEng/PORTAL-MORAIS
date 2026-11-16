@@ -1,0 +1,4259 @@
+{
+ "versao": "2026-11-16",
+ "origem": "REF 127 do Mais Controle — PR 06 QD 07 LT 27 (Goiânia, 2 casas)",
+ "casas_ref": 2,
+ "multiplicadores": {
+  "ARQ": 1,
+  "EST": 1,
+  "ELE": 1,
+  "HID": "casas"
+ },
+ "etapas": [
+  {
+   "idx": "1",
+   "nome": "Aquisição de Bens"
+  },
+  {
+   "idx": "2",
+   "nome": "Documentação inicial - falta apropriação"
+  },
+  {
+   "idx": "3",
+   "nome": "Serviços preliminares"
+  },
+  {
+   "idx": "3.1",
+   "nome": "Limpeza e nivelamento de terreno"
+  },
+  {
+   "idx": "3.2",
+   "nome": "Instalação de padrão de energia e caixa de hidrômetro"
+  },
+  {
+   "idx": "3.3",
+   "nome": "Locação da obra"
+  },
+  {
+   "idx": "3.3.4",
+   "nome": "Materiais início de obra - insumos por lote"
+  },
+  {
+   "idx": "3.3.5",
+   "nome": "Materiais início de obra - insumos por casa"
+  },
+  {
+   "idx": "4",
+   "nome": "Infraestrutura e supraestrutura"
+  },
+  {
+   "idx": "5",
+   "nome": "Alvenaria, reboco e contrapiso"
+  },
+  {
+   "idx": "6",
+   "nome": "Esquadrias"
+  },
+  {
+   "idx": "6.1",
+   "nome": "Esquadrias de madeira"
+  },
+  {
+   "idx": "6.2",
+   "nome": "Esquadrias de vidro"
+  },
+  {
+   "idx": "6.3",
+   "nome": "Esquadrias de ferro"
+  },
+  {
+   "idx": "7",
+   "nome": "Coberturas"
+  },
+  {
+   "idx": "7.1",
+   "nome": "Cobertura corpo da casa"
+  },
+  {
+   "idx": "7.2",
+   "nome": "Cobertura garagem"
+  },
+  {
+   "idx": "7.3",
+   "nome": "Calhas e rufos"
+  },
+  {
+   "idx": "7.4",
+   "nome": "Estrutura caixa d'agua"
+  },
+  {
+   "idx": "8",
+   "nome": "Pisos e revestimentos"
+  },
+  {
+   "idx": "9",
+   "nome": "Mármores e granitos"
+  },
+  {
+   "idx": "10",
+   "nome": "Forros"
+  },
+  {
+   "idx": "11",
+   "nome": "Pintura"
+  },
+  {
+   "idx": "11.1",
+   "nome": "Insumos pintura"
+  },
+  {
+   "idx": "11.2",
+   "nome": "Mão de obra pintura - 2 casas de 3Q"
+  },
+  {
+   "idx": "12",
+   "nome": "Instalações elétricas e telefônicas"
+  },
+  {
+   "idx": "12.1",
+   "nome": "Mão de obra instalações elétricas e telefônicas - Eletricista"
+  },
+  {
+   "idx": "12.2",
+   "nome": "Insumos iniciais instalações elétricas e telefônicas"
+  },
+  {
+   "idx": "12.3",
+   "nome": "Insumos acabamentos instalações elétricas e telefônicas"
+  },
+  {
+   "idx": "13",
+   "nome": "Instalações hidrossanitárias"
+  },
+  {
+   "idx": "13.1",
+   "nome": "Instalações de esgoto e águas pluviais"
+  },
+  {
+   "idx": "13.2",
+   "nome": "Instalações hidráulicas"
+  },
+  {
+   "idx": "13.3",
+   "nome": "Louças e metais"
+  },
+  {
+   "idx": "14",
+   "nome": "Complementos"
+  },
+  {
+   "idx": "15",
+   "nome": "Materiais básicos geral"
+  },
+  {
+   "idx": "16",
+   "nome": "Mão de obra - Mestre e Encanador"
+  },
+  {
+   "idx": "17",
+   "nome": "Documentação final*"
+  },
+  {
+   "idx": "18",
+   "nome": "Muro de arrimo"
+  }
+ ],
+ "itens": [
+  {
+   "idx": "1.1",
+   "cod": "MAI-SIN-105112",
+   "cat": "C",
+   "nome": "Aquisição de lote",
+   "un": "UN",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   }
+  },
+  {
+   "idx": "2.1",
+   "cod": "927",
+   "cat": "I",
+   "nome": "ART",
+   "un": "UN",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "928",
+     "nome": "ART (Senador Canedo)",
+     "un": "UN",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "2.2",
+   "cod": "847",
+   "cat": "I",
+   "nome": "ESCRITURA DO LOTE",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "2.3",
+   "cod": "897",
+   "cat": "I",
+   "nome": "LICENÇA DE APROVAÇÃO DE PROJETO - (GOIÂNIA)",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "915",
+     "nome": "ALVARÁ DE CONTRUÇÃO (Senador Canedo)",
+     "un": "Casa",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "2.4",
+   "cod": "905",
+   "cat": "I",
+   "nome": "USO DO SOLO (Goiânia)",
+   "un": "lote",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "850",
+     "nome": "USO DO SOLO (Senador Canedo)",
+     "un": "lote",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "2.5",
+   "cod": "903",
+   "cat": "I",
+   "nome": "REGISTRO DO LOTE",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "2.6",
+   "cod": "1018",
+   "cat": "I",
+   "nome": "TAXAS DE APROVAÇÕES - GERAL",
+   "un": "UN",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   }
+  },
+  {
+   "idx": "2.7",
+   "cod": "848",
+   "cat": "I",
+   "nome": "ITBI COMPRA DE LOTE",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "2.8",
+   "cod": "1283",
+   "cat": "I",
+   "nome": "CERTIDÃO DE MATRÍCULA DO LOTE",
+   "un": "lote",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   }
+  },
+  {
+   "idx": "2.9",
+   "cod": "922",
+   "cat": "I",
+   "nome": "SERVIÇO DE DESPACHANTE - PESSOA JURÍDICA (Goiânia)",
+   "un": "lote",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "921",
+     "nome": "SERVIÇO DE DESPACHANTE - PESSOA JURÍDICA (Senador Canedo)",
+     "un": "lote",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "2.10",
+   "cod": "851",
+   "cat": "I",
+   "nome": "IMPRESSÃO DE PROJETO",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "casa",
+    "f": 2
+   }
+  },
+  {
+   "idx": "3.1.1",
+   "cod": "MAI-SIN-105038",
+   "cat": "C",
+   "nome": "Limpeza de Terreno",
+   "un": "VB",
+   "q_ref": 1.0,
+   "obs": "conforme apropriação - PR 06 QD 07 LT 29",
+   "regra": {
+    "t": "lote",
+    "f": 1,
+    "conferir": "apropriação: ver a resposta de limpeza/terraplanagem do formulário de obra"
+   }
+  },
+  {
+   "idx": "3.2.1",
+   "cod": "MAI-SIN-105034",
+   "cat": "C",
+   "nome": "Instalação de padrão de energia monofásico e caixa de hidrômetro - 5m SANEAGO",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "padrao",
+    "m": 5
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105125",
+     "nome": "Instalação de padrão de energia monofásico e caixa de hidrômetro - 5m SANESC",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "3.2.2",
+   "cod": "MAI-SIN-105124",
+   "cat": "C",
+   "nome": "Instalação de padrão de energia monofásico e caixa de hidrômetro - 7m SANEAGO",
+   "un": "casa",
+   "q_ref": 0,
+   "regra": {
+    "t": "padrao",
+    "m": 7
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105126",
+     "nome": "Instalação de padrão de energia monofásico e caixa de hidrômetro - 7m SANESC",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "3.3.1",
+   "cod": "MAI-SIN-105037",
+   "cat": "C",
+   "nome": "Locação da Obra",
+   "un": "m",
+   "q_ref": 75.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Locação da Obra"
+    ],
+    "variavel": true,
+    "padrao": {
+     "t": "casa",
+     "f": 37.5
+    }
+   }
+  },
+  {
+   "idx": "3.3.2",
+   "cod": "951",
+   "cat": "I",
+   "nome": "PLACA DE ENGENHEIRO - Paula Fleury",
+   "un": "UN",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1,
+    "conferir": "placa com o nome do engenheiro RT da obra"
+   }
+  },
+  {
+   "idx": "3.3.3",
+   "cod": "MAI-SIN-105040",
+   "cat": "C",
+   "nome": "Locação de Contêiner",
+   "un": "MES",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "fixo",
+    "q": 4
+   }
+  },
+  {
+   "idx": "3.3.4.1",
+   "cod": "270",
+   "cat": "I",
+   "nome": "PREGO - 18x30",
+   "un": "kg",
+   "q_ref": 5.0,
+   "obs": "5kg por lote",
+   "regra": {
+    "t": "lote",
+    "f": 5.0
+   }
+  },
+  {
+   "idx": "3.3.4.2",
+   "cod": "235",
+   "cat": "I",
+   "nome": "ARAME RECOZIDO - N 18",
+   "un": "kg",
+   "q_ref": 5.0,
+   "obs": "5kg por lote",
+   "regra": {
+    "t": "lote",
+    "f": 5.0
+   }
+  },
+  {
+   "idx": "3.3.4.3",
+   "cod": "244",
+   "cat": "I",
+   "nome": "DISCO DE CONCRETO - MAKITA (UN)",
+   "un": "UN",
+   "q_ref": 5.0,
+   "obs": "1 caixa por lote",
+   "regra": {
+    "t": "lote",
+    "f": 5.0
+   }
+  },
+  {
+   "idx": "3.3.4.4",
+   "cod": "247",
+   "cat": "I",
+   "nome": "DISCO DE FERRO - lixadeira caixa 50UN",
+   "un": "PACOTE",
+   "q_ref": 1.0,
+   "obs": "1 caixa por lote",
+   "regra": {
+    "t": "lote",
+    "f": 1.0
+   }
+  },
+  {
+   "idx": "3.3.4.5",
+   "cod": "248",
+   "cat": "I",
+   "nome": "DISCO MADEIRA - 7 POL caixa 20UN",
+   "un": "PACOTE",
+   "q_ref": 1.0,
+   "obs": "1 caixa por lote",
+   "regra": {
+    "t": "lote",
+    "f": 1.0
+   }
+  },
+  {
+   "idx": "3.3.4.6",
+   "cod": "616",
+   "cat": "I",
+   "nome": "CADEADO - N 60",
+   "un": "UN",
+   "q_ref": 1.0,
+   "obs": "1 und por lote",
+   "regra": {
+    "t": "lote",
+    "f": 1.0
+   }
+  },
+  {
+   "idx": "3.3.4.7",
+   "cod": "249",
+   "cat": "I",
+   "nome": "DISCO DE PORCEANATO",
+   "un": "UN",
+   "q_ref": 3.0,
+   "obs": "1,5 und por casa",
+   "regra": {
+    "t": "casa",
+    "f": 1.5
+   }
+  },
+  {
+   "idx": "3.3.5.1",
+   "cod": "268",
+   "cat": "I",
+   "nome": "PREGO - 17x21",
+   "un": "kg",
+   "q_ref": 30.0,
+   "obs": "10 kg por casa",
+   "regra": {
+    "t": "casa",
+    "f": 15.0
+   }
+  },
+  {
+   "idx": "3.3.5.2",
+   "cod": "234",
+   "cat": "I",
+   "nome": "ARAME RECOZIDO - N 14",
+   "un": "kg",
+   "q_ref": 60.0,
+   "obs": "20 kg por casa",
+   "regra": {
+    "t": "casa",
+    "f": 30.0
+   }
+  },
+  {
+   "idx": "3.3.5.3",
+   "cod": "620",
+   "cat": "I",
+   "nome": "LINHA DE PEDREIRO - 100m",
+   "un": "UN",
+   "q_ref": 9.0,
+   "obs": "3 und por casa",
+   "regra": {
+    "t": "casa",
+    "f": 4.5
+   }
+  },
+  {
+   "idx": "3.3.5.4",
+   "cod": "471",
+   "cat": "I",
+   "nome": "BROXA - 15x5,5cm",
+   "un": "UN",
+   "q_ref": 9.0,
+   "obs": "3 und por casa",
+   "regra": {
+    "t": "casa",
+    "f": 4.5
+   }
+  },
+  {
+   "idx": "4.1",
+   "cod": "MAI-SIN-105127",
+   "cat": "C",
+   "nome": "Estacas de 6.3 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 15.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Estacas de 6.3 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 7.5
+    }
+   }
+  },
+  {
+   "idx": "4.2",
+   "cod": "MAI-SIN-105046",
+   "cat": "C",
+   "nome": "Estacas de 8 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 90.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Estacas de 8 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 45.0
+    }
+   }
+  },
+  {
+   "idx": "4.3",
+   "cod": "MAI-SIN-105122",
+   "cat": "C",
+   "nome": "Viga de baldrame 6,3 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 26.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Viga de baldrame 6,3 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 13.0
+    }
+   }
+  },
+  {
+   "idx": "4.4",
+   "cod": "MAI-SIN-105060",
+   "cat": "C",
+   "nome": "Viga de baldrame 8 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 120.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Viga de baldrame 8 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 60.0
+    }
+   }
+  },
+  {
+   "idx": "4.5",
+   "cod": "MAI-SIN-105118",
+   "cat": "C",
+   "nome": "Pilares de 6.3 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 31.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Pilares de 6.3 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 15.5
+    }
+   }
+  },
+  {
+   "idx": "4.6",
+   "cod": "MAI-SIN-105071",
+   "cat": "C",
+   "nome": "Pilares de 8 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 157.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Pilares de 8 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 78.5
+    }
+   }
+  },
+  {
+   "idx": "4.7",
+   "cod": "MAI-SIN-105072",
+   "cat": "C",
+   "nome": "Vigas de cobertura 8 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 96.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Viga 8 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 48.0
+    }
+   }
+  },
+  {
+   "idx": "4.8",
+   "cod": "MAI-SIN-105069",
+   "cat": "C",
+   "nome": "Vergas e contravergas",
+   "un": "m",
+   "q_ref": 72.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Vergas e contravergas"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 36.0
+    }
+   }
+  },
+  {
+   "idx": "4.9",
+   "cod": "MAI-SIN-105074",
+   "cat": "C",
+   "nome": "Laje Convencional - c/ lajota",
+   "un": "m²",
+   "q_ref": 99.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Laje Convencional - c/ lajota"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 49.5
+    }
+   }
+  },
+  {
+   "idx": "4.10",
+   "cod": "MAI-SIN-105298",
+   "cat": "C",
+   "nome": "Laje Convencional - reforçada c/ lajotas",
+   "un": "m²",
+   "q_ref": 23.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Laje convencional - reforçada c/ lajota"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 11.5
+    }
+   }
+  },
+  {
+   "idx": "4.11",
+   "cod": "MAI-SIN-105520",
+   "cat": "C",
+   "nome": "Vigota para laje - variável",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1,
+    "variavel": true
+   }
+  },
+  {
+   "idx": "4.12",
+   "cod": "MAI-SIN-105062",
+   "cat": "C",
+   "nome": "Impermeabilização baldrame",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "4.13",
+   "cod": "MAI-SIN-105063",
+   "cat": "C",
+   "nome": "Aterro da casa",
+   "un": "m²",
+   "q_ref": 124.71,
+   "obs": "mesmo valor da área do contrapiso",
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Contrapiso interno",
+     "Aterro da casa"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 62.355
+    }
+   }
+  },
+  {
+   "idx": "5.1",
+   "cod": "MAI-SIN-105663",
+   "cat": "C",
+   "nome": "Alvenaria convencional",
+   "un": "m²",
+   "q_ref": 565.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Alvenaria convencional"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 282.5
+    }
+   }
+  },
+  {
+   "idx": "5.2",
+   "cod": "MAI-SIN-105058",
+   "cat": "C",
+   "nome": "Reboco casa",
+   "un": "m²",
+   "q_ref": 1275.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Reboco casa"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 637.5
+    }
+   }
+  },
+  {
+   "idx": "5.3",
+   "cod": "MAI-SIN-105176",
+   "cat": "C",
+   "nome": "Pingadeira 75cm - 1 quina (Goiânia)",
+   "un": "ML",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pingadeira 75cm - 1 quinas (Goiânia)"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105789",
+     "nome": "Pingadeira 1m - 1 quina (Senador Canedo)",
+     "un": "ML",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "5.4",
+   "cod": "MAI-SIN-105177",
+   "cat": "C",
+   "nome": "Pingadeira 75cm - 2 quinas (Goiânia)",
+   "un": "ML",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pingadeira 75cm - 2 quinas (Goiânia)"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 5.0
+    }
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105790",
+     "nome": "Pingadeira 1m - 2 quinas (Senador Canedo)",
+     "un": "ML",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "5.5",
+   "cod": "627",
+   "cat": "I",
+   "nome": "TELA METÁLICA - Pinteiro 1,20 x 50m",
+   "un": "ROLO",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   }
+  },
+  {
+   "idx": "5.6",
+   "cod": "MAI-SIN-105178",
+   "cat": "C",
+   "nome": "Piso tátil - direcional",
+   "un": "ML",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Piso tátil - direcional"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 5.0
+    }
+   }
+  },
+  {
+   "idx": "6.1.1",
+   "cod": "MAI-SIN-105115",
+   "cat": "C",
+   "nome": "Kit porta de madeira 80 x 210 - padrão mcmv + MO",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Kit porta de madeira 80 x 210 - padrão mcm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "6.1.2",
+   "cod": "MAI-SIN-105116",
+   "cat": "C",
+   "nome": "Kit porta de madeira 60 x 210 - padrão mcmv banheiro + MO",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Kit porta de madeira 60 x 210 - padrão mcmv banheiro"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "6.2.1",
+   "cod": "860",
+   "cat": "I",
+   "nome": "JANELA DE CORRER DUAS FOLHAS BLINDEX - 60 x 60",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "JANELA DE CORRER DUAS FOLHAS BLINDEX - 60 x 60"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "6.2.2",
+   "cod": "859",
+   "cat": "I",
+   "nome": "JANELA DE CORRER DUAS FOLHAS BLINDEX - 120 x 100",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "JANELA DE CORRER DUAS FOLHAS BLINDEX - 120 x 100"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "6.2.3",
+   "cod": "1609",
+   "cat": "I",
+   "nome": "JANELA DE CORRER DUAS FOLHAS BLINDEX - 60 x 120",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "JANELA BACULANTE BLINDEX - 60 x 120"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "6.3.1",
+   "cod": "MAI-SIN-105147",
+   "cat": "C",
+   "nome": "KIT portão + alçapão - Portão de correr, trilho no chão (Goiânia)",
+   "un": "UN",
+   "q_ref": 3.0,
+   "obs": "2,30 x 2,10",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "KIT portão + alçapão - Portão de correr (Goiânia)"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.5
+    }
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105148",
+     "nome": "KIT portão + alçapão - Portão de correr, trilho superior (Senador Canedo)",
+     "un": "UN",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "7.1.1",
+   "cod": "566",
+   "cat": "I",
+   "nome": "VIGOTA - 10cm c/ 3m",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA - 10cm c/ 3,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "7.1.2",
+   "cod": "562",
+   "cat": "I",
+   "nome": "VIGOTA - 10cm c/ 3,5m",
+   "un": "UN",
+   "q_ref": 22.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA - 10cm c/ 3,50m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 11.0
+    }
+   }
+  },
+  {
+   "idx": "7.1.3",
+   "cod": "569",
+   "cat": "I",
+   "nome": "VIGOTA - 10cm c/ 4,5m",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA - 10cm c/ 4,50m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "7.1.4",
+   "cod": "530",
+   "cat": "I",
+   "nome": "CAIBRO - 5x7 c/ 3m",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "CAIBRO: 5x7 c/ 3,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "7.1.5",
+   "cod": "526",
+   "cat": "I",
+   "nome": "CAIBRO - 5x7 c/ 5m",
+   "un": "UN",
+   "q_ref": 24.0,
+   "obs": "caibros de 14m (3 de 5m)",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "CAIBRO: 5x7 c/ 14,00m"
+    ],
+    "fator": 3,
+    "padrao": {
+     "t": "casa",
+     "f": 12.0
+    }
+   }
+  },
+  {
+   "idx": "7.1.6",
+   "cod": "MAI-SIN-105113",
+   "cat": "C",
+   "nome": "Instalação de telha 366",
+   "un": "m²",
+   "q_ref": 108.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Instalação de telha 366"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 54.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.1",
+   "cod": "959",
+   "cat": "I",
+   "nome": "VIGOTA LIXADA - 20cm c/ 2m",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1,
+    "variavel": true
+   }
+  },
+  {
+   "idx": "7.2.2",
+   "cod": "606",
+   "cat": "I",
+   "nome": "VIGOTA LIXADA - 14cm c/ 2m",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA LIXADA - 14cm c/ 2,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.3",
+   "cod": "608",
+   "cat": "I",
+   "nome": "VIGOTA LIXADA - 14cm c/ 4m",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA LIXADA - 14cm c/ 4,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.4",
+   "cod": "972",
+   "cat": "I",
+   "nome": "VIGOTA LIXADA - 30cm c/ 5,5m",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA LIXADA - 14cm c/ 5,50m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.5",
+   "cod": "1015",
+   "cat": "I",
+   "nome": "VIGOTA LIXADA CHANFRADA - 14cm c/ 3m",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA LIXADA CHANFRADA - 14cm c/ 3,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.6",
+   "cod": "1009",
+   "cat": "I",
+   "nome": "VIGOTA LIXADA CHANFRADA - 14cm c/ 5,5m",
+   "un": "UN",
+   "q_ref": 16.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "VIGOTA LIXADA CHANFRADA - 14cm c/ 5,50m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 8.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.7",
+   "cod": "1006",
+   "cat": "I",
+   "nome": "CAIBRO LIXADO - 5x3 c/ 2m",
+   "un": "UN",
+   "q_ref": 28.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "CAIBRO LIXADO: 5x3 c/ 2,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 14.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.8",
+   "cod": "522",
+   "cat": "I",
+   "nome": "CAIBRO LIXADO - 5x3 c/ 2,5m",
+   "un": "UN",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "CAIBRO LIXADO: 5x3 c/ 2,50m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 5.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.9",
+   "cod": "999",
+   "cat": "I",
+   "nome": "CAIBRO LIXADO - 5x3 c/ 4m",
+   "un": "UN",
+   "q_ref": 14.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "CAIBRO LIXADO: 5x3 c/ 4,00m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 7.0
+    }
+   }
+  },
+  {
+   "idx": "7.2.10",
+   "cod": "519",
+   "cat": "I",
+   "nome": "CAIBRO LIXADO - 5x3 c/ 5,5m",
+   "un": "UN",
+   "q_ref": 16.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "CAIBRO LIXADO: 5x3 c/ 5,50m"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 8.0
+    }
+   }
+  },
+  {
+   "idx": "7.3.1",
+   "cod": "863",
+   "cat": "I",
+   "nome": "RUFOS CHAPA GALVANIZADA DE 25 CM",
+   "un": "m",
+   "q_ref": 132.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "RUFOS CHAPA GALVANIZADA DE 25 CM"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 66.0
+    }
+   }
+  },
+  {
+   "idx": "7.3.2",
+   "cod": "11",
+   "cat": "I",
+   "nome": "CALHAS COCHO CHAPA GALVANIZADA DE 70 CM",
+   "un": "m",
+   "q_ref": 36.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "CALHAS COCHO CHAPA GALVANIZADA DE 70 CM"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 18.0
+    }
+   }
+  },
+  {
+   "idx": "7.4.1",
+   "cod": "MAI-SIN-105459",
+   "cat": "C",
+   "nome": "Estrutura caixa d'agua",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "8.1",
+   "cod": "MAI-SIN-105087",
+   "cat": "C",
+   "nome": "Piso casa + MO",
+   "un": "m²",
+   "q_ref": 111.38,
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Piso casa"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 55.69
+    }
+   }
+  },
+  {
+   "idx": "8.2",
+   "cod": "MAI-SIN-105156",
+   "cat": "C",
+   "nome": "Piso banheiro, area de serviço e garagem + MO",
+   "un": "m²",
+   "q_ref": 23.79,
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Piso banheiro, area de serviço e garagem"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 11.895
+    }
+   }
+  },
+  {
+   "idx": "8.3",
+   "cod": "MAI-SIN-105086",
+   "cat": "C",
+   "nome": "Revestimento branco padrão + MO",
+   "un": "m²",
+   "q_ref": 70.0,
+   "obs": "Rev. áreas molhadas",
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Revestimento branco padrão"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 35.0
+    }
+   }
+  },
+  {
+   "idx": "8.4",
+   "cod": "MAI-SIN-105159",
+   "cat": "C",
+   "nome": "Revestimento detalhe da cozinha (retificado) + MO",
+   "un": "m²",
+   "q_ref": 12.57,
+   "obs": "Rev. bancadas (RETIFICADO)",
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Revestimento detalhe da cozinha"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 6.285
+    }
+   }
+  },
+  {
+   "idx": "8.5",
+   "cod": "MAI-SIN-105157",
+   "cat": "C",
+   "nome": "Revestimento da ducha + MO",
+   "un": "m²",
+   "q_ref": 2.76,
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Revestimento da ducha"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.38
+    }
+   }
+  },
+  {
+   "idx": "8.6",
+   "cod": "MAI-SIN-105542",
+   "cat": "C",
+   "nome": "Revestimento detalhe do muro + MO",
+   "un": "m²",
+   "q_ref": 1.52,
+   "obs": "1,52 é o padrão para 2 casas",
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "8.7",
+   "cod": "MAI-SIN-105158",
+   "cat": "C",
+   "nome": "Revestimento no box do banheiro (retificado) + MO",
+   "un": "m²",
+   "q_ref": 36.96,
+   "obs": "Rev. detalhe banheiro (RETIFICADO)",
+   "regra": {
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Revestimento no box do banheiro"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 18.48
+    }
+   }
+  },
+  {
+   "idx": "8.8",
+   "cod": "MAI-SIN-105568",
+   "cat": "C",
+   "nome": "Argamassa de assentamento - ACI",
+   "un": "m²",
+   "q_ref": 255.71,
+   "obs": "soma de todos pisos e revestimentos",
+   "regra": {
+    "t": "soma",
+    "de": [
+     "8.1",
+     "8.2",
+     "8.3",
+     "8.4",
+     "8.5",
+     "8.7"
+    ]
+   }
+  },
+  {
+   "idx": "8.9",
+   "cod": "MAI-SIN-105569",
+   "cat": "C",
+   "nome": "Rejuntes - por casa",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "8.10",
+   "cod": "MAI-SIN-105091",
+   "cat": "C",
+   "nome": "Instalação de bancadas - mão de obra",
+   "un": "UN",
+   "q_ref": 5.0,
+   "regra": {
+    "t": "cada",
+    "f": 5
+   }
+  },
+  {
+   "idx": "9.1",
+   "cod": "MAI-SIN-105097",
+   "cat": "C",
+   "nome": "SOLEIRA EM GRANITO VERDE UBATUBA - 60CM",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "SOLEIRA EM GRANITO VERDE UBATUBA - 60CM"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "9.2",
+   "cod": "967",
+   "cat": "I",
+   "nome": "SOLEIRA EM GRANITO VERDE UBATUBA - 90CM",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "SOLEIRA EM GRANITO VERDE UBATUBA - 90CM"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "9.3",
+   "cod": "MAI-SIN-105100",
+   "cat": "C",
+   "nome": "PEITORIL EM GRANITO VERDE UBATUBA - 60CM",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "PEITORIL EM GRANITO VERDE UBATUBA - 60CM"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "9.4",
+   "cod": "869",
+   "cat": "I",
+   "nome": "PEITORIL EM GRANITO VERDE UBATUBA - 120CM",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "PEITORIL EM GRANITO VERDE UBATUBA - 120CM"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "9.5",
+   "cod": "953",
+   "cat": "I",
+   "nome": "PEITORIL EM GRANITO VERDE UBATUBA - 150CM",
+   "un": "UN",
+   "q_ref": 3.0,
+   "regra": {
+    "t": "casa",
+    "f": 1.5,
+    "variavel": true
+   }
+  },
+  {
+   "idx": "9.6",
+   "cod": "MAI-SIN-105957",
+   "cat": "C",
+   "nome": "Bancada mármore bege bahia c/ cuba - 55 x 60 cm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "obs": "Banho 1",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Bancada granito verde ubatuba c/ cuba 0,55x0,60"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "9.7",
+   "cod": "MAI-SIN-105958",
+   "cat": "C",
+   "nome": "Bancada mármore bege bahia c/ cuba - 45 x 50 cm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "obs": "Banho 2",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Bancada granito verde ubatuba c/ cuba 0,45x0,50"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "9.8",
+   "cod": "992",
+   "cat": "I",
+   "nome": "BALCÃO GRANITO VERDE UBATUBA - 50 X 220 cm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "obs": "Cozinha",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "BALCÃO GRANITO VERDE UBATUBA 0,50x2,18"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "9.9",
+   "cod": "MAI-SIN-105360",
+   "cat": "C",
+   "nome": "Bancada granito verde ubatuba c/ pia - 60 x 200 cm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "obs": "Cozinha",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Bancada granito c/ pia 0,50x2,00"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "9.10",
+   "cod": "MAI-SIN-105314",
+   "cat": "C",
+   "nome": "Bancada granito verde ubatuba c/ pia - 50 x 120 cm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "obs": "Gourmet",
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Bancada granito c/ pia 0,50x1,20"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "9.11",
+   "cod": "817",
+   "cat": "I",
+   "nome": "CHUMBADOR DE BANCADA - 60 cm",
+   "un": "UN",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "casa",
+    "f": 5
+   }
+  },
+  {
+   "idx": "9.12",
+   "cod": "638",
+   "cat": "I",
+   "nome": "MASSA PLÁTICA - Preta 400g",
+   "un": "UN",
+   "q_ref": 4.0,
+   "obs": "2un por casa",
+   "regra": {
+    "t": "casa",
+    "f": 2
+   }
+  },
+  {
+   "idx": "10.1",
+   "cod": "282",
+   "cat": "I",
+   "nome": "GESSO CORRIDO",
+   "un": "M2",
+   "q_ref": 112.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "GESSO CORRIDO"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 56.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.1",
+   "cod": "MAI-SIN-105144",
+   "cat": "C",
+   "nome": "Pintura interna - tinta acrílica cor neve",
+   "un": "m²",
+   "q_ref": 380.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura interna - tinta acrílica cor neve"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 190.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.2",
+   "cod": "MAI-SIN-105143",
+   "cat": "C",
+   "nome": "Pintura externa - textura cor sereno",
+   "un": "m²",
+   "q_ref": 350.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura externa - textura cor sereno"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 175.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.3",
+   "cod": "MAI-SIN-105167",
+   "cat": "C",
+   "nome": "Pintura externa - textura cor camurça",
+   "un": "m²",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura externa - textura cor camurça"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.4",
+   "cod": "MAI-SIN-105142",
+   "cat": "C",
+   "nome": "Pintura externa - textura cor prata fina",
+   "un": "m²",
+   "q_ref": 350.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura externa - textura cor prata fina"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 175.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.5",
+   "cod": "MAI-SIN-105166",
+   "cat": "C",
+   "nome": "Pintura externa - textura cor titânio",
+   "un": "m²",
+   "q_ref": 8.0,
+   "obs": "CASA 2",
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura externa - textura cor titânio"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.6",
+   "cod": "MAI-SIN-105164",
+   "cat": "C",
+   "nome": "Pintura de pingadeira - textura cor branco neve",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "11.1.7",
+   "cod": "MAI-SIN-105145",
+   "cat": "C",
+   "nome": "Pintura de piso - tinta piso cor cinza escuro",
+   "un": "m²",
+   "q_ref": 110.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura de piso - tinta piso cor cinza escuro"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 55.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.8",
+   "cod": "MAI-SIN-105146",
+   "cat": "C",
+   "nome": "Pintura de portão - esmalte metálico marrom bronze (GOIANIA)",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105893",
+     "nome": "Pintura de portão - esmalte metálico marrom bronze (SENADOR CANEDO)",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "11.1.9",
+   "cod": "MAI-SIN-105799",
+   "cat": "C",
+   "nome": "Pintura interna - grafiato cor gelo",
+   "un": "m²",
+   "q_ref": 58.0,
+   "obs": "Detalhe parade interna",
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "Pintura interna - grafiato gelo"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 29.0
+    }
+   }
+  },
+  {
+   "idx": "11.1.10",
+   "cod": "MAI-SIN-105151",
+   "cat": "C",
+   "nome": "Materiais para pintura de porta de madeira",
+   "un": "UN",
+   "q_ref": 12.0,
+   "regra": {
+    "t": "soma",
+    "de": [
+     "6.1.1",
+     "6.1.2"
+    ]
+   }
+  },
+  {
+   "idx": "11.1.11",
+   "cod": "MAI-SIN-105800",
+   "cat": "C",
+   "nome": "Materiais para pintura da estrutura de madeira - GOIÂNIA",
+   "un": "casa",
+   "q_ref": 2.0,
+   "obs": "casa padrão acrópole",
+   "regra": {
+    "t": "casa",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105152",
+     "nome": "Materiais para pintura da estrutura de madeira - SENADOR CANEDO",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "11.1.12",
+   "cod": "MAI-SIN-105862",
+   "cat": "C",
+   "nome": "Acessórios p/ pintura - GOIÂNIA",
+   "un": "casa",
+   "q_ref": 2.0,
+   "obs": "casa padrão acrópole",
+   "regra": {
+    "t": "casa",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105153",
+     "nome": "Acessórios p/ pintura - SENADOR CANEDO",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "11.2.1",
+   "cod": "MAI-SIN-105280",
+   "cat": "C",
+   "nome": "MÃO DE OBRA PINTURA - MO",
+   "un": "VB",
+   "q_ref": 2.0,
+   "obs": "Quantidade de casas",
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "12.1.1",
+   "cod": "MAI-SIN-105106",
+   "cat": "C",
+   "nome": "Instalações eletricas por casa - MO",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "12.2.1",
+   "cod": "MAI-SIN-105332",
+   "cat": "C",
+   "nome": "Eletrodutos, quadro de distribuição e caixa de passagem",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "12.2.2",
+   "cod": "95",
+   "cat": "I",
+   "nome": "CAIXA DE LUZ OCTOGONAL - Metal",
+   "un": "UN",
+   "q_ref": 16.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CAIXA DE LUZ OCTOGONAL - Metal"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 8.0
+    }
+   }
+  },
+  {
+   "idx": "12.2.3",
+   "cod": "94",
+   "cat": "I",
+   "nome": "CAIXA DE EMBUTIR PVC - 4X2",
+   "un": "UN",
+   "q_ref": 92.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CAIXA DE EMBUTIR PVC - 4X2"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 46.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.1",
+   "cod": "MAI-SIN-105331",
+   "cat": "C",
+   "nome": "Cabos flexíveis, haste e disjuntores - casas padrões",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "12.3.2",
+   "cod": "163",
+   "cat": "I",
+   "nome": "PLAFON SOQUETE - Sobrepor cor branca",
+   "un": "UN",
+   "q_ref": 16.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "PLAFON SOQUETE - Sobrepor cor branca"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 8.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.3",
+   "cod": "111",
+   "cat": "I",
+   "nome": "CONJUNTO INTERRUPTOR PARALELO - 4x2 1 tecla paralelo",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CONJUNTO INTERRUPTOR - 4x2 1 tecla paralela"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.4",
+   "cod": "1092",
+   "cat": "I",
+   "nome": "CONJUNTO INTERRUPTOR MODULAR - 4x2 1 tecla simples",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CONJUNTO INTERRUPTOR - 4x2 1 tecla simples"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.5",
+   "cod": "937",
+   "cat": "I",
+   "nome": "CONJUNTO INTERRUPTOR PARALELO - 4x2 2 teclas paralelo",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CONJUNTO INTERRUPTOR - 4x2 2 teclas paralela"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.6",
+   "cod": "107",
+   "cat": "I",
+   "nome": "CONJUNTO INTERRUPTOR C/ TOMADA - 4x2 1 tecla simples + tomada 10A",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CONJUNTO INTERRUPTOR C/ TOMADA - 1 tecla simples + 1 tomada 10A"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.7",
+   "cod": "115",
+   "cat": "I",
+   "nome": "CONJUNTO TOMADA - 4x2 10A",
+   "un": "UN",
+   "q_ref": 44.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CONJUNTO TOMADA SIMPLES - 4x2 10A"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 22.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.8",
+   "cod": "113",
+   "cat": "I",
+   "nome": "CONJUNTO TAMPA CEGA - 4x2",
+   "un": "UN",
+   "q_ref": 24.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "CONJUNTO TAMPA CEGA - 4x2"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 12.0
+    }
+   }
+  },
+  {
+   "idx": "12.3.9",
+   "cod": "141",
+   "cat": "I",
+   "nome": "LUMINARIA SLIM SOBREPOR - 60 cm luz branca",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ELE",
+    "revit": [
+     "LUMINARIA SLIM SOBREPOR - 60 cm luz branca"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.1",
+   "cod": "MAI-SIN-105333",
+   "cat": "C",
+   "nome": "Fossa, sumidouro e caixa de recarga - manilhas e tampas",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1,
+    "cond": "fossa"
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105922",
+     "nome": "Fossa, sumidouro e caixa de recarga - manilhas e tampas (SENADOR CANEDO)",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "13.1.2",
+   "cod": "428",
+   "cat": "I",
+   "nome": "TAMPA PVC - Preta 40x40",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TAMPA PVC 40X40"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.3",
+   "cod": "882",
+   "cat": "I",
+   "nome": "GRELHA PVC - PRETA 30X30",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "GRELHA PVC 30X30"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.4",
+   "cod": "320",
+   "cat": "I",
+   "nome": "CAIXA SIFONADA C/GRELHA QUADRADA - 100 x 100 x 50 mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CAIXA SIFONADA C/GRELHA QUADRADA - 100x100x50"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.5",
+   "cod": "322",
+   "cat": "I",
+   "nome": "CAIXA SIFONADA C/GRELHA QUADRADA - 150 x 150 x 50 mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CAIXA SIFONADA C/GRELHA QUADRADA - 150x150x50"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.6",
+   "cod": "314",
+   "cat": "I",
+   "nome": "CAIXA DE GORDURA - 42 L C/CESTO (grande)",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CAIXA DE GORDURA - 42 L C/CESTO (grande)"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.7",
+   "cod": "317",
+   "cat": "I",
+   "nome": "CAIXA DE GORDURA SIFONADA - 250 X 172 X 50mm (Pequena)",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CAIXA DE GORDURA SIFONADA - 250x172x50 (pequena)"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.8",
+   "cod": "312",
+   "cat": "I",
+   "nome": "BUCHA DE REDUÇÃO PVC - ESG 50x40mm",
+   "un": "UN",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "BUCHA DE REDUÇÃO LONGA PVC - ESG 50x40mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 5.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.9",
+   "cod": "856",
+   "cat": "I",
+   "nome": "CURVA CURTA - ESG 50mm x 90º",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CURVA CURTA PVC - ESG 50mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.10",
+   "cod": "329",
+   "cat": "I",
+   "nome": "CURVA CURTA - ESG 100mm x 90º",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CURVA CURTA PVC - ESG 100mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.11",
+   "cod": "355",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 40mm x 45º",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 40mm x 45°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.12",
+   "cod": "358",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 40mm x 90º",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 40mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.13",
+   "cod": "359",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 50mm x 45º",
+   "un": "UN",
+   "q_ref": 26.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 50mm x 45°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 13.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.14",
+   "cod": "352",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 50mm x 90º",
+   "un": "UN",
+   "q_ref": 28.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 50mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 14.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.15",
+   "cod": "354",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 100mm x 45 º",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 100mm x 45°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.16",
+   "cod": "353",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 100mm x 90º",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 100mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.17",
+   "cod": "357",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 40mm x 90º c/anel",
+   "un": "UN",
+   "q_ref": 12.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - ESG 40mm x 90° c/ anel"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 6.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.18",
+   "cod": "372",
+   "cat": "I",
+   "nome": "JUNÇÃO PVC - ESG 40mm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JUNÇÃO PVC - ESG 40mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.19",
+   "cod": "884",
+   "cat": "I",
+   "nome": "JUNÇÃO PVC - ESG 100mm X 50 mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JUNÇÃO PVC - ESG 100 x 50mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.20",
+   "cod": "373",
+   "cat": "I",
+   "nome": "JUNÇÃO PVC - ESG 100mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JUNÇÃO PVC - ESG 100mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.21",
+   "cod": "380",
+   "cat": "I",
+   "nome": "LUVA PVC - ESG 50mm",
+   "un": "UN",
+   "q_ref": 14.0,
+   "regra": {
+    "t": "casa",
+    "f": 7.0
+   }
+  },
+  {
+   "idx": "13.1.22",
+   "cod": "379",
+   "cat": "I",
+   "nome": "LUVA PVC - ESG 100mm",
+   "un": "UN",
+   "q_ref": 14.0,
+   "regra": {
+    "t": "casa",
+    "f": 7.0
+   }
+  },
+  {
+   "idx": "13.1.23",
+   "cod": "1079",
+   "cat": "I",
+   "nome": "TEE PVC - ESG 40mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - ESG 40mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.24",
+   "cod": "439",
+   "cat": "I",
+   "nome": "TEE PVC - ESG 50mm",
+   "un": "UN",
+   "q_ref": 24.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - ESG 50mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 12.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.25",
+   "cod": "1043",
+   "cat": "I",
+   "nome": "TEE PVC - ESG 100 x 50mm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - ESG 100 x 50mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.26",
+   "cod": "437",
+   "cat": "I",
+   "nome": "TEE PVC - ESG 100mm",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - ESG 100mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.27",
+   "cod": "1327",
+   "cat": "I",
+   "nome": "PROLONGADOR PVC - 100mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "PROLONGADOR PVC - 100mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.28",
+   "cod": "400",
+   "cat": "I",
+   "nome": "PROLONGADOR PVC - 150mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "PROLONGADOR PVC - 150mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.30",
+   "cod": "1326",
+   "cat": "I",
+   "nome": "PROLONGADOR CAIXA DE GORDURA PEQUENA",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "PROLONGADOR PVC - CX. GOD. PEQUENA"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.31",
+   "cod": "MAI-SIN-105137",
+   "cat": "C",
+   "nome": "Tubo PVC - Esgoto 40mm",
+   "un": "m",
+   "q_ref": 14.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "HID",
+    "revit": [
+     "Tubo PVC - Esgoto 40 mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 7.0
+    }
+   }
+  },
+  {
+   "idx": "13.1.32",
+   "cod": "MAI-SIN-105136",
+   "cat": "C",
+   "nome": "Tubo PVC - Esgoto 50mm",
+   "un": "m",
+   "q_ref": 65.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "HID",
+    "revit": [
+     "Tubo PVC - Esgoto 50 mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 32.5
+    }
+   }
+  },
+  {
+   "idx": "13.1.33",
+   "cod": "MAI-SIN-105139",
+   "cat": "C",
+   "nome": "Tubo PVC - Esgoto 100mm",
+   "un": "m",
+   "q_ref": 142.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "HID",
+    "revit": [
+     "Tubo PVC - Esgoto 100 mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 71.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.1",
+   "cod": "341",
+   "cat": "I",
+   "nome": "FITA VEDA ROSCA - 50m",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1.0
+   }
+  },
+  {
+   "idx": "13.2.2",
+   "cod": "397",
+   "cat": "I",
+   "nome": "PLUG ROSCAVEL - 1/2",
+   "un": "UN",
+   "q_ref": 20.0,
+   "regra": {
+    "t": "casa",
+    "f": 10.0
+   }
+  },
+  {
+   "idx": "13.2.3",
+   "cod": "302",
+   "cat": "I",
+   "nome": "ADESIVO COLA PVC - Incolor 850 G",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "casa",
+    "f": 2.0
+   }
+  },
+  {
+   "idx": "13.2.4",
+   "cod": "423",
+   "cat": "I",
+   "nome": "SOLUÇÃO LIMPADORA - 850G",
+   "un": "UN",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   }
+  },
+  {
+   "idx": "13.2.5",
+   "cod": "996",
+   "cat": "I",
+   "nome": "TERMINAL DE VENTILAÇÃO 50 mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TERMINAL DE VENTILAÇÃO 50 mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.6",
+   "cod": "409",
+   "cat": "I",
+   "nome": "REGISTRO - Esfera PVC soldável 50mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "REGISTRO - Esfera PVC soldável 50mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.7",
+   "cod": "412",
+   "cat": "I",
+   "nome": "REGISTRO - Esfera PVC soldável 25mm",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "REGISTRO - Esfera PVC soldável 25mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.8",
+   "cod": "885",
+   "cat": "I",
+   "nome": "CAIXA D'ÁGUA PVC - 500L",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CAIXA D'ÁGUA PVC - 500L"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.9",
+   "cod": "446",
+   "cat": "I",
+   "nome": "TORNEIRA BOIA P/ CAIXA D'ÁGUA - 3/4",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TORNEIRA BOIA P/ CAIXA D'ÁGUA - 3/4"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.10",
+   "cod": "296",
+   "cat": "I",
+   "nome": "ADAPTADOR - Soldável c/ flange 50mm x 1.1/2",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "ADAPTADOR - Soldável c/ flange 50mm x 1.1/2"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 2.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.11",
+   "cod": "297",
+   "cat": "I",
+   "nome": "ADAPTADOR - Soldável c/ flange 25mm 3/4",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "ADAPTADOR - Soldável c/ flange 25mm x 3/4"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.12",
+   "cod": "291",
+   "cat": "I",
+   "nome": "ADAPTADOR L/R - Soldável curto 25mm x 3/4",
+   "un": "UN",
+   "q_ref": 22.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "ADAPTADOR CURTO PVC - Soldável 25mm x 3/4''"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 11.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.13",
+   "cod": "983",
+   "cat": "I",
+   "nome": "LUVA PVC - Soldável c/ rosca para fora 25 X 3/4''",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "LUVA PVC - Soldável c/ bucha de latão 25mm x 3/4''"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.14",
+   "cod": "883",
+   "cat": "I",
+   "nome": "BUCHA DE REDUÇÃO PVC - Soldável 50x25mm",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "BUCHA DE REDUÇÃO LONGA PVC - Soldável 50x25mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.15",
+   "cod": "364",
+   "cat": "I",
+   "nome": "JOELHO PVC - Soldável 25mm x 45º",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - Soldável 25mm x 45°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.16",
+   "cod": "369",
+   "cat": "I",
+   "nome": "JOELHO PVC - Soldável 25mm x 90º",
+   "un": "UN",
+   "q_ref": 38.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - Soldável 25mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 19.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.17",
+   "cod": "367",
+   "cat": "I",
+   "nome": "JOELHO PVC - Soldável c/ bucha latão 25mm x 1/2''",
+   "un": "UN",
+   "q_ref": 20.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - Soldável c/ bucha latão 25mm x 1/2''"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 10.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.18",
+   "cod": "352",
+   "cat": "I",
+   "nome": "JOELHO PVC - ESG 50mm x 90º",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "JOELHO PVC - Soldável 50mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.19",
+   "cod": "443",
+   "cat": "I",
+   "nome": "TEE PVC - Soldável 25mm",
+   "un": "UN",
+   "q_ref": 14.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - Soldável 25mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 7.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.20",
+   "cod": "441",
+   "cat": "I",
+   "nome": "TEE PVC - Soldável 50mm",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - Soldável 50mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.21",
+   "cod": "444",
+   "cat": "I",
+   "nome": "TEE PVC - Soldável c/ bucha latão 25mm x 1/2''",
+   "un": "UN",
+   "q_ref": 12.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TEE PVC - Soldável c/ bucha de latão 25mm x 1/2''"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 6.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.22",
+   "cod": "332",
+   "cat": "I",
+   "nome": "CURVA CURTA - Soldável 25mm x 90º",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CURVA PVC - Soldável 25mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.23",
+   "cod": "1312",
+   "cat": "I",
+   "nome": "CURVA CURTA - Soldável 50mm x 45º",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CURVA PVC - Soldável 50mm x 45°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.24",
+   "cod": "333",
+   "cat": "I",
+   "nome": "CURVA CURTA - Soldável 50mm x 90º",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "CURVA PVC - Soldável 50mm x 90°"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.25",
+   "cod": "MAI-SIN-105131",
+   "cat": "C",
+   "nome": "Tubo PVC - Soldável 25mm",
+   "un": "m",
+   "q_ref": 78.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "HID",
+    "revit": [
+     "Tubo PVC - Soldável 25 mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 39.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.26",
+   "cod": "MAI-SIN-105132",
+   "cat": "C",
+   "nome": "Tubo PVC - Soldável 50mm",
+   "un": "m",
+   "q_ref": 54.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "HID",
+    "revit": [
+     "Tubo PVC - Soldável 50 mm"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 27.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.27",
+   "cod": "307",
+   "cat": "I",
+   "nome": "BASE P/ REGISTRO - Gaveta 3/4 (25mm) - acabamento DOCOL",
+   "un": "UN",
+   "q_ref": 8.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "BASE P/ REGISTRO - Gaveta 3/4 (25mm) - DOCOL"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 4.0
+    }
+   }
+  },
+  {
+   "idx": "13.2.28",
+   "cod": "308",
+   "cat": "I",
+   "nome": "BASE P/ REGISTRO - Pressão 3/4 (25mm) - acabamento DOCOL",
+   "un": "UN",
+   "q_ref": 6.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "BASE P/ REGISTRO - Pressão 3/4 (25mm) - DOCOL"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 3.0
+    }
+   }
+  },
+  {
+   "idx": "13.3.1",
+   "cod": "MAI-SIN-105327",
+   "cat": "C",
+   "nome": "Acessórios para cozinha - padrão",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "casa",
+    "f": 2
+   }
+  },
+  {
+   "idx": "13.3.2",
+   "cod": "MAI-SIN-105326",
+   "cat": "C",
+   "nome": "Acessórios para banheiro - padrão",
+   "un": "UN",
+   "q_ref": 4.0,
+   "regra": {
+    "t": "casa",
+    "f": 2
+   }
+  },
+  {
+   "idx": "13.3.3",
+   "cod": "MAI-SIN-105329",
+   "cat": "C",
+   "nome": "Acessórios para área de serviço - tanque 1 boca",
+   "un": "UN",
+   "q_ref": 3.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TANQUE 1 BOCA",
+     "TANQUE DE 1 BOCA"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1
+    },
+    "conferir": "tanque de 1 ou 2 bocas sai do quantitativo do Revit (pode ter os dois no mesmo lote)"
+   }
+  },
+  {
+   "idx": "13.3.4",
+   "cod": "MAI-SIN-105330",
+   "cat": "C",
+   "nome": "Acessórios para área de serviço - tanque 2 bocas",
+   "un": "UN",
+   "q_ref": 0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "HID",
+    "revit": [
+     "TANQUE 2 BOCAS",
+     "TANQUE DE 2 BOCAS"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    }
+   }
+  },
+  {
+   "idx": "14.1",
+   "cod": "MAI-SIN-105864",
+   "cat": "C",
+   "nome": "Churrasqueira pré-moldada predial - 4 espetos",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "revit",
+    "arred": "igual",
+    "disc": "ARQ",
+    "revit": [
+     "Churrasqueira pré-moldada tijolinho 3 espetos"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 1.0
+    }
+   }
+  },
+  {
+   "idx": "14.2",
+   "cod": "663",
+   "cat": "I",
+   "nome": "GRAMA ESMERALDA - Tapete",
+   "un": "M2",
+   "q_ref": 49.0,
+   "regra": {
+    "t": "area",
+    "re": "GRAMA",
+    "arred": "teto"
+   }
+  },
+  {
+   "idx": "14.3",
+   "cod": "MAI-SIN-105320",
+   "cat": "C",
+   "nome": "Árvore da calçada - GOIÂNIA",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "MAI-SIN-105321",
+     "nome": "Árvore da calçada - SENADOR CANEDO",
+     "un": "casa",
+     "cat": "C"
+    }
+   }
+  },
+  {
+   "idx": "14.4",
+   "cod": "830",
+   "cat": "I",
+   "nome": "CERCA ELÉTRICA + INSTALAÇÃO",
+   "un": "m",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "ARQ",
+    "revit": [
+     "CERCA ELÉTRICA + INSTALAÇÃO"
+    ],
+    "padrao": {
+     "t": "casa",
+     "f": 5.0
+    }
+   }
+  },
+  {
+   "idx": "14.5",
+   "cod": "898",
+   "cat": "I",
+   "nome": "CÓPIA DE CHAVES",
+   "un": "UN",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "casa",
+    "f": 5
+   }
+  },
+  {
+   "idx": "14.6",
+   "cod": "889",
+   "cat": "I",
+   "nome": "CONTA MENSAL DE ENERGIA",
+   "un": "mês",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "casa",
+    "f": 5
+   }
+  },
+  {
+   "idx": "14.7",
+   "cod": "890",
+   "cat": "I",
+   "nome": "CONTA MENSAL DE ÁGUA",
+   "un": "mês",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "casa",
+    "f": 5
+   }
+  },
+  {
+   "idx": "14.8",
+   "cod": "982",
+   "cat": "I",
+   "nome": "SERVIÇO DE MONITORAMENTO",
+   "un": "mês",
+   "q_ref": 0.0,
+   "regra": {
+    "t": "fixo",
+    "q": 0
+   }
+  },
+  {
+   "idx": "14.9",
+   "cod": "MAI-SIN-105339",
+   "cat": "C",
+   "nome": "Limpeza de entulho da obra",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "15.1",
+   "cod": "1",
+   "cat": "I",
+   "nome": "AREIA - Fina",
+   "un": "TRUCK",
+   "q_ref": 4.0,
+   "obs": "estimativa por casa - 2 trucks",
+   "regra": {
+    "t": "casa",
+    "f": 2
+   }
+  },
+  {
+   "idx": "15.2",
+   "cod": "2",
+   "cat": "I",
+   "nome": "AREIA - Grossa",
+   "un": "TRUCK",
+   "q_ref": 1.5,
+   "obs": "estimativa por casa - 1 truck",
+   "regra": {
+    "t": "casa",
+    "f": 0.75
+   }
+  },
+  {
+   "idx": "15.3",
+   "cod": "4",
+   "cat": "I",
+   "nome": "AREIA - Média",
+   "un": "TRUCK",
+   "q_ref": 3.0,
+   "obs": "estimativa por casa - 1,5 trucks",
+   "regra": {
+    "t": "casa",
+    "f": 1.5
+   }
+  },
+  {
+   "idx": "15.4",
+   "cod": "5",
+   "cat": "I",
+   "nome": "BRITA - N 0",
+   "un": "TRUCK",
+   "q_ref": 2.0,
+   "obs": "estimativa por casa - 1 truck",
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "15.5",
+   "cod": "7",
+   "cat": "I",
+   "nome": "BRITA - N 1",
+   "un": "TRUCK",
+   "q_ref": 1.0,
+   "obs": "estimativa por casa - 0,5 truck",
+   "regra": {
+    "t": "casa",
+    "f": 0.5
+   }
+  },
+  {
+   "idx": "15.6",
+   "cod": "507",
+   "cat": "I",
+   "nome": "TABUA - 25cm c/ 3m",
+   "un": "UN",
+   "q_ref": 90.0,
+   "obs": "estimativa por casa - 40 und",
+   "regra": {
+    "t": "casa",
+    "f": 45
+   }
+  },
+  {
+   "idx": "15.7",
+   "cod": "27",
+   "cat": "I",
+   "nome": "CIMENTO",
+   "un": "50 kg",
+   "q_ref": 450.0,
+   "obs": "média de 225 por casa",
+   "regra": {
+    "t": "casa",
+    "f": 225
+   }
+  },
+  {
+   "idx": "16.1",
+   "cod": "MAI-SIN-105521",
+   "cat": "C",
+   "nome": "EMPREITADA MESTRE DE OBRA - MO",
+   "un": "VB",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "cada",
+    "f": 1
+   }
+  },
+  {
+   "idx": "16.3",
+   "cod": "MAI-SIN-105525",
+   "cat": "C",
+   "nome": "EMPREITA ENCANADOR - MO",
+   "un": "VB",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "cada",
+    "f": 1
+   }
+  },
+  {
+   "idx": "17.1",
+   "cod": "919",
+   "cat": "I",
+   "nome": "INSS (pessoa jurídica)",
+   "un": "m²",
+   "q_ref": 0.0,
+   "regra": {
+    "t": "area_real"
+   }
+  },
+  {
+   "idx": "17.2",
+   "cod": "908",
+   "cat": "I",
+   "nome": "ISSQN (Goiânia)",
+   "un": "m²",
+   "q_ref": 0.0,
+   "regra": {
+    "t": "area_real"
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "909",
+     "nome": "ISSQN (Senador Canedo)",
+     "un": "m²",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "17.3",
+   "cod": "924",
+   "cat": "I",
+   "nome": "REGISTRO OU AVERBAÇÃO DA CASA - PESSOA JURÍDICA",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "17.4",
+   "cod": "1274",
+   "cat": "I",
+   "nome": "HABITE-SE (GOIÂNIA)",
+   "un": "lote",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "lote",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "910",
+     "nome": "HABITE-SE (Senador Canedo)",
+     "un": "lote",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "17.5",
+   "cod": "895",
+   "cat": "I",
+   "nome": "CERTIDÃO DE MATRÍCULA DAS CASAS",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "17.6",
+   "cod": "913",
+   "cat": "I",
+   "nome": "VISTORIA DE PREFEITURA (Goiânia)",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   },
+   "cidade": "GOIANIA",
+   "alt": {
+    "CANEDO": {
+     "cod": "912",
+     "nome": "VISTORIA DE PREFEITURA (Senador Canedo)",
+     "un": "Casa",
+     "cat": "I"
+    }
+   }
+  },
+  {
+   "idx": "17.6.1",
+   "cod": "846",
+   "cat": "I",
+   "nome": "NUMERO OFICIAL (Senador Canedo)",
+   "un": "Casa",
+   "q_ref": 0,
+   "regra": {
+    "t": "casa",
+    "f": 1,
+    "conferir": "só em Senador Canedo"
+   },
+   "so_cidade": "CANEDO"
+  },
+  {
+   "idx": "17.7",
+   "cod": "911",
+   "cat": "I",
+   "nome": "VISTORIA DA CAIXA",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "17.8",
+   "cod": "1123",
+   "cat": "I",
+   "nome": "COMISSÃO ACOMPANHAMENTO DE VENDA",
+   "un": "casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "17.9",
+   "cod": "1262",
+   "cat": "I",
+   "nome": "Seguro RCPM",
+   "un": "Casa",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "casa",
+    "f": 1
+   }
+  },
+  {
+   "idx": "17.10",
+   "cod": "1047",
+   "cat": "I",
+   "nome": "DARF RET (APENAS PJ)",
+   "un": "UN",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "fixo",
+    "q": 1,
+    "conferir": "só obra de pessoa jurídica (RET)"
+   }
+  },
+  {
+   "idx": "18.1",
+   "cod": "MAI-SIN-105306",
+   "cat": "C",
+   "nome": "MURO DE ARRIMO BLOCOS E CANALETAS - MÃO DE OBRA",
+   "un": "m²",
+   "q_ref": 36.0,
+   "regra": {
+    "t": "revit",
+    "arred": "baixo",
+    "disc": "EST",
+    "revit": [
+     "Reboco arrimo",
+     "MURO DE ARRIMO - MO"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.2",
+   "cod": "MAI-SIN-105160",
+   "cat": "C",
+   "nome": "Blocos de concreto -14x19x39",
+   "un": "m²",
+   "q_ref": 16.5,
+   "regra": {
+    "t": "revit",
+    "arred": "meio",
+    "disc": "EST",
+    "revit": [
+     "Blocos de concreto - 14x19x39"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.3",
+   "cod": "MAI-SIN-105161",
+   "cat": "C",
+   "nome": "Canaletas de concreto - 14x19x39",
+   "un": "ML",
+   "q_ref": 55.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Canaletas de concreto - 14x19x39"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.4",
+   "cod": "MAI-SIN-105162",
+   "cat": "C",
+   "nome": "Reboco arrimo",
+   "un": "m²",
+   "q_ref": 36.0,
+   "regra": {
+    "t": "revit",
+    "arred": "baixo",
+    "disc": "EST",
+    "revit": [
+     "Reboco arrimo"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.5",
+   "cod": "471",
+   "cat": "I",
+   "nome": "BROXA - 15x5,5cm",
+   "un": "UN",
+   "q_ref": 2.0,
+   "regra": {
+    "t": "fixo",
+    "q": 2,
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.6",
+   "cod": "MAI-SIN-105046",
+   "cat": "C",
+   "nome": "Estacas de 8 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 5.0,
+   "regra": {
+    "t": "revit",
+    "arred": "meio",
+    "disc": "EST",
+    "revit": [
+     "Estacas de 8 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.7",
+   "cod": "MAI-SIN-105129",
+   "cat": "C",
+   "nome": "Estacas de 10 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 17.5,
+   "regra": {
+    "t": "revit",
+    "arred": "meio",
+    "disc": "EST",
+    "revit": [
+     "Estacas de 10 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.8",
+   "cod": "MAI-SIN-105130",
+   "cat": "C",
+   "nome": "Estacas de 10 mm, seção 7 x 20 cm",
+   "un": "m",
+   "q_ref": 7.5,
+   "regra": {
+    "t": "revit",
+    "arred": "meio",
+    "disc": "EST",
+    "revit": [
+     "Estacas de 10 mm, seção 7 x 20 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.9",
+   "cod": "MAI-SIN-105117",
+   "cat": "C",
+   "nome": "Pilares de 10 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 15.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Pilares de 10 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.10",
+   "cod": "MAI-SIN-105119",
+   "cat": "C",
+   "nome": "Pilares de 10 mm, seção 7 x 20 cm",
+   "un": "m",
+   "q_ref": 12.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Pilares de 10 mm, seção 7 x 20 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.11",
+   "cod": "MAI-SIN-105078",
+   "cat": "C",
+   "nome": "Vigas de arrimo 10 mm, seção 7 x 14 cm",
+   "un": "m",
+   "q_ref": 29.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Viga 10 mm, seção 7 x 14 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.12",
+   "cod": "MAI-SIN-105123",
+   "cat": "C",
+   "nome": "Vigas de arrimo 10 mm, seção 7 x 20 cm",
+   "un": "m",
+   "q_ref": 10.0,
+   "regra": {
+    "t": "revit",
+    "arred": "teto",
+    "disc": "EST",
+    "revit": [
+     "Viga 10 mm, seção 7 x 20 cm"
+    ],
+    "padrao": {
+     "t": "fixo",
+     "q": 0
+    },
+    "secao": "arrimo",
+    "cond": "arrimo"
+   }
+  },
+  {
+   "idx": "18.13",
+   "cod": "475",
+   "cat": "I",
+   "nome": "IMPERMEABILIZANTE BETUME - Sika",
+   "un": "Barrica",
+   "q_ref": 1.0,
+   "regra": {
+    "t": "fixo",
+    "q": 1,
+    "cond": "arrimo"
+   }
+  }
+ ]
+}
