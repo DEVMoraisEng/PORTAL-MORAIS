@@ -13,6 +13,9 @@
  *   off      cabeça baixa, olhos apagados, "Zzz" subindo
  *   pedido   pediram "Rodar de novo": antena amarela, tela "na fila"
  * Arte toda original (caixas, cilindros e esferas) — nada de personagem conhecido.
+ *
+ * NATAL (16/11/2026, pedido do dono): até 01/01/2027 cada robô usa gorro de Natal, cada sala tem uma árvore de Natal
+ * com bolas e estrela e há pisca-piscas na árvore e no alto da parede do fundo. Some sozinho em 02/01/2027.
  */
 (function () {
   "use strict";
@@ -23,6 +26,10 @@
   const ROTULO_TELA = { ok: "OK", erro: "ERRO", trab: "RODANDO", off: "DESLIGADO", sem: "—", pedido: "NA FILA" };
 
   let R = null;            // estado da sala
+  /* 16/11/2026: enfeites de Natal até 01/01/2027 (inclusive) — no dia 02/01 saem sozinhos */
+  const FIM_NATAL = new Date(2027, 0, 2);
+  function natal() { return Date.now() < FIM_NATAL.getTime(); }
+  const CORES_PISCA = ["#ff3b3b", "#ffd23f", "#3bd16f", "#3ba7ff", "#ff7ad9", "#ff9f1c"];
 
   /* ------------------------------------------------------------ utilidades */
   function escuro() { return document.documentElement.dataset.tema === "escuro"; }
@@ -198,7 +205,69 @@
       const mao = esf(0.09, mat("#2b3a44")); mao.position.set(0, -0.02, 0.62); piv.add(mao);
       piv.rotation.x = 0.35; return piv;
     });
+    if (natal()) {
+      /* gorro de Natal, meio caído para trás; a antena vai para o lado da cabeça para não furar o gorro */
+      const gorro = new T.Group(); gorro.position.set(0, 0.3, -0.04); gorro.rotation.set(-0.28, 0, 0.18); cabeca.add(gorro);
+      const mVerm = mat("#b5121b", { roughness: 0.9 }), mBranco = mat("#f7f7f2", { roughness: 1 });
+      const cone = new T.Mesh(new T.ConeGeometry(0.4, 0.62, 22), mVerm); cone.position.y = 0.33; cone.castShadow = true; gorro.add(cone);
+      const barra = new T.Mesh(new T.TorusGeometry(0.4, 0.08, 10, 26), mBranco); barra.rotation.x = Math.PI / 2; barra.position.y = 0.04; gorro.add(barra);
+      const pompom = esf(0.1, mBranco); pompom.position.set(0.05, 0.66, -0.02); gorro.add(pompom);
+      haste.position.set(0.43, 0.2, 0); haste.rotation.z = -0.5;
+      antena.position.set(0.52, 0.34, 0);
+      sirene.position.y = 1.08;          // no erro a sirene fica em cima do gorro
+    }
     g.userData = { cabeca, olhos: mOlho, antena: mAntena, sirene, bracos, corpo };
+    return g;
+  }
+
+  /* ------------------------------------------------------------ Natal (até 01/01/2027) */
+  function lampada(cor, r) {
+    const m = new T.MeshStandardMaterial({ color: cor, emissive: cor, emissiveIntensity: 1.2, roughness: 0.3 });
+    const b = new T.Mesh(new T.SphereGeometry(r || 0.06, 10, 8), m);
+    R.pisca.push({ m, i: R.pisca.length });
+    return b;
+  }
+  function arvoreNatal() {
+    const g = new T.Group();
+    const tronco = cil(0.16, 0.2, 0.45, mat("#6b4226")); tronco.position.y = 0.32; g.add(tronco);
+    const vaso = cil(0.42, 0.34, 0.36, mat("#b3261e", { roughness: 0.6 })); vaso.position.y = 0.18; g.add(vaso);
+    const verde = mat("#0f5a27", { flatShading: true, roughness: 0.85 });
+    const camadas = [[1.05, 1.0, 0.9], [0.85, 0.95, 1.55], [0.62, 0.85, 2.15], [0.38, 0.7, 2.65]];
+    camadas.forEach(([r, h, y]) => { const c = new T.Mesh(new T.ConeGeometry(r, h, 9), verde); c.position.y = y; c.castShadow = true; g.add(c); });
+    /* bolas */
+    const coresBola = ["#d62828", "#f4c430", "#2a6fdb", "#c0c0c0"];
+    camadas.forEach(([r, h, y], k) => {
+      const n = 7 - k;
+      for (let i = 0; i < n; i++) {
+        const a = i / n * Math.PI * 2 + k * 0.6, rr = r * 0.82;
+        const b = esf(0.075, mat(coresBola[(i + k) % coresBola.length], { roughness: 0.2, metalness: 0.5 }));
+        b.position.set(Math.cos(a) * rr, y - h * 0.38, Math.sin(a) * rr); g.add(b);
+      }
+    });
+    /* pisca-pisca em espiral */
+    const voltas = 3.2, nLuz = 46;
+    for (let i = 0; i < nLuz; i++) {
+      const f = i / (nLuz - 1), y = 0.6 + f * 2.25, raio = 1.02 * (1 - f * 0.86) + 0.05, a = f * voltas * Math.PI * 2;
+      const l = lampada(CORES_PISCA[i % CORES_PISCA.length], 0.05); l.position.set(Math.cos(a) * raio, y, Math.sin(a) * raio); g.add(l);
+    }
+    /* estrela */
+    const mEst = new T.MeshStandardMaterial({ color: "#ffd23f", emissive: "#ffcc00", emissiveIntensity: 1.6, metalness: 0.4, roughness: 0.3 });
+    const est = new T.Mesh(new T.OctahedronGeometry(0.2, 0), mEst); est.position.y = 3.15; est.scale.set(1, 1.3, 0.45); g.add(est);
+    const brilho = new T.PointLight("#ffcf6a", 0.9, 6); brilho.position.y = 2.0; g.add(brilho);
+    g.userData.natal = { est, brilho };
+    return g;
+  }
+  /* fio de pisca-pisca caído entre pontos, no alto da parede */
+  function fioPisca(x0, x1, y, z, n) {
+    const g = new T.Group(), gomos = Math.max(2, Math.round(Math.abs(x1 - x0) / 2.2));
+    const pts = [];
+    for (let i = 0; i <= n; i++) {
+      const f = i / n, x = x0 + (x1 - x0) * f, loc = (f * gomos) % 1;
+      pts.push(new T.Vector3(x, y - Math.sin(loc * Math.PI) * 0.28, z));
+    }
+    const fio = new T.Line(new T.BufferGeometry().setFromPoints(pts), new T.LineBasicMaterial({ color: "#1d2a1f" }));
+    g.add(fio);
+    pts.forEach((p, i) => { if (i % 2) return; const l = lampada(CORES_PISCA[(i / 2) % CORES_PISCA.length], 0.07); l.position.copy(p); l.position.y -= 0.07; g.add(l); });
     return g;
   }
 
@@ -290,6 +359,12 @@
     const moldAg = caixa(0.05, altAg + 0.16, largAg + 0.16, mat("#24313b")); moldAg.position.set(-W / 2 + 0.01, 2.25, quadroAg.position.z); moldAg.castShadow = false;
     moldAg.userData.chave = "__agenda__"; sala.add(moldAg);
     const p3x = planta(0.9); p3x.position.set(-W / 2 + 0.7, 0, D / 2 - 0.4); sala.add(p3x);
+    R.pisca = []; R.arvore = null;
+    if (natal()) {
+      /* 16/11/2026: árvore de Natal no canto da frente e pisca-pisca no alto da parede do fundo (até 01/01/2027) */
+      const arv = arvoreNatal(); arv.position.set(-W / 2 + 1.6, 0, D / 2 - 1.7); sala.add(arv); R.arvore = arv;
+      sala.add(fioPisca(-W / 2 + 0.3, W / 2 - 0.3, 4.02, -D / 2 + 0.08, Math.round(W * 3)));
+    }
     /* quadro com o nome, relógio e lousa na parede do fundo */
     const op = R.op || {};
     const quadro = new T.Mesh(new T.PlaneGeometry(5.2, 1.3), new T.MeshBasicMaterial({ map: texQuadro(op.titulo || "ESCRITÓRIO DE ROBÔS", op.sub || "MORAIS ENGENHARIA · SERVIDOR"), toneMapped: false }));
@@ -473,6 +548,12 @@
       const chave = st + "|" + fase + "|" + ((u.r && u.r.stHora) || "");
       if (u.ultTela !== chave && u.r) { desenharTela(u.tela.c, st, u.r.cat.ico, u.r.stHora, fase); u.tela.t.needsUpdate = true; u.ultTela = chave; }
     });
+    if (R.pisca && R.pisca.length) {
+      /* pisca-pisca: três grupos acendendo em sequência + um brilho suave */
+      const passo = Math.floor(t * 2.2);
+      R.pisca.forEach(p => { const on = (p.i + passo) % 3 !== 0; p.m.emissiveIntensity = on ? 1.1 + Math.sin(t * 3 + p.i) * 0.35 : 0.08; });
+      if (R.arvore) { const n = R.arvore.userData.natal; n.est.rotation.y = t * 0.8; n.brilho.intensity = 0.75 + Math.sin(t * 2.4) * 0.25; }
+    }
     if (R.relogio && Math.floor(t) % 30 === 0 && R.ultRelogio !== Math.floor(t)) { R.ultRelogio = Math.floor(t); desenharRelogio(R.relogio.c); R.relogio.t.needsUpdate = true; }
     R.renderer.render(R.cena, R.camera);
     posicionarBaloes();
