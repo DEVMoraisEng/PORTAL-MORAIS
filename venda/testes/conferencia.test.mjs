@@ -21,7 +21,7 @@ test("plano: comprador 1 (identidade, endereço, certidão) e só os fiadores qu
 
 test("comparações: CPF por dígitos, nome com o do meio abreviado, endereço por palavras e CEP, estado civil pela certidão", () => {
   assert.equal(K.comparar("cpf", "529.982.247-25", "52998224725").situacao, "ok");
-  assert.equal(K.comparar("cpf", "529.982.247-25", "52998224724").situacao, "diverge");
+  assert.equal(K.comparar("cpf", "529.982.247-25", "11144477735").situacao, "diverge", "CPF válido e diferente: diverge");
   assert.equal(K.comparar("nome", "MARIA DE SOUZA TESTE", "Maria de Souza Teste").situacao, "ok");
   assert.equal(K.comparar("nome", "MARIA DE SOUZA TESTE", "MARIA S. TESTE").situacao, "ok");
   assert.equal(K.comparar("nome", "MARIA DE SOUZA TESTE", "JOANA DE SOUZA TESTE").situacao, "diverge");
@@ -98,4 +98,41 @@ test("anexosMudaram: contagem guardada × agora; conferência antiga (sem contag
   assert.equal(K.anexosMudaram({ linhas: [{ coluna: "DOC. PROPONENTE", situacao: "ok" }] }, agora), false, "antiga lida: não invalida");
   assert.equal(K.anexosMudaram(null, agora), false);
   assert.equal(K.anexosMudaram(sem, null), false, "sem a contagem de agora (leitura falhou): não inventa");
+});
+
+/* 16/11/2026 (bancada da leitura): CPF lido inválido é erro da IA; primeiro nome vai no pedido */
+test("CPF lido que não fecha o dígito verificador vira ilegível com motivo, nunca diverge", () => {
+  const r = K.comparar("cpf", "529.982.247-25", "52998224724");
+  assert.equal(r.situacao, "ilegivel");
+  assert.equal(r.lido, "");
+  assert.match(r.motivo, /CPF que não existe/);
+  assert.equal(K.comparar("cpf", "529.982.247-25", "123").situacao, "ilegivel", "faltando dígito também");
+  assert.equal(K.comparar("cpf", "529.982.247-25", "111.111.111-11").situacao, "ilegivel", "repetido não é CPF");
+  assert.equal(K.comparar("rg", "1234567", "1234568").situacao, "diverge", "só o CPF tem dígito verificador");
+});
+
+test("resultado: CPF inválido lido não vira 'falta no cadastro' nem conta como divergência", () => {
+  const d = { comprador1: { nome: "MARIA DE SOUZA TESTE", cpf: "", documento: "" }, comprador2: null, condominio: { fiadores: [] } };
+  const itens = K.plano(d).filter((x) => x.id === "c1-id");
+  const lin = (cpf) => K.resultado(itens, { "c1-id": { ok: true, leitura: { tipo_documento: "RG", nome: "MARIA DE SOUZA TESTE", cpf } } });
+  assert.equal(lin("52998224724").some((l) => l.campo === "cpf"), false, "cadastro vazio e lido inválido: não oferece");
+  assert.deepEqual(lin("52998224725").filter((l) => l.campo === "cpf").map((l) => [l.situacao, l.lido]), [["falta", "52998224725"]]);
+  const linhas = K.resultado(K.plano(D).filter((x) => x.id === "c1-id"),
+    { "c1-id": { ok: true, leitura: { tipo_documento: "RG", nome: "MARIA DE SOUZA TESTE", cpf: "52998224724", rg_numero: "1234567" } } });
+  const cpf = linhas.find((l) => l.campo === "cpf");
+  assert.equal(cpf.situacao, "ilegivel");
+  assert.doesNotMatch(K.resumo(linhas), /diverg/);
+  assert.match(K.resumo(linhas), /ilegível/);
+});
+
+test("contexto da leitura: primeiro nome (sem acento) só para identidade", () => {
+  const itens = K.plano({ comprador1: { nome: "  Ângela de Souza Teste", cpf: "529.982.247-25", endereco: "Rua A, 1", estadoCivil: "solteira" },
+                          comprador2: null, condominio: { fiadores: [{ nome: "fiador um teste", cpf: "111.444.777-35" }] } });
+  const ctx = Object.fromEntries(itens.map((it) => [it.id, K.contextoLeitura(it)]));
+  assert.match(ctx["c1-id"], /primeiro nome é ANGELA\.$/);
+  assert.match(ctx["f1-id"], /primeiro nome é FIADOR\.$/);
+  assert.equal(ctx["c1-end"], "");
+  assert.equal(ctx["c1-civil"], "");
+  assert.equal(K.contextoLeitura(null), "");
+  assert.equal(K.contextoLeitura({ tipo: "identidade", campos: [{ campo: "nome", esperado: "" }] }), "");
 });
