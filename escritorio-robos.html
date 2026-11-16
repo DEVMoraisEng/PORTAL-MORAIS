@@ -384,7 +384,7 @@ const CATALOGO = {
   fila:     { nome: "Atendente da fila", cargo: "Balcão do portal", ico: "🛎️", cor: "#1B5173", recepcao: true,
     faz: "De minuto em minuto atende os pedidos feitos no portal (lançar venda, distrato, anexar contrato, ZIP) pela aba do porteiro." },
   coordenador: { nome: "Coordenador da fila", cargo: "Gerência", ico: "🧭", cor: "#c27c0e", recepcao: true,
-    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos → medidores → documentos), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
+    faz: "Quando vários robôs falham, põe quem falhou numa fila e roda UM DE CADA VEZ, na ordem certa (contas → bases → medições → índices → retratos → anexos → medidores → documentos → OCs), esperando o porteiro estar logado e nenhum outro robô rodando — ninguém passa por cima de ninguém." },
   contas:   { nome: "Contas, clientes e obras", cargo: "Cadastro", ico: "🏦", cor: "#3f7cac",
     faz: "Espelha as contas bancárias do Mais Controle no Notion, confere os proprietários (nome e CPF/CNPJ) e cria no MC as obras marcadas “Criar”." },
   bases:    { nome: "Bases no Notion", cargo: "Arquivo", ico: "🗂️", cor: "#6c5ce7",
@@ -401,6 +401,8 @@ const CATALOGO = {
     faz: "Conta, obra por obra, quantos medidores já foram comprados no Mais Controle (PADRÃO DE ENERGIA e HIDROMETRO em solicitação atendida ou ordem de compra) e publica para o alerta “MEDIDOR … COMPRADO” da aba Ligações. Só lê o ERP." },
   documentos: { nome: "Documentos do Orçamento", cargo: "Vendas", ico: "📂", cor: "#a0784a",
     faz: "Todo dia cedo procura em Obras › Orçamento do Mais Controle a matrícula, a certidão mãe, o alvará e o habite-se de cada casa de rua vendida e anexa no dossiê do imóvel o que for novo (fica como “novo, não lido”). Só lê o ERP." },
+  ocs:      { nome: "Conferência de compras (OC)", cargo: "Compras", ico: "🧾", cor: "#c0612b",
+    faz: "Põe no Mapa de Obras as OCs novas da Rocha Mármores, da VIDRO ALVES e da Serralheria do Fabio para o engenheiro conferir. Com o SIM: aprova a OC (Aprovado + Status da Compra Aguardando) ou, na Serralheria, passa a 2ª parcela do lançamento para o próximo dia útil. Só grava no ERP com a chave OCS_APLICAR.txt." },
   financeiro: { nome: "Financeiro do condomínio", cargo: "Cobrança", ico: "💰", cor: "#1c7a4a",
     faz: "Mostra, unidade por unidade do Reserva dos Ipês, o que foi recebido, o que vai vencer e o que está vencido. Clique para abrir a página." },
   boletos:  { nome: "Boletos do mês", cargo: "Cobrança", ico: "🧾", cor: "#1c7a4a",
@@ -456,7 +458,7 @@ function montarRobos(D) {
   (D.tarefas || []).forEach(t => pega(t.chave).tarefas.push(t));
   Object.entries(D.rodadas || {}).forEach(([ch, lista]) => { pega(ch).rodadas = lista || []; });
   /* 04/11: todo robô conhecido tem mesa, mesmo sem tarefa agendada ainda (ex.: anexos da auditoria) */
-  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos"].forEach(pega);
+  ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos", "ocs"].forEach(pega);
   pega("financeiro");     // 09/11: não é tarefa do servidor; a mesa só abre a página Boletos e Financeiro
   const PL = D.coordenador, plAtivo = !!(PL && !["terminado", "cancelado"].includes(PL.status));
   mapa.forEach(r => { r.log = ((D.log || {})[r.chave]) || []; });
@@ -535,7 +537,7 @@ function montarRobos(D) {
     } else if (ped && (st === "trab" || Date.now() - ped >= PEDIDO_VALE_MS)) delete PEDIDOS[r.chave];
     return Object.assign(r, { cat, ult, st, stTexto, stHora, proxima: proximas[0] || null, ultP: r.chave === "porteiro" ? ultP : null });
   });
-  const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
+  const ordem = ["porteiro", "fila", "coordenador", "contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos", "ocs"];
   robos.sort((a, b) => {
     const ia = ordem.indexOf(a.chave), ib = ordem.indexOf(b.chave);
     return (a.chave === "financeiro") - (b.chave === "financeiro")   // a mesa nova fica na última vaga do salão
@@ -987,7 +989,7 @@ function oQueFazer(r) {
 }
 /* 04/11: só os robôs que entram pelo porteiro podem ser disparados pelo portal (o de água e energia ainda pode
    logar sozinho no ERP e derrubar a sessão de todo mundo) */
-const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores"];
+const ROBOS_PELO_PORTEIRO = ["contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "ocs"];
 function tarefaParaRodar(r) {
   if (!ROBOS_PELO_PORTEIRO.includes(r.chave)) return null;
   return r.tarefas.find(t => t.estado !== "desligada" && /^MoraisEng - /.test(t.nome) && !/porteiro|\(fila\)/i.test(t.nome)) || null;

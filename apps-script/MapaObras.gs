@@ -20,6 +20,13 @@
  *                  Documentos — quem é RESPONSÁVEL dela edita mesmo sem acesso
  *                  à aba de origem
  *   atvOutraGravar (mo3) grava o que foi mudado nessa atividade
+ *   ocLista        (mo13, 16/11) CONFERÊNCIA DE COMPRAS — OCs dos fornecedores que só
+ *                  são pagos depois do SIM do engenheiro (tabela oc_conferencia do
+ *                  Supabase, alimentada pelo robô ocs do servidor)
+ *   ocResponder    (mo13) grava SERVIÇO FINALIZADO? = SIM / NÃO de uma OC; com SIM,
+ *                  pede ao servidor para rodar o robô na hora (FILA DO ROBÔ, se a
+ *                  Propriedade DB_FILA_ROBO existir neste projeto; senão ele roda no
+ *                  horário dele)
  *
  * ===================== mo3 — VISTORIAS DE ENTREGA =====================
  * CASA APTA P/ VISTORIA (atividade VISTORIA PRÉVIA)
@@ -67,7 +74,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-10-29 mo12";   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
+var MO_VERSAO = "2026-11-16 mo13";   // mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -136,6 +143,8 @@ function moRotear_(action, sess, p) {
     case "vistNuvemLista":   return moVistNuvemLista_(sess, p || {});
     case "vistNuvemAbrir":   return moVistNuvemAbrir_(sess, p || {});
     case "vistNuvemApagar":  return moVistNuvemApagar_(sess, p || {});
+    case "ocLista":          return moOcLista_(sess, p || {});
+    case "ocResponder":      return moOcResponder_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -955,6 +964,79 @@ function moMedSalvar_(sess, p) {
     status: p.status, por: sess.n || sess.u || "", atualizado_em: new Date().toISOString()
   }, { Prefer: "resolution=merge-duplicates,return=minimal" });
   return { ok: true, semana: semana };
+}
+
+/* ================ mo13 — CONFERÊNCIA DE COMPRAS (OC) · 16/11/2026 ================
+ * O pagamento das OCs da Rocha Mármores e Granitos, da VIDRO ALVES e da
+ * Serralheria do Fabio só sai depois que o engenheiro confirma, no Mapa de
+ * Obras, que a entrega / o serviço foi finalizado. O robô "ocs" do servidor
+ * (robo_mc_ocs.py) põe cada OC nova na tabela oc_conferencia do Supabase; aqui
+ * o mapa lê a lista e grava a resposta. Com o SIM, o robô faz no Mais Controle:
+ *   APROVAR (Rocha, Vidro Alves): Aprovação → Aprovado, Status da Compra → Aguardando;
+ *   PARCELA (Serralheria do Fabio): 2ª parcela do lançamento → próximo dia útil.
+ * Quem responde: acesso OBRAS ou DOCUMENTOS (ou ADM) — estagiário não (libera
+ * pagamento). Depois que o robô FEZ, a resposta não muda mais por aqui.
+ * Tabela: supabase/oc_conferencia.sql (rodar uma vez no SQL Editor). */
+var MO_OC_TAREFA = "MoraisEng - Conferencia de OCs";
+var MO_OC_COLS = "oc_id,numero,fornecedor,acao,obra,descricao,criada_em,aprovacao_mc,status_compra_mc,resposta," +
+                 "respondido_por,respondido_em,robo_situacao,robo_msg,robo_em,robo_tentativas";
+function moPodeOc_(sess) {
+  return !!sess && !ehTestes_(sess) && (ehAdm_(sess) || temAcesso_(sess, "OBRAS") || temAcesso_(sess, "DOCUMENTOS"));
+}
+function moOcLista_(sess, p) {
+  var desde = new Date(Date.now() - 30 * 864e5).toISOString();
+  var l;
+  try {
+    l = moSupa_("get", "oc_conferencia?select=" + MO_OC_COLS + "&cancelada=is.false" +
+                "&or=(robo_situacao.is.null,robo_situacao.neq.FEITO,robo_em.gte." + encodeURIComponent(desde) + ")" +
+                "&order=criada_em.asc,numero.asc&limit=1000") || [];
+  } catch (e) {
+    var t = String(e);
+    if (t.indexOf("SUPABASE_404") === 0 || t.indexOf("oc_conferencia") >= 0)
+      return { ok: true, itens: [], podeResponder: moPodeOc_(sess), aviso: "A tabela oc_conferencia ainda não foi criada no Supabase." };
+    throw e;
+  }
+  return { ok: true, itens: l, podeResponder: moPodeOc_(sess), agora: new Date().toISOString() };
+}
+function moOcResponder_(sess, p) {
+  if (!moPodeOc_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var id = String(p.oc_id || "").toLowerCase(), resp = String(p.resposta || "").toUpperCase();
+  if (!/^[0-9a-f-]{36}$/.test(id)) return { ok: false, erro: "OC_INVALIDA" };
+  if (resp !== "SIM" && resp !== "NAO") return { ok: false, erro: "RESPOSTA_INVALIDA" };
+  var atual = (moSupa_("get", "oc_conferencia?select=oc_id,numero,resposta,robo_situacao&oc_id=eq." + id) || [])[0];
+  if (!atual) return { ok: false, erro: "OC_NAO_ACHADA" };
+  if (atual.robo_situacao === "FEITO") return { ok: false, erro: "JA_FEITO_NO_MAIS_CONTROLE" };
+  var quem = String(sess.n || sess.u || "").slice(0, 80);
+  var feito = moSupa_("patch", "oc_conferencia?oc_id=eq." + id + "&or=(robo_situacao.is.null,robo_situacao.neq.FEITO)", {
+    resposta: resp, respondido_por: quem, respondido_em: new Date().toISOString(),
+    robo_situacao: null, robo_msg: null, robo_tentativas: 0
+  }, { Prefer: "return=representation" }) || [];
+  if (!feito.length) return { ok: false, erro: "JA_FEITO_NO_MAIS_CONTROLE" };
+  console.log("OC " + atual.numero + ": " + quem + " respondeu " + resp);
+  var pedido = resp === "SIM" ? moOcPedirRobo_(quem) : "";
+  return { ok: true, item: feito[0], robo: pedido };
+}
+/* SIM → pede ao servidor para rodar o robô já (mesmo pedido do "Rodar de novo" do Escritório de Robôs). Sem
+   DB_FILA_ROBO neste projeto, ou se a fila falhar, tudo bem: o robô roda no horário dele. */
+function moOcPedirRobo_(quem) {
+  var db = String(prop_("DB_FILA_ROBO") || "").trim();
+  if (!db) return "horario";
+  var cache = CacheService.getScriptCache();
+  if (cache.get("mo_oc_robo")) return "pedido";
+  try {
+    var props = {};
+    props["PEDIDO"] = { title: [{ type: "text", text: { content: "robo-rodar " + MO_OC_TAREFA.replace(/^MoraisEng - /, "") } }] };
+    props["TIPO"] = { select: { name: "robo-rodar" } };
+    props["PAYLOAD"] = { rich_text: [{ type: "text", text: { content: JSON.stringify({ tarefa: MO_OC_TAREFA, quem: quem }) } }] };
+    props["SITUAÇÃO"] = { select: { name: "PENDENTE" } };
+    props["PEDIDO EM"] = { date: { start: new Date().toISOString() } };
+    notion_("POST", "/pages", { parent: { database_id: db }, properties: props });
+    cache.put("mo_oc_robo", "1", 180);
+    return "pedido";
+  } catch (e) {
+    console.error("OC: não consegui pedir o robô na fila — " + String(e).slice(0, 200));
+    return "horario";
+  }
 }
 
 /* --------------------------- GitHub --------------------------- */
