@@ -23,6 +23,11 @@
  *   ocLista        (mo13, 16/11) CONFERÊNCIA DE COMPRAS — OCs dos fornecedores que só
  *                  são pagos depois do SIM do engenheiro (tabela oc_conferencia do
  *                  Supabase, alimentada pelo robô ocs do servidor)
+ *   orcCatalogo    (mo14, 16/11) catálogo do Mais Controle (insumos + composições, bases Própria e
+ *                  Condomínio) lido pelo robô do servidor nas tabelas mc_* do Supabase — a aba
+ *                  "3D e Orçamento" da obra busca, troca e precifica as linhas com ele
+ *   orcPreviaLer   (mo14) a planilha prévia do orçamento salva da obra (tabela orc_previas)
+ *   orcPreviaSalvar (mo14) grava a planilha prévia (quem tem acesso OBRAS ou DOCUMENTOS, ou ADM)
  *   ocResponder    (mo13) grava SERVIÇO FINALIZADO? = SIM / NÃO de uma OC; com SIM,
  *                  pede ao servidor para rodar o robô na hora (FILA DO ROBÔ, se a
  *                  Propriedade DB_FILA_ROBO existir neste projeto; senão ele roda no
@@ -74,7 +79,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-11-16 mo13";   // mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
+var MO_VERSAO = "2026-11-16 mo14";   // mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -145,6 +150,9 @@ function moRotear_(action, sess, p) {
     case "vistNuvemApagar":  return moVistNuvemApagar_(sess, p || {});
     case "ocLista":          return moOcLista_(sess, p || {});
     case "ocResponder":      return moOcResponder_(sess, p || {});
+    case "orcCatalogo":      return moOrcCatalogo_(sess, p || {});
+    case "orcPreviaLer":     return moOrcPreviaLer_(sess, p || {});
+    case "orcPreviaSalvar":  return moOrcPreviaSalvar_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -1372,5 +1380,72 @@ function moVistNuvemApagar_(sess, p) {
     moVistGravar_(dir + "/_indice.json", idx);
     moVistGravar_(dir + "/" + id + ".json", { apagada: true, em: new Date().toISOString(), por: eu });
     return { ok: true };
+  } finally { lock.releaseLock(); }
+}
+
+/* ======================= mo14 — ORÇAMENTO DA OBRA (16/11/2026) =======================
+ * A aba "3D e Orçamento" da janela da obra (obras.html) monta a planilha prévia do orçamento com o modelo
+ * (orcamento/modelo-casa-rua.json), os quantitativos do Revit e os dados da obra. Aqui ficam:
+ *   - o CATÁLOGO do Mais Controle (tabelas mc_insumos / mc_composicoes do Supabase ORÇADO/REALIZADO, que o robô
+ *     do catálogo no servidor atualiza todo dia às 06:47). Vai inteiro (~2 mil linhas, só código, nome, unidade,
+ *     custo, base, tipo e se está ativo): a tela busca por código ou nome e precifica sem ida e volta;
+ *   - a PRÉVIA salva de cada obra (tabela orc_previas — ver supabase/orc_previas.sql).
+ * Os custos NÃO vão para o dist/ público: só saem daqui, com login. */
+function moPodeOrc_(sess) { return !!sess && (ehAdm_(sess) || temAcesso_(sess, "OBRAS") || temAcesso_(sess, "DOCUMENTOS")); }
+function moOrcCatalogo_(sess, p) {
+  if (!moPodeOrc_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var cache = CacheService.getScriptCache(), k = "mo_orc_cat_v1";
+  var partes = cache.get(k + "_n");
+  if (partes && !p.forcar) {
+    var txt = "", ok = true;
+    for (var i = 0; i < Number(partes); i++) { var c = cache.get(k + "_" + i); if (c == null) { ok = false; break; } txt += c; }
+    if (ok) { try { return JSON.parse(txt); } catch (e) {} }
+  }
+  var ins = moSupa_("get", "mc_insumos?select=codigo,nome,unidade,custo,base,tipo,ativo&fora_do_mc=is.false&order=codigo.asc&limit=5000") || [];
+  var comp = moSupa_("get", "mc_composicoes?select=codigo,nome,unidade,custo,base,tipo,ativo&fora_do_mc=is.false&order=codigo.asc&limit=5000") || [];
+  var rod = (moSupa_("get", "mc_catalogo_rodadas?select=rodou_em,ok&order=rodou_em.desc&limit=1") || [])[0] || null;
+  /* lista compacta: [cat, código, nome, unidade, custo, base, tipo, ativo] */
+  var L = [];
+  ins.forEach(function (x) { L.push(["I", x.codigo, x.nome, x.unidade || "", Number(x.custo) || 0, x.base || "", x.tipo || "", x.ativo ? 1 : 0]); });
+  comp.forEach(function (x) { L.push(["C", x.codigo, x.nome, x.unidade || "", Number(x.custo) || 0, x.base || "", x.tipo || "", x.ativo ? 1 : 0]); });
+  var r = { ok: true, itens: L, lido_em: rod ? rod.rodou_em : null };
+  try {   /* CacheService guarda até 100 KB por chave: em pedaços, 30 min */
+    var s = JSON.stringify(r), n = Math.ceil(s.length / 90000), obj = {};
+    for (var j = 0; j < n; j++) obj[k + "_" + j] = s.slice(j * 90000, (j + 1) * 90000);
+    obj[k + "_n"] = String(n);
+    cache.putAll(obj, 1800);
+  } catch (e) {}
+  return r;
+}
+function moOrcId_(v) { var s = String(v || "").replace(/-/g, "").toLowerCase(); return /^[0-9a-f]{32}$/.test(s) ? s : ""; }
+function moOrcPreviaLer_(sess, p) {
+  if (!moPodeOrc_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
+  var l;
+  try { l = moSupa_("get", "orc_previas?select=obra_id,obra,dados,salvo_por,salvo_em,versao&obra_id=eq." + id) || []; }
+  catch (e) {
+    var t = String(e);
+    if (t.indexOf("SUPABASE_404") === 0 || t.indexOf("orc_previas") >= 0) return { ok: true, previa: null, aviso: "A tabela orc_previas ainda não foi criada no Supabase." };
+    throw e;
+  }
+  return { ok: true, previa: l[0] || null, podeSalvar: moPodeOrc_(sess) && !ehTestes_(sess) };
+}
+function moOrcPreviaSalvar_(sess, p) {
+  if (!moPodeOrc_(sess) || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
+  var dados = p.dados; if (!dados || typeof dados !== "object" || !Array.isArray(dados.linhas)) return { ok: false, erro: "SEM_LINHAS" };
+  if (dados.linhas.length > 3000) return { ok: false, erro: "LINHAS_DEMAIS" };
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var atual = (moSupa_("get", "orc_previas?select=versao,salvo_por,salvo_em&obra_id=eq." + id) || [])[0];
+    /* quem abriu uma versão velha não apaga o que outro salvou depois (a tela manda a versão que leu) */
+    if (atual && p.versao != null && Number(p.versao) !== Number(atual.versao))
+      return { ok: false, erro: "OUTRA_VERSAO", salvo_por: atual.salvo_por, salvo_em: atual.salvo_em };
+    var quem = String(sess.n || sess.u || "").slice(0, 80), v = atual ? (Number(atual.versao) || 0) + 1 : 1;
+    var r = moSupa_("post", "orc_previas?on_conflict=obra_id", {
+      obra_id: id, obra: String(p.obra || "").slice(0, 120), dados: dados, salvo_por: quem,
+      salvo_em: new Date().toISOString(), versao: v
+    }, { Prefer: "resolution=merge-duplicates,return=representation" }) || [];
+    return { ok: true, versao: v, salvo_por: quem, salvo_em: (r[0] || {}).salvo_em || new Date().toISOString() };
   } finally { lock.releaseLock(); }
 }

@@ -170,40 +170,223 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .pl{padding:0 22px}
 .tg{border:1.5px solid var(--border);background:var(--sup);border-radius:20px;padding:5px 14px;font:inherit;font-weight:800;font-size:11.5px;cursor:pointer;color:var(--text3);text-transform:none;letter-spacing:0}
 .tg.on{background:var(--azul);border-color:var(--azul);color:#fff}
-/* 16/11/26 — JANELA DA OBRA EM ABAS: Resumo · Dados · Atividades · Documentos/Vendas/Ligações · 3D e Orçamento */
-.otabs{display:flex;gap:4px;padding:12px 22px 0;border-bottom:2px solid var(--border2);overflow-x:auto;position:sticky;top:0;background:var(--bg2);z-index:3}
-.otab{border:0;background:none;font:inherit;font-family:'Barlow Condensed';font-weight:800;font-size:14px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);padding:9px 12px 8px;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;white-space:nowrap}
-.otab:hover{color:var(--azul)}
-.otab.on{color:var(--azul);border-bottom-color:var(--verde)}
-.otab .n{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--bg3);color:var(--text3);font-family:Inter,sans-serif;font-size:10.5px;line-height:17px;text-align:center}
-.otab .n.al{background:#FFF3E0;color:#B45309}
-.cards{padding:14px 22px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.card{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;min-width:0}
-.card h4{margin:0 0 9px;font-family:'Barlow Condensed';font-size:14px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--azul);display:flex;align-items:center;gap:8px}
-.card h4 .sp{flex:1}
-.card h4 a,.card h4 button{font-family:Inter,sans-serif;font-size:11px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--azul);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
-.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px}
-.kv .k{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;padding-top:2px}
-.kv .v{color:var(--text);font-weight:600;overflow-wrap:anywhere}
-.kv .v.vz{color:#B45309}
-.barra{height:8px;border-radius:5px;background:var(--bg3);overflow:hidden;margin:4px 0 8px}
-.barra>i{display:block;height:100%;background:var(--verde)}
-.mini{width:100%;border-collapse:collapse;font-size:12.5px}
-.mini th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text4);font-weight:700;padding:5px 8px;border-bottom:1px solid var(--border2)}
-.mini td{padding:6px 8px;border-bottom:1px solid var(--border2);vertical-align:top;overflow-wrap:anywhere;white-space:normal}
-.mini tr:last-child td{border-bottom:0}
-.ck{display:flex;flex-wrap:wrap;gap:6px}
-.ck span{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:14px;background:var(--bg3);color:var(--text3)}
-.ck span.s{background:rgba(42,157,92,.14);color:var(--verde-esc)}
-.ck span.n{background:#FFF3E0;color:#B45309}
-.alertas-orc{margin:12px 22px 0;padding:10px 14px;border-radius:10px;background:#FFF3E0;border:1px solid #FCD9A8;color:#8a4a06;font-size:12.5px}
-.alertas-orc b{display:block;margin-bottom:4px}
-.alertas-orc.ok{background:rgba(42,157,92,.12);border-color:rgba(42,157,92,.3);color:var(--verde-esc)}
-.orig{font-size:10.5px;color:var(--text4);font-weight:600}
-html[data-tema="escuro"] .otabs{background:var(--bg2)}
-html[data-tema="escuro"] .otab .n.al,html[data-tema="escuro"] .ck span.n,html[data-tema="escuro"] .alertas-orc{background:#3a2d12;color:#f0c95f;border-color:#57431f}
-html[data-tema="escuro"] .ck span.s,html[data-tema="escuro"] .alertas-orc.ok{background:#16341f;color:#8ce0a5}
-@media(max-width:900px){ .cards{grid-template-columns:1fr} }
+/* 16/11/26 v2 — JANELA DA OBRA EM ABAS: Resumo · Dados · Atividades · Documentos · Vendas · Ligações · 3D e Orçamento.
+   Cada frente por ETAPA: etapa atual, dias nela, próxima, prazo médio da empresa e atrasos. */
+.painel.larga{width:clamp(720px,94vw,100vw)}
+.otabs{display:flex;gap:2px;padding:10px 18px 0;border-bottom:1px solid var(--border2);overflow-x:auto;position:sticky;top:0;background:var(--bg2);z-index:3;scrollbar-width:thin}
+.otab{border:0;background:none;font:inherit;font-family:'Barlow Condensed';font-weight:800;font-size:14.5px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);padding:9px 13px 9px;border-bottom:3px solid transparent;margin-bottom:-1px;cursor:pointer;white-space:nowrap;border-radius:8px 8px 0 0}
+.otab:hover{color:var(--azul);background:var(--bg3)}
+.otab.on{color:var(--azul);border-bottom-color:var(--verde);background:var(--sup)}
+.otab .n{display:inline-block;min-width:18px;padding:0 6px;margin-left:6px;border-radius:9px;background:var(--bg3);color:var(--text3);font-family:Inter,sans-serif;font-size:10.5px;line-height:17px;text-align:center;vertical-align:1px}
+.otab .n.rd{background:#FDECEA;color:#b42318}
+.ob-corpo{padding-bottom:26px}
+.orig{font-size:11px;color:var(--text4);font-weight:600}
+.sp{flex:1}
+.lk{background:none;border:0;padding:0;font:inherit;font-size:11.5px;font-weight:700;color:var(--azul);cursor:pointer;text-decoration:none;white-space:nowrap}
+.lk:hover{text-decoration:underline}
+.barra{height:6px;border-radius:4px;background:var(--bg3);overflow:hidden;margin:6px 0 8px}
+.barra>i{display:block;height:100%;background:var(--verde);border-radius:4px}
+/* cabeçalho de cada aba */
+.tab-top{display:flex;align-items:center;gap:12px;padding:16px 22px 10px;flex-wrap:wrap}
+.tab-top .tt{display:flex;flex-direction:column;gap:2px;flex:1;min-width:220px}
+.tab-top .tt b{font-family:'Barlow Condensed';font-size:20px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--azul-esc)}
+.tab-top .tt span{font-size:11.5px;color:var(--text4);font-weight:600}
+.tab-top .bt{text-decoration:none}
+html[data-tema="escuro"] .tab-top .tt b{color:var(--text)}
+.sub-t{font-family:'Barlow Condensed';font-size:14px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--azul);margin:22px 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border2)}
+/* etapa atual em destaque */
+.hero{display:grid;grid-template-columns:auto 1fr auto;gap:16px;align-items:center;background:var(--sup);border:1px solid var(--border2);border-left:5px solid var(--azul);border-radius:12px;padding:12px 16px;margin:0 0 10px}
+.hero.late{border-left-color:var(--verm);background:linear-gradient(90deg,rgba(192,57,43,.07),transparent 60%),var(--sup)}
+.hero.ok{border-left-color:var(--verde);grid-template-columns:auto 1fr}
+.h-st{width:46px;height:46px;border-radius:50%;background:var(--azul);color:#fff;display:flex;flex-direction:column;align-items:center;justify-content:center;font:800 19px 'Barlow Condensed';line-height:1}
+.h-st small{font:700 9px Inter,sans-serif;opacity:.85}
+.hero.late .h-st{background:var(--verm)}.hero.ok .h-st{background:var(--verde);font-size:22px}
+.h-tx,.h-nx{display:flex;flex-direction:column;gap:3px;min-width:0}
+.h-k{font-size:9.5px;font-weight:800;letter-spacing:.6px;text-transform:uppercase;color:var(--text4)}
+.h-tx b{font-size:16px;color:var(--text)}.h-tx>span{font-size:12px;color:var(--text3)}
+.h-tx>span b{font-size:12px}
+.h-al{color:var(--verm)!important;font-weight:700}
+.h-nx{text-align:right;padding-left:16px;border-left:1px solid var(--border2)}
+.h-nx b{font-size:13.5px;color:var(--text)}
+.h-pe{font-size:11px;color:#B45309;font-weight:700}
+/* linha de etapas */
+.stp{display:flex;align-items:flex-start;margin:4px 0 12px;overflow-x:auto;padding-bottom:2px}
+.sp-i{flex:1;min-width:92px;display:flex;flex-direction:column;align-items:center;text-align:center;position:relative;padding:0 4px;cursor:default}
+.sp-i[onclick]{cursor:pointer}
+.sp-i::before{content:"";position:absolute;top:13px;left:-50%;right:50%;height:3px;background:var(--border2);z-index:0}
+.sp-i:first-child::before{display:none}
+.sp-i.ok::before,.sp-i.now::before,.sp-i.late::before,.sp-i.pend::before{background:var(--verde)}
+.sp-b{width:28px;height:28px;border-radius:50%;background:var(--sup);border:2px solid var(--border);color:var(--text4);display:flex;align-items:center;justify-content:center;font:800 12px Inter,sans-serif;position:relative;z-index:1}
+.sp-i.ok .sp-b{background:var(--verde);border-color:var(--verde);color:#fff}
+.sp-i.now .sp-b{background:var(--azul);border-color:var(--azul);color:#fff;box-shadow:0 0 0 4px rgba(41,87,120,.18)}
+.sp-i.late .sp-b{background:var(--verm);border-color:var(--verm);color:#fff;box-shadow:0 0 0 4px rgba(192,57,43,.18)}
+.sp-i.pend .sp-b{background:#FFF3E0;border-color:#F0A04B;color:#B45309}
+.sp-t{font-size:11.5px;font-weight:700;color:var(--text);margin-top:6px;line-height:1.2}
+.sp-i:not(.ok):not(.now):not(.late):not(.pend) .sp-t{color:var(--text4)}
+.sp-s{font-size:10.5px;color:var(--text4);margin-top:2px}
+.sp-i.now .sp-s{color:var(--azul);font-weight:700}.sp-i.late .sp-s{color:var(--verm);font-weight:700}.sp-i.pend .sp-s{color:#B45309;font-weight:700}
+.stp.mini{margin:4px 0 0}.stp.mini .sp-i{min-width:18px;padding:0}.stp.mini .sp-b{width:14px;height:14px;font-size:0;border-width:2px}
+.stp.mini .sp-i::before{top:6px;height:2px}
+/* cartões das etapas */
+.etcs{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:12px;margin-top:14px}
+.etc{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;scroll-margin-top:60px}
+.etc.atual{border-color:var(--azul);box-shadow:0 0 0 1px var(--azul) inset}
+.etc.late{border-color:var(--verm);box-shadow:0 0 0 1px var(--verm) inset}
+.etc.pend{border-color:#F0A04B}
+.etc.futura{opacity:.8}
+.etc-h{display:flex;align-items:center;gap:10px}
+.etc-n{width:26px;height:26px;border-radius:50%;flex:none;display:flex;align-items:center;justify-content:center;font:800 12px Inter,sans-serif;background:var(--bg3);color:var(--text3)}
+.etc.feita .etc-n{background:var(--verde);color:#fff}.etc.atual .etc-n{background:var(--azul);color:#fff}.etc.late .etc-n{background:var(--verm);color:#fff}.etc.pend .etc-n{background:#F0A04B;color:#fff}
+.etc-t{flex:1;min-width:0;display:flex;flex-direction:column}
+.etc-t b{font-size:13.5px;color:var(--text)}.etc-t span{font-size:11px;color:var(--text4)}
+.etc-p{font:800 13px 'Barlow Condensed';color:var(--text3)}
+.eti{display:flex;flex-direction:column;gap:1px}
+.it{display:flex;align-items:baseline;gap:8px;font-size:12.5px;padding:4px 2px;border-bottom:1px dashed var(--border2)}
+.it:last-child{border-bottom:0}
+.it .ic{width:16px;flex:none;text-align:center;font-weight:800;color:var(--text4)}
+.it .r{flex:1;color:var(--text3)}.it .r small{color:var(--text4)}
+.it .dt{font-size:11px;color:var(--text4);font-weight:700;white-space:nowrap}.it .dt.pv{color:#B45309}
+.it.ok .ic{color:var(--verde)}.it.ok .r{color:var(--text)}
+.it.aberto .ic{color:#B45309}
+.it.andando .ic{color:var(--azul)}.it.andando .r{color:var(--text)}
+.it.na .r{color:var(--text4);text-decoration:line-through}
+.etc.pend .it.aberto .r{color:#B45309;font-weight:600}
+/* faixas de alertas e informações */
+.avs{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 8px}
+.avs span{font-size:11.5px;font-weight:600;padding:4px 10px;border-radius:14px;background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
+.avs span.i{background:var(--bg3);color:var(--text3);border-color:var(--border2)}
+.infos{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:6px 14px;background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:10px 14px;margin:6px 0 4px}
+.infos.col2{grid-template-columns:repeat(2,minmax(0,1fr));background:none;border:0;padding:0;margin:0}
+.infos div{display:flex;flex-direction:column;min-width:0}
+.infos span{font-size:9.5px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--text4)}
+.infos b{font-size:12.5px;color:var(--text);font-weight:600;overflow-wrap:anywhere}.infos b.vz{color:#B45309}
+.kpis3{display:flex;gap:10px;flex-wrap:wrap;margin:2px 0 12px}
+.kpis3>div{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:8px 16px;min-width:100px;text-align:center}
+.kpis3 b{display:block;font:800 22px 'Barlow Condensed';color:var(--azul-esc);line-height:1.1}
+.kpis3 span{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text4);letter-spacing:.3px}
+.kpis3>div.rd b{color:var(--verm)}
+html[data-tema="escuro"] .kpis3 b{color:var(--text)}
+/* casas (vendas / ligações) */
+.casa{background:var(--sup2);border:1px solid var(--border2);border-radius:14px;padding:12px 14px;margin:0 0 14px}
+.casa-h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.casa-h>b{font-family:'Barlow Condensed';font-size:18px;font-weight:800;color:var(--azul-esc);text-transform:uppercase}
+html[data-tema="escuro"] .casa-h>b{color:var(--text)}
+.casa .hero{margin-bottom:8px}
+.det{margin-top:4px}.det summary{cursor:pointer;font-size:12px;font-weight:700;color:var(--azul);padding:4px 0}
+.ligs{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:10px}
+.lg{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:10px 12px}
+.lg.late{border-color:var(--verm)}
+.lg-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px}.lg-h b{font-size:13.5px;color:var(--text)}
+.lg .stp{margin:6px 0 6px}.lg .sp-i{min-width:58px}.lg .sp-t{font-size:10.5px}.lg .sp-s{font-size:9.5px}
+.lg-s{font-size:12px;color:var(--text3)}.lg-s .w{color:var(--verm);font-weight:700}
+.lg-a{font-size:11px;color:#B45309;font-weight:600;margin-top:4px}
+.lg-o{font-size:11px;color:var(--text4);margin-top:3px;font-style:italic}
+/* resumo */
+.tiles{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:16px 22px 4px}
+.tile{display:flex;flex-direction:column;align-items:flex-start;gap:2px;background:var(--sup);border:1px solid var(--border2);border-top:4px solid var(--azul);border-radius:12px;padding:10px 12px;cursor:pointer;font:inherit;text-align:left;min-width:0;color:var(--text)}
+.tile:hover{border-color:var(--azul)}
+.tile>span{font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text4)}
+.tile>b{font:800 26px 'Barlow Condensed';color:var(--azul-esc);line-height:1.05}
+.tile>small{font-size:11px;color:var(--text3);line-height:1.3;overflow-wrap:anywhere}.tile>small i{color:var(--verm);font-style:normal;font-weight:700}
+.tile.late{border-top-color:var(--verm)}.tile.late>b{color:var(--verm)}
+.tile.warn{border-top-color:#F0A04B}
+html[data-tema="escuro"] .tile>b{color:var(--text)}
+.rs-grid{display:grid;grid-template-columns:minmax(0,1.55fr) minmax(0,1fr);gap:14px;padding:12px 22px 0}
+.rs-col{display:flex;flex-direction:column;gap:14px;min-width:0}
+.blk{background:var(--sup);border:1px solid var(--border2);border-radius:14px;padding:12px 14px}
+.blk-h{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+.blk-h>b{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--azul)}
+.blk .hero{border-width:1px 1px 1px 5px;padding:10px 12px}
+.blk .h-st{width:40px;height:40px;font-size:17px}
+.cnt{font-size:11px;font-weight:800;padding:1px 8px;border-radius:9px;background:var(--bg3);color:var(--text3)}.cnt.rd{background:#FDECEA;color:#b42318}
+.att{display:flex;flex-direction:column;gap:6px}
+.at-i{display:flex;gap:8px;align-items:baseline;text-align:left;background:var(--sup2);border:1px solid var(--border2);border-left:3px solid #F0A04B;border-radius:8px;padding:7px 10px;font:inherit;font-size:12px;color:var(--text);cursor:pointer}
+.at-i:hover{border-color:var(--azul)}
+.at-q{font-size:9.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text4);min-width:74px}
+.ok-msg{font-size:12.5px;color:var(--verde-esc);font-weight:700;padding:6px 0}
+.pr-l{display:flex;align-items:baseline;gap:6px;font-size:12.5px;color:var(--text3)}.pr-l b{color:var(--text)}.pr-l span{margin-left:auto;font:800 16px 'Barlow Condensed';color:var(--azul)}
+.pr-i{display:flex;gap:8px;font-size:12px;padding:5px 0;border-top:1px dashed var(--border2);color:var(--text3)}.pr-i span{flex:1}.pr-i small{color:var(--text4)}
+.pr-i.late span,.pr-i.late small{color:var(--verm);font-weight:700}
+.cs-t{display:flex;flex-direction:column}
+.cs-r{display:grid;grid-template-columns:70px minmax(0,1fr) minmax(0,1.3fr);gap:10px;align-items:center;padding:8px 0;border-top:1px solid var(--border2)}
+.cs-r:first-child{border-top:0}
+.cs-r>b{font-size:13px;color:var(--text)}
+.cs-v{display:flex;flex-direction:column;gap:3px;align-items:flex-start;min-width:0}.cs-v .stp{width:100%}
+.cs-l{display:flex;flex-wrap:wrap;gap:5px}
+.lgc{display:inline-flex;flex-direction:column;font-size:11px;font-weight:700;padding:4px 8px;border-radius:8px;background:var(--bg3);color:var(--text3);line-height:1.2}
+.lgc i{font-style:normal;font-weight:600;font-size:10px;color:var(--text4)}
+.lgc.ok{background:rgba(42,157,92,.14);color:var(--verde-esc)}.lgc.late{background:#FDECEA;color:#b42318}
+/* 3D e orçamento */
+.m3d-bar{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:14px 22px 0;padding:10px 14px;background:var(--sup);border:1px solid var(--border2);border-radius:12px}
+.m3d-bar .bt{text-decoration:none}
+.m3d-lay{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;flex:1;min-width:260px}
+.m3d-lay .ajuda{margin:0}
+.orc-dados{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
+.od{display:flex;flex-direction:column;background:var(--sup);border:1px solid var(--border2);border-radius:9px;padding:5px 10px;min-width:96px}
+.od span{font-size:9.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--text4)}
+.od b{font-size:12.5px;color:var(--text);font-weight:700;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.od.falta{background:#FFF3E0;border-color:#FCD9A8}.od.falta b{color:#B45309}
+.orc-kpis{display:flex;gap:10px;flex-wrap:wrap;align-items:stretch;margin-bottom:10px}
+.orc-kpis .kp{background:var(--sup);border:1px solid var(--border2);border-radius:10px;padding:8px 14px;display:flex;flex-direction:column;justify-content:center}
+.orc-kpis .kp b{font:800 21px 'Barlow Condensed';color:var(--azul-esc);line-height:1.1}
+.orc-kpis .kp span{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text4)}
+.orc-kpis .kp.rd b{color:#B45309}
+.orc-kpis .kp.st{flex:1;min-width:260px;gap:3px}.orc-kpis .kp.st span{text-transform:none;font-size:11.5px;font-weight:600;color:var(--text3)}
+.orc-kpis .kp.st b{font:inherit;font-weight:700;color:var(--text)}
+.orc-kpis .sujo{color:#B45309;font-style:normal;font-weight:700}
+html[data-tema="escuro"] .orc-kpis .kp b{color:var(--text)}
+.orc-bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:8px;position:sticky;top:44px;z-index:2;background:var(--bg2);padding:6px 0}
+.orc-bar .busca{max-width:320px}
+.orc-bar .mults{display:flex;gap:8px;align-items:center;font-size:11.5px;font-weight:700;color:var(--text3)}
+.orc-bar .mults input{width:46px;padding:4px 6px;font-size:12px}
+.orc-bar .bt:disabled{opacity:.5;cursor:not-allowed}
+.orc-av{background:#FFF3E0;border:1px solid #FCD9A8;color:#8a4a06;border-radius:10px;padding:8px 12px;font-size:12px;margin-bottom:8px}
+.orc-vazio{padding:30px;text-align:center;color:var(--text3);background:var(--sup);border:1px dashed var(--border2);border-radius:12px}
+.orc-tab{border:1px solid var(--border2);border-radius:12px;overflow:auto;background:var(--sup)}
+.orc-tab table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5px}
+.orc-tab thead th{position:sticky;top:0;background:var(--azul);color:#fff;font-size:10px;letter-spacing:.4px;text-transform:uppercase;padding:8px 8px;text-align:left;z-index:1}
+.orc-tab th.n,.orc-tab td.n{text-align:right}
+.orc-tab td{padding:5px 8px;border-top:1px solid var(--border2);vertical-align:top;white-space:normal;overflow-wrap:anywhere}
+.orc-tab tr.gh td{background:var(--bg3);cursor:pointer;padding:8px;border-top:2px solid var(--border)}
+.orc-tab tr.gh b{color:var(--azul-esc)}
+html[data-tema="escuro"] .orc-tab tr.gh b{color:var(--text)}
+.orc-tab .car{display:inline-block;width:12px;color:var(--text4)}
+.orc-tab .cnt{margin-left:6px}.orc-tab .cnt i{color:#B45309;font-style:normal}
+.orc-tab .mu{color:var(--text4);font-size:11.5px}
+.orc-tab .nm{font-weight:600;color:var(--text)}
+.orc-tab .og{font-size:10.5px;color:var(--text4);margin-top:1px}
+.orc-tab .og .w{color:#B45309;font-weight:700}
+.orc-tab tr.av td:first-child{box-shadow:3px 0 0 #F0A04B inset}
+.orc-tab tr.ed .nm::after{content:" ✎";color:var(--azul);font-size:11px}
+.orc-tab input[type=number]{width:100%;padding:4px 6px;font-size:12.5px;text-align:right;border:1px solid transparent;background:var(--sup2);border-radius:6px}
+.orc-tab input[type=number]:hover{border-color:var(--border)}
+.orc-tab .cod{background:none;border:1px dashed transparent;border-radius:6px;padding:2px 4px;font:inherit;font-size:11.5px;font-weight:700;color:var(--azul);cursor:pointer;text-align:left;max-width:100%;overflow-wrap:anywhere}
+.orc-tab .cod:hover{border-color:var(--azul)}
+.orc-tab .ac button{background:none;border:0;color:var(--text4);cursor:pointer;font-size:13px;padding:2px 6px;border-radius:6px}
+.orc-tab .ac button:hover{background:#FDECEA;color:var(--verm)}
+.orc-tab tr.add td{border-top:0;padding:2px 8px 8px}
+.orc-tab tr.add button{background:none;border:0;color:var(--azul);font:inherit;font-size:11.5px;font-weight:700;cursor:pointer;padding:0}
+.orc-tab tfoot td{background:var(--bg3);padding:10px 8px;border-top:2px solid var(--border);font-size:13.5px}
+#orc-busca{position:fixed;inset:0;background:rgba(10,25,35,.45);z-index:80;display:none;align-items:flex-start;justify-content:center;padding:8vh 16px}
+#orc-busca.on{display:flex}
+.ob-cx{background:var(--sup);border-radius:14px;width:min(760px,100%);max-height:80vh;display:flex;flex-direction:column;box-shadow:0 20px 60px rgba(0,0,0,.35);padding:14px;gap:10px}
+.ob-t{display:flex;align-items:center}.ob-t b{font-size:15px;color:var(--text)}.ob-t button{background:none;border:0;font-size:16px;cursor:pointer;color:var(--text3)}
+.ob-r{overflow:auto;display:flex;flex-direction:column;gap:4px}
+.ob-i{display:grid;grid-template-columns:120px minmax(0,1fr) 54px 96px;gap:10px;align-items:center;text-align:left;background:var(--sup2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;font:inherit;font-size:12.5px;cursor:pointer;color:var(--text)}
+.ob-i:hover{border-color:var(--azul)}.ob-i.ina{opacity:.55}
+.ob-i .c{font-weight:800;color:var(--azul);font-size:11.5px}.ob-i .n small{display:block;color:var(--text4);font-size:10.5px}.ob-i .u{color:var(--text4)}.ob-i .p{text-align:right;font-weight:700}
+/* modo escuro */
+html[data-tema="escuro"] .otab .n.rd,html[data-tema="escuro"] .cnt.rd,html[data-tema="escuro"] .lgc.late{background:#3d1d1a;color:#f3a29a}
+html[data-tema="escuro"] .avs span,html[data-tema="escuro"] .od.falta,html[data-tema="escuro"] .orc-av{background:#3a2d12;color:#f0c95f;border-color:#57431f}
+html[data-tema="escuro"] .avs span.i{background:var(--bg3);color:var(--text3);border-color:var(--border2)}
+html[data-tema="escuro"] .sp-i.pend .sp-b{background:#3a2d12;border-color:#a8742a;color:#f0c95f}
+html[data-tema="escuro"] .lgc.ok,html[data-tema="escuro"] .ok-msg{color:#8ce0a5}html[data-tema="escuro"] .lgc.ok{background:#16341f}
+html[data-tema="escuro"] .h-pe,html[data-tema="escuro"] .it.aberto .ic,html[data-tema="escuro"] .it .dt.pv,html[data-tema="escuro"] .lg-a,html[data-tema="escuro"] .orc-tab .og .w,html[data-tema="escuro"] .infos b.vz{color:#f0c95f}
+html[data-tema="escuro"] .h-al,html[data-tema="escuro"] .lg-s .w,html[data-tema="escuro"] .tile>small i{color:#f3a29a!important}
+html[data-tema="escuro"] .orc-tab thead th{background:#1d3a4d}
+@media(max-width:1100px){ .tiles{grid-template-columns:repeat(3,minmax(0,1fr))} .rs-grid{grid-template-columns:1fr} }
+@media(max-width:700px){ .tiles{grid-template-columns:repeat(2,minmax(0,1fr))} .hero{grid-template-columns:auto 1fr} .h-nx{grid-column:1/-1;text-align:left;border-left:0;padding-left:0;border-top:1px solid var(--border2);padding-top:6px}
+  .cs-r{grid-template-columns:1fr} .ligs{grid-template-columns:1fr} .orc-tab{font-size:12px} }
 /* cronograma */
 .gantt{background:var(--sup);border:1px solid var(--border2);border-radius:10px;overflow-x:auto}
 .gt{min-width:780px;position:relative}
@@ -427,6 +610,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 
 <script src="app.js?v=46"></script>
 <script src="atv-contadores.js?v=1"></script>
+<script src="js/obra-orcamento.js?v=1"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -1186,16 +1370,21 @@ async function gravarLayout3d(id,base){
   else toast("Não gravou o vínculo: "+((r&&r.erro)||"erro"));
   carregarLayout3d(id,!(r&&r.ok));
 }
-/* ===================== JANELA DA OBRA EM ABAS (16/11/2026, pedido do dono) =====================
-   1 RESUMO      — tudo da obra em cartões: dados, processo, documentos, vendas, ligações, 3D/orçamento
-   2 DADOS       — os campos da obra (o que antes era "Dados da obra")
-   3 ATIVIDADES  — as atividades do processo (lista / cronograma)
-   4 DOC · VENDAS · LIGAÇÕES — o que está nas abas Documentos, Vendas e Ligações para esta obra
-   5 3D E ORÇAMENTO — o modelo 3D e os dados que o orçamento usa (obra + formulário de obra), com alertas
+/* ===================== JANELA DA OBRA EM ABAS (16/11/2026, pedido do dono — v2 no mesmo dia) =====================
+   v2 ("ficou muito ruim"): cada frente da obra tem a SUA aba, organizada por ETAPA — em qual etapa está, há quantos
+   dias, qual é a próxima, o prazo médio da empresa naquela etapa e o que está atrasado.
+     RESUMO       — a obra numa tela: a linha do tempo dos documentos, cada casa (venda + ligações), o que precisa
+                    de atenção, o processo (atividades) e o orçamento
+     DADOS        — os campos da obra
+     ATIVIDADES   — as atividades do processo (lista / cronograma)
+     DOCUMENTOS   — as 5 etapas dos documentos da obra (BASE DE DADOS DOCUMENTOS)
+     VENDAS       — o processo de cada casa (BANCO DE DADOS VENDAS)
+     LIGAÇÕES     — água e energia de cada casa (LIGAÇÕES) + as atividades de ligação e os botões de criar
+     3D E ORÇAMENTO — o 3D e a PLANILHA PRÉVIA DO ORÇAMENTO (js/obra-orcamento.js)
    Documentos, Vendas e Ligações vêm dos mesmos arquivos publicados que essas telas usam (dist/docs.json,
-   dist/vendas.json, dist/ligacoes.json — só os campos públicos; nada sensível novo é lido aqui).
-   Docs e Vendas se ligam à obra pelo OBRA-AUTO (endereço); Ligações pelo id da obra. */
-const OB_ABAS=[["resumo","Resumo"],["dados","Dados"],["atividades","Atividades"],["dvl","Documentos · Vendas · Ligações"],["orc","3D e Orçamento"]];
+   dist/vendas.json, dist/ligacoes.json — só os campos públicos). Só leitura: as regras de VENDIDA/ENTREGUE continuam
+   as do obras.json (REGRAS-TRAVADAS), aqui só se mostra. */
+const OB_ABAS=[["resumo","Resumo"],["dados","Dados"],["atividades","Atividades"],["docs","Documentos"],["vendas","Vendas"],["lig","Ligações"],["orc","3D e Orçamento"]];
 let ABA_OB=(function(){ try{ const v=sessionStorage.getItem("obras_aba_painel"); return OB_ABAS.some(x=>x[0]===v)?v:"resumo"; }catch(e){ return "resumo"; } })();
 function irAbaObra(a){ ABA_OB=a; try{ sessionStorage.setItem("obras_aba_painel",a); }catch(e){} pintarObraPainel(); document.getElementById("p1-corpo").scrollTop=0; }
 
@@ -1209,23 +1398,289 @@ async function carregarExtrasObra(){
   EXT.docs=(d&&Array.isArray(d.obras))?d.obras:[]; EXT.vendas=(v&&Array.isArray(v.vendas))?v.vendas:[];
   EXT.lig=(l&&Array.isArray(l.ligacoes))?l.ligacoes:[];
   EXT.erro=[d,v,l].some(x=>!x||x.ok===false)?"alguma base não carregou agora":"";
-  EXT.carregando=false;
-  if(OBRA&&(ABA_OB==="resumo"||ABA_OB==="dvl")&&!editandoNoPainel()) pintarObraPainel();
+  EXT.carregando=false; _MED={};
+  if(OBRA&&ABA_OB!=="dados"&&ABA_OB!=="atividades"&&!editandoNoPainel()) pintarObraPainel();
 }
 const semTraco=v=>String(v||"").replace(/-/g,"").toLowerCase();
 const listaTxt=v=>(Array.isArray(v)?v.flat(3):[v]).filter(x=>x!=null&&x!=="").map(String);
-function docsDaObra(o){ const t=N(o.titulo); return (EXT.docs||[]).filter(r=>listaTxt((r.valores||{})["OBRA-AUTO"]).some(x=>N(x)===t)||N((r.valores||{})["ENDEREÇO"])===t); }
-function vendasDaObra(o){ const t=N(o.titulo); return (EXT.vendas||[]).filter(r=>listaTxt((r.valores||{})["OBRA-AUTO"]).some(x=>N(x)===t))
-  .sort((a,b)=>Number(a.valores["CASA"]||a.valores["CASA-AUTO"]||0)-Number(b.valores["CASA"]||b.valores["CASA-AUTO"]||0)); }
+function docsDaObra(o){ const t=N(o.titulo); return (EXT.docs||[]).filter(r=>listaTxt((r.valores||{})["OBRA-AUTO"]).some(x=>N(x)===t)||N(colDe(r.valores,"ENDEREÇO"))===t); }
+/* 16/11 v2: OBRA-AUTO só existe em parte das linhas de Vendas — o ENDEREÇO vale também */
+function vendasDaObra(o){ const t=N(o.titulo); return (EXT.vendas||[]).filter(r=>listaTxt((r.valores||{})["OBRA-AUTO"]).some(x=>N(x)===t)||N(colDe(r.valores,"ENDEREÇO"))===t)
+  .sort((a,b)=>Number(colDe(a.valores,"CASA")||colDe(a.valores,"CASA-AUTO")||0)-Number(colDe(b.valores,"CASA")||colDe(b.valores,"CASA-AUTO")||0)); }
+/* ligação: pelo id da obra, pelo Vínculo Obra ou pelo nome "ENDEREÇO CS n" */
 function ligDaObra(o){ const id=semTraco(o.id), t=N(o.titulo);
-  return (EXT.lig||[]).filter(r=>(r.obraIds||[]).some(x=>semTraco(x)===id)||listaTxt((r.v||{})["Vínculo Obra"]).some(x=>N(x)===t))
-    .sort((a,b)=>String(a.obra||"").localeCompare(String(b.obra||""),"pt-BR")||String(a.concessionaria||"").localeCompare(String(b.concessionaria||""))); }
+  return (EXT.lig||[]).filter(r=>(r.obraIds||[]).some(x=>semTraco(x)===id)||listaTxt((r.v||{})["Vínculo Obra"]).some(x=>N(x)===t)||N(r.obra).replace(/\s+CS\s*\d+$/,"")===t)
+    .sort((a,b)=>String(a.obra||"").localeCompare(String(b.obra||""),"pt-BR",{numeric:true})||String(a.concessionaria||"").localeCompare(String(b.concessionaria||""))); }
 /* valor de uma coluna sem depender de espaço sobrando no nome ("SETOR ", "AGENDOU HABITE-SE? ") */
 function colDe(vals,nome){ vals=vals||{}; const k=Object.keys(vals).find(x=>N(x)===N(nome)); return k===undefined?undefined:vals[k]; }
-function dataBr(v){ const s=String(v||""); const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m||m[1]<"1900"||m[1]==="2000"&&m[2]==="01"&&m[3]==="01") return ""; return m[3]+"/"+m[2]+"/"+m[1]; }
+function dataISO(v){ const m=String(v||"").match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m||m[1]<"1900"||m[1]==="2000"&&m[2]==="01"&&m[3]==="01") return ""; return m[0]; }
+function dataBr(v){ const d=dataISO(v); return d?d.slice(8,10)+"/"+d.slice(5,7)+"/"+d.slice(0,4):""; }
 const vazioDoc=v=>v==null||v===""||v==="-"||v==="_"||(Array.isArray(v)&&!listaTxt(v).length);
 function txtVal(v){ if(Array.isArray(v)) return listaTxt(v).join(", "); const d=dataBr(v); return d||String(v==null?"":v); }
 function editandoNoPainel(){ const a=document.activeElement; return !!(a&&document.getElementById("p1").contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)); }
+function hojeIso(){ const d=new Date(); return d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0"); }
+function diasEntre(a,b){ a=dataISO(a); b=dataISO(b); if(!a||!b) return null; return Math.round((new Date(b+"T12:00:00")-new Date(a+"T12:00:00"))/864e5); }
+function mediana(l){ l=l.filter(x=>x!=null&&x>=0).sort((a,b)=>a-b); if(!l.length) return null; const m=Math.floor(l.length/2); return l.length%2?l[m]:Math.round((l[m-1]+l[m])/2); }
+const diasTxt=n=>n==null?"":n===0?"hoje":n===1?"1 dia":n+" dias";
+
+/* ===================== MOTOR DE ETAPAS (genérico) =====================
+   etapas: [{k, nome, itens:[{c:coluna, r:rótulo, d:coluna de data}], ini:[colunas de data], fim:[colunas de data]}]
+   valor do item: SIM… = feito · INEXISTE / ÁGIO = não se aplica · EXECUTANDO… / AGUARDANDO… = andando · resto = aberto */
+function estadoItem(v){ const n=N(txtVal(v)); if(!n||n==="-"||n==="NAO") return "aberto"; if(/^SIM/.test(n)) return "ok"; if(/^(INEXISTE|AGIO)/.test(n)) return "na";
+  if(/^(EXECUTANDO|AGUARDANDO|NAO ENTREGUE)/.test(n)) return "andando"; return /^(LIGADO|TRANSFERIDO|CONFERIDO|FIM)/.test(n)?"ok":"aberto"; }
+function primeiraData(vals,cols){ for(const c of (cols||[])){ const d=dataISO(colDe(vals,c)); if(d) return d; } return ""; }
+function avaliarEtapas(defs,vals,opc){
+  opc=opc||{};
+  const E=defs.map((d,i)=>{
+    const itens=d.itens.map(it=>{ const v=it.f?it.f(vals):colDe(vals,it.c); const est=it.f?v:estadoItem(v); return Object.assign({},it,{est:est,val:it.f?"":txtVal(v),data:it.d?dataISO(colDe(vals,it.d)):""}); });
+    const conta=itens.filter(x=>x.est!=="na"), feitos=conta.filter(x=>x.est==="ok").length;
+    const ini=primeiraData(vals,d.ini), fim=primeiraData(vals,d.fim);
+    const mexeu=feitos>0||itens.some(x=>x.est==="andando"||x.data)||!!ini;
+    return Object.assign({},d,{i:i,itens:itens,total:conta.length,feitos:feitos,feita:conta.length?feitos===conta.length:true,mexeu:mexeu,ini:ini,fim:fim});
+  });
+  /* etapa atual = a mais adiantada que já começou; se ela já fechou, a próxima que não fechou */
+  let ult=-1; E.forEach((e,i)=>{ if(e.mexeu) ult=i; });
+  let atual=ult<0?0:ult; if(E[atual]&&E[atual].feita){ const nx=E.findIndex((e,i)=>i>atual&&!e.feita); atual=nx; }
+  if(opc.forcarAtual!=null) atual=opc.forcarAtual;
+  const hoje=hojeIso();
+  E.forEach((e,i)=>{ e.st=i===atual?"atual":e.feita?"feita":i<atual||atual<0?"pend":"futura";
+    /* começo de cada etapa: a data dela; sem ela, o fim da anterior; sem ele, a última data das anteriores */
+    if(!e.ini&&i>0){ const ant=E[i-1]; e.ini=ant.fim||ant.itens.map(x=>x.data).filter(Boolean).sort().pop()||ant.ini||""; e.iniDeduzido=!!e.ini; }
+    e.dias=e.st==="atual"&&e.ini?diasEntre(e.ini,hoje):null;
+    e.duracao=e.feita&&e.ini&&e.fim?diasEntre(e.ini,e.fim):null; });
+  const pendAnt=atual<0?E.filter(e=>!e.feita):E.filter((e,i)=>i<atual&&!e.feita);
+  return {E:E,atual:atual,pendAnt:pendAnt,concluido:atual<0};
+}
+/* prazo médio da empresa em cada etapa: mediana de (fim − início) de todas as linhas da base que fecharam a etapa */
+let _MED={};
+function medianas(chave,defs,linhas){
+  if(_MED[chave]) return _MED[chave];
+  const m={}; defs.forEach(d=>{ const l=[]; (linhas||[]).forEach(r=>{ const v=r.valores||r.v||{}; const a=primeiraData(v,d.ini), b=primeiraData(v,d.fim); if(a&&b){ const x=diasEntre(a,b); if(x!=null&&x>=0&&x<1500) l.push(x); } });
+    m[d.k]=l.length>=3?{dias:mediana(l),n:l.length}:null; });
+  return (_MED[chave]=m);
+}
+function atrasoEtapa(e,med){ const m=med&&med[e.k]; return !!(e.st==="atual"&&e.dias!=null&&m&&m.dias!=null&&e.dias>m.dias); }
+
+/* ---- desenhos comuns ---- */
+function stepperHtml(R,med,opc){
+  opc=opc||{};
+  return `<div class="stp ${opc.mini?"mini":""}">${R.E.map((e,i)=>{
+    const late=atrasoEtapa(e,med)||(e.st==="atual"&&e.atrasada);
+    const cls=e.st==="feita"?"ok":e.st==="atual"?(late?"late":"now"):e.st==="pend"?"pend":"";
+    const sub=e.st==="feita"?(e.fim?dataBr(e.fim):"concluída"):e.st==="atual"?(e.dias!=null?"há "+diasTxt(e.dias):"em andamento"):e.st==="pend"?"pendente":(e.total?e.feitos+"/"+e.total:"");
+    return `<div class="sp-i ${cls}" ${opc.click?`onclick="${opc.click}('${e.k}')"`:""} title="${esc(e.nome)} — ${e.feitos} de ${e.total}"><div class="sp-b">${e.st==="feita"?"✓":e.st==="pend"?"!":i+1}</div>${opc.mini?"":`<div class="sp-t">${esc(e.nome)}</div><div class="sp-s">${esc(sub)}</div>`}</div>`; }).join("")}</div>`;
+}
+function heroHtml(R,med,opc){
+  opc=opc||{};
+  if(R.concluido) return `<div class="hero ok"><div class="h-st">✓</div><div class="h-tx"><b>${esc(opc.fimTxt||"Todas as etapas concluídas")}</b>${R.pendAnt.length?`<span>Mas ainda há pendências: ${R.pendAnt.map(e=>esc(e.nome)).join(", ")}</span>`:""}</div></div>`;
+  const e=R.E[R.atual], nx=R.E.slice(R.atual+1).find(x=>!x.feita), m=med&&med[e.k];
+  const late=atrasoEtapa(e,med)||e.atrasada;
+  return `<div class="hero ${late?"late":""}">
+    <div class="h-st">${R.atual+1}<small>de ${R.E.length}</small></div>
+    <div class="h-tx"><span class="h-k">Etapa atual</span><b>${esc(e.nome)}</b>
+      <span>${e.dias!=null?`Nela há <b>${diasTxt(e.dias)}</b> (desde ${dataBr(e.ini)}${e.iniDeduzido?", fim da etapa anterior":""})`:"Sem data de início registrada"}${m?` · prazo médio da empresa: <b>${diasTxt(m.dias)}</b>`:""} · ${e.feitos} de ${e.total} itens feitos</span>
+      ${late?`<span class="h-al">⚠ ${esc(e.atrasoTxt||("Acima do prazo médio"+(m?" em "+diasTxt(e.dias-m.dias):"")))}</span>`:""}</div>
+    <div class="h-nx"><span class="h-k">Próxima</span><b>${nx?esc(nx.nome):"—"}</b>${R.pendAnt.length?`<span class="h-pe">⚠ ${R.pendAnt.length} ${R.pendAnt.length===1?"etapa anterior com pendência":"etapas anteriores com pendência"}</span>`:""}</div>
+  </div>`;
+}
+function itensEtapaHtml(e){
+  return `<div class="eti">${e.itens.map(it=>{
+    const ic=it.est==="ok"?"✓":it.est==="na"?"–":it.est==="andando"?"◔":"○";
+    return `<div class="it ${it.est}"><span class="ic">${ic}</span><span class="r">${esc(it.r)}${it.est==="andando"||(/SIM\s/.test(N(it.val))&&it.est==="ok")?` <small>${esc(it.val.toLowerCase())}</small>`:""}</span>${it.data?`<span class="dt">${dataBr(it.data)}</span>`:it.prev?`<span class="dt pv" title="previsão">prev. ${esc(it.prev)}</span>`:""}</div>`; }).join("")}</div>`;
+}
+function etapasCardsHtml(R,med,id){
+  return `<div class="etcs">${R.E.map((e,i)=>{
+    const late=atrasoEtapa(e,med)||(e.st==="atual"&&e.atrasada), m=med&&med[e.k];
+    const pct=e.total?Math.round(100*e.feitos/e.total):100;
+    const per=e.st==="feita"?(e.ini&&e.fim?`${dataBr(e.ini)} → ${dataBr(e.fim)} · ${diasTxt(e.duracao)}`:e.fim?"até "+dataBr(e.fim):"concluída")
+      :e.st==="atual"?(e.ini?`desde ${dataBr(e.ini)} · há ${diasTxt(e.dias)}`:"em andamento"):e.st==="pend"?"ficou pendência":"ainda não começou";
+    return `<div class="etc ${e.st} ${late?"late":""}" id="${id}-${e.k}">
+      <div class="etc-h"><span class="etc-n">${e.st==="feita"?"✓":i+1}</span><div class="etc-t"><b>${esc(e.nome)}</b><span>${esc(per)}${m?` · média ${diasTxt(m.dias)}`:""}</span></div>
+        <span class="etc-p">${e.feitos}/${e.total}</span>${late?`<span class="chip alerta">atrasada</span>`:e.st==="atual"?`<span class="chip">etapa atual</span>`:""}</div>
+      <div class="barra"><i style="width:${pct}%"></i></div>${itensEtapaHtml(e)}</div>`; }).join("")}</div>`;
+}
+function irEtapaCard(id){ const el=document.getElementById(id); if(el) el.scrollIntoView({behavior:"smooth",block:"start"}); }
+
+/* ===================== DOCUMENTOS ===================== */
+const DOC_ETAPAS=[
+  {k:"lote",nome:"Lote e escritura",ini:["DATA DE AQUISIÇÃO DO LOTE"],fim:["DATA DE EMISSÃO DAS CERTIDÕES"],itens:[
+    {c:"CERTIDÃO DO LOTE ANEXADA?",r:"Certidão do lote anexada"},{c:"CONTRATO INVESTIDOR ASSINADO E ARMAZENADO?",r:"Contrato do investidor"},
+    {c:"ITBI PAGO ?",r:"ITBI pago"},{c:"ESCRITURA ASSINADA POR TODOS?",r:"Escritura assinada por todos"},{c:"REGISTRO PAGO?",r:"Registro pago"},
+    {c:"ESCRITURA REGISTRADA E DIGITALIZADA?",r:"Escritura registrada e digitalizada"},
+    {c:"SAIRAM AS CERTIDOES DE MATRICULA?",r:"Certidões de matrícula",d:"DATA DE EMISSÃO DAS CERTIDÕES"}]},
+  {k:"projeto",nome:"Projeto e alvará",ini:["DATA DE SOLICITAÇÃO USO DO SOLO","DATA DE ENTRADA DE ALVARA"],fim:["DATA DE APROVAÇÃO DO PROJETO"],itens:[
+    {c:"PROJETO FEITO?",r:"Projeto feito"},{c:"USO DO SOLO SOLICITADO",r:"Uso do solo solicitado",d:"DATA DE SOLICITAÇÃO USO DO SOLO"},
+    {c:"USO DO SOLO EMITIDO E ARMAZENADO",r:"Uso do solo emitido",d:"DATA DE EMISSÃO DO USO DO SOLO"},{c:"ART FEITA E PAGA?",r:"ART feita e paga"},
+    {c:"TAXAS ENTRADA ALVARÁ EMITIDAS E PAGAS?",r:"Taxas e entrada do alvará",d:"DATA DE ENTRADA DE ALVARA"},
+    {c:"PROJETO APROVADO E ALVARA EMITIDO E ARMAZENADO?",r:"Projeto aprovado e alvará emitido",d:"DATA DE APROVAÇÃO DO PROJETO"}]},
+  {k:"inicio",nome:"Início da obra",ini:["DATA DE APROVAÇÃO DO PROJETO"],fim:["DATA DE INÍCIO DA OBRA"],itens:[
+    {c:"MAO OBRA INICIAL DESPACHANTE PAGA?",r:"Mão de obra inicial do despachante"},{c:"CONTRATO MESTRE ASSINADO E ARMAZENADO?",r:"Contrato do mestre"},
+    {c:"EMITIU CNO E CND DE OBRA?",r:"CNO e CND da obra"},
+    {c:"FOI DADO ENTRADA NA INCORPORAÇÃO? (OBRAS CNPJ)",r:"Entrada na incorporação (CNPJ)",d:"DATA DE ENTRADA NA INCORPORAÇÃO"},
+    {c:"INCORPORAÇÃO FINALIZOU (OBRAS CNPJ)?",r:"Incorporação finalizada (CNPJ)",d:"DATA DE FINALIZAÇÃO DA INCORPORAÇÃO"},
+    {c:"FOI DATA A ENTRADA NO RET? (OBRAS CNPJ)",r:"Entrada no RET (CNPJ)",d:"DATA DE ENTRADA DO RET"},
+    {c:"RET ARMAZENADO",r:"RET armazenado",d:"DATA DE FINALIZAÇÃO DO RET"},
+    {c:"OBRA INCIADA",r:"Obra iniciada",d:"DATA DE INÍCIO DA OBRA"}]},
+  {k:"obra",nome:"Execução da obra",ini:["DATA DE INÍCIO DA OBRA"],fim:["DATA DE TÉRMINO DE OBRA"],itens:[
+    {c:"OBRA FINALIZADA?",r:"Obra finalizada",d:"DATA DE TÉRMINO DE OBRA"}]},
+  {k:"habite",nome:"Habite-se e Caixa",ini:["DATA DE TÉRMINO DE OBRA"],fim:["DATA DE APROVAÇÃO DO HABITE-SE"],itens:[
+    {c:"FORAM EMITIDAS E PAGAS AS TAXAS DE NUM OFICIAL, HABITE-SE E VISTORIA?",r:"Taxas de nº oficial, habite-se e vistoria"},
+    {c:"AGENDOU HABITE-SE?",r:"Habite-se agendado",d:"DATA HABITE-SE"},{c:"APROVOU HABITE-SE?",r:"Habite-se aprovado",d:"DATA DE APROVAÇÃO DO HABITE-SE"},
+    {c:"ARMAZENOU HABITE-SE?",r:"Habite-se armazenado"},{c:"EMITIU ART DE ACRESCIMO?",r:"ART de acréscimo"},{c:"GEROU E ARMAZENOU ISSQN?",r:"ISSQN gerado e armazenado"},
+    {c:"EMITIU DOCUMENTOS DE VISTORIA E SCPO?",r:"Documentos de vistoria e SCPO"},{c:"PAGOU BOLETOS DE VISTORIA CAIXA?",r:"Boletos da vistoria Caixa"}]}
+];
+function docsEstado(o){
+  const dv=(docsDaObra(o)[0]||{}).valores; if(!dv) return null;
+  const R=avaliarEtapas(DOC_ETAPAS,dv), med=medianas("docs",DOC_ETAPAS,EXT.docs), hoje=hojeIso();
+  /* previsões da obra: início previsto passou e não iniciou / término previsto passou e não finalizou */
+  const prevIni=dataISO(colDe(dv,"PREVISÃO DE INÍCIO DE OBRA")), prevFim=dataISO(o.data_prevista);
+  const ei=R.E.find(e=>e.k==="inicio"), eo=R.E.find(e=>e.k==="obra");
+  if(ei){ const it=ei.itens.find(x=>x.c==="OBRA INCIADA"); if(it&&prevIni&&!it.data) it.prev=dataBr(prevIni);
+    if(ei.st==="atual"&&prevIni&&prevIni<hoje&&it&&it.est!=="ok"){ ei.atrasada=true; ei.atrasoTxt="Início previsto para "+dataBr(prevIni)+" e a obra não iniciou ("+diasTxt(diasEntre(prevIni,hoje))+" de atraso)"; } }
+  if(eo){ const it=eo.itens[0]; if(it&&prevFim&&!it.data) it.prev=dataBr(prevFim);
+    if(eo.st==="atual"&&prevFim&&prevFim<hoje&&it.est!=="ok"){ eo.atrasada=true; eo.atrasoTxt="Término previsto para "+dataBr(prevFim)+" ("+diasTxt(diasEntre(prevFim,hoje))+" de atraso)"; } }
+  const itIni=ei&&ei.itens.find(x=>x.c==="OBRA INCIADA"), extra=[];
+  if(prevIni&&prevIni<hoje&&itIni&&itIni.est!=="ok") extra.push("Início da obra previsto para "+dataBr(prevIni)+" — ainda não iniciou");
+  if(prevFim&&prevFim<hoje&&eo&&eo.itens[0]&&eo.itens[0].est!=="ok"&&itIni&&itIni.est==="ok") extra.push("Término previsto para "+dataBr(prevFim)+" — obra não finalizada");
+  const alertas=extra.concat(Object.keys(dv).filter(k=>/^(ALERTA|ELERTA|EMISSAO|SOLICITACAO RET|INFORMACOES PENDENTES)/.test(N(k))&&!vazioDoc(dv[k])&&/PREENCHER|⚠/.test(String(dv[k]))).map(k=>String(dv[k]).replace(/^⚠️?\s*/,"")));
+  return {dv:dv,R:R,med:med,alertas:[...new Set(alertas)]};
+}
+function abaDocs(o){
+  if(!EXT.docs) return `<div class="pl"><div class="ajuda"><span class="load"></span> carregando Documentos…</div></div>`;
+  const D=docsEstado(o);
+  let h=`<div class="tab-top"><div class="tt"><b>Documentos da obra</b><span>BASE DE DADOS DOCUMENTOS · 5 etapas</span></div><a class="bt ghost" href="documentos.html" target="_blank" rel="noopener">abrir Documentos ↗</a></div>`;
+  if(!D) return h+`<div class="pl"><div class="vazio">Esta obra ainda não tem linha em Documentos.</div></div>`;
+  h+=`<div class="pl">${heroHtml(D.R,D.med,{fimTxt:"Documentos concluídos"})}${stepperHtml(D.R,D.med,{click:"irEtapaDoc"})}`;
+  if(D.alertas.length) h+=`<div class="avs">${D.alertas.map(a=>`<span>⚠ ${esc(a)}</span>`).join("")}</div>`;
+  const dv=D.dv, info=[["Despachante",txtVal(colDe(dv,"DESPACHANTE"))],["Mestre",txtVal(colDe(dv,"MESTRE"))],["Ref.",txtVal(colDe(dv,"REF."))],["Cota da empresa",colDe(dv,"COTA DA EMPRESA (%)")!=null?Math.round(Number(colDe(dv,"COTA DA EMPRESA (%)"))*1000)/10+"%":""],
+    ["Proprietário documento",txtVal(colDe(dv,"PROPRIETARIO DOCUMENTO"))],["Proprietário real",txtVal(colDe(dv,"PROPRIETARIO REAL"))],["Turno habite-se",txtVal(colDe(dv,"TURNO HABITE-SE"))],["Prazo de obra",colDe(dv,"PRAZO DE OBRA")?colDe(dv,"PRAZO DE OBRA")+" dias":""]].filter(x=>x[1]);
+  if(info.length) h+=`<div class="infos">${info.map(([k,v])=>`<div><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join("")}</div>`;
+  h+=etapasCardsHtml(D.R,D.med,"etdoc")+`</div>`;
+  return h;
+}
+function irEtapaDoc(k){ irEtapaCard("etdoc-"+k); }
+
+/* ===================== VENDAS (cada casa) ===================== */
+const VENDA_ETAPAS=[
+  {k:"docs",nome:"Contrato e documentos",ini:["DATA DA VENDA"],fim:["DATA DE ENVIO DOS DOCUMENTOS"],itens:[
+    {c:"ARMAZENOU CONTRATO COMPRA E VENDA?",r:"Contrato de compra e venda armazenado"},{c:"EMITIU RCPM?",r:"RCPM emitido"},
+    {c:"MANDOU TODOS OS DOCS. P/ CORESSPONDENTE?",r:"Documentos enviados ao correspondente",d:"DATA DE ENVIO DOS DOCUMENTOS"}]},
+  {k:"banco",nome:"Conformidade e banco",ini:["DATA DE ENVIO DOS DOCUMENTOS"],fim:["DATA DE ASSINATURA DO CONTRATO"],itens:[
+    {c:"MANDOU P/ CONFORMIDADE?",r:"Enviado para conformidade"},{c:"PROCESSO CONFORME?",r:"Processo conforme"},
+    {c:"ASSINOU E ARMAZENOU CONTRATO DO BANCO?",r:"Contrato do banco assinado",d:"DATA DE ASSINATURA DO CONTRATO"}]},
+  {k:"cartorio",nome:"Prefeitura, ITBI e cartório",ini:["DATA DE ASSINATURA DO CONTRATO"],fim:[],itens:[
+    {c:"TEM NUMERO DE CADASTRO?",r:"Nº de cadastro na prefeitura"},{c:"ITBI GERADO",r:"ITBI gerado"},{c:"ITBI PAGO",r:"ITBI pago"},
+    {c:"DEU ENTRADA NO CARTORIO?",r:"Entrada no cartório"},{c:"FICOU PRONTO O REGISTRO?",r:"Registro pronto"}]},
+  {k:"receb",nome:"Devolução e recebimento",ini:[],fim:[],itens:[{c:"DEVOLVEU NO BANCO?",r:"Devolvido no banco"},{c:"RECEBEU?",r:"Recebeu do banco"}]},
+  {k:"entrega",nome:"Vistoria e entrega",ini:[],fim:["DATA DA ENTREGA"],itens:[
+    {c:"RECEBEU TAXA VISTORIA?",r:"Taxa de vistoria recebida"},{c:"CASA APTA PARA A VISTORIA",r:"Casa apta para a vistoria"},
+    {c:"AGENDOU PRE VISTORIA?",r:"Pré-vistoria agendada",d:"DATA DA PRÉ-VISTORIA"},{c:"REPAROS PRE VISTORIA REALIZADOS",r:"Reparos da pré-vistoria"},
+    {c:"TEM MANUAL DE OBRA?",r:"Manual de obra"},{c:"GEROU E ARMAZENOU GCAP?",r:"GCAP gerado"},{c:"PAGOU GCAP?",r:"GCAP pago"},
+    {c:"ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?",r:"Casa entregue (termo)",d:"DATA DA ENTREGA"},{c:"PREENCHEU A PESQUISA?",r:"Pesquisa preenchida"}]},
+  {k:"transf",nome:"Transferência das ligações",ini:["DATA DA ENTREGA"],fim:[],itens:[
+    {c:"TEM PROTOCOLO DE TRANS. ÁGUA",r:"Protocolo de transferência da água"},{c:"TEM PROTOCOLO DE TRANS. ENERGIA",r:"Protocolo de transferência da energia"},
+    {c:"AGUA TRANSFERIDA",r:"Água transferida"},{c:"ENERGIA TRANSFERIDA",r:"Energia transferida"}]}
+];
+function casasDaObra(o){
+  const vendas=vendasDaObra(o), porCasa={};
+  vendas.forEach(r=>{ porCasa[String(colDe(r.valores,"CASA")||colDe(r.valores,"CASA-AUTO")||"")]=r; });
+  const lista=(o.casas||[]).length?o.casas.map(c=>({casa:c.casa,vendida:c.vendida,entregue:c.entregue,r:porCasa[String(c.casa==null?"":c.casa)]}))
+    :vendas.map(r=>({casa:colDe(r.valores,"CASA")||colDe(r.valores,"CASA-AUTO"),r:r}));
+  const med=medianas("vendas",VENDA_ETAPAS,EXT.vendas), hoje=hojeIso();
+  return lista.map(c=>{
+    const v=(c.r&&c.r.valores)||{};
+    const vendida=c.vendida!=null?c.vendida:!!dataISO(colDe(v,"DATA DA VENDA"));
+    let R=null, sit="", alertas=[];
+    if(vendida&&c.r){
+      R=avaliarEtapas(VENDA_ETAPAS,v);
+      sit=String(colDe(v,"SITUAÇÃO")||""); if(sit==="-") sit="";
+      const e=R.atual>=0?R.E[R.atual]:null;
+      if(e&&/45 DIAS/.test(N(sit))){ e.atrasada=true; e.atrasoTxt=sit.replace(/^[^A-Za-zÀ-ú]+/,""); }
+      const val=dataISO(colDe(v,"VALIDADE")), rec=estadoItem(colDe(v,"RECEBEU?"))==="ok";
+      if(val&&!rec){ const d=diasEntre(hoje,val); if(d!=null&&d<=30) alertas.push(d<0?"aprovação de crédito VENCIDA em "+dataBr(val):"aprovação de crédito vence em "+diasTxt(d)+" ("+dataBr(val)+")"); }
+      Object.keys(v).filter(k=>/^ALERTA|^PREENCHER INFORMA/.test(N(k))&&!vazioDoc(v[k])&&String(v[k])!=="-").forEach(k=>alertas.push(String(v[k]).replace(/^⚠️?\s*/,"")));
+    }
+    return {casa:c.casa,vendida:vendida,entregue:c.entregue!=null?c.entregue:estadoItem(colDe(v,"ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?"))==="ok",r:c.r,v:v,R:R,med:med,sit:sit,
+      prazo:String(colDe(v,"PRAZO ATÉ A ENTREGA")||""),tipo:txtVal(colDe(v,"TIPO DE CASA")),dataVenda:dataISO(colDe(v,"DATA DA VENDA")),alertas:alertas,
+      reservada:/^SIM/.test(N(colDe(v,"RESERVADA")))};
+  });
+}
+function casaSituacaoChip(c){
+  return c.entregue?`<span class="chip ok">vendida · entregue</span>`:c.vendida?`<span class="chip alerta">vendida · não entregue</span>`:c.reservada?`<span class="chip">reservada</span>`:`<span class="chip">à venda</span>`;
+}
+function abaVendas(o){
+  if(!EXT.vendas) return `<div class="pl"><div class="ajuda"><span class="load"></span> carregando Vendas…</div></div>`;
+  const C=casasDaObra(o);
+  let h=`<div class="tab-top"><div class="tt"><b>Vendas</b><span>BANCO DE DADOS VENDAS · processo de cada casa em 6 etapas</span></div><a class="bt ghost" href="vendas.html" target="_blank" rel="noopener">abrir Vendas ↗</a></div><div class="pl">`;
+  if(!C.length) return h+`<div class="vazio">Nenhuma casa em Vendas ainda. As casas entram em Vendas pelos botões da aba Ligações.</div></div>`;
+  const vend=C.filter(c=>c.vendida).length, ent=C.filter(c=>c.entregue).length;
+  h+=`<div class="kpis3"><div><b>${C.length}</b><span>casas</span></div><div><b>${vend}</b><span>vendidas</span></div><div><b>${ent}</b><span>entregues</span></div><div><b>${C.length-vend}</b><span>à venda</span></div></div>`;
+  C.forEach(c=>{
+    h+=`<div class="casa">
+      <div class="casa-h"><b>Casa ${esc(c.casa==null?"":c.casa)}</b>${c.tipo?`<span class="orig">${esc(c.tipo)}</span>`:""}${casaSituacaoChip(c)}
+        ${c.dataVenda?`<span class="orig">vendida em ${dataBr(c.dataVenda)} · há ${diasTxt(diasEntre(c.dataVenda,hojeIso()))}</span>`:""}<span class="sp"></span>
+        ${c.r?`<a class="lk" href="vendas.html?abrir=${encodeURIComponent(c.r.id)}" target="_blank" rel="noopener">abrir a casa ↗</a>`:""}</div>`;
+    if(!c.vendida){ h+=`<div class="ajuda" style="margin:2px 0 4px">${c.r?"Ainda não vendida — o processo começa na venda.":"Sem linha em Vendas."}</div></div>`; return; }
+    if(!c.R){ h+=`</div>`; return; }
+    h+=heroHtml(c.R,c.med,{fimTxt:"Processo da venda concluído"})+stepperHtml(c.R,c.med);
+    const extras=[c.sit,c.prazo].filter(x=>x&&x!=="-");
+    if(extras.length||c.alertas.length) h+=`<div class="avs">${extras.map(x=>`<span class="i">${esc(x)}</span>`).join("")}${c.alertas.map(a=>`<span>⚠ ${esc(a)}</span>`).join("")}</div>`;
+    h+=`<details class="det"><summary>ver os itens de cada etapa</summary>${etapasCardsHtml(c.R,c.med,"etv"+c.casa)}</details></div>`;
+  });
+  return h+`</div>`;
+}
+
+/* ===================== LIGAÇÕES (cada casa, água e energia) ===================== */
+function ligEtapas(r){
+  const v=r.v||{}, st=N(r.status||colDe(v,"STATUS")||""), sanesc=/SANESC/.test(N(r.concessionaria||colDe(v,"CONCESSIONÁRIA")));
+  const ligado=/^(LIGADO|TRANSFERIDO|ENTREGUE)/.test(st);
+  const defs=[
+    {k:"lib",nome:"Liberação",ini:[],fim:["DATA DE LIBERAÇÃO"],itens:[{c:"LIBERADO PARA SOLICITAÇÃO",r:"Liberado para solicitação",d:"DATA DE LIBERAÇÃO"}]},
+    {k:"sol",nome:"Solicitação",ini:["DATA DE LIBERAÇÃO"],fim:["DATA DE SOLICITAÇÃO"],itens:[{c:"FEZ A SOLICITAÇÃO?",r:"Solicitação feita",d:"DATA DE SOLICITAÇÃO"}]}];
+  if(sanesc) defs.push({k:"apr",nome:"Aprovação SANESC",ini:["DATA DE SOLICITAÇÃO"],fim:["DATA DA APROVAÇÃO SANESC"],itens:[{c:"SOLICITAÇÃO SANESC APROVADA?",r:"Solicitação aprovada",d:"DATA DA APROVAÇÃO SANESC"}]});
+  defs.push({k:"lig",nome:"Ligação",ini:sanesc?["DATA DA APROVAÇÃO SANESC","DATA DE SOLICITAÇÃO"]:["DATA DE SOLICITAÇÃO"],fim:["Data de Ligação"],itens:[{f:()=>ligado?"ok":"aberto",r:"Ligado",d:"Data de Ligação"}]},
+    {k:"uc",nome:"UC",ini:["Data de Ligação"],fim:["DATA DE PREENCHIMENTO UC"],itens:[{c:"UC PREENCHIDA",r:"UC preenchida",d:"DATA DE PREENCHIMENTO UC"}]},
+    {k:"tr",nome:"Transferência",ini:["DATA DE PREENCHIMENTO UC","Data de Ligação"],fim:[],itens:[{f:()=>/^TRANSFERIDO/.test(st)?"ok":"aberto",r:"Transferida ao cliente"}]});
+  return defs;
+}
+function ligEstado(r){
+  const v=r.v||{}, defs=ligEtapas(r), R=avaliarEtapas(defs,v);
+  const med=medianas("lig_"+(defs.length),defs,EXT.lig);
+  const al=[colDe(v,"ALERTA VER. SOLICITAÇÃO"),colDe(v,"ALERTA VER. LIGAÇÃO"),colDe(v,"ALERTA UC"),colDe(v,"VERIFICAÇÃO SOLICITAÇÃO"),colDe(v,"Alerta Informações")].filter(x=>!vazioDoc(x)&&String(x)!=="-").map(String);
+  const e=R.atual>=0?R.E[R.atual]:null;
+  if(e&&al.some(x=>/ATRASAD/.test(N(x)))){ e.atrasada=true; e.atrasoTxt=al.find(x=>/ATRASAD/.test(N(x))).replace(/^[^A-Za-zÀ-ú]+/,""); }
+  const cs=(String(r.obra||"").match(/CS\s*(\d+)/i)||[])[1]||"";
+  return {r:r,v:v,R:R,med:med,alertas:[...new Set(al.map(x=>x.replace(/^[⚠️⏳🚨\s]+/,"")))],casa:cs,conc:r.concessionaria||colDe(v,"CONCESSIONÁRIA")||"",
+    status:r.status||colDe(v,"STATUS")||"",uc:r.uc||colDe(v,"UC")||"",obs:txtVal(colDe(v,"OBS. LIGAÇÕES"))};
+}
+function abaLig(o){
+  const lig=atvsDaObra(o.id).filter(ehLig).sort(ordenaAtv);
+  let h=`<div class="tab-top"><div class="tt"><b>Ligações de água e energia</b><span>LIGAÇÕES · liberação → solicitação → (aprovação SANESC) → ligação → UC → transferência</span></div><a class="bt ghost" href="ligacoes.html" target="_blank" rel="noopener">abrir Ligações ↗</a></div><div class="pl">`;
+  if(!EXT.lig) h+=`<div class="ajuda"><span class="load"></span> carregando Ligações…</div>`;
+  else{
+    const L=ligDaObra(o).map(ligEstado);
+    if(!L.length) h+=`<div class="vazio">Nenhuma ligação de água/energia criada para esta obra. Use os botões abaixo.</div>`;
+    else{
+      const lig2=L.filter(x=>/^(LIGADO|TRANSFERIDO|ENTREGUE)/.test(N(x.status))).length, tr=L.filter(x=>/^TRANSFERIDO/.test(N(x.status))).length, at=L.filter(x=>x.R.atual>=0&&(x.R.E[x.R.atual].atrasada||atrasoEtapa(x.R.E[x.R.atual],x.med))).length;
+      h+=`<div class="kpis3"><div><b>${L.length}</b><span>ligações</span></div><div><b>${lig2}</b><span>ligadas</span></div><div><b>${tr}</b><span>transferidas</span></div><div class="${at?"rd":""}"><b>${at}</b><span>atrasadas</span></div></div>`;
+      const porCasa={}; L.forEach(x=>{ (porCasa[x.casa||"?"]=porCasa[x.casa||"?"]||[]).push(x); });
+      Object.keys(porCasa).sort((a,b)=>Number(a)-Number(b)).forEach(cs=>{
+        h+=`<div class="casa"><div class="casa-h"><b>${cs==="?"?"Sem casa":"Casa "+esc(cs)}</b></div><div class="ligs">`;
+        porCasa[cs].forEach(x=>{
+          const e=x.R.atual>=0?x.R.E[x.R.atual]:null, late=e&&(e.atrasada||atrasoEtapa(e,x.med)), m=e&&x.med[e.k];
+          h+=`<div class="lg ${late?"late":""}"><div class="lg-h"><b>${esc(x.conc)}</b><span class="chip ${/^(LIGADO|TRANSFERIDO)/.test(N(x.status))?"ok":"alerta"}">${esc(x.status||"—")}</span>${x.uc?`<span class="orig">UC ${esc(x.uc)}</span>`:""}</div>
+            ${stepperHtml(x.R,x.med,{mini:false})}
+            <div class="lg-s">${x.R.concluido?"✓ concluída":e?`Etapa atual: <b>${esc(e.nome)}</b>${e.dias!=null?` · há <b>${diasTxt(e.dias)}</b>`:""}${m?` · média ${diasTxt(m.dias)}`:""}`:""}${late?` <span class="w">⚠ ${esc(e.atrasoTxt||"acima do prazo médio")}</span>`:""}</div>
+            ${x.alertas.length?`<div class="lg-a">${x.alertas.map(a=>esc(a)).join(" · ")}</div>`:""}${x.obs?`<div class="lg-o">${esc(x.obs.split("\n")[0])}</div>`:""}</div>`;
+        });
+        h+=`</div></div>`;
+      });
+    }
+  }
+  h+=`<div class="sub-t">Atividades de ligação</div>${lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="ajuda">Nenhuma atividade de ligação ainda.</div>`}`;
+  h+=`<div class="sub-t">Criar ligações e vendas</div>`+botoesLigacaoHtml(o)+`</div>`;
+  return h;
+}
 
 /* ---- Formulário de obra (corpo da atividade 1.3 no Notion, já pré-carregado no CONT_MEM) ---- */
 function atvFormulario(o){
@@ -1260,7 +1715,7 @@ function lerFormulario(o){
     if(/RESPONSAVEL TECNICO/.test(perg)&&b.tipo==="paragraph"&&/^NOME\s*:/.test(t)) r.rt=String(b.texto).replace(/^[^:]*:\s*/,"").trim();
   });
   if(r.arrimo) r.arrimoSim=/^\s*(SIM|S\b)/.test(N(r.arrimo))?true:/^\s*(NAO|N\b|NENHUM)/.test(N(r.arrimo))?false:null;
-  r.semEsgoto=/(NAO|SEM)\s+(POSSUI\s+|TEM\s+|HA\s+)?REDE DE ESGOTO|NAO POSSUI REDE|SEM ESGOTO/.test(N(r.outras));
+  r.semEsgoto=/(NAO|SEM)\s+(POSSUI\s+|TEM\s+|HA\s+)?REDE DE ESGOTO|NAO POSSUI REDE|SEM ESGOTO/.test(N(r.outras))?true:/(POSSUI|TEM|COM)\s+REDE DE ESGOTO/.test(N(r.outras))?false:null;
   return r;
 }
 
@@ -1272,87 +1727,87 @@ function dadosOrcamento(o){
   add("Nº de casas",o.n_casas,"Obra › Dados",!o.n_casas,"multiplica os itens “por casa”");
   add("Implantação",o.implantacao,"Obra › Dados",!o.implantacao);
   add("Área do lote (m²)",o.area_lote,"Obra › Dados",!o.area_lote);
-  add("Área construída averbada (m²)",o.area_averbada,"Obra › Dados",!o.area_averbada);
+  add("Área averbada (m²)",o.area_averbada,"Obra › Dados",!o.area_averbada);
   add("Área pós habite-se (m²)",o.area_habite,"Obra › Dados",false,"acréscimo depois do habite-se (ART de acréscimo)");
   /* 16/11 (dono): área construída REAL = averbada + pós habite-se. É ela que vai para o INSS e o ISSQN. */
   const aReal=(Number(o.area_averbada)||0)+(Number(o.area_habite)||0);
-  add("Área construída real (m²)",aReal?Math.round(aReal*100)/100:"","averbada + pós habite-se",!aReal,"INSS e ISSQN");
+  add("Área real (m²)",aReal?Math.round(aReal*100)/100:"","averbada + pós habite-se",!aReal,"INSS e ISSQN");
   const fo=f.atv?("Formulário de obra"+(atvFeita(f.atv)?"":" (não finalizado)")):"Formulário de obra";
-  if(f.sem) add("Formulário de obra","não existe para esta obra","Atividades",true,"padrões, arrimo e esgoto vêm dele");
+  if(f.sem) add("Formulário de obra","não existe","Atividades",true,"padrões, arrimo e esgoto vêm dele");
   else if(f.carregando) add("Formulário de obra","carregando…",fo,false);
   else{
-    add("Padrões de energia 5 m",f.p5==null?"":f.p5,fo,f.p5==null,"pergunta 2");
-    add("Padrões de energia 7 m",f.p7==null?"":f.p7,fo,f.p7==null,"pergunta 3");
-    add("Muro de arrimo",f.arrimoSim===false?"NÃO":f.arrimo,fo,!f.arrimo,"quantidades vêm do Revit (tabelas do arrimo)");
-    add("Limpeza / terraplanagem",f.limpeza,fo,!f.limpeza,"apropriação manual");
-    add("Nivelamento (corte / aterro)",f.nivel.join(", "),fo,!f.nivel.length);
-    add("Rede de esgoto",f.semEsgoto?"NÃO possui (fossa)":f.outras?"não informado — ver “outras informações”":"",fo,!f.semEsgoto&&!f.outras,"hoje só no texto livre da pergunta 10");
+    add("Padrões 5 m",f.p5==null?"":f.p5,fo,f.p5==null,"pergunta 2");
+    add("Padrões 7 m",f.p7==null?"":f.p7,fo,f.p7==null,"pergunta 3");
+    add("Arrimo",f.arrimoSim===false?"NÃO":f.arrimo,fo,!f.arrimo,"quantidades vêm do Revit (tabelas do arrimo)");
+    add("Limpeza",f.limpeza,fo,!f.limpeza,"apropriação manual");
+    add("Nivelamento",f.nivel.join(", "),fo,!f.nivel.length);
+    add("Rede de esgoto",f.semEsgoto===true?"NÃO (fossa)":f.semEsgoto===false?"SIM":"",fo,f.semEsgoto==null&&!/CANEDO/.test(N(o.cidade)),"pergunta 10 — em Senador Canedo é sempre fossa");
   }
   return {lista:L,faltas:L.filter(x=>x.falta),form:f};
 }
+function ctxOrcamento(o){ return {form:lerFormulario(o),dados:dadosOrcamento(o)}; }
+window.ctxOrcamento=ctxOrcamento; window.OBRA_ATUAL=()=>OBRA; window.OBRA_OBJ=()=>obraDe(OBRA);
+window.repintarOrcamento=function(){ const b=document.getElementById("orc-box"), o=obraDe(OBRA); if(!b||!o||ABA_OB!=="orc"||!window.OrcObra) return;
+  const foco=document.activeElement&&b.contains(document.activeElement)&&document.activeElement.classList.contains("busca");
+  b.innerHTML=OrcObra.html(o,ctxOrcamento(o)); if(foco){ const i=b.querySelector(".orc-bar .busca"); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } } };
 
-/* ---- cartões e tabelas ---- */
-function kvHtml(pares){ return `<div class="kv">${pares.map(([k,v,vz])=>`<div class="k">${esc(k)}</div><div class="v ${vz?"vz":""}">${v==null||v===""?(vz?"falta":"—"):v}</div>`).join("")}</div>`; }
-const CK_DOCS=[["USO DO SOLO EMITIDO E ARMAZENADO","Uso do solo"],["ART FEITA E PAGA?","ART"],["PROJETO APROVADO E ALVARA EMITIDO E ARMAZENADO?","Projeto aprovado / alvará"],
-  ["EMITIU CNO E CND DE OBRA?","CNO e CND"],["CONTRATO MESTRE ASSINADO E ARMAZENADO?","Contrato do mestre"],["ITBI PAGO ?","ITBI"],["REGISTRO PAGO?","Registro"],
-  ["ESCRITURA REGISTRADA E DIGITALIZADA?","Escritura registrada"],["EMITIU DOCUMENTOS DE VISTORIA E SCPO?","Vistoria / SCPO"],["APROVOU HABITE-SE?","Habite-se aprovado"],
-  ["ARMAZENOU HABITE-SE?","Habite-se armazenado"],["EMITIU ART DE ACRESCIMO?","ART de acréscimo"]];
-function ckDocsHtml(vals){
-  return `<div class="ck">${CK_DOCS.map(([c,r])=>{ const v=N(colDe(vals,c)); if(!v||v==="-") return "";
-    const cls=/^SIM/.test(v)?"s":/^NAO/.test(v)?"n":""; return `<span class="${cls}" title="${esc(c)}: ${esc(colDe(vals,c))}">${cls==="s"?"✓":cls==="n"?"✗":"•"} ${esc(r)}${cls?"":" · "+esc(colDe(vals,c))}</span>`; }).join("")}</div>`;
-}
-function alertasDoc(vals){ return Object.keys(vals||{}).filter(k=>/^(ALERTA|ELERTA)/.test(N(k))&&!vazioDoc(vals[k])).map(k=>String(vals[k])); }
-function casasHtml(o,vendas){
-  const casas=(o.casas||[]).slice();
-  if(!casas.length&&!vendas.length) return `<div class="ajuda">Nenhuma casa em Vendas ainda.</div>`;
-  const porCasa={}; vendas.forEach(r=>{ porCasa[String(r.valores["CASA"]||r.valores["CASA-AUTO"]||"")]=r; });
-  const lista=casas.length?casas:vendas.map(r=>({casa:r.valores["CASA"]||r.valores["CASA-AUTO"]}));
-  return `<table class="mini"><tr><th>Casa</th><th>Situação</th><th>Venda</th><th>Entrega</th><th></th></tr>${lista.map(c=>{
-    const r=porCasa[String(c.casa==null?"":c.casa)], v=(r&&r.valores)||{};
-    const sit=c.entregue?`<span class="chip ok">vendida · entregue</span>`:c.vendida?`<span class="chip alerta">vendida · não entregue</span>`:`<span class="chip">não vendida</span>`;
-    return `<tr><td><b>Casa ${esc(c.casa==null?"":c.casa)}</b>${colDe(v,"TIPO DE CASA")?`<div class="orig">${esc(txtVal(colDe(v,"TIPO DE CASA")))}</div>`:""}</td><td>${sit}</td>
-      <td>${esc(dataBr(colDe(v,"DATA DA VENDA")))}</td><td>${esc(dataBr(colDe(v,"DATA DA ENTREGA")))}</td>
-      <td>${r?`<a href="vendas.html?abrir=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">abrir</a>`:""}</td></tr>`; }).join("")}</table>`;
-}
-function ligHtml(ligs,curto){
-  if(!ligs.length) return `<div class="ajuda">Nenhuma ligação de água/energia criada para esta obra.</div>`;
-  return `<table class="mini"><tr><th>Casa</th><th>Concessionária</th><th>Status</th>${curto?"":"<th>UC</th><th>Solicitação</th><th>Liberação</th>"}<th>Alerta</th></tr>${ligs.map(r=>{
-    const v=r.v||{}, cs=(String(r.obra||"").match(/CS\s*\d+/i)||[""])[0], st=String(r.status||colDe(v,"STATUS")||"");
-    const al=[colDe(v,"ALERTA UC"),colDe(v,"Alerta Informações"),colDe(v,"ALERTA VER. LIGAÇÃO")].filter(x=>!vazioDoc(x)).map(String);
-    return `<tr><td>${esc(cs||r.obra||"")}</td><td>${esc(r.concessionaria||colDe(v,"CONCESSIONÁRIA")||"")}</td>
-      <td><span class="chip ${/LIGADO/.test(N(st))&&!/NAO/.test(N(st))?"ok":"alerta"}">${esc(st||"—")}</span></td>
-      ${curto?"":`<td>${esc(r.uc||colDe(v,"UC")||"")}</td><td>${esc(dataBr(colDe(v,"DATA DE SOLICITAÇÃO"))||(N(colDe(v,"FEZ A SOLICITAÇÃO?"))==="NAO"?"não fez":""))}</td><td>${esc(dataBr(colDe(v,"DATA DE LIBERAÇÃO")))}</td>`}
-      <td>${al.length?`<span class="orig">${esc(al[0])}</span>`:""}</td></tr>`; }).join("")}</table>`;
-}
-
-/* ---- as abas ---- */
-function abaResumo(o){
-  const atv=atvsDaObra(o.id), normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), feitas=normais.filter(atvFeita).length;
+/* ---- atividades: progresso e atrasos ---- */
+function procEstado(o){
+  const normais=atvsDaObra(o.id).filter(a=>!ehLig(a)).sort(ordenaAtv), feitas=normais.filter(atvFeita).length;
   const pend=normais.filter(a=>!atvFeita(a)), atrasadas=pend.filter(a=>N(a.controle_prazo).indexOf("ATRASO")>=0);
-  const pct=normais.length?Math.round(100*feitas/normais.length):0;
-  const docs=docsDaObra(o), dv=docs[0]&&docs[0].valores, vendas=vendasDaObra(o), ligs=ligDaObra(o), orc=dadosOrcamento(o);
-  const ext=!EXT.docs?`<div class="ajuda"><span class="load"></span> carregando…</div>`:"";
-  let h=`<div class="cards">`;
-  h+=`<div class="card"><h4>Obra<span class="sp"></span><button onclick="irAbaObra('dados')">editar dados</button></h4>${kvHtml([
-    ["Status",esc(o.status||"")],["Liberada p/ processo",esc(o.liberar||"")],["Projeto aprovado",esc(o.projeto_aprovado||"")],
-    ["Previsão de término",esc(dataBr(o.data_prevista))],["Responsável",esc(o.resp||""),!o.resp],["Engenheiro RT",esc(o.rt||""),!o.rt],
-    ["Proprietário",esc(o.proprietario||""),!o.proprietario],["Nº de casas",esc(o.n_casas==null?"":o.n_casas),!o.n_casas],["Implantação",esc(o.implantacao||"")]])}</div>`;
-  h+=`<div class="card"><h4>Processo<span class="sp"></span><button onclick="irAbaObra('atividades')">ver atividades</button></h4>
-    ${normais.length?`<div style="font-size:12.5px;font-weight:700">${feitas} de ${normais.length} atividades concluídas (${pct}%)</div><div class="barra"><i style="width:${pct}%"></i></div>`
-      :`<div class="ajuda">Nenhuma atividade ligada a esta obra ainda.</div>`}
-    ${atrasadas.length?`<div class="orig" style="color:var(--verm)">Em atraso: ${atrasadas.slice(0,4).map(a=>esc(a.titulo||a.tipo)).join(" · ")}${atrasadas.length>4?" …":""}</div>`:""}
-    ${pend.length?`<div class="orig" style="margin-top:4px">Próximas: ${pend.filter(a=>atrasadas.indexOf(a)<0).slice(0,3).map(a=>esc((a.titulo||a.tipo)+(a.data_final?" ("+dataBr(a.data_final)+")":""))).join(" · ")||"—"}</div>`:""}</div>`;
-  h+=`<div class="card"><h4>Documentos<span class="sp"></span><button onclick="irAbaObra('dvl')">detalhes</button></h4>${ext||(!dv?`<div class="ajuda">Esta obra ainda não tem linha em Documentos.</div>`:
-    kvHtml([["Obra iniciada",esc(txtVal(colDe(dv,"OBRA INCIADA")))],["Obra finalizada",esc(txtVal(colDe(dv,"OBRA FINALIZADA?")))],["Despachante",esc(txtVal(colDe(dv,"DESPACHANTE")))],
-      ["Início previsto",esc(dataBr(colDe(dv,"PREVISÃO DE INÍCIO DE OBRA")))],["Entrada do alvará",esc(dataBr(colDe(dv,"DATA DE ENTRADA DE ALVARA")))]])+
-    `<div style="margin-top:8px">${ckDocsHtml(dv)}</div>`+(alertasDoc(dv).length?`<div class="orig" style="margin-top:6px;color:#B45309">${alertasDoc(dv).map(esc).join(" · ")}</div>`:""))}</div>`;
-  h+=`<div class="card"><h4>Vendas<span class="sp"></span><button onclick="irAbaObra('dvl')">detalhes</button></h4>${ext||casasHtml(o,vendas)}</div>`;
-  h+=`<div class="card"><h4>Ligações de água e energia<span class="sp"></span><button onclick="irAbaObra('dvl')">detalhes</button></h4>${ext||ligHtml(ligs,true)}</div>`;
-  h+=`<div class="card"><h4>3D e orçamento<span class="sp"></span><button onclick="irAbaObra('orc')">abrir</button></h4>
-    ${orc.faltas.length?`<div class="ck">${orc.faltas.map(x=>`<span class="n">✗ ${esc(x.rot)}</span>`).join("")}</div><div class="orig" style="margin-top:6px">Dados que faltam para o orçamento.</div>`
-      :`<div class="ck"><span class="s">✓ Dados do orçamento completos</span></div>`}
-    <div style="margin-top:8px"><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener">🧊 Abrir modelo 3D</a></div></div>`;
-  h+=`</div>`;
+  return {normais,feitas,pend,atrasadas,pct:normais.length?Math.round(100*feitas/normais.length):0};
+}
+
+/* ===================== RESUMO ===================== */
+function abaResumo(o){
+  const P=procEstado(o), D=EXT.docs?docsEstado(o):null, C=EXT.vendas?casasDaObra(o):[], L=EXT.lig?ligDaObra(o).map(ligEstado):[], orc=dadosOrcamento(o);
+  const carreg=!EXT.docs, ro=window.OrcObra&&OrcObra.resumo(o);
+  /* números do topo */
+  const de=D&&!D.R.concluido?D.R.E[D.R.atual]:null;
+  const vend=C.filter(c=>c.vendida).length, ent=C.filter(c=>c.entregue).length;
+  const ligd=L.filter(x=>/^(LIGADO|TRANSFERIDO|ENTREGUE)/.test(N(x.status))).length;
+  let h=`<div class="tiles">
+    <button class="tile ${P.atrasadas.length?"late":""}" onclick="irAbaObra('atividades')"><span>Processo</span><b>${P.normais.length?P.pct+"%":"—"}</b><small>${P.feitas} de ${P.normais.length} atividades${P.atrasadas.length?` · <i>${P.atrasadas.length} em atraso</i>`:""}</small></button>
+    <button class="tile ${de&&(de.atrasada||atrasoEtapa(de,D.med))?"late":""}" onclick="irAbaObra('docs')"><span>Documentos</span><b>${carreg?"…":!D?"—":D.R.concluido?"✓":(D.R.atual+1)+"/"+D.R.E.length}</b><small>${carreg?"carregando":!D?"sem linha em Documentos":D.R.concluido?"concluídos":esc(de.nome)+(de.dias!=null?" · há "+diasTxt(de.dias):"")}</small></button>
+    <button class="tile" onclick="irAbaObra('vendas')"><span>Vendas</span><b>${carreg?"…":C.length?vend+"/"+C.length:"—"}</b><small>${C.length?`vendidas · ${ent} entregue${ent===1?"":"s"}`:"nenhuma casa em Vendas"}</small></button>
+    <button class="tile" onclick="irAbaObra('lig')"><span>Ligações</span><b>${carreg?"…":L.length?ligd+"/"+L.length:"—"}</b><small>${L.length?"ligadas":"nenhuma criada"}</small></button>
+    <button class="tile ${orc.faltas.length?"warn":""}" onclick="irAbaObra('orc')"><span>Orçamento</span><b>${ro?(ro.total/1000).toLocaleString("pt-BR",{maximumFractionDigits:0})+" mil":orc.faltas.length?"⚠ "+orc.faltas.length:"✓"}</b><small>${ro?(ro.salvo?"prévia salva":"prévia não salva"):orc.faltas.length?"dados faltando":"dados completos"}</small></button>
+  </div>`;
+  /* o que precisa de atenção */
+  const at=[];
+  P.atrasadas.forEach(a=>at.push(["Atividade",esc(a.titulo||a.tipo)+(a.data_final?" — prazo "+dataBr(a.data_final):""),"atividades"]));
+  if(D){ const e=de; if(e&&(e.atrasada||atrasoEtapa(e,D.med))) at.push(["Documentos",esc(e.atrasoTxt||("“"+e.nome+"” há "+diasTxt(e.dias)+", acima do prazo médio ("+diasTxt(D.med[e.k].dias)+")")),"docs"]);
+    D.R.pendAnt.forEach(e=>at.push(["Documentos","Pendência na etapa “"+esc(e.nome)+"”: "+e.itens.filter(x=>x.est==="aberto").map(x=>esc(x.r)).join(", "),"docs"]));
+    D.alertas.forEach(a=>at.push(["Documentos",esc(a),"docs"])); }
+  C.forEach(c=>{ const e=c.R&&c.R.atual>=0?c.R.E[c.R.atual]:null; if(e&&(e.atrasada||atrasoEtapa(e,c.med))) at.push(["Vendas","Casa "+esc(c.casa)+" — "+esc(e.atrasoTxt||("“"+e.nome+"” há "+diasTxt(e.dias))),"vendas"]); c.alertas.forEach(a=>at.push(["Vendas","Casa "+esc(c.casa)+" — "+esc(a),"vendas"])); });
+  L.forEach(x=>{ const e=x.R.atual>=0?x.R.E[x.R.atual]:null; if(e&&(e.atrasada||atrasoEtapa(e,x.med))) at.push(["Ligações","Casa "+esc(x.casa)+" · "+esc(x.conc)+" — "+esc(e.atrasoTxt||("“"+e.nome+"” há "+diasTxt(e.dias))),"lig"]); });
+  orc.faltas.forEach(x=>at.push(["Orçamento","Falta: "+esc(x.rot),"orc"]));
+  h+=`<div class="rs-grid"><div class="rs-col">`;
+  /* linha do tempo dos documentos */
+  h+=`<div class="blk"><div class="blk-h"><b>Linha do tempo da obra</b><span class="orig">Documentos</span><span class="sp"></span><button class="lk" onclick="irAbaObra('docs')">ver etapas →</button></div>${carreg?`<div class="ajuda"><span class="load"></span> carregando…</div>`:!D?`<div class="ajuda">Esta obra ainda não tem linha em Documentos.</div>`:heroHtml(D.R,D.med,{fimTxt:"Documentos concluídos"})+stepperHtml(D.R,D.med)}</div>`;
+  /* casas */
+  h+=`<div class="blk"><div class="blk-h"><b>Casas</b><span class="orig">venda e ligações de cada casa</span><span class="sp"></span><button class="lk" onclick="irAbaObra('vendas')">vendas →</button><button class="lk" onclick="irAbaObra('lig')">ligações →</button></div>`;
+  if(carreg) h+=`<div class="ajuda"><span class="load"></span> carregando…</div>`;
+  else if(!C.length&&!L.length) h+=`<div class="ajuda">Nenhuma casa em Vendas nem ligação criada ainda.</div>`;
+  else{
+    const nums=[...new Set(C.map(c=>String(c.casa)).concat(L.map(x=>x.casa).filter(Boolean)))].sort((a,b)=>Number(a)-Number(b));
+    h+=`<div class="cs-t">`+nums.map(n=>{
+      const c=C.find(x=>String(x.casa)===n), ls=L.filter(x=>x.casa===n);
+      const ev=c&&c.R?(c.R.concluido?"processo concluído":c.R.E[c.R.atual].nome+(c.R.E[c.R.atual].dias!=null?" · há "+diasTxt(c.R.E[c.R.atual].dias):"")):"";
+      return `<div class="cs-r"><b>Casa ${esc(n)}</b><div class="cs-v">${c?casaSituacaoChip(c):""}${ev?`<span class="orig">${esc(ev)}</span>`:""}${c&&c.R?stepperHtml(c.R,c.med,{mini:true}):""}</div>
+        <div class="cs-l">${ls.map(x=>{ const e=x.R.atual>=0?x.R.E[x.R.atual]:null; const ok=/^(LIGADO|TRANSFERIDO)/.test(N(x.status)); const late=e&&(e.atrasada||atrasoEtapa(e,x.med));
+          return `<span class="lgc ${ok?"ok":late?"late":""}" title="${esc(x.conc+" · "+x.status+(e?" · etapa: "+e.nome:""))}">${/EQUATORIAL|ENEL/.test(N(x.conc))?"⚡":/ESGOTO/.test(N(x.conc))?"🚽":"💧"} ${esc(x.conc)}<i>${ok?"ligado":e?esc(e.nome.toLowerCase())+(e.dias!=null?" · "+diasTxt(e.dias):""):"—"}</i></span>`; }).join("")||`<span class="orig">sem ligações</span>`}</div></div>`;
+    }).join("")+`</div>`;
+  }
+  h+=`</div></div><div class="rs-col">`;
+  h+=`<div class="blk"><div class="blk-h"><b>Precisa de atenção</b><span class="cnt ${at.length?"rd":""}">${at.length}</span></div>${at.length?`<div class="att">${at.slice(0,14).map(([q,t,ab])=>`<button class="at-i" onclick="irAbaObra('${ab}')"><span class="at-q">${q}</span><span>${t}</span></button>`).join("")}${at.length>14?`<div class="orig">+ ${at.length-14}…</div>`:""}</div>`:`<div class="ok-msg">✓ Nada atrasado nem faltando.</div>`}</div>`;
+  h+=`<div class="blk"><div class="blk-h"><b>Processo</b><span class="sp"></span><button class="lk" onclick="irAbaObra('atividades')">atividades →</button></div>
+    ${P.normais.length?`<div class="pr-l"><b>${P.feitas} de ${P.normais.length}</b> atividades concluídas<span>${P.pct}%</span></div><div class="barra"><i style="width:${P.pct}%"></i></div>
+    ${P.pend.slice(0,4).map(a=>`<div class="pr-i ${P.atrasadas.indexOf(a)>=0?"late":""}"><span>${esc(a.titulo||a.tipo)}</span><small>${a.data_final?dataBr(a.data_final):""}</small></div>`).join("")}`:`<div class="ajuda">Nenhuma atividade ligada a esta obra ainda.</div>`}</div>`;
+  h+=`<div class="blk"><div class="blk-h"><b>Obra</b><span class="sp"></span><button class="lk" onclick="irAbaObra('dados')">editar →</button></div><div class="infos col2">${[
+    ["Responsável",o.resp],["Engenheiro RT",o.rt],["Proprietário",o.proprietario],["Nº de casas",o.n_casas],["Implantação",o.implantacao],["Projeto aprovado",o.projeto_aprovado],
+    ["Previsão de término",dataBr(o.data_prevista)],["Liberada p/ processo",o.liberar]].map(([k,v])=>`<div><span>${esc(k)}</span><b class="${v==null||v===""?"vz":""}">${v==null||v===""?"—":esc(v)}</b></div>`).join("")}</div></div>`;
+  h+=`</div></div>`;
   if(EXT.erro) h+=`<div class="ajuda" style="margin:8px 22px 0">⚠ ${esc(EXT.erro)} — mostrando a última cópia salva.</div>`;
   h+=`<div class="grp">Comentários e imagens</div><div class="pl" id="com-obra">${comentariosHtml(o.id)}</div>`;
   return h;
@@ -1370,34 +1825,6 @@ function abaAtividades(o){
   else h+=gantt(normais);
   return h+`</div>`;
 }
-function abaDvl(o){
-  const docs=docsDaObra(o), vendas=vendasDaObra(o), ligs=ligDaObra(o), lig=atvsDaObra(o.id).filter(ehLig).sort(ordenaAtv);
-  let h="";
-  /* DOCUMENTOS */
-  h+=`<div class="grp">Documentos <span class="sp"></span><a class="tg" style="text-decoration:none" href="documentos.html" target="_blank" rel="noopener">abrir Documentos</a></div><div class="pl">`;
-  if(!EXT.docs) h+=`<div class="ajuda"><span class="load"></span> carregando…</div>`;
-  else if(!docs.length) h+=`<div class="ajuda">Esta obra ainda não tem linha em Documentos.</div>`;
-  else{
-    const v=docs[0].valores||{}, ks=Object.keys(v).filter(k=>!vazioDoc(v[k])&&!/-AUTO$|^ALERTA|^ELERTA|^ENDERECO$|^OBRA-AUTO$/.test(N(k)));
-    const datas=ks.filter(k=>/^DATA|^PREVISAO/.test(N(k))&&dataBr(v[k])), ck=ks.filter(k=>/^(SIM|NAO|INEXISTE)/.test(N(v[k]))&&datas.indexOf(k)<0);
-    const outros=ks.filter(k=>datas.indexOf(k)<0&&ck.indexOf(k)<0);
-    const al=alertasDoc(v);
-    if(al.length) h+=`<div class="alertas-orc" style="margin:0 0 10px"><b>Alertas</b>${al.map(esc).join("<br>")}</div>`;
-    h+=`<div class="ck" style="margin-bottom:10px">${ck.sort().map(k=>{ const s=N(v[k]); return `<span class="${/^SIM/.test(s)?"s":/^NAO/.test(s)?"n":""}">${/^SIM/.test(s)?"✓":/^NAO/.test(s)?"✗":"•"} ${esc(k.trim())}</span>`; }).join("")}</div>`;
-    h+=`<div class="cards" style="padding:0">`+
-      `<div class="card"><h4>Datas</h4>${datas.length?kvHtml(datas.sort().map(k=>[k.trim(),esc(dataBr(v[k]))])):`<div class="ajuda">Nenhuma data preenchida.</div>`}</div>`+
-      `<div class="card"><h4>Outros</h4>${outros.length?kvHtml(outros.sort().map(k=>[k.trim(),esc(txtVal(v[k]))])):`<div class="ajuda">—</div>`}</div></div>`;
-  }
-  h+=`</div>`;
-  /* VENDAS */
-  h+=`<div class="grp">Vendas <span class="sp"></span><a class="tg" style="text-decoration:none" href="vendas.html" target="_blank" rel="noopener">abrir Vendas</a></div><div class="pl">${!EXT.vendas?`<div class="ajuda"><span class="load"></span> carregando…</div>`:casasHtml(o,vendas)}</div>`;
-  /* LIGAÇÕES — a tabela da aba Ligações + as atividades de ligação e os botões de criar (antes ficavam no painel) */
-  h+=`<div class="grp">Ligações de água e energia <span class="sp"></span><a class="tg" style="text-decoration:none" href="ligacoes.html" target="_blank" rel="noopener">abrir Ligações</a></div><div class="pl">`;
-  h+=!EXT.lig?`<div class="ajuda"><span class="load"></span> carregando…</div>`:ligHtml(ligs,false);
-  h+=`<div style="margin-top:12px">${lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="ajuda">Nenhuma atividade de ligação ainda.</div>`}</div>`;
-  h+=botoesLigacaoHtml(o)+`</div>`;
-  return h;
-}
 /* Senador Canedo: SANESC + EQUATORIAL e NUNCA esgoto. Goiânia: SANEAGO + EQUATORIAL, com SANEAGO ESGOTO quando
    for "c/ esgoto". Item 9: depois de criadas, os botões travam e mostram JÁ CRIADO (igual a antes, só mudou de lugar). */
 function botoesLigacaoHtml(o){
@@ -1413,20 +1840,15 @@ function botoesLigacaoHtml(o){
       · cada casa também ganha a linha em Vendas.</div>`;
   return h;
 }
+/* ===================== 3D E ORÇAMENTO ===================== */
 function abaOrc(o){
-  const orc=dadosOrcamento(o);
   /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão MORAIS → Geral → Publicar 3D (pyRevit)
-     gravou na coluna MODELO 3D da obra */
-  let h=`<div class="grp">Modelo 3D <span class="sp"></span><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a></div>
-      <div class="ajuda" style="margin:0 22px 6px">Arquitetura, hidrossanitário e as outras disciplinas na mesma cena, com os quantitativos: clique numa linha para ver no 3D. Para publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</div>
-      <div class="m3d-lay" id="m3d-lay" style="margin:4px 22px 10px;font-size:12.5px"><span class="ajuda">Mesmo layout: carregando…</span></div>`;
-  h+=`<div class="grp">Dados para o orçamento</div>`;
-  h+=orc.faltas.length?`<div class="alertas-orc"><b>⚠ Falta ${orc.faltas.length} ${orc.faltas.length===1?"informação":"informações"} para o orçamento sair completo</b>${orc.faltas.map(x=>esc(x.rot)+(x.obs?" — "+esc(x.obs):"")).join("<br>")}</div>`
-    :`<div class="alertas-orc ok"><b>✓ Todos os dados que o orçamento usa estão preenchidos.</b></div>`;
-  h+=`<div class="pl" style="margin-top:12px"><table class="mini" style="table-layout:fixed"><colgroup><col style="width:36%"><col style="width:44%"><col style="width:20%"></colgroup><tr><th>Dado</th><th>Valor</th><th>De onde vem</th></tr>${orc.lista.map(x=>
-    `<tr><td><b>${esc(x.rot)}</b>${x.obs?`<div class="orig">${esc(x.obs)}</div>`:""}</td><td>${x.falta?`<span class="chip alerta">falta</span>`:esc(x.val)}</td><td class="orig">${esc(x.orig)}</td></tr>`).join("")}</table>
-    ${orc.form.atv?`<div class="ajuda" style="margin-top:6px">O formulário é a atividade <a href="#" onclick="abrirAtv('${orc.form.atv.id}');return false">${esc(orc.form.atv.titulo||orc.form.atv.tipo)}</a> — o que for respondido lá aparece aqui.</div>`:""}</div>`;
-  h+=`<div class="grp">Orçamento</div><div class="pl"><div class="ajuda">Em construção: aqui vai ficar a tabela prévia do orçamento desta obra — gerada pelo modelo, pelos quantitativos do 3D e pelos dados acima, toda editável e ligada ao catálogo do Mais Controle — e o botão para enviar ao MC.</div></div>`;
+     gravou na coluna MODELO 3D da obra. v2: uma faixa só em cima; a planilha do orçamento é o corpo da aba. */
+  let h=`<div class="m3d-bar"><a class="bt az" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a>
+      <div class="m3d-lay" id="m3d-lay"><span class="ajuda">Mesmo layout: carregando…</span></div>
+      <span class="ajuda">Publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</span></div>`;
+  h+=`<div class="tab-top" style="margin-top:6px"><div class="tt"><b>Planilha prévia do orçamento</b><span>modelo REF 127 + quantitativos do Revit + dados da obra e do formulário · custos do catálogo do Mais Controle</span></div></div>`;
+  h+=`<div class="pl" id="orc-box">${window.OrcObra?OrcObra.html(o,ctxOrcamento(o)):`<div class="ajuda">⚠ não carregou o módulo do orçamento (js/obra-orcamento.js)</div>`}</div>`;
   return h;
 }
 function pintarObraPainel(){
@@ -1434,18 +1856,26 @@ function pintarObraPainel(){
   document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
   document.getElementById("p1-loc").textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
   if(!EXT.docs&&!EXT.carregando) carregarExtrasObra();
-  const normais=atvsDaObra(o.id).filter(a=>!ehLig(a)), pend=normais.filter(a=>!atvFeita(a)).length;
-  const falta=faltasDe(o).length, faltaOrc=dadosOrcamento(o).faltas.length;
-  const n=(v,al)=>v?`<span class="n ${al?"al":""}">${v}</span>`:"";
-  const cont={dados:n(falta,1),atividades:n(pend),dvl:"",orc:n(faltaOrc,1),resumo:""};
+  const P=procEstado(o), falta=faltasDe(o).length, faltaOrc=dadosOrcamento(o).faltas.length;
+  const n=(v,al)=>v?`<span class="n ${al?"rd":""}">${v}</span>`:"";
+  const D=EXT.docs?docsEstado(o):null, de=D&&!D.R.concluido?D.R.E[D.R.atual]:null;
+  const C=EXT.vendas?casasDaObra(o):[], L=EXT.lig?ligDaObra(o).map(ligEstado):[];
+  const lateV=C.filter(c=>c.R&&c.R.atual>=0&&(c.R.E[c.R.atual].atrasada||atrasoEtapa(c.R.E[c.R.atual],c.med))).length;
+  const lateL=L.filter(x=>x.R.atual>=0&&(x.R.E[x.R.atual].atrasada||atrasoEtapa(x.R.E[x.R.atual],x.med))).length;
+  const cont={dados:n(falta,1),atividades:n(P.pend.length,P.atrasadas.length),docs:de?n((D.R.atual+1)+"/"+D.R.E.length,de.atrasada||atrasoEtapa(de,D.med)):"",
+    vendas:n(lateV,1)||(C.length?n(C.filter(c=>c.vendida).length+"/"+C.length):""),lig:n(lateL,1)||(L.length?n(L.length):""),orc:n(faltaOrc,1),resumo:""};
   let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
   if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 22px;white-space:pre-line">⚠ Alterações nesta obra — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
   h+=`<div class="otabs">${OB_ABAS.map(([k,r])=>`<button class="otab ${ABA_OB===k?"on":""}" onclick="irAbaObra('${k}')">${esc(r)}${cont[k]||""}</button>`).join("")}</div>`;
-  h+=ABA_OB==="dados"?abaDados(o):ABA_OB==="atividades"?abaAtividades(o):ABA_OB==="dvl"?abaDvl(o):ABA_OB==="orc"?abaOrc(o):abaResumo(o);
+  h+=`<div class="ob-corpo">`+(ABA_OB==="dados"?abaDados(o):ABA_OB==="atividades"?abaAtividades(o):ABA_OB==="docs"?abaDocs(o):ABA_OB==="vendas"?abaVendas(o):
+     ABA_OB==="lig"?abaLig(o):ABA_OB==="orc"?abaOrc(o):abaResumo(o))+`</div>`;
+  document.getElementById("p1").classList.toggle("larga",ABA_OB==="orc");
   document.getElementById("p1-corpo").innerHTML=h;
   aplicarCombos(document.getElementById("p1-corpo"));
-  if(ABA_OB==="orc") carregarLayout3d(o.id);
+  /* o orçamento espera o formulário de obra chegar (padrões, arrimo, esgoto); o preCarregarConteudos repinta quando ele vem */
+  if(ABA_OB==="orc"){ carregarLayout3d(o.id); const cx=ctxOrcamento(o); if(window.OrcObra&&!cx.form.carregando) OrcObra.abrir(o,cx); }
 }
+
 /* 25/09/26 — GRAVAÇÃO OTIMISTA NA OBRA (mesma ideia da baixa de atividade).
    Antes a obra só mudava na memória DEPOIS da resposta do servidor: quem
    fechava o painel antes do "salvo" continuava vendo o alerta e, ao reabrir,
