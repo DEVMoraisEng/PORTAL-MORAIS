@@ -358,7 +358,11 @@ def linhas_novas_e_atualizadas(ocs: list, existentes: dict, sem_lancamento=None,
                                      "cancelada")}
         mc["visto_em"] = agora
         if oc["oc_id"] in existentes:
-            atual.append(dict(mc, oc_id=oc["oc_id"]))
+            # 16/11: o upsert do PostgREST é um INSERT … ON CONFLICT — o Postgres confere NOT NULL (fornecedor, acao)
+            # antes do conflito. Sem eles, a linha que já existe dava HTTP 400 (23502). Vão sempre, iguais aos de antes.
+            reg = existentes[oc["oc_id"]] or {}
+            atual.append(dict(mc, oc_id=oc["oc_id"], fornecedor=reg.get("fornecedor") or oc.get("fornecedor") or f[0],
+                              acao=reg.get("acao") or f[1]))
             continue
         if oc.get("cancelada"):
             continue
@@ -428,12 +432,12 @@ class Supa:
         return json.loads(txt) if txt.strip() else None
 
     def existentes(self) -> dict:
-        l = self.pedir("GET", TABELA + "?select=oc_id,acao,resposta,robo_situacao&limit=5000") or []
+        l = self.pedir("GET", TABELA + "?select=oc_id,fornecedor,acao,resposta,robo_situacao&limit=5000") or []
         return {x["oc_id"]: x for x in l}
 
     def gravar(self, linhas: list) -> None:
         """Upsert por oc_id. O PostgREST exige as MESMAS chaves em todas as linhas de um lote: agrupa por chaves
-        (nova tem fornecedor/ação; a que já existe, não; a conferida tem os anexos)."""
+        (a conferida tem os anexos). Toda linha leva fornecedor e acao (NOT NULL — o INSERT do upsert confere)."""
         grupos: dict = {}
         for ln in linhas:
             grupos.setdefault(tuple(sorted(ln)), []).append(ln)

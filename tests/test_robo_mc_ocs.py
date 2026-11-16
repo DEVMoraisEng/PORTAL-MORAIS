@@ -119,6 +119,8 @@ def test_novas_e_atualizadas_nao_mexem_na_resposta():
     assert ja_aprovada["oc_id"] not in ids and cancelada["oc_id"] not in ids
     assert [x["oc_id"] for x in atual] == [existente["oc_id"]]
     assert all("resposta" not in x and "robo_situacao" not in x for x in novas + atual)
+    # 16/11: upsert = INSERT … ON CONFLICT — sem fornecedor/acao (NOT NULL) a linha existente dava HTTP 400 (23502)
+    assert all(x.get("fornecedor") and x.get("acao") for x in novas + atual)
     assert {x["acao"] for x in novas} == {"APROVAR", "PARCELA"}
 
 
