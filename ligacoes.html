@@ -1181,7 +1181,9 @@ const ABAS = {
     titulo: "Conferências de ligações solicitadas",
     /* CPF/CNPJ (a fórmula que já junta V1 e V2) em vez de "CPF/CNPJ V1": na
        base real a V1 vinha vazia e a coluna aparecia só com "—". */
-    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_LIG,
+    /* 16/11/2026 (dono, item 8): DATA DA APROVAÇÃO SANESC logo depois da solicitação — nas outras
+       concessionárias a célula mostra NÃO PRECISA (ver naoPrecisaAprov) */
+    colunas: [C.OBRA, C.CONC, C.CPF, C.DT_SOL, C.DT_APROV, C.DT_LIG,
               CALC.LIG_CORRIDO, C.RESP, C.STATUS,
               confCol("conferencias","SEM"), confCol("conferencias","DATA"),   // 21/10: logo depois do STATUS
               C.ALERTA_LIG, confCol("conferencias","OBS"), confCol("conferencias","ANEXO")],
@@ -1480,9 +1482,11 @@ const TXT_LIG_ATRASADO = "🚨 ATRASADO! VERIFICAR PROBLEMA";
    a data é a prova, igual à _regraSanesc). Antes disso a pendência é a
    aprovação (aba Acompanhamento SANESC), não a ligação. Demais concessionárias:
    sempre liberada. */
+/* 16/11/2026 (dono, item 9): passa a exigir as DUAS coisas — SOLICITAÇÃO SANESC APROVADA? = SIM **e** a DATA DA
+   APROVAÇÃO SANESC preenchida. Só o SIM sem data fica no Acompanhamento SANESC (lá o alerta pede a data). */
 function sanescLiberadaLigacao(l){
   if (normN(sel(l, C.CONC)) !== "SANESC") return true;
-  return sel(l, C.APROVADA) === "SIM" || dataPreenchida(l, C.DT_APROV);
+  return sel(l, C.APROVADA) === "SIM" && dataPreenchida(l, C.DT_APROV);
 }
 function _nivelPrazoLigacao(l){
   const dias = diasCorridosLigacao(l);      // null enquanto não tiver DATA DE SOLICITAÇÃO
@@ -1680,7 +1684,7 @@ function diasProcessoSanesc(l){
    APROVAÇÃO (a ligação só pode acontecer depois dela), não da solicitação.
    Sem a data da aprovação, e nas demais concessionárias: da DATA DE SOLICITAÇÃO. */
 function inicioPrazoLigacao(l){
-  if (normN(sel(l, C.CONC)) === "SANESC" && dataPreenchida(l, C.DT_APROV)) return dataReal(l, C.DT_APROV);
+  if (normN(sel(l, C.CONC)) === "SANESC" && dataPreenchida(l, C.DT_APROV)) return dataReal(l, C.DT_APROV);   // 16/11: vale também p/ DIAS P/ LIGAR
   return dataReal(l, C.DT_SOL);
 }
 function diasCorridosLigacao(l){
@@ -1701,8 +1705,11 @@ function prazoSemUc(l){
   return diasAte(ini, fim);
 }
 
+/* 16/11/2026 (dono, item 11): na SANESC o tempo de ligação conta da DATA DA APROVAÇÃO SANESC (mesmo início do
+   PRAZO SEM LIGAÇÃO — inicioPrazoLigacao); nas demais, da DATA DE SOLICITAÇÃO. Vale para a coluna DIAS P/ LIGAR
+   e para o gráfico de tempo de ligação. */
 function diasLigacao(l){
-  const d = diasEntre(dataReal(l, C.DT_SOL), dataReal(l, C.DT_LIG));
+  const d = diasEntre(inicioPrazoLigacao(l), dataReal(l, C.DT_LIG));
   return (d == null || d < 0) ? null : d;   // negativo = data digitada trocada
 }
 /* Tempo de aprovação: solicitação -> aprovação (só SANESC, como pedido). */
@@ -2529,7 +2536,7 @@ function montarAnos(){
    diferentes; "Atrasadas" vem de uma fórmula do Notion). Esses continuam pelo
    RECORTE, com a tarja de "Mostrando:" — que é removível no × . */
 const RECORTES = {
-  todas:     { lab:"Linhas de ligação",    sub:"uma por casa e concessionária", teste: () => true,
+  todas:     { lab:"QUANTIDADE DE LIGAÇÕES", sub:"uma por casa e concessionária",   /* 16/11/2026: era "Linhas de ligação" */ teste: () => true,
                filtros: [] },
   ligadas:   { lab:"Já ligadas",           sub:"",                              teste: l => ["LIGADO","TRANSFERIDO","ENTREGUE NAO TRANSFERIDO"].indexOf(normN(sel(l,C.STATUS))) >= 0,
                filtros: null },
@@ -2918,7 +2925,18 @@ function ehColunaUc(nome){
   return n === normN(V.UC_ENERGIA) || n === normN(V.UC_AGUA) || n === normN(V.ST_ENERGIA) || n === normN(V.ST_AGUA);
 }
 
+/* 16/11/2026 (dono, item 8): a aprovação só existe na SANESC. Nas outras concessionárias as colunas
+   SOLICITAÇÃO SANESC APROVADA? e DATA DA APROVAÇÃO SANESC mostram NÃO PRECISA (tabela, PDF e painel) e não
+   abrem para edição. */
+function naoPrecisaAprov(l, nome){
+  if (!l || !l.v) return false;
+  const n = normN(nome);
+  if (n !== normN(C.DT_APROV) && n !== normN(C.APROVADA)) return false;
+  const conc = normN(sel(l, C.CONC));
+  return !!conc && conc !== "SANESC";
+}
 function celulaTexto(l, nome, fonte){
+  if (fonte !== "vendas" && naoPrecisaAprov(l, nome)) return "NÃO PRECISA";
   if (ehCalculada(nome)){ const d = CALC_DEF[nome].valor(l); return d == null ? "—" : String(d); }
   const cf = confDe(nome);
   if (cf && cf.papel === "SEM") return confSemanaOk(l, cf.aba) ? "SIM" : "NÃO";
@@ -2952,6 +2970,8 @@ function celulaTexto(l, nome, fonte){
 }
 
 function celula(l, nome, fonte){
+  if (fonte !== "vendas" && naoPrecisaAprov(l, nome))
+    return '<span class="pill neutro" title="Só a SANESC tem aprovação da solicitação">NÃO PRECISA</span>';
   if (ehCalculada(nome)){
     if (CALC_DEF[nome].html) return CALC_DEF[nome].html(l);
     const d = CALC_DEF[nome].valor(l);
@@ -3179,7 +3199,7 @@ function tabelaHtml(linhas, colunas, extras, fonte, corDe, ctx){
                      + `<th class="${clsOrd(ORD_DIAS_APR)}" data-i="${cols.length+1}" title="Clique para ordenar">Dias p/ aprovar${seta(ORD_DIAS_APR)}</th>` : "");
   const tr = linhas.map(l => {
     const tds = cols.map((c,i) => {
-      const ed = podeEditarNaTabela(c, fonte);
+      const ed = podeEditarNaTabela(c, fonte) && !(fonte !== "vendas" && naoPrecisaAprov(l, c));   // 16/11: NÃO PRECISA não edita
       const cfc = confDe(c);   // 21/10: data da conferência vencida = roxo
       const roxo = cfc && cfc.papel === "DATA" && confAtrasada(l, cfc.aba);
       const cls = [i===0?"stick":"", ed?"edt":"", ehAlerta(c)?"wide":"", roxo?"conf-roxo":""].filter(Boolean).join(" ");
@@ -5036,7 +5056,9 @@ function corpoPainel(l){
     const v = getL(l, nome);
     const idc = "c_" + normN(nome).replace(/[^A-Z0-9]/g,"");
     html += `<div class="campo"><label>${esc(nome)}</label>`;
-    if (!ehEditavel(nome) || ["formula","rollup","relation","created_time","last_edited_time"].indexOf(tipo) >= 0){
+    if (naoPrecisaAprov(l, nome)){
+      html += `<div class="ro">${celula(l,nome)}</div><div class="dica">só a SANESC tem aprovação</div>`;
+    } else if (!ehEditavel(nome) || ["formula","rollup","relation","created_time","last_edited_time"].indexOf(tipo) >= 0){
       html += `<div class="ro">${celula(l,nome)}</div>`;
       if (tipo === "formula") html += `<div class="dica">calculado pelo Notion</div>`;
     } else if (soAdmEdita(nome) && !ehAdmLig()){
@@ -5106,9 +5128,55 @@ function corpoPainel(l){
       <label>Administração</label>
       <button class="bt danger" onclick="arquivarLigacao()">Arquivar esta linha</button>
       <div class="dica">Tira a linha da base. Vai para a lixeira do Notion e pode ser restaurada lá em até 30 dias.</div>
+      <button class="bt ghost" style="margin-top:14px" onclick="reiniciarProcessoLigacao()">🔄 Reiniciar o processo desta ligação</button>
+      <div class="dica">Para quando a ligação deu problema e precisa recomeçar do zero: volta para NÃO LIGADO e limpa liberação, solicitação, aprovação, ligação e UC. O motivo fica no histórico da conferência.</div>
     </div>`;
   }
   return html;
+}
+
+/* ===================== 16/11/2026 (dono, item 7) — REINICIAR O PROCESSO (só ADM) =====================
+ * Ligação que deu problema e precisa recomeçar TUDO: a linha volta para o começo do fluxo —
+ *   STATUS = NÃO LIGADO · MEDIDOR COMPRADO (LIBERADO PARA SOLICITAÇÃO) = NÃO · DATA DE LIBERAÇÃO vazia ·
+ *   FEZ A SOLICITAÇÃO? = NÃO · DATA DE SOLICITAÇÃO vazia · (SANESC) APROVADA? = NÃO · DATA DA APROVAÇÃO vazia ·
+ *   Data de Ligação vazia · UC, UC PREENCHIDA (NÃO) e DATA DE PREENCHIMENTO UC vazias (esgoto mantém INEXISTE).
+ * A NF do medidor (anexo) e o histórico das conferências ficam. O motivo e quem reiniciou entram no topo do
+ * histórico OBS. CONFERÊNCIA (CONFERÊNCIAS). Uma gravação por campo, pela mesma ação ligUpdate de sempre. */
+async function reiniciarProcessoLigacao(){
+  const l = LINHA_ABERTA;
+  if (!l || !ehAdmLig() || SO_LEITURA) return;
+  const nome = (l.obra || "(sem endereço)") + " · " + (sel(l, C.CONC) || "");
+  const motivo = prompt("Reiniciar o processo de \"" + nome + "\"?\n\nA linha volta para o começo: NÃO LIGADO, sem liberação, sem solicitação, sem aprovação, sem ligação e sem UC.\n\nEscreva o motivo (fica no histórico):", "");
+  if (motivo === null) return;
+  if (!String(motivo).trim()){ toast("Escreva o motivo para reiniciar."); return; }
+  const sanesc = normN(sel(l, C.CONC)) === "SANESC";
+  const esgoto = ehLinhaEsgoto(l) || normN(sel(l, C.UC_OK)) === "INEXISTE";
+  const alvo = [[C.STATUS, "NÃO LIGADO"], [C.LIBERADO, "NÃO"], [C.DT_LIBER, ""], [C.FEZ, "NÃO"], [C.DT_SOL, ""],
+                [C.DT_APROV, ""], [C.DT_LIG, ""]];
+  if (sanesc) alvo.push([C.APROVADA, "NÃO"]);
+  if (!esgoto) alvo.push([C.UC, ""], [C.UC_OK, "NÃO"], [C.DT_UC, ""]);
+  const obsNome = confNome("conferencias", "OBS");
+  const obsAnt = String(getL(l, obsNome) || "").trim();
+  const quem = (S && (S.nome || S.u)) || "";
+  const registro = confNovaEntrada("🔄 PROCESSO REINICIADO" + (quem ? " por " + quem : "") + " — " + String(motivo).trim());
+  alvo.push([obsNome, registro + (obsAnt ? "\n\n" + obsAnt : "")]);
+  toast("Reiniciando o processo…", 6);
+  const falhas = [];
+  for (const [col, valor] of alvo){
+    const campo = campoDe(col); if (!campo) continue;
+    const atual = getL(l, col);
+    const vazio = v => v == null || v === "" || (Array.isArray(v) && !v.length);
+    if ((vazio(atual) && valor === "") || (!vazio(atual) && String(atual) === String(valor))) continue;
+    const real = nomeReal(col, "ligacoes");
+    if (l.v) setV(l.v, real, valor);
+    registrarEdicao("ligacoes", l.id, real, valor);
+    let r; try{ r = await escrever({action:"ligUpdate", pageId: l.id, prop: real, tipo: campo.tipo, valor: valor}, "reiniciar: " + real); }
+    catch(e){ r = { ok:false, erro:"sem conexão" }; }
+    if (!r || !r.ok){ falhas.push(real + " (" + erroTexto(r && r.erro) + ")"); if (l.v) setV(l.v, real, atual); esquecerEdicao("ligacoes", l.id, real); }
+  }
+  renderKpis(); renderGraficos(); renderPlanilha(); renderSetores();
+  if (LINHA_ABERTA === l) abrirLinha(l.id);
+  toast(falhas.length ? "Reiniciado, mas não gravou: " + falhas.join(", ") : "Processo reiniciado — a ligação voltou para o começo.", 8);
 }
 
 /* Arquiva a linha aberta no painel. Duas confirmações de propósito: some da

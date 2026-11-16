@@ -350,6 +350,9 @@ def main():
     # isso era a ação "posObra" do Apps Script — uma execução inteira, na fila,
     # a cada clique numa obra.
     por_obra_atv = {}
+    # 16/11/2026 (dono): chamados EM ABERTO, resumidos — a aba Atividades do portal mostra estes em
+    # "De outras abas" (origem Pós Obra) para quem tem o acesso PÓS OBRA. Sem cliente/telefone.
+    abertos = []
     for a in atvs:
         props = a.get("properties") or {}
         chamados.append(a.get("id"))
@@ -405,6 +408,19 @@ def main():
             item["info"] = info_da_coluna(props, col)
             item["andamentoEvento"] = andamento_da_coluna(props, col, geral)
             marcacoes.append(item)
+
+        if aberta:
+            abertos.append({
+                "id": sem_hifen(a.get("id")),
+                "obraId": sem_hifen(rel[0].get("id")) if rel else None,
+                "nome": nome_chamado,
+                "andamento": geral,
+                "responsavel": v_tol(props, "RESPONSÁVEL"),
+                "servico": servicos,
+                "dataChamado": v_tol(props, "DATA DO CHAMADO"),
+                "agendamento": v_tol(props, "DATA AGENDAMENTO SERVIÇO"),
+                "criado": (a.get("created_time") or "")[:10],
+            })
 
         # registro completo do chamado, para o arquivo da obra
         if rel:
@@ -527,6 +543,7 @@ def main():
         "obras": obras,
         "marcacoes": marcacoes,
         "chamados": chamados,
+        "abertos": abertos,
         "flexCampo": flex_campo,
         "schema": schema_atv,
     })

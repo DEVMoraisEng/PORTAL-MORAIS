@@ -24,7 +24,7 @@ test("cada campo vai para a aba certa", () => {
   assert.equal(P.abaDoCampo("ASSINOU E ARMAZENOU CONTRATO DO BANCO?"), "andamento", "contrato do banco é andamento, não o nosso contrato");
 });
 
-/* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha de casas de rua da Secretária de Vendas
+/* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha de casas de rua da Secretaria de Vendas
    (antes era por departamento e embaralhava a ordem do processo) */
 test("Andamento em etapas na ordem da planilha; coluna nova cai em OUTROS CAMPOS", () => {
   assert.equal(P.etapa("MANDOU TODOS OS DOCS. P/ CORESSPONDENTE?"), "CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE");

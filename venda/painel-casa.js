@@ -92,7 +92,7 @@
   /* 13/11/2026 (dono): "perdeu a ordem dos processos" — o Andamento era separado por DEPARTAMENTO (banco, cartório,
    * entrega…), e cada departamento juntava campos de pontos diferentes do processo (RECEBEU? ia para o banco, lá em
    * cima, antes do cartório; GCAP ia para o cartório, antes da entrega). Agora são ETAPAS na MESMA ORDEM das colunas
-   * da planilha de casas de rua da Secretária de Vendas (ORDEM_PREFIXOS do vendas.html): cada etapa é um trecho
+   * da planilha de casas de rua da Secretaria de Vendas (ORDEM_PREFIXOS do vendas.html): cada etapa é um trecho
    * contínuo daquela ordem, então ler o Andamento de cima para baixo = ler a planilha da esquerda para a direita.
    * O primeiro padrão que casar leva o campo; dentro da etapa vale a ordem recebida (a da planilha). Coluna nova que
    * não casar com nenhuma etapa cai em OUTROS CAMPOS, no fim. */

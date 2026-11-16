@@ -1079,6 +1079,7 @@ th.th-ord .seta{font-size:10px;opacity:.9}
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="atv-contadores.js?v=1"></script>
 <script src="alertas-docs.js?v=1"></script>
 <script src="painel-abas.js?v=2"></script>
 <script>
@@ -1161,10 +1162,12 @@ const SETORES=[
   {nome:"Departamento de Projetos", d:"Felipe e Arthur", responsaveis:["José Arthur","felipe berçan"],
    /* sem calendários, a pedido (set/26): este setor não agenda obra */
    abas:["atividades","alertas","planilha","projetos"], colunas:"PROJETOS"},
-  {nome:"João Vítor", d:"Alertas, planilha e calendários", responsaveis:null,
-   abas:["alertas","planilha","calendarios"], colunas:"TUDO"},
-  {nome:"Júlio César", d:"Atividades, alertas e planilha", responsaveis:["Júlio César Gomes de Morais"],
-   abas:["atividades","alertas","planilha","calendarios","projetos"], colunas:"TUDO"}
+  /* 16/11/2026 (dono): João Vítor e Júlio César só com Atividades e Alertas — planilha, calendários e projetos
+     repetiam a Secretaria de Vendas e o Departamento de Projetos. */
+  {nome:"João Vítor", d:"Atividades e alertas", responsaveis:["João Vitor"],
+   abas:["atividades","alertas"], colunas:"TUDO"},
+  {nome:"Júlio César", d:"Atividades e alertas", responsaveis:["Júlio César Gomes de Morais"],
+   abas:["atividades","alertas"], colunas:"TUDO"}
 ];
 const ROTULO_ABA={atividades:"Atividades", alertas:"Alertas", planilha:"Planilha",
                   calendarios:"Calendários", indicadores:"Indicadores", projetos:"Projetos p/ aprovação"};
@@ -1512,6 +1515,7 @@ function abrirSetor(nome){
   const s=SETORES.find(x=>x.nome===nome);
   document.getElementById("tabs-setor").innerHTML =
     s.abas.map((t,i)=>`<button class="tab${i===0?" on":""}" data-t="${t}" onclick="abaSetor('${t}')">${ROTULO_ABA[t]||t}</button>`).join("");
+  if(s.responsaveis && s.abas.indexOf("atividades")>=0) atvBadge('#tabs-setor .tab[data-t="atividades"]', atividadesDoSetor(nome).length);   // 16/11
   abaSetor(s.abas[0]);
 }
 function abaSetor(t){
@@ -1540,6 +1544,7 @@ function renderAtividades(){
   const lista=atividadesDoSetor(SETOR_ATUAL);
   document.getElementById("atv-count").textContent =
     lista.length+" atividade(s) em aberto — "+SETOR_ATUAL;
+  atvBadge('#tabs-setor .tab[data-t="atividades"]', lista.length);   // 16/11: quantidade em aberto no botão
   if(!lista.length){
     box.innerHTML='<div class="vazio">Nenhuma atividade em aberto. 🎉</div>'; return;
   }
@@ -1563,6 +1568,7 @@ function renderAtividades(){
         <span class="tipo">${esc(a.tipo||"—")}</span>
         <span class="nm">${esc(a.nome||"(sem nome)")}${nd?` <span class="col-alvo" title="o Notion tem ${nd} cópia(s) desta atividade; a baixa resolve todas">+${nd} cópia${nd>1?"s":""}</span>`:""}</span>
         <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
+        ${atvDiasHtml({inicio:a.dataInicial, criado:a.criado})}
         ${alvo}
         <span class="bx"><span class="bxlab">Marcar como</span>
           <select ${c?"":"disabled"}>${temAtual?"":'<option value="" selected disabled>Selecione…</option>'}${ops.map(o=>`<option${(temAtual&&o===atual)?" selected":""}>${esc(o)}</option>`).join("")}</select>
