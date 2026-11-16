@@ -193,3 +193,14 @@ def test_aprovada_sem_lancamento_entra_e_volta_para_aguardando():
     assert ro.para_voltar([sem], {sem["oc_id"]: {"acao": "APROVAR", "robo_situacao": "FEITO"}}, [], antigas="2026-05-01") == []
     aguardando = dict(sem, aprovacao_mc="AWAITING_APPROVAL")
     assert ro.para_voltar([aguardando], {sem["oc_id"]: {"acao": "APROVAR"}}, [], antigas="2026-05-01") == []
+
+
+def test_ao_vivo_mostra_o_passo(tmp_path, monkeypatch):
+    import robo_mc_ocs as r
+    arq = tmp_path / "ocs-ao-vivo.txt"
+    monkeypatch.setattr(r, "AO_VIVO", arq)
+    r.passo("OC 8312 (voltar): clicando Salvar")
+    r.log("linha normal")
+    txt = arq.read_text(encoding="utf-8")
+    assert "clicando Salvar" in txt and "linha normal" in txt
+    assert r._PASSO["txt"].endswith("clicando Salvar")
