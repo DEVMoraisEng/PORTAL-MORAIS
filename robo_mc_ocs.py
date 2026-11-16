@@ -8,6 +8,7 @@ confirma, no Mapa de Obras, que a entrega/serviço foi finalizado. Cada OC nova 
 OBRA · FORNECEDOR · Nº OC · DATA DA OC · ENGENHEIRO · SERVIÇO FINALIZADO? (SIM/NÃO). Com o SIM o robô faz, no MC:
 
   ROBÔ 1 — conferência da ENTREGA (Rocha Mármores e Granitos, VIDRO ALVES)        ação "APROVAR"
+      (16/11, dono) OC aprovada no MC e SEM lançamento volta para "Aguardando aprovação" e vira alerta;
       na OC: Aprovação  "Em aberto / aguardando aprovação"  →  "Aprovado"
              e depois Status da Compra  →  "Aguardando".
       OC que já está aprovada no MC não é mexida (nem o status da compra: não volta "Entregue" para "Aguardando").
@@ -70,6 +71,9 @@ ANTIGAS_MESES = int(os.environ.get("OCS_ANTIGAS_MESES") or 6)
 #: (as que têm lançamento ficam anotadas em _central\ocs-com-lancamento.json e não são abertas de novo).
 MAX_CONFERIR = int(os.environ.get("OCS_MAX_CONFERIR") or 30)
 COM_LANCAMENTO = CENTRAL / "ocs-com-lancamento.json"
+#: 16/11 (dono, depois da 1ª descoberta): as OCs da Rocha / VIDRO ALVES já chegam "Aprovado" no MC. As que NÃO têm
+#: lançamento voltam para "Aguardando aprovação" (o pagamento fica esperando o SIM do engenheiro). No máximo isto por rodada.
+MAX_VOLTAR = int(os.environ.get("OCS_MAX_VOLTAR") or 40)
 #: 16/11 (dono, tarde): arquivo na aba "Arquivos" da OC = NF anexada → a linha fica VERMELHA no mapa com "NF anexada".
 #: Confere toda OC da conferência ainda não feita (no máximo isto por rodada).
 MAX_ANEXOS = int(os.environ.get("OCS_MAX_ANEXOS") or 200)
@@ -302,7 +306,8 @@ def interessa(oc: dict, desde: str = A_PARTIR_DE, antigas: str | None = None) ->
 
 def linhas_novas_e_atualizadas(ocs: list, existentes: dict, sem_lancamento=None,
                                antigas: str | None = None) -> tuple[list, list]:
-    """(novas, atualizar). OC de APROVAR que já está APROVADA no MC não vira alerta (alguém já liberou).
+    """(novas, atualizar). OC de APROVAR que já está APROVADA no MC só entra se NÃO tiver lançamento (16/11: o robô
+    volta ela para "Aguardando aprovação" — ver para_voltar).
     OC antiga em que a lista não diz se há lançamento: `sem_lancamento(oc)` decide (True = entra; None = não deu para
     saber agora, fica para a próxima rodada). A linha que já existe só recebe os campos do MC — nunca a resposta."""
     novas, atual = [], []
@@ -321,11 +326,36 @@ def linhas_novas_e_atualizadas(ocs: list, existentes: dict, sem_lancamento=None,
         if oc.get("cancelada"):
             continue
         if f[1] == "APROVAR" and N(oc.get("aprovacao_mc")) in APROVADO:
-            continue
-        if f[2] and oc.get("tem_lancamento") is None and not (sem_lancamento and sem_lancamento(oc)):
+            # 16/11 (dono): aprovada SEM lançamento entra (o robô volta para "Aguardando aprovação"); com lançamento, não
+            if oc.get("tem_lancamento") is True:
+                continue
+            if oc.get("tem_lancamento") is None and not (sem_lancamento and sem_lancamento(oc)):
+                continue
+        elif f[2] and oc.get("tem_lancamento") is None and not (sem_lancamento and sem_lancamento(oc)):
             continue
         novas.append(dict(mc, oc_id=oc["oc_id"], fornecedor=oc.get("fornecedor") or f[0], acao=f[1]))
     return novas, atual
+
+
+def para_voltar(ocs: list, existentes: dict, novas: list, antigas: str | None = None) -> list:
+    """OCs da Rocha / VIDRO ALVES que o robô volta para "Aguardando aprovação": na conferência, sem lançamento, APROVADAS
+    no MC, não canceladas, sem SIM do engenheiro e ainda não feitas pelo robô. Decide pelo estado do MC a cada rodada
+    (se alguém aprovar de novo à mão antes do SIM, volta de novo)."""
+    na_conf = dict(existentes)
+    for x in novas:
+        na_conf.setdefault(x["oc_id"], {"acao": x["acao"], "resposta": None, "robo_situacao": None})
+    lim = antigas or antigas_desde()
+    out = []
+    for oc in ocs:
+        reg = na_conf.get(oc.get("oc_id"))
+        if not reg or reg.get("acao") != "APROVAR" or reg.get("resposta") == "SIM" or reg.get("robo_situacao") == "FEITO":
+            continue
+        if oc.get("cancelada") or oc.get("tem_lancamento") is not False or N(oc.get("aprovacao_mc")) not in APROVADO:
+            continue
+        if oc.get("criada_em") and oc["criada_em"] < lim:
+            continue
+        out.append(oc)
+    return sorted(out, key=lambda o: (o.get("criada_em") or "", o.get("numero") or 0))
 
 
 # ------------------------------------------------------------------------------------------- Supabase
@@ -882,6 +912,34 @@ _JS_LANCAMENTOS = r"""() => {
     }"""
 
 
+def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, str]:
+    """16/11 (dono): OC aprovada e SEM lançamento → Aprovação "Aguardando aprovação" (o Status da Compra fica como está).
+    Só mexe se a tela mostra "Aprovado"; confere relendo a OC."""
+    tela.abrir_oc(oc["oc_id"])
+    ap = tela.campo("Aprovação", "aprov")
+    if not ap:
+        raise RuntimeError("não achei o campo Aprovação na OC")
+    if N(ap["atual"]) not in ("APROVADO", "APROVADA"):
+        return "FEITO", "já estava \"%s\" — nada mudado" % ap["atual"]
+    if not any(N(o) == "AGUARDANDO APROVACAO" for o in ap.get("opcoes") or []):
+        raise RuntimeError("a lista Aprovação não tem \"Aguardando aprovação\" (tem: %s)" % ", ".join(ap.get("opcoes") or []))
+    if not aplicar:
+        return "SIMULADO", "faria: Aprovação \"%s\" → \"Aguardando aprovação\" (sem lançamento; falta a chave OCS_APLICAR.txt)" % ap["atual"]
+    marca = len(tela.escritas)
+    tela.escolher("aprov", ap, "Aguardando aprovação")
+    tela.confirmar_se_perguntar()
+    tela.page.wait_for_timeout(1000)
+    tela.clicar_botao("Salvar")
+    tela.confirmar_se_perguntar()
+    tela.page.wait_for_timeout(3000)
+    ok, rotas = tela.gravou(marca)
+    tela.abrir_oc(oc["oc_id"])
+    ap2 = tela.campo("Aprovação", "aprov")
+    if _sim(ap2, "Aguardando aprovação"):
+        return "FEITO", "Aprovação → Aguardando aprovação (conferido na OC) · %s" % rotas
+    raise RuntimeError("salvei, mas a OC voltou com Aprovação \"%s\" (%s)" % ((ap2 or {}).get("atual"), rotas if not ok else "gravação ok"))
+
+
 def _abrir_lancamento(tela: Tela, linha: dict):
     """OC › $ Lançamento › (1 lançamento vinculado) › Ir para lançamento → página com a janela Editar lançamento."""
     n = lancamentos_vinculados(tela, linha["oc_id"])
@@ -1256,6 +1314,21 @@ def main() -> int:
                     " · limite da rodada, o resto fica para a próxima" if conf["vistas"] >= MAX_CONFERIR else ""))
             for x in novas:
                 log("   nova: OC %s · %s · %s" % (x.get("numero"), x["acao"], (x.get("obra") or "sem obra")[:40]))
+            # 16/11 (dono): aprovadas sem lançamento voltam para "Aguardando aprovação"
+            voltar = para_voltar(ocs, existentes, novas)
+            if SO:
+                voltar = [o for o in voltar if str(o.get("numero")) == SO]
+            if voltar:
+                log("aprovadas sem lançamento para voltar a \"Aguardando aprovação\": %d%s" % (
+                    len(voltar), " (nesta rodada %d)" % MAX_VOLTAR if len(voltar) > MAX_VOLTAR else ""))
+                tela_v = Tela(aba)
+                for oc in voltar[:MAX_VOLTAR]:
+                    try:
+                        sit, msg = voltar_para_aguardando(tela_v, oc, aplicar)
+                    except Exception as e:      # noqa: BLE001
+                        sit, msg = "ERRO", str(e)[:300]
+                    cont["voltou" if sit == "FEITO" else sit] = cont.get("voltou" if sit == "FEITO" else sit, 0) + 1
+                    log("   OC %s (voltar): %s — %s" % (oc.get("numero"), sit, msg))
         except Exception as e:      # noqa: BLE001 — a leitura falhar não impede de atender os SIM já marcados
             erro_leitura = str(e)[:300]
             log("  ! leitura das OCs: %s" % erro_leitura)
@@ -1280,8 +1353,8 @@ def main() -> int:
                 cont["ERRO"] += 1
     finally:
         aba.fechar()
-    resumo = "%d nova(s) · %d feita(s) · %d simulada(s) · %d com erro" % (len(novas), cont["FEITO"], cont["SIMULADO"],
-                                                                           cont["ERRO"])
+    resumo = "%d nova(s) · %d voltada(s) p/ aguardando · %d feita(s) · %d simulada(s) · %d com erro" % (
+        len(novas), cont.get("voltou", 0), cont["FEITO"], cont["SIMULADO"], cont["ERRO"])
     if erro_leitura:
         log("FALHOU: leitura das OCs — %s (%s)" % (erro_leitura, resumo))
         return 1

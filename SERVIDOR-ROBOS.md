@@ -534,6 +534,9 @@ serviço foi finalizado (OBRA · FORNECEDOR · Nº OC · DATA DA OC · ENGENHEIR
 - Serralheria do Fabio → no lançamento da OC, **vencimento da 2ª parcela = próximo dia útil** depois do SIM
   (parcela já paga não é mexida; OC com mais de um lançamento vinculado = erro, fazer à mão).
 - Quem responde: só engenheiros (acesso OBRAS / DOCUMENTOS, ou ADM). Estagiário não — o dono libera depois.
+- (16/11, depois da 1ª descoberta) Quase toda OC já nasce "Aprovado" no MC. As da Rocha / VIDRO ALVES **sem lançamento**
+  (`financialValue` 0 na lista) entram na conferência e o robô volta a Aprovação para **"Aguardando aprovação"** (até
+  `OCS_MAX_VOLTAR`, 40, por rodada; só com `OCS_APLICAR.txt`). Com o SIM ele aprova de novo. Com lançamento, não mexe.
 - NF anexada: a cada rodada o robô olha a aba **Arquivos** de cada OC ainda não feita (`GET /folder?id=<oc>&origin=PURCHASE_ORDER`,
   ou `/attachments/v2` se a primeira não responder). Tem arquivo → a linha fica **vermelha** no mapa com "📎 NF anexada".
   A lista no mapa vai da OC mais antiga para a mais nova.
