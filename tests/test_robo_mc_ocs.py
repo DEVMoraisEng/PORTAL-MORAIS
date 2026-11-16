@@ -176,3 +176,20 @@ def test_gravar_agrupa_por_chaves():
     sb.pedir = lambda m, c, corpo=None, prefer="": lotes.append(corpo)
     sb.gravar([{"oc_id": "a", "acao": "APROVAR"}, {"oc_id": "b"}, {"oc_id": "c", "acao": "PARCELA"}])
     assert sorted(len(l) for l in lotes) == [1, 2]
+
+
+def test_aprovada_sem_lancamento_entra_e_volta_para_aguardando():
+    sem = ro.oc_do_no(dict(NO, id="77777777-7777-7777-7777-777777777777", creationDate="2026-10-13",
+                           approvalStatus="APPROVED", purchaseStatus="PURCHASED", financialValue=0))
+    com = ro.oc_do_no(dict(NO, id="88888888-8888-8888-8888-888888888888", creationDate="2026-10-13",
+                           approvalStatus="APPROVED", financialValue=1500.0))
+    assert sem["tem_lancamento"] is False and com["tem_lancamento"] is True
+    novas, _ = ro.linhas_novas_e_atualizadas([sem, com], {}, antigas="2026-05-01")
+    assert [x["oc_id"] for x in novas] == [sem["oc_id"]]
+    v = ro.para_voltar([sem, com], {}, novas, antigas="2026-05-01")
+    assert [o["oc_id"] for o in v] == [sem["oc_id"]]
+    # com SIM do engenheiro, ou já feita pelo robô, não volta
+    assert ro.para_voltar([sem], {sem["oc_id"]: {"acao": "APROVAR", "resposta": "SIM"}}, [], antigas="2026-05-01") == []
+    assert ro.para_voltar([sem], {sem["oc_id"]: {"acao": "APROVAR", "robo_situacao": "FEITO"}}, [], antigas="2026-05-01") == []
+    aguardando = dict(sem, aprovacao_mc="AWAITING_APPROVAL")
+    assert ro.para_voltar([aguardando], {sem["oc_id"]: {"acao": "APROVAR"}}, [], antigas="2026-05-01") == []
