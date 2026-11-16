@@ -413,46 +413,184 @@ def _lista_da_resposta(j: dict) -> tuple[list, dict]:
     return [], {}
 
 
+_ESTATICO = re.compile(r"\.(js|css|png|jpe?g|gif|svg|woff2?|ttf|ico|map)(\?|$)", re.I)
+_RAIZ_GQL = re.compile(r"\{\s*(\w+)\s*[({]")
+VISTOS_TELA: list = []          # 16/11: o que a tela Ordem de Compra pediu (para a descoberta e para o erro)
+
+
+def _host_de(url: str) -> str:
+    return url.split("://", 1)[-1].split("/", 1)[0].lower()
+
+
+def _caminho_de(url: str) -> str:
+    return "/" + url.split("://", 1)[-1].split("/", 1)[-1].split("?", 1)[0]
+
+
+def _resumo_pedido(metodo: str, url: str, corpo: str) -> str:
+    """'POST host /caminho [graphql: raiz1, raiz2]' — só nomes, nunca dados."""
+    extra = ""
+    if "/graphql" in url and corpo:
+        try:
+            q = (json.loads(corpo) or {}).get("query") or ""
+        except Exception:
+            q = ""
+        raizes = [r for r in _RAIZ_GQL.findall(q) if r not in ("query", "mutation")][:4]
+        extra = " [graphql: %s]" % ", ".join(raizes or ["?"])
+    return "%s %s %s%s" % (metodo, _host_de(url), re.sub(r"[0-9a-f]{8}-[0-9a-f-]{27}", "{id}", _caminho_de(url)), extra)
+
+
+def _lista_rest(j) -> list:
+    """Lista de OCs numa resposta REST: a própria lista ou content/items/data/list/result."""
+    if isinstance(j, list):
+        return j
+    if isinstance(j, dict):
+        for k in ("content", "items", "data", "list", "result", "results", "purchaseOrders"):
+            if isinstance(j.get(k), list):
+                return j[k]
+    return []
+
+
 def capturar_lista(aba) -> dict:
-    """Abre Compras › Ordem de Compra na aba do porteiro e guarda o pedido que a TELA fez ao GraphQL de Compras
-    (consulta, variáveis, cabeçalhos authorization/company-id)."""
-    page, visto = aba._page, {}
+    """Abre Compras › Ordem de Compra na aba do porteiro e guarda o pedido que a TELA fez para listar as OCs.
+    16/11 (1ª rodada no servidor): a tela NÃO pediu `purchaseOrder(` com pageInfo ao GraphQL de Compras — então aceita
+    os dois jeitos: GraphQL (qualquer consulta com "purchaseOrder" que devolva uma lista) ou REST do MC (rota com
+    "purchase-order" que devolva uma lista de objetos com id). Guarda TUDO que a tela pediu em VISTOS_TELA."""
+    page = aba._page
+    pedidos, respostas = [], []
+    VISTOS_TELA.clear()
 
     def ouvir(req):
         try:
-            corpo = req.post_data or ""
-            if HOST_COMPRAS in req.url and "/graphql" in req.url and "cab" not in visto \
-                    and re.search(r"purchaseOrders?\s*\(", corpo) and "pageInfo" in corpo:
-                j = json.loads(corpo) or {}
-                visto.update({"cab": {k: v for k, v in (req.headers or {}).items()
-                                      if k.lower() in ("authorization", "company-id")},
-                              "query": j.get("query") or "", "vars": j.get("variables") or {}, "url": req.url})
+            if _ESTATICO.search(req.url) or req.resource_type in ("image", "font", "stylesheet", "script", "document"):
+                return
+            h = _host_de(req.url)
+            if "maiscontroleerp.com.br" not in h and "execute-api" not in h:
+                return
+            pedidos.append(req)
+            r = _resumo_pedido(req.method, req.url, req.post_data or "")
+            if r not in VISTOS_TELA and len(VISTOS_TELA) < 80:
+                VISTOS_TELA.append(r)
         except Exception:
             pass
 
+    def ouvir_resp(resp):
+        try:
+            if resp.request in pedidos:
+                respostas.append(resp)
+        except Exception:
+            pass
+
+    def escolher():
+        for resp in list(respostas):
+            rq = resp.request
+            url, corpo = rq.url, rq.post_data or ""
+            try:
+                if resp.status >= 300:
+                    continue
+                if "/graphql" in url:
+                    if not re.search(r"purchaseorder", corpo, re.I):
+                        continue
+                    j = json.loads(corpo) or {}
+                    nos, _info = _lista_da_resposta(resp.json())
+                    if nos and isinstance(nos[0], dict):
+                        return {"tipo": "graphql", "url": url, "query": j.get("query") or "", "vars": j.get("variables") or {},
+                                "cab": {k: v for k, v in (rq.headers or {}).items() if k.lower() in ("authorization", "company-id")}}
+                elif "purchase-order" in url and "get-buyers" not in url:
+                    lst = _lista_rest(resp.json())
+                    if lst and isinstance(lst[0], dict) and lst[0].get("id"):
+                        return {"tipo": "rest", "url": url, "metodo": rq.method, "corpo": corpo, "host": _host_de(url)}
+            except Exception:
+                continue
+        return None
+
     page.context.on("request", ouvir)
+    page.context.on("response", ouvir_resp)
+    achado = None
     try:
         page.evaluate("() => { location.hash = '#/home' }")
         page.wait_for_timeout(1500)
         page.evaluate("h => { location.hash = h }", "#/purchase-order")
-        for _ in range(160):
-            if "cab" in visto:
+        for passo in range(3):
+            for _ in range(60):
+                page.wait_for_timeout(250)
+                achado = escolher()
+                if achado:
+                    break
+            if achado:
                 break
-            page.wait_for_timeout(250)
+            # a lista pode só vir depois de um clique (o robô dos medidores precisou do "Carregar mais")
+            for nome in (("Pesquisar", "Buscar", "Filtrar"), ("Carregar mais",), ("Todas", "Todos"))[passo]:
+                try:
+                    alvo = page.get_by_text(re.compile(r"^\s*%s\s*$" % nome, re.I))
+                    if alvo.count() and alvo.first.is_visible():
+                        alvo.first.click(timeout=4000)
+                        VISTOS_TELA.append("(cliquei em %s)" % nome)
+                        break
+                except Exception:
+                    pass
     finally:
-        try:
-            page.context.remove_listener("request", ouvir)
-        except Exception:
-            pass
-    if "cab" not in visto or not visto["cab"].get("authorization"):
-        raise RuntimeError("a tela Ordem de Compra não pediu a lista ao GraphQL de Compras em 40 s")
-    return visto
+        for ev, f in (("request", ouvir), ("response", ouvir_resp)):
+            try:
+                page.context.remove_listener(ev, f)
+            except Exception:
+                pass
+    if not achado:
+        for linha in VISTOS_TELA:
+            log("   a tela pediu: %s" % linha)
+        raise RuntimeError("a tela Ordem de Compra não mostrou de onde vem a lista de OCs (%d pedido(s) vistos, "
+                           "listados acima) — mande esta saída para o Claude" % len(VISTOS_TELA))
+    if achado["tipo"] == "rest":
+        achado["cab"] = aba.cabecalhos(achado["host"])
+    return achado
+
+
+def _maior_pagina(url: str, corpo: str) -> tuple[str, str]:
+    """Pede páginas grandes: size/pageSize/limit → 200 na URL e no corpo JSON."""
+    url2 = re.sub(r"([?&](?:size|pageSize|limit|perPage)=)\d+", lambda m: m.group(1) + "200", url)
+    corpo2 = corpo
+    try:
+        j = json.loads(corpo) if corpo else None
+        if isinstance(j, dict):
+            for k in ("size", "pageSize", "limit", "perPage"):
+                if isinstance(j.get(k), int):
+                    j[k] = 200
+            corpo2 = json.dumps(j)
+    except Exception:
+        pass
+    return url2, corpo2
+
+
+def _ler_rest(aba, visto: dict) -> tuple[list, dict]:
+    url, corpo = _maior_pagina(visto["url"], visto.get("corpo") or "")
+    todas, ids, est = [], set(), {"paginas": 0, "ocs": 0, "cursor": False, "fonte": "rest " + _caminho_de(url)}
+    for _pagina in range(40):
+        st, txt = aba.fetch(visto["metodo"], url, visto["cab"], json.loads(corpo) if corpo else None)
+        if st >= 300:
+            raise RuntimeError("o Mais Controle respondeu HTTP %s na lista de OCs: %s" % (st, (txt or "")[:200]))
+        j = json.loads(txt or "null")
+        lst = _lista_rest(j)
+        est["paginas"] += 1
+        novos = 0
+        for no in lst:
+            if isinstance(no, dict) and no.get("id") not in ids:
+                ids.add(no.get("id"))
+                todas.append(no)
+                novos += 1
+        mais = isinstance(j, dict) and (j.get("last") is False or j.get("hasNext") is True or j.get("hasNextPage") is True)
+        m = re.search(r"([?&](?:page|pageIndex|pageNumber)=)(\d+)", url)
+        if not mais or not novos or not m:
+            break
+        url = url[:m.start(2)] + str(int(m.group(2)) + 1) + url[m.end(2):]
+    est["ocs"] = len(todas)
+    return todas, est
 
 
 def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple[list, dict]:
     hoje = hoje or dt.date.today()
     desde = desde or min(A_PARTIR_DE, antigas_desde(hoje))
     visto = capturar_lista(aba)
+    if visto["tipo"] == "rest":
+        return _ler_rest(aba, visto)
     v = json.loads(json.dumps(visto["vars"]))
     esp = v.get("specification") if isinstance(v.get("specification"), dict) else None
     if esp is not None:
@@ -466,7 +604,7 @@ def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple
     cursor = _cursor(v)
     if cursor:
         v["first"], v["after"] = 50, None
-    est = {"paginas": 0, "ocs": 0, "cursor": cursor}
+    est = {"paginas": 0, "ocs": 0, "cursor": cursor, "fonte": "graphql"}
     todas, ids = [], set()
     for _ in range(400):
         st, txt = aba.fetch("POST", visto["url"], visto["cab"], {"query": visto["query"], "variables": v})
@@ -871,14 +1009,23 @@ def descobrir() -> int:
         log("FALHOU: %s" % e)
         return 1
     try:
-        visto = capturar_lista(aba)
-        log("consulta da tela (GraphQL de Compras):", re.sub(r"\s+", " ", visto["query"])[:3000])
-        log("variáveis:", json.dumps({k: (v if k != "specification" else {kk: _forma(vv) if not isinstance(vv, dict)
-                                                                              else {a: _forma(b) for a, b in vv.items()}
-                                                                          for kk, vv in (v or {}).items()})
-                                      for k, v in visto["vars"].items()}, ensure_ascii=False)[:800])
+        try:
+            visto = capturar_lista(aba)
+        finally:
+            log("o que a tela Ordem de Compra pediu (%d):" % len(VISTOS_TELA))
+            for linha in VISTOS_TELA:
+                log("   " + linha)
+        if visto["tipo"] == "graphql":
+            log("lista das OCs: GraphQL — consulta da tela:", re.sub(r"\s+", " ", visto["query"])[:3000])
+            log("variáveis:", json.dumps({k: (v if k != "specification" else {kk: _forma(vv) if not isinstance(vv, dict)
+                                                                                  else {a: _forma(b) for a, b in vv.items()}
+                                                                              for kk, vv in (v or {}).items()})
+                                          for k, v in visto["vars"].items()}, ensure_ascii=False)[:800])
+        else:
+            log("lista das OCs: REST %s %s · corpo: %s" % (visto["metodo"], re.sub(r"=[^&]*", "=…", visto["url"]),
+                                                          re.sub(r'":\s*"[^"]*"', '":"…"', visto.get("corpo") or "")[:600]))
         nos, est = ler_ocs(aba)
-        log("OCs lidas: %d (%d página(s), paginação por cursor: %s)" % (est["ocs"], est["paginas"], est["cursor"]))
+        log("OCs lidas: %d (%d página(s), fonte: %s)" % (est["ocs"], est["paginas"], est.get("fonte")))
         if nos:
             log("campos de uma OC:")
             for c, f in _achatar(nos[0])[:120]:
