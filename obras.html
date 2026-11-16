@@ -170,6 +170,40 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .pl{padding:0 22px}
 .tg{border:1.5px solid var(--border);background:var(--sup);border-radius:20px;padding:5px 14px;font:inherit;font-weight:800;font-size:11.5px;cursor:pointer;color:var(--text3);text-transform:none;letter-spacing:0}
 .tg.on{background:var(--azul);border-color:var(--azul);color:#fff}
+/* 16/11/26 — JANELA DA OBRA EM ABAS: Resumo · Dados · Atividades · Documentos/Vendas/Ligações · 3D e Orçamento */
+.otabs{display:flex;gap:4px;padding:12px 22px 0;border-bottom:2px solid var(--border2);overflow-x:auto;position:sticky;top:0;background:var(--bg2);z-index:3}
+.otab{border:0;background:none;font:inherit;font-family:'Barlow Condensed';font-weight:800;font-size:14px;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);padding:9px 12px 8px;border-bottom:3px solid transparent;margin-bottom:-2px;cursor:pointer;white-space:nowrap}
+.otab:hover{color:var(--azul)}
+.otab.on{color:var(--azul);border-bottom-color:var(--verde)}
+.otab .n{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:9px;background:var(--bg3);color:var(--text3);font-family:Inter,sans-serif;font-size:10.5px;line-height:17px;text-align:center}
+.otab .n.al{background:#FFF3E0;color:#B45309}
+.cards{padding:14px 22px 0;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.card{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;min-width:0}
+.card h4{margin:0 0 9px;font-family:'Barlow Condensed';font-size:14px;font-weight:800;letter-spacing:.4px;text-transform:uppercase;color:var(--azul);display:flex;align-items:center;gap:8px}
+.card h4 .sp{flex:1}
+.card h4 a,.card h4 button{font-family:Inter,sans-serif;font-size:11px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--azul);background:none;border:0;cursor:pointer;text-decoration:underline;padding:0}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 12px;font-size:12.5px}
+.kv .k{color:var(--text4);font-weight:700;font-size:10.5px;text-transform:uppercase;letter-spacing:.3px;padding-top:2px}
+.kv .v{color:var(--text);font-weight:600;overflow-wrap:anywhere}
+.kv .v.vz{color:#B45309}
+.barra{height:8px;border-radius:5px;background:var(--bg3);overflow:hidden;margin:4px 0 8px}
+.barra>i{display:block;height:100%;background:var(--verde)}
+.mini{width:100%;border-collapse:collapse;font-size:12.5px}
+.mini th{text-align:left;font-size:10px;text-transform:uppercase;letter-spacing:.3px;color:var(--text4);font-weight:700;padding:5px 8px;border-bottom:1px solid var(--border2)}
+.mini td{padding:6px 8px;border-bottom:1px solid var(--border2);vertical-align:top;overflow-wrap:anywhere;white-space:normal}
+.mini tr:last-child td{border-bottom:0}
+.ck{display:flex;flex-wrap:wrap;gap:6px}
+.ck span{font-size:11.5px;font-weight:600;padding:4px 9px;border-radius:14px;background:var(--bg3);color:var(--text3)}
+.ck span.s{background:rgba(42,157,92,.14);color:var(--verde-esc)}
+.ck span.n{background:#FFF3E0;color:#B45309}
+.alertas-orc{margin:12px 22px 0;padding:10px 14px;border-radius:10px;background:#FFF3E0;border:1px solid #FCD9A8;color:#8a4a06;font-size:12.5px}
+.alertas-orc b{display:block;margin-bottom:4px}
+.alertas-orc.ok{background:rgba(42,157,92,.12);border-color:rgba(42,157,92,.3);color:var(--verde-esc)}
+.orig{font-size:10.5px;color:var(--text4);font-weight:600}
+html[data-tema="escuro"] .otabs{background:var(--bg2)}
+html[data-tema="escuro"] .otab .n.al,html[data-tema="escuro"] .ck span.n,html[data-tema="escuro"] .alertas-orc{background:#3a2d12;color:#f0c95f;border-color:#57431f}
+html[data-tema="escuro"] .ck span.s,html[data-tema="escuro"] .alertas-orc.ok{background:#16341f;color:#8ce0a5}
+@media(max-width:900px){ .cards{grid-template-columns:1fr} }
 /* cronograma */
 .gantt{background:var(--sup);border:1px solid var(--border2);border-radius:10px;overflow-x:auto}
 .gt{min-width:780px;position:relative}
@@ -1152,33 +1186,224 @@ async function gravarLayout3d(id,base){
   else toast("Não gravou o vínculo: "+((r&&r.erro)||"erro"));
   carregarLayout3d(id,!(r&&r.ok));
 }
-function pintarObraPainel(){
-  const o=obraDe(OBRA); if(!o) return;
-  document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
-  document.getElementById("p1-loc").textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
-  const atv=atvsDaObra(o.id);
-  const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
-  let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
-  if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 0;white-space:pre-line">⚠ Alterações nesta obra — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
-  h+=`<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>CAMPOS_FORA.indexOf(c[1])>=0?"":campoHtml(o,c,i)).join("")}</div>`;
-  /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão
-     MORAIS → Geral → Publicar 3D (pyRevit) gravou na coluna MODELO 3D da obra */
-  h+=`<div class="grp">Modelo 3D <span class="sp"></span><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a></div>
-      <div class="ajuda" style="margin:0 22px 6px">Arquitetura, hidrossanitário e as outras disciplinas na mesma cena, com os quantitativos: clique numa linha para ver no 3D. Para publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</div>
-      <div class="m3d-lay" id="m3d-lay" style="margin:4px 22px 10px;font-size:12.5px"><span class="ajuda">Mesmo layout: carregando…</span></div>`;
-  h+=`<div class="grp">Atividades <span class="sp"></span>
+/* ===================== JANELA DA OBRA EM ABAS (16/11/2026, pedido do dono) =====================
+   1 RESUMO      — tudo da obra em cartões: dados, processo, documentos, vendas, ligações, 3D/orçamento
+   2 DADOS       — os campos da obra (o que antes era "Dados da obra")
+   3 ATIVIDADES  — as atividades do processo (lista / cronograma)
+   4 DOC · VENDAS · LIGAÇÕES — o que está nas abas Documentos, Vendas e Ligações para esta obra
+   5 3D E ORÇAMENTO — o modelo 3D e os dados que o orçamento usa (obra + formulário de obra), com alertas
+   Documentos, Vendas e Ligações vêm dos mesmos arquivos publicados que essas telas usam (dist/docs.json,
+   dist/vendas.json, dist/ligacoes.json — só os campos públicos; nada sensível novo é lido aqui).
+   Docs e Vendas se ligam à obra pelo OBRA-AUTO (endereço); Ligações pelo id da obra. */
+const OB_ABAS=[["resumo","Resumo"],["dados","Dados"],["atividades","Atividades"],["dvl","Documentos · Vendas · Ligações"],["orc","3D e Orçamento"]];
+let ABA_OB=(function(){ try{ const v=sessionStorage.getItem("obras_aba_painel"); return OB_ABAS.some(x=>x[0]===v)?v:"resumo"; }catch(e){ return "resumo"; } })();
+function irAbaObra(a){ ABA_OB=a; try{ sessionStorage.setItem("obras_aba_painel",a); }catch(e){} pintarObraPainel(); document.getElementById("p1-corpo").scrollTop=0; }
+
+/* ---- Documentos / Vendas / Ligações (arquivos publicados, lidos uma vez por página) ---- */
+const EXT={docs:null,vendas:null,lig:null,carregando:false,erro:""};
+async function carregarExtrasObra(){
+  if(EXT.carregando||(EXT.docs&&EXT.vendas&&EXT.lig)) return;
+  EXT.carregando=true;
+  const [d,v,l]=await Promise.all([lerEstatico("docs.json","obras_ext_docs"),lerEstatico("vendas.json","obras_ext_vendas"),
+                                   lerEstatico("ligacoes.json","obras_ext_lig")]);
+  EXT.docs=(d&&Array.isArray(d.obras))?d.obras:[]; EXT.vendas=(v&&Array.isArray(v.vendas))?v.vendas:[];
+  EXT.lig=(l&&Array.isArray(l.ligacoes))?l.ligacoes:[];
+  EXT.erro=[d,v,l].some(x=>!x||x.ok===false)?"alguma base não carregou agora":"";
+  EXT.carregando=false;
+  if(OBRA&&(ABA_OB==="resumo"||ABA_OB==="dvl")&&!editandoNoPainel()) pintarObraPainel();
+}
+const semTraco=v=>String(v||"").replace(/-/g,"").toLowerCase();
+const listaTxt=v=>(Array.isArray(v)?v.flat(3):[v]).filter(x=>x!=null&&x!=="").map(String);
+function docsDaObra(o){ const t=N(o.titulo); return (EXT.docs||[]).filter(r=>listaTxt((r.valores||{})["OBRA-AUTO"]).some(x=>N(x)===t)||N((r.valores||{})["ENDEREÇO"])===t); }
+function vendasDaObra(o){ const t=N(o.titulo); return (EXT.vendas||[]).filter(r=>listaTxt((r.valores||{})["OBRA-AUTO"]).some(x=>N(x)===t))
+  .sort((a,b)=>Number(a.valores["CASA"]||a.valores["CASA-AUTO"]||0)-Number(b.valores["CASA"]||b.valores["CASA-AUTO"]||0)); }
+function ligDaObra(o){ const id=semTraco(o.id), t=N(o.titulo);
+  return (EXT.lig||[]).filter(r=>(r.obraIds||[]).some(x=>semTraco(x)===id)||listaTxt((r.v||{})["Vínculo Obra"]).some(x=>N(x)===t))
+    .sort((a,b)=>String(a.obra||"").localeCompare(String(b.obra||""),"pt-BR")||String(a.concessionaria||"").localeCompare(String(b.concessionaria||""))); }
+/* valor de uma coluna sem depender de espaço sobrando no nome ("SETOR ", "AGENDOU HABITE-SE? ") */
+function colDe(vals,nome){ vals=vals||{}; const k=Object.keys(vals).find(x=>N(x)===N(nome)); return k===undefined?undefined:vals[k]; }
+function dataBr(v){ const s=String(v||""); const m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(!m||m[1]<"1900"||m[1]==="2000"&&m[2]==="01"&&m[3]==="01") return ""; return m[3]+"/"+m[2]+"/"+m[1]; }
+const vazioDoc=v=>v==null||v===""||v==="-"||v==="_"||(Array.isArray(v)&&!listaTxt(v).length);
+function txtVal(v){ if(Array.isArray(v)) return listaTxt(v).join(", "); const d=dataBr(v); return d||String(v==null?"":v); }
+function editandoNoPainel(){ const a=document.activeElement; return !!(a&&document.getElementById("p1").contains(a)&&/^(INPUT|SELECT|TEXTAREA)$/.test(a.tagName)); }
+
+/* ---- Formulário de obra (corpo da atividade 1.3 no Notion, já pré-carregado no CONT_MEM) ---- */
+function atvFormulario(o){
+  return atvsDaObra(o.id).filter(a=>!ehLig(a)).find(a=>/^1\.3\b/.test(String(a.tipo||"").trim())||
+    (/FORMULARIO DE OBRA/.test(N(a.titulo))&&!/CONFER/.test(N(a.titulo))&&!/^2\./.test(String(a.tipo||"").trim())));
+}
+function lerFormulario(o){
+  const a=atvFormulario(o); if(!a) return {sem:"atividade"};
+  const c=CONT_MEM[a.id]; if(!c||!Array.isArray(c.blocos)) return {atv:a,carregando:true};
+  const r={atv:a,p5:null,p7:null,arrimo:"",arrimoSim:null,limpeza:"",nivel:[],muro:[],outras:"",rt:""};
+  const bs=[]; (function plano(l){ (l||[]).forEach(b=>{ bs.push(b); if(b.filhos) plano(b.filhos); }); })(c.blocos);
+  let perg="";
+  /* resposta = o 1º parágrafo com texto DEPOIS do rótulo "Resposta:" da pergunta (o parágrafo antes dele é a
+     instrução — "Se sim, descrever…" — e não conta) */
+  const resposta=i=>{ let viu=false; for(let j=i+1;j<bs.length;j++){ const b=bs[j], tx=String(b.texto||"").trim();
+      if(/^\s*resposta\s*:?\s*$/i.test(tx)){ viu=true; continue; }
+      if(/^heading_/.test(b.tipo)||b.tipo==="divider") { if(viu||/^heading_/.test(b.tipo)) break; continue; }
+      if(viu&&b.tipo==="paragraph"&&tx) return tx; } return ""; };
+  bs.forEach((b,i)=>{
+    const t=N(b.texto);
+    if(/^heading_/.test(b.tipo)&&!/^RESPOSTA/.test(t)){ perg=t;
+      if(/ARRIMO/.test(t)) r.arrimo=resposta(i);
+      else if(/LIMPEZA|TERRAPLANAGEM/.test(t)) r.limpeza=resposta(i);
+      else if(/OUTRAS INFORMA/.test(t)) r.outras=resposta(i);
+      return; }
+    if(b.tipo==="to_do"&&b.marcado){
+      if(/PADR/.test(perg)&&/\b5\s?M\b/.test(perg)) r.p5=Number(String(b.texto).trim())||0;
+      else if(/PADR/.test(perg)&&/\b7\s?M\b/.test(perg)) r.p7=Number(String(b.texto).trim())||0;
+      else if(/CORTE OU ATERRO|NIVELAMENTO/.test(perg)) r.nivel.push(String(b.texto).trim());
+      else if(/MURO DE VIZINHO|VIZINHO/.test(perg)) r.muro.push(String(b.texto).trim());
+    }
+    if(/RESPONSAVEL TECNICO/.test(perg)&&b.tipo==="paragraph"&&/^NOME\s*:/.test(t)) r.rt=String(b.texto).replace(/^[^:]*:\s*/,"").trim();
+  });
+  if(r.arrimo) r.arrimoSim=/^\s*(SIM|S\b)/.test(N(r.arrimo))?true:/^\s*(NAO|N\b|NENHUM)/.test(N(r.arrimo))?false:null;
+  r.semEsgoto=/(NAO|SEM)\s+(POSSUI\s+|TEM\s+|HA\s+)?REDE DE ESGOTO|NAO POSSUI REDE|SEM ESGOTO/.test(N(r.outras));
+  return r;
+}
+
+/* ---- dados que o orçamento usa: valor, de onde vem e o alerta quando falta ---- */
+function dadosOrcamento(o){
+  const f=lerFormulario(o), L=[];
+  const add=(rot,val,orig,falta,obs)=>L.push({rot,val:val==null?"":String(val),orig,falta:!!falta,obs:obs||""});
+  add("Cidade",o.cidade,"Obra › Dados",!o.cidade,"define os itens de Goiânia ou Senador Canedo");
+  add("Nº de casas",o.n_casas,"Obra › Dados",!o.n_casas,"multiplica os itens “por casa”");
+  add("Implantação",o.implantacao,"Obra › Dados",!o.implantacao);
+  add("Área do lote (m²)",o.area_lote,"Obra › Dados",!o.area_lote);
+  add("Área construída averbada (m²)",o.area_averbada,"Obra › Dados",!o.area_averbada);
+  add("Área pós habite-se (m²)",o.area_habite,"Obra › Dados",false,"acréscimo depois do habite-se (ART de acréscimo)");
+  /* 16/11 (dono): área construída REAL = averbada + pós habite-se. É ela que vai para o INSS e o ISSQN. */
+  const aReal=(Number(o.area_averbada)||0)+(Number(o.area_habite)||0);
+  add("Área construída real (m²)",aReal?Math.round(aReal*100)/100:"","averbada + pós habite-se",!aReal,"INSS e ISSQN");
+  const fo=f.atv?("Formulário de obra"+(atvFeita(f.atv)?"":" (não finalizado)")):"Formulário de obra";
+  if(f.sem) add("Formulário de obra","não existe para esta obra","Atividades",true,"padrões, arrimo e esgoto vêm dele");
+  else if(f.carregando) add("Formulário de obra","carregando…",fo,false);
+  else{
+    add("Padrões de energia 5 m",f.p5==null?"":f.p5,fo,f.p5==null,"pergunta 2");
+    add("Padrões de energia 7 m",f.p7==null?"":f.p7,fo,f.p7==null,"pergunta 3");
+    add("Muro de arrimo",f.arrimoSim===false?"NÃO":f.arrimo,fo,!f.arrimo,"quantidades vêm do Revit (tabelas do arrimo)");
+    add("Limpeza / terraplanagem",f.limpeza,fo,!f.limpeza,"apropriação manual");
+    add("Nivelamento (corte / aterro)",f.nivel.join(", "),fo,!f.nivel.length);
+    add("Rede de esgoto",f.semEsgoto?"NÃO possui (fossa)":f.outras?"não informado — ver “outras informações”":"",fo,!f.semEsgoto&&!f.outras,"hoje só no texto livre da pergunta 10");
+  }
+  return {lista:L,faltas:L.filter(x=>x.falta),form:f};
+}
+
+/* ---- cartões e tabelas ---- */
+function kvHtml(pares){ return `<div class="kv">${pares.map(([k,v,vz])=>`<div class="k">${esc(k)}</div><div class="v ${vz?"vz":""}">${v==null||v===""?(vz?"falta":"—"):v}</div>`).join("")}</div>`; }
+const CK_DOCS=[["USO DO SOLO EMITIDO E ARMAZENADO","Uso do solo"],["ART FEITA E PAGA?","ART"],["PROJETO APROVADO E ALVARA EMITIDO E ARMAZENADO?","Projeto aprovado / alvará"],
+  ["EMITIU CNO E CND DE OBRA?","CNO e CND"],["CONTRATO MESTRE ASSINADO E ARMAZENADO?","Contrato do mestre"],["ITBI PAGO ?","ITBI"],["REGISTRO PAGO?","Registro"],
+  ["ESCRITURA REGISTRADA E DIGITALIZADA?","Escritura registrada"],["EMITIU DOCUMENTOS DE VISTORIA E SCPO?","Vistoria / SCPO"],["APROVOU HABITE-SE?","Habite-se aprovado"],
+  ["ARMAZENOU HABITE-SE?","Habite-se armazenado"],["EMITIU ART DE ACRESCIMO?","ART de acréscimo"]];
+function ckDocsHtml(vals){
+  return `<div class="ck">${CK_DOCS.map(([c,r])=>{ const v=N(colDe(vals,c)); if(!v||v==="-") return "";
+    const cls=/^SIM/.test(v)?"s":/^NAO/.test(v)?"n":""; return `<span class="${cls}" title="${esc(c)}: ${esc(colDe(vals,c))}">${cls==="s"?"✓":cls==="n"?"✗":"•"} ${esc(r)}${cls?"":" · "+esc(colDe(vals,c))}</span>`; }).join("")}</div>`;
+}
+function alertasDoc(vals){ return Object.keys(vals||{}).filter(k=>/^(ALERTA|ELERTA)/.test(N(k))&&!vazioDoc(vals[k])).map(k=>String(vals[k])); }
+function casasHtml(o,vendas){
+  const casas=(o.casas||[]).slice();
+  if(!casas.length&&!vendas.length) return `<div class="ajuda">Nenhuma casa em Vendas ainda.</div>`;
+  const porCasa={}; vendas.forEach(r=>{ porCasa[String(r.valores["CASA"]||r.valores["CASA-AUTO"]||"")]=r; });
+  const lista=casas.length?casas:vendas.map(r=>({casa:r.valores["CASA"]||r.valores["CASA-AUTO"]}));
+  return `<table class="mini"><tr><th>Casa</th><th>Situação</th><th>Venda</th><th>Entrega</th><th></th></tr>${lista.map(c=>{
+    const r=porCasa[String(c.casa==null?"":c.casa)], v=(r&&r.valores)||{};
+    const sit=c.entregue?`<span class="chip ok">vendida · entregue</span>`:c.vendida?`<span class="chip alerta">vendida · não entregue</span>`:`<span class="chip">não vendida</span>`;
+    return `<tr><td><b>Casa ${esc(c.casa==null?"":c.casa)}</b>${colDe(v,"TIPO DE CASA")?`<div class="orig">${esc(txtVal(colDe(v,"TIPO DE CASA")))}</div>`:""}</td><td>${sit}</td>
+      <td>${esc(dataBr(colDe(v,"DATA DA VENDA")))}</td><td>${esc(dataBr(colDe(v,"DATA DA ENTREGA")))}</td>
+      <td>${r?`<a href="vendas.html?abrir=${encodeURIComponent(r.id)}" target="_blank" rel="noopener">abrir</a>`:""}</td></tr>`; }).join("")}</table>`;
+}
+function ligHtml(ligs,curto){
+  if(!ligs.length) return `<div class="ajuda">Nenhuma ligação de água/energia criada para esta obra.</div>`;
+  return `<table class="mini"><tr><th>Casa</th><th>Concessionária</th><th>Status</th>${curto?"":"<th>UC</th><th>Solicitação</th><th>Liberação</th>"}<th>Alerta</th></tr>${ligs.map(r=>{
+    const v=r.v||{}, cs=(String(r.obra||"").match(/CS\s*\d+/i)||[""])[0], st=String(r.status||colDe(v,"STATUS")||"");
+    const al=[colDe(v,"ALERTA UC"),colDe(v,"Alerta Informações"),colDe(v,"ALERTA VER. LIGAÇÃO")].filter(x=>!vazioDoc(x)).map(String);
+    return `<tr><td>${esc(cs||r.obra||"")}</td><td>${esc(r.concessionaria||colDe(v,"CONCESSIONÁRIA")||"")}</td>
+      <td><span class="chip ${/LIGADO/.test(N(st))&&!/NAO/.test(N(st))?"ok":"alerta"}">${esc(st||"—")}</span></td>
+      ${curto?"":`<td>${esc(r.uc||colDe(v,"UC")||"")}</td><td>${esc(dataBr(colDe(v,"DATA DE SOLICITAÇÃO"))||(N(colDe(v,"FEZ A SOLICITAÇÃO?"))==="NAO"?"não fez":""))}</td><td>${esc(dataBr(colDe(v,"DATA DE LIBERAÇÃO")))}</td>`}
+      <td>${al.length?`<span class="orig">${esc(al[0])}</span>`:""}</td></tr>`; }).join("")}</table>`;
+}
+
+/* ---- as abas ---- */
+function abaResumo(o){
+  const atv=atvsDaObra(o.id), normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), feitas=normais.filter(atvFeita).length;
+  const pend=normais.filter(a=>!atvFeita(a)), atrasadas=pend.filter(a=>N(a.controle_prazo).indexOf("ATRASO")>=0);
+  const pct=normais.length?Math.round(100*feitas/normais.length):0;
+  const docs=docsDaObra(o), dv=docs[0]&&docs[0].valores, vendas=vendasDaObra(o), ligs=ligDaObra(o), orc=dadosOrcamento(o);
+  const ext=!EXT.docs?`<div class="ajuda"><span class="load"></span> carregando…</div>`:"";
+  let h=`<div class="cards">`;
+  h+=`<div class="card"><h4>Obra<span class="sp"></span><button onclick="irAbaObra('dados')">editar dados</button></h4>${kvHtml([
+    ["Status",esc(o.status||"")],["Liberada p/ processo",esc(o.liberar||"")],["Projeto aprovado",esc(o.projeto_aprovado||"")],
+    ["Previsão de término",esc(dataBr(o.data_prevista))],["Responsável",esc(o.resp||""),!o.resp],["Engenheiro RT",esc(o.rt||""),!o.rt],
+    ["Proprietário",esc(o.proprietario||""),!o.proprietario],["Nº de casas",esc(o.n_casas==null?"":o.n_casas),!o.n_casas],["Implantação",esc(o.implantacao||"")]])}</div>`;
+  h+=`<div class="card"><h4>Processo<span class="sp"></span><button onclick="irAbaObra('atividades')">ver atividades</button></h4>
+    ${normais.length?`<div style="font-size:12.5px;font-weight:700">${feitas} de ${normais.length} atividades concluídas (${pct}%)</div><div class="barra"><i style="width:${pct}%"></i></div>`
+      :`<div class="ajuda">Nenhuma atividade ligada a esta obra ainda.</div>`}
+    ${atrasadas.length?`<div class="orig" style="color:var(--verm)">Em atraso: ${atrasadas.slice(0,4).map(a=>esc(a.titulo||a.tipo)).join(" · ")}${atrasadas.length>4?" …":""}</div>`:""}
+    ${pend.length?`<div class="orig" style="margin-top:4px">Próximas: ${pend.filter(a=>atrasadas.indexOf(a)<0).slice(0,3).map(a=>esc((a.titulo||a.tipo)+(a.data_final?" ("+dataBr(a.data_final)+")":""))).join(" · ")||"—"}</div>`:""}</div>`;
+  h+=`<div class="card"><h4>Documentos<span class="sp"></span><button onclick="irAbaObra('dvl')">detalhes</button></h4>${ext||(!dv?`<div class="ajuda">Esta obra ainda não tem linha em Documentos.</div>`:
+    kvHtml([["Obra iniciada",esc(txtVal(colDe(dv,"OBRA INCIADA")))],["Obra finalizada",esc(txtVal(colDe(dv,"OBRA FINALIZADA?")))],["Despachante",esc(txtVal(colDe(dv,"DESPACHANTE")))],
+      ["Início previsto",esc(dataBr(colDe(dv,"PREVISÃO DE INÍCIO DE OBRA")))],["Entrada do alvará",esc(dataBr(colDe(dv,"DATA DE ENTRADA DE ALVARA")))]])+
+    `<div style="margin-top:8px">${ckDocsHtml(dv)}</div>`+(alertasDoc(dv).length?`<div class="orig" style="margin-top:6px;color:#B45309">${alertasDoc(dv).map(esc).join(" · ")}</div>`:""))}</div>`;
+  h+=`<div class="card"><h4>Vendas<span class="sp"></span><button onclick="irAbaObra('dvl')">detalhes</button></h4>${ext||casasHtml(o,vendas)}</div>`;
+  h+=`<div class="card"><h4>Ligações de água e energia<span class="sp"></span><button onclick="irAbaObra('dvl')">detalhes</button></h4>${ext||ligHtml(ligs,true)}</div>`;
+  h+=`<div class="card"><h4>3D e orçamento<span class="sp"></span><button onclick="irAbaObra('orc')">abrir</button></h4>
+    ${orc.faltas.length?`<div class="ck">${orc.faltas.map(x=>`<span class="n">✗ ${esc(x.rot)}</span>`).join("")}</div><div class="orig" style="margin-top:6px">Dados que faltam para o orçamento.</div>`
+      :`<div class="ck"><span class="s">✓ Dados do orçamento completos</span></div>`}
+    <div style="margin-top:8px"><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener">🧊 Abrir modelo 3D</a></div></div>`;
+  h+=`</div>`;
+  if(EXT.erro) h+=`<div class="ajuda" style="margin:8px 22px 0">⚠ ${esc(EXT.erro)} — mostrando a última cópia salva.</div>`;
+  h+=`<div class="grp">Comentários e imagens</div><div class="pl" id="com-obra">${comentariosHtml(o.id)}</div>`;
+  return h;
+}
+function abaDados(o){
+  return `<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>CAMPOS_FORA.indexOf(c[1])>=0?"":campoHtml(o,c,i)).join("")}</div>`;
+}
+function abaAtividades(o){
+  const normais=atvsDaObra(o.id).filter(a=>!ehLig(a)).sort(ordenaAtv);
+  let h=`<div class="grp">Atividades do processo <span class="sp"></span>
       <button class="tg ${MODO==="lista"?"on":""}" title="Atividades em lista, por tipo" onclick="MODO='lista';pintarObraPainel()">Lista</button>
       <button class="tg ${MODO==="crono"?"on":""}" title="Atividades no tempo (início → prazo)" onclick="MODO='crono';pintarObraPainel()">Cronograma</button></div><div class="pl">`;
   if(!normais.length) h+=`<div class="vazio">Nenhuma atividade ligada a esta obra ainda.</div>`;
   else if(MODO==="lista") h+=cabAtv(false)+ordenar(normais,SORT_ATV.k?SORT_ATV:{k:null}).map(a=>linhaAtv(a,false)).join("");
   else h+=gantt(normais);
-  h+=`</div><div class="grp">Ligação de água e energia</div><div class="pl">`;
-  h+=lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="vazio">Nenhuma atividade de ligação ainda.</div>`;
-  /* Senador Canedo: SANESC + EQUATORIAL e NUNCA esgoto. Goiânia: SANEAGO +
-     EQUATORIAL, com SANEAGO ESGOTO quando for "c/ esgoto". */
+  return h+`</div>`;
+}
+function abaDvl(o){
+  const docs=docsDaObra(o), vendas=vendasDaObra(o), ligs=ligDaObra(o), lig=atvsDaObra(o.id).filter(ehLig).sort(ordenaAtv);
+  let h="";
+  /* DOCUMENTOS */
+  h+=`<div class="grp">Documentos <span class="sp"></span><a class="tg" style="text-decoration:none" href="documentos.html" target="_blank" rel="noopener">abrir Documentos</a></div><div class="pl">`;
+  if(!EXT.docs) h+=`<div class="ajuda"><span class="load"></span> carregando…</div>`;
+  else if(!docs.length) h+=`<div class="ajuda">Esta obra ainda não tem linha em Documentos.</div>`;
+  else{
+    const v=docs[0].valores||{}, ks=Object.keys(v).filter(k=>!vazioDoc(v[k])&&!/-AUTO$|^ALERTA|^ELERTA|^ENDERECO$|^OBRA-AUTO$/.test(N(k)));
+    const datas=ks.filter(k=>/^DATA|^PREVISAO/.test(N(k))&&dataBr(v[k])), ck=ks.filter(k=>/^(SIM|NAO|INEXISTE)/.test(N(v[k]))&&datas.indexOf(k)<0);
+    const outros=ks.filter(k=>datas.indexOf(k)<0&&ck.indexOf(k)<0);
+    const al=alertasDoc(v);
+    if(al.length) h+=`<div class="alertas-orc" style="margin:0 0 10px"><b>Alertas</b>${al.map(esc).join("<br>")}</div>`;
+    h+=`<div class="ck" style="margin-bottom:10px">${ck.sort().map(k=>{ const s=N(v[k]); return `<span class="${/^SIM/.test(s)?"s":/^NAO/.test(s)?"n":""}">${/^SIM/.test(s)?"✓":/^NAO/.test(s)?"✗":"•"} ${esc(k.trim())}</span>`; }).join("")}</div>`;
+    h+=`<div class="cards" style="padding:0">`+
+      `<div class="card"><h4>Datas</h4>${datas.length?kvHtml(datas.sort().map(k=>[k.trim(),esc(dataBr(v[k]))])):`<div class="ajuda">Nenhuma data preenchida.</div>`}</div>`+
+      `<div class="card"><h4>Outros</h4>${outros.length?kvHtml(outros.sort().map(k=>[k.trim(),esc(txtVal(v[k]))])):`<div class="ajuda">—</div>`}</div></div>`;
+  }
+  h+=`</div>`;
+  /* VENDAS */
+  h+=`<div class="grp">Vendas <span class="sp"></span><a class="tg" style="text-decoration:none" href="vendas.html" target="_blank" rel="noopener">abrir Vendas</a></div><div class="pl">${!EXT.vendas?`<div class="ajuda"><span class="load"></span> carregando…</div>`:casasHtml(o,vendas)}</div>`;
+  /* LIGAÇÕES — a tabela da aba Ligações + as atividades de ligação e os botões de criar (antes ficavam no painel) */
+  h+=`<div class="grp">Ligações de água e energia <span class="sp"></span><a class="tg" style="text-decoration:none" href="ligacoes.html" target="_blank" rel="noopener">abrir Ligações</a></div><div class="pl">`;
+  h+=!EXT.lig?`<div class="ajuda"><span class="load"></span> carregando…</div>`:ligHtml(ligs,false);
+  h+=`<div style="margin-top:12px">${lig.length?cabAtv(false)+lig.map(a=>linhaAtv(a,false)).join(""):`<div class="ajuda">Nenhuma atividade de ligação ainda.</div>`}</div>`;
+  h+=botoesLigacaoHtml(o)+`</div>`;
+  return h;
+}
+/* Senador Canedo: SANESC + EQUATORIAL e NUNCA esgoto. Goiânia: SANEAGO + EQUATORIAL, com SANEAGO ESGOTO quando
+   for "c/ esgoto". Item 9: depois de criadas, os botões travam e mostram JÁ CRIADO (igual a antes, só mudou de lugar). */
+function botoesLigacaoHtml(o){
   const canedo=N(o.cidade).indexOf("CANEDO")>=0, semCidade=!o.cidade;
-  /* item 9: depois de criadas, os botões travam e mostram JÁ CRIADO */
   const jaCriado=(o.lig_criadas||0)>0||(o.vendas_criadas||0)>0, liberado=!!(window.LIG_LIBERA||{})[o.id];
+  let h="";
   if(jaCriado) h+=`<div class="ja-criado">✓ JÁ CRIADO — ${o.lig_criadas||0} ligações e ${o.vendas_criadas||0} vendas desta obra.
       ${ehAdmTela()&&!liberado?`<button class="bt bt-mini ghost" title="Libera os botões para criar de novo, mesmo já tendo ligações/vendas (só ADM)" onclick="(window.LIG_LIBERA=window.LIG_LIBERA||{})['${o.id}']=1;pintarObraPainel()">criar de novo (ADM)</button>`:""}</div>`;
   h+=`<div class="lig-bts">${[1,2,3,4,5].map(n=>[false].concat(canedo?[]:[true]).map(e=>
@@ -1186,10 +1411,40 @@ function pintarObraPainel(){
     <div class="ajuda">${semCidade?"Preencha a CIDADE da obra para liberar os botões. ":""}
       ${canedo?"Senador Canedo: SANESC + EQUATORIAL (sem esgoto)":"Goiânia: SANEAGO + EQUATORIAL (com SANEAGO ESGOTO nos botões \"c/ esgoto\")"}
       · cada casa também ganha a linha em Vendas.</div>`;
-  h+=`</div><div class="grp">Comentários e imagens</div><div class="pl" id="com-obra">${comentariosHtml(o.id)}</div>`;
+  return h;
+}
+function abaOrc(o){
+  const orc=dadosOrcamento(o);
+  /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão MORAIS → Geral → Publicar 3D (pyRevit)
+     gravou na coluna MODELO 3D da obra */
+  let h=`<div class="grp">Modelo 3D <span class="sp"></span><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a></div>
+      <div class="ajuda" style="margin:0 22px 6px">Arquitetura, hidrossanitário e as outras disciplinas na mesma cena, com os quantitativos: clique numa linha para ver no 3D. Para publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</div>
+      <div class="m3d-lay" id="m3d-lay" style="margin:4px 22px 10px;font-size:12.5px"><span class="ajuda">Mesmo layout: carregando…</span></div>`;
+  h+=`<div class="grp">Dados para o orçamento</div>`;
+  h+=orc.faltas.length?`<div class="alertas-orc"><b>⚠ Falta ${orc.faltas.length} ${orc.faltas.length===1?"informação":"informações"} para o orçamento sair completo</b>${orc.faltas.map(x=>esc(x.rot)+(x.obs?" — "+esc(x.obs):"")).join("<br>")}</div>`
+    :`<div class="alertas-orc ok"><b>✓ Todos os dados que o orçamento usa estão preenchidos.</b></div>`;
+  h+=`<div class="pl" style="margin-top:12px"><table class="mini" style="table-layout:fixed"><colgroup><col style="width:36%"><col style="width:44%"><col style="width:20%"></colgroup><tr><th>Dado</th><th>Valor</th><th>De onde vem</th></tr>${orc.lista.map(x=>
+    `<tr><td><b>${esc(x.rot)}</b>${x.obs?`<div class="orig">${esc(x.obs)}</div>`:""}</td><td>${x.falta?`<span class="chip alerta">falta</span>`:esc(x.val)}</td><td class="orig">${esc(x.orig)}</td></tr>`).join("")}</table>
+    ${orc.form.atv?`<div class="ajuda" style="margin-top:6px">O formulário é a atividade <a href="#" onclick="abrirAtv('${orc.form.atv.id}');return false">${esc(orc.form.atv.titulo||orc.form.atv.tipo)}</a> — o que for respondido lá aparece aqui.</div>`:""}</div>`;
+  h+=`<div class="grp">Orçamento</div><div class="pl"><div class="ajuda">Em construção: aqui vai ficar a tabela prévia do orçamento desta obra — gerada pelo modelo, pelos quantitativos do 3D e pelos dados acima, toda editável e ligada ao catálogo do Mais Controle — e o botão para enviar ao MC.</div></div>`;
+  return h;
+}
+function pintarObraPainel(){
+  const o=obraDe(OBRA); if(!o) return;
+  document.getElementById("p1-end").textContent=o.titulo||"(sem endereço)";
+  document.getElementById("p1-loc").textContent=[o.setor,o.cidade,o.resp].filter(Boolean).join(" · ");
+  if(!EXT.docs&&!EXT.carregando) carregarExtrasObra();
+  const normais=atvsDaObra(o.id).filter(a=>!ehLig(a)), pend=normais.filter(a=>!atvFeita(a)).length;
+  const falta=faltasDe(o).length, faltaOrc=dadosOrcamento(o).faltas.length;
+  const n=(v,al)=>v?`<span class="n ${al?"al":""}">${v}</span>`:"";
+  const cont={dados:n(falta,1),atividades:n(pend),dvl:"",orc:n(faltaOrc,1),resumo:""};
+  let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
+  if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 22px;white-space:pre-line">⚠ Alterações nesta obra — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
+  h+=`<div class="otabs">${OB_ABAS.map(([k,r])=>`<button class="otab ${ABA_OB===k?"on":""}" onclick="irAbaObra('${k}')">${esc(r)}${cont[k]||""}</button>`).join("")}</div>`;
+  h+=ABA_OB==="dados"?abaDados(o):ABA_OB==="atividades"?abaAtividades(o):ABA_OB==="dvl"?abaDvl(o):ABA_OB==="orc"?abaOrc(o):abaResumo(o);
   document.getElementById("p1-corpo").innerHTML=h;
   aplicarCombos(document.getElementById("p1-corpo"));
-  carregarLayout3d(o.id);
+  if(ABA_OB==="orc") carregarLayout3d(o.id);
 }
 /* 25/09/26 — GRAVAÇÃO OTIMISTA NA OBRA (mesma ideia da baixa de atividade).
    Antes a obra só mudava na memória DEPOIS da resposta do servidor: quem
@@ -1825,8 +2080,11 @@ const LOTE_ANDANDO=new Set();
    Com o aquecimento no servidor (Melhorias m5), quase tudo já vem do cache. */
 const LOTE_TAM=5;
 async function preCarregarConteudos(obraId){
+  /* 16/11/26: o FORMULÁRIO DE OBRA vem primeiro — a aba "3D e Orçamento" (e o Resumo) lê dele os padrões de
+     energia, o arrimo e o esgoto; quando ele chega, a aba se redesenha sozinha */
+  const ob=obraDe(obraId), fo=ob&&atvFormulario(ob), foId=fo?fo.id:null;
   const ids=D.atividades.filter(a=>a.obra_id===obraId&&!ehLig(a)&&String(a.id).indexOf("tmp")!==0)
-    .sort((x,y)=>(atvFeita(x)?1:0)-(atvFeita(y)?1:0))                 // as abertas primeiro
+    .sort((x,y)=>(y.id===foId?1:0)-(x.id===foId?1:0)||(atvFeita(x)?1:0)-(atvFeita(y)?1:0))   // formulário, depois as abertas
     .filter(a=>!CONT_MEM[a.id]||Date.now()-(CONT_MEM[a.id].t||0)>10*60000).map(a=>a.id);
   for(let i=0;i<ids.length;i+=LOTE_TAM){
     if(OBRA!==obraId) return;                                          // fechou a obra: para
@@ -1837,6 +2095,7 @@ async function preCarregarConteudos(obraId){
     lote.forEach(x=>LOTE_ANDANDO.delete(x));
     if(!(r&&r.ok&&r.conteudos)) return;                                // falhou: não insiste agora
     Object.keys(r.conteudos).forEach(id=>contGuardar(id,r.conteudos[id]||[]));
+    if(foId&&r.conteudos[foId]&&OBRA===obraId&&(ABA_OB==="orc"||ABA_OB==="resumo")&&!ATV&&!editandoNoPainel()) pintarObraPainel();
     Object.keys(r.comentarios||{}).forEach(id=>{ if(!Array.isArray(COMS[id])) comsGuardar(id,r.comentarios[id]); });
     if(ATV&&r.conteudos[ATV]&&(!CONT||CONT.erro)){ CONT=CONT_MEM[ATV]; pintarAtvPainel(); }
   }
