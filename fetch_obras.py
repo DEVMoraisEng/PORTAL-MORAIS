@@ -234,6 +234,15 @@ def main():
     os.makedirs(SAIDA, exist_ok=True)
 
     esquema = api("GET", f"/databases/{ID_OBRAS}").get("properties") or {}
+    # 16/11/2026 (dono): coluna de data DATA DE LIBERAÇÃO — o portal carimba quando "Liberar Obra Para
+    # Processo Interno" vira Sim e conta os dias corridos ("Liberada há"). Criada aqui se ainda não existir;
+    # falhar não derruba a publicação.
+    if not any(norm(n) == norm("DATA DE LIBERAÇÃO") for n in esquema):
+        try:
+            api("PATCH", f"/databases/{ID_OBRAS}", {"properties": {"DATA DE LIBERAÇÃO": {"date": {}}}})
+            print("  coluna DATA DE LIBERAÇÃO criada na base de obras", flush=True)
+        except BaseException as e:      # api() sai com SystemExit em erro
+            print(f"  ! não consegui criar a coluna DATA DE LIBERAÇÃO: {e}", flush=True)
     opcoes = {}
     for nome, d in esquema.items():
         t = d.get("type")
@@ -285,6 +294,8 @@ def main():
             "rt": txt(rt), "rt_ids": ids(rt),
             "status": txt(pega(ip, "Status")),
             "liberar": txt(pega(ip, "Liberar Obra Para Processo Interno")),
+            # 16/11/2026: carimbada pelo portal quando Liberar vira Sim (contador "Liberada há")
+            "data_liberacao": txt(pega(ip, "DATA DE LIBERAÇÃO")),
             "projeto_finalizado": txt(pega(ip, "Projeto Finalizado")),
             "orcamento_finalizado": txt(pega(ip, "Orçamento Finalizado")),
             "projeto_aprovado": txt(pega(ip, "Projeto Aprovado")),

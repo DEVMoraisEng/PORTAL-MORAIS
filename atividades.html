@@ -314,6 +314,8 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 .li .c.atr{color:var(--verm);font-weight:800}
 .pill{display:inline-block;font-size:10.5px;font-weight:800;padding:3px 9px;border-radius:20px;background:#e7f0f3;color:var(--azul);white-space:nowrap}
 .pill.s0{background:#eef1f3;color:#5a6b77}.pill.s1{background:#e3eefb;color:#2d5ea8}.pill.s2{background:#fdf1dc;color:#9a5b0b}.pill.s3{background:rgba(42,157,92,.14);color:var(--verde-esc)}
+.pill.o-Pós,.cal .ev.o-Pós{background:#fff1dc;color:#9a5b0b}.pill.o-RAS,.cal .ev.o-RAS{background:#e3edf9;color:#244f86}
+.cal-leg i.o-Pós{background:#9a5b0b}.cal-leg i.o-RAS{background:#244f86}
 .pill.o-Obras{background:#e8e2f7;color:#5b3fa6}.pill.o-Vendas{background:#fde6ec;color:#a3284e}.pill.o-Documentos{background:#e0f2ef;color:#1d6b5f}
 .pri-Alta{color:var(--verm);font-weight:800}.pri-Média{color:#b7791f;font-weight:700}.pri-Baixa{color:var(--text3)}
 /* kanban */
@@ -520,6 +522,7 @@ main.wrap{padding-bottom:90px}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="atv-contadores.js?v=1"></script>
 <script src="rf-rotas.js?v=10"></script>
 <script src="conteudo-atv.js?v=2"></script>
 <script src="alertas-docs.js?v=1"></script>
@@ -583,9 +586,69 @@ let D={atividades:[],pessoas:[],opcoes:{status:[],tipo:[],prioridade:[]}}, OUT={
 let OBRAS={}, OBRAS_L=[], ALERTAS_ABAS=[];
 let ABA="minhas", VIS=localStorage.getItem("atv_vis")||"lista", FILTRO="todas", BUSCA="", MES=new Date(); MES.setDate(1);
 let VER_FIN=false, EQ_PESSOA="", ORIG="todas", RAPIDO="";
-const ORIGENS=["Atividades","Obras","Vendas","Documentos"];
+const ORIGENS=["Atividades","Obras","Vendas","Documentos","Pós Obra","RAS"];   // 16/11: + Pós Obra e RAS
 let ABERTA=null, _poll=null, _coms=null, _comsAssin="";
 let CKS={checklists:[]};   // v5: checklists de verdade (Supabase)
+
+/* ===================== 16/11/2026 (dono, item 1) — TODAS AS ATIVIDADES DAS OUTRAS PÁGINAS =====================
+ * Além de Obras, Vendas e Documentos (que vêm do servidor), entram em "De outras abas":
+ *   - PÓS OBRA: os serviços em aberto (dist/pos_obra.json, lista "abertos") — para quem tem o acesso PÓS OBRA
+ *     marcado no LOGINS (ADM/MASTER sem o acesso marcado não recebem a lista inteira). Abrem no próprio Pós Obra.
+ *   - RAS: as atividades não concluídas da semana em que a pessoa é responsável, das 6 RAS (Líderes, Obras,
+ *     Projetos, Financeiro, Compras, Pós-Obra) — lidas do dist/data_atividades.json de cada uma (mesmo domínio).
+ *     O responsável da RAS é um nome curto ("Felipe", "João Vitor"): casa quando todas as palavras dele estão
+ *     no nome de quem está logado. Abrem na própria RAS.
+ * O que vem do servidor continua em OUT.itens; estas ficam em EXTRA_OUT (sem cache próprio: os arquivos são
+ * estáticos e rápidos). Toda lista usa outrasItens(). */
+let EXTRA_OUT=[];
+function outrasItens(){ return (OUT.itens||[]).concat(EXTRA_OUT); }
+const RAS_FONTES=[["RAS-SEMANAL","RAS Líderes"],["RAS-OBRAS","RAS Obras"],["RAS-PROJETOS","RAS Projetos"],
+                  ["RAS-FINANCEIRO","RAS Financeiro"],["RAS-COMPRAS","RAS Compras"],["RAS-POS-OBRAS","RAS Pós-Obra"]];
+function temAcessoExplicito(chave){
+  const nz=x=>String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim();
+  return !!S && (S.acessos||[]).some(a=>nz(a)===nz(chave));
+}
+function ehMeuNomeRas(resp){
+  const eu=N(S&&S.nome).split(/\s+/).filter(Boolean), r=N(resp).split(/\s+/).filter(Boolean);
+  return !!r.length && !!eu.length && r.every(p=>eu.indexOf(p)>=0);
+}
+async function carregarExtras(){
+  const novos=[];
+  if(temAcessoExplicito("PÓS OBRA")){
+    try{
+      const r=await lerEstatico("pos_obra.json","pos_obra_dist");
+      (r&&r.abertos||[]).forEach(c=>{
+        const serv=[].concat(c.servico||[]).filter(Boolean).join(", ");
+        novos.push({origem:"Pós Obra", externo:true, id:"pos:"+c.id, titulo:c.nome||"Serviço de pós obra",
+          tipo:[serv,c.responsavel].filter(Boolean).join(" · "), status:c.andamento||"Em aberto",
+          ini:c.dataChamado||c.criado||null, criado:c.criado||null, fim:c.agendamento||null,
+          link:c.obraId?("pos-obra.html#chamado="+c.obraId+":"+c.id):"pos-obra.html"});
+      });
+    }catch(e){}
+  }
+  if(S&&S.nome){
+    await Promise.all(RAS_FONTES.map(async ([repo,rot])=>{
+      try{
+        const res=await fetch("/"+repo+"/dist/data_atividades.json",{cache:"no-cache"}); if(!res.ok) return;
+        const j=await res.json(), l=(j&&j.atividades)||[];
+        /* semana atual (segunda-feira) e a anterior: o que foi planejado para semanas futuras ainda não entra */
+        const d0=new Date(); d0.setHours(12,0,0,0); d0.setDate(d0.getDate()-((d0.getDay()+6)%7));
+        const isoD=d=>d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0");
+        const seg=isoD(d0), d1=new Date(d0); d1.setDate(d1.getDate()-7); const segAnt=isoD(d1);
+        l.forEach(a=>{
+          if(/CONCLU|CANCEL/.test(N(a.status))) return;
+          const sem=String(a.semana||"").slice(0,10);
+          if(!sem||sem>seg||sem<segAnt) return;
+          if(!ehMeuNomeRas(a.responsavel)) return;
+          novos.push({origem:"RAS", externo:true, id:"ras:"+SID(a.id), titulo:a.nome||"(sem nome)",
+            tipo:[rot,a.setor,a.prioridade].filter(Boolean).join(" · "), status:a.status||"",
+            ini:String(a.semana||"").slice(0,10)||null, fim:null, link:"/"+repo+"/"});
+        });
+      }catch(e){}
+    }));
+  }
+  EXTRA_OUT=novos; pintar();
+}
 
 /* ---------- utilitários ---------- */
 function N(s){ return String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().trim(); }
@@ -719,9 +782,11 @@ function acha(id){ id=SID(id); return D.atividades.find(a=>a.id===id)||(EQ&&EQ.a
 
 /* ---------- abas ---------- */
 function pintarTabs(){
-  const atr=D.atividades.filter(a=>souResp(a)&&atrasada(a)).length+OUT.itens.filter(x=>x.fim&&x.fim<hojeISO()).length;
+  const atr=D.atividades.filter(a=>souResp(a)&&atrasada(a)).length+outrasItens().filter(x=>x.fim&&x.fim<hojeISO()).length;
+  /* 16/11 (item 5): quantidade em aberto (sou responsável + outras abas) ao lado das atrasadas */
+  const nAb=D.atividades.filter(a=>souResp(a)&&aberta(a)&&!a._criando).length+outrasItens().length;
   document.getElementById("tabs").innerHTML=
-    `<button class="tab ${ABA==="minhas"?"on":""}" onclick="ABA='minhas';pintar()">Minhas atividades${atr?`<span class="nb">${atr}</span>`:""}</button>`+
+    `<button class="tab ${ABA==="minhas"?"on":""}" onclick="ABA='minhas';pintar()">Minhas atividades<span class="nb-atv" title="em aberto">${nAb}</span>${atr?`<span class="nb" title="atrasadas">${atr}</span>`:""}</button>`+
     (EQUIPE?`<button class="tab ${ABA==="equipe"?"on":""}" onclick="ABA='equipe';pintar();carregarEquipe()">Equipe</button>`:"");
 }
 function pintar(){ pintarTabs(); if(ABA==="equipe") pintarEquipe(); else pintarMinhas(); }
@@ -760,7 +825,7 @@ function pintarCorpo(){
     <div class="ival ${n&&c?c:""}">${n}</div><div class="ilab">${l}</div></div>`).join("")+
     (RAPIDO?`<button class="bt ghost bt-mini" style="align-self:center" onclick="RAPIDO='';pintarCorpo()">✕ Ver tudo</button>`:"");
   if(RAPIDO){ m.innerHTML=listaRapida(Q[RAPIDO],RAPIDO); return; }
-  if(!D.atividades.length&&!OUT.itens.length){ m.innerHTML=_carregou
+  if(!D.atividades.length&&!outrasItens().length){ m.innerHTML=_carregou
     ?`<div class="vazio">Nenhuma atividade sua por enquanto. Crie uma em “+ Nova atividade”.</div>`
     :`<div class="vazio"><span class="load"></span> Carregando suas atividades…</div>`; return; }
   const soEmp=ORIG==="todas"||ORIG==="Atividades";
@@ -771,7 +836,7 @@ function pintarCorpo(){
   if(VIS==="cal") ligarCal();
 }
 /* recortes dos cartões de cima (clicáveis) — todas as origens juntas */
-function outrasFiltradas(){ return OUT.itens.filter(x=>ORIG==="todas"||ORIG===x.origem).filter(x=>!BUSCA||N(x.titulo+" "+(x.tipo||"")).indexOf(N(BUSCA))>=0); }
+function outrasFiltradas(){ return outrasItens().filter(x=>ORIG==="todas"||ORIG===x.origem).filter(x=>!BUSCA||N(x.titulo+" "+(x.tipo||"")).indexOf(N(BUSCA))>=0); }
 function quick(){
   const h=hojeISO(), emp=(ORIG==="todas"||ORIG==="Atividades")?D.atividades.filter(a=>!ehPropria(a)||true).filter(aberta).filter(busca):[];
   const out=outrasFiltradas();
@@ -795,7 +860,7 @@ function linha(a,modo){
   const obra=nomeObra(a.obraId);
   if(a._criando) return `<div class="li criando" title="Criando no Notion…"><div class="t">${esc(a.titulo)}<small>criando…</small></div><div><span class="pill s0">criando…</span></div><div class="c">${esc(nomes(a.resp))}</div><div class="c">${a.fim?br(a.fim):""}</div><div class="c"><span class="load"></span></div></div>`;
   return `<div class="li ${cls}" onclick="abrirAtv('${a.id}')" title="Abrir a atividade">
-    <div class="t">${ehMural(a)?"📌 ":""}${esc(a.titulo)}<small>${esc([a.tipo,obra].filter(Boolean).join(" · "))}</small></div>
+    <div class="t">${ehMural(a)?"📌 ":""}${esc(a.titulo)} ${atvDiasHtml({inicio:a.ini,criado:a.criado,fim:aberta(a)?null:a.concl,curto:true})}<small>${esc([a.tipo,obra].filter(Boolean).join(" · "))}</small></div>
     <div>${pillSt(a.status)}${temEdicaoPendente(a.id)?` <span class="pend-ed" title="Alteração ainda não confirmada pelo Notion — tenta de novo sozinha">⏳</span>`:""}</div>
     <div class="c" title="${esc(quem)}">${esc(quem)}</div>
     <div class="c ${atrasada(a)?"atr":""}">${a.fim?(atrasada(a)?"⚠ ":"")+br(a.fim):"sem prazo"}</div>
@@ -807,8 +872,8 @@ function linha(a,modo){
 function linhaOut(x){
   const atr=x.fim&&x.fim<hojeISO();
   return `<div class="li ${atr?"atr":x.fim===hojeISO()?"hoje":""}" onclick="abrirOutra('${esc(x.id)}')" title="Abrir e editar aqui">
-    <div class="t">${esc(x.titulo||"(sem título)")}<small>${esc([x.tipo,nomeObra(x.obraId)].filter(Boolean).join(" · "))}</small></div>
-    <div><span class="pill o-${esc(x.origem)}">${esc(x.origem)}</span></div>
+    <div class="t">${esc(x.titulo||"(sem título)")} ${atvDiasHtml({inicio:x.ini,criado:x.criado,curto:true})}<small>${esc([x.tipo,nomeObra(x.obraId)].filter(Boolean).join(" · "))}</small></div>
+    <div><span class="pill o-${esc(String(x.origem).split(" ")[0])}">${esc(x.origem)}</span></div>
     <div class="c">${esc(x.status||"")}</div>
     <div class="c ${atr?"atr":""}">${x.fim?(atr?"⚠ ":"")+br(x.fim):"sem prazo"}</div><div class="c"><a href="${esc(x.link)}" onclick="event.stopPropagation()" title="Abrir na aba ${esc(x.origem)} (precisa ter acesso a ela)" style="text-decoration:none">↗</a></div></div>`;
 }
@@ -830,7 +895,7 @@ function lista(minhas){
   return sec("⚠ Atrasadas",atr,a=>linha(a,"resp"),"r")+
     sec("Sou responsável",resp.filter(a=>!atrasada(a)),a=>linha(a,"resp"))+
     sec("Solicitei (outras pessoas fazem)",solic,a=>linha(a,"solic"))+
-    sec("De outras abas (Obras, Vendas, Documentos)",out,linhaOut)+
+    sec("De outras abas (Obras, Vendas, Documentos, Pós Obra, RAS)",out,linhaOut)+
     sec("Concluídas nos últimos 30 dias",fin,a=>linha(a,"resp"),"",true,"fin") ||
     `<div class="vazio">Nada com esse filtro.</div>`;
 }
@@ -857,7 +922,7 @@ function ligarKanban(){
 const ehMural=a=>/^(MURAL|PORTAL)$/.test(N(a&&a.tipo));
 function legendaCal(){
   const origens=ORIG==="todas"?ORIGENS:[ORIG];
-  return `<div class="cal-leg"><span class="tl">Legenda</span>`+origens.map(o=>`<span><i class="o-${o}"></i>${o}</span>`).join("")+
+  return `<div class="cal-leg"><span class="tl">Legenda</span>`+origens.map(o=>`<span><i class="o-${o.split(" ")[0]}"></i>${o}</span>`).join("")+
     `<span class="sep"></span><span><i class="leg-atr"></i>⚠ Atrasada</span><span><i class="leg-fin"></i>Concluída</span><span>📌 Mural</span></div>`;
 }
 /* calendário (mês; cada atividade no dia do prazo final) */
@@ -879,7 +944,7 @@ function calendario(l){
     const itens=(ev[iso]||[]);
     h+=`<div class="dia ${d.getMonth()!==mes?"fora":""} ${iso===hoje?"hj":""}" data-iso="${iso}"><div class="dn">${d.getDate()}</div>${itens.map(o=>o.a?
       `<span class="ev o-Atividades ${!aberta(o.a)?"fin":atrasada(o.a)?"atr":""}" data-id="${o.a.id}" draggable="${podeEditar(o.a)?"true":"false"}" onclick="abrirAtv('${o.a.id}')" title="${esc("Atividades: "+o.a.titulo+(atrasada(o.a)?" (atrasada)":"")+(podeEditar(o.a)?" — arraste para outro dia para mudar o prazo":""))}">${atrasada(o.a)?"⚠ ":""}${ehMural(o.a)?"📌 ":""}${esc(o.a.titulo)}</span>`:
-      `<a class="ev out o-${esc(o.x.origem)} ${o.x.fim&&o.x.fim<hoje?"atr":""}" href="#" onclick="abrirOutra('${esc(o.x.id)}');return false" title="${esc(o.x.origem+": "+o.x.titulo+(o.x.fim&&o.x.fim<hoje?" (atrasada)":""))}">${o.x.fim&&o.x.fim<hoje?"⚠ ":""}${esc(o.x.titulo)}</a>`).join("")}</div>`;
+      `<a class="ev out o-${esc(String(o.x.origem).split(" ")[0])} ${o.x.fim&&o.x.fim<hoje?"atr":""}" href="#" onclick="abrirOutra('${esc(o.x.id)}');return false" title="${esc(o.x.origem+": "+o.x.titulo+(o.x.fim&&o.x.fim<hoje?" (atrasada)":""))}">${o.x.fim&&o.x.fim<hoje?"⚠ ":""}${esc(o.x.titulo)}</a>`).join("")}</div>`;
     if(i===34&&new Date(ini.getFullYear(),ini.getMonth(),ini.getDate()+35).getMonth()!==mes) break;
   }
   return h+`</div><div class="ajuda" style="margin-top:6px">Arraste uma atividade para outro dia para mudar o prazo · segure em cima de ◀ ▶ para trocar de mês.</div>`;
@@ -1794,6 +1859,7 @@ window.addEventListener("portal-ao-vivo",ev=>{
 
 /* ---------- início ---------- */
 carregarObras();
+carregarExtras();
 pendCarregar();
 /* 28/09 (noite): o que ficou saindo retoma JÁ (antes esperava a lista das
    atividades carregar — a mensagem ficava "enviando" esse tempo todo) */
@@ -1810,6 +1876,8 @@ setTimeout(retomarPendentes,300); setTimeout(retomarEdicoes,300);
 let OUTRA=null;
 const ORIGEM_ABA={Vendas:"vendas.html",Documentos:"documentos.html",Obras:"obras.html"};
 async function abrirOutra(id){
+  const ext=EXTRA_OUT.find(i=>i.id===id);
+  if(ext){ location.href=ext.link; return; }          // 16/11: Pós Obra e RAS abrem na própria página
   id=String(id||"").replace(/-/g,"");
   const x=(OUT.itens||[]).find(i=>i.id===id)||{id,titulo:"Atividade",origem:""};
   OUTRA={id,origem:x.origem,titulo:x.titulo,campos:[],carregando:true,x};

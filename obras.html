@@ -392,6 +392,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="atv-contadores.js?v=1"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -647,7 +648,7 @@ function pintarTabs(){
      pintarContas/pintarInvestidores ficam no arquivo (sem botão) — as contas continuam sendo lidas para a escolha
      da conta na obra e para os alertas. */
   document.getElementById("tabs").innerHTML=[["obras","Obras"],["atividades","Atividades"],["alertas","Alertas"]].map(([k,r])=>
-    `<button class="tab ${ABA===k?"on":""}" title="${({obras:"Lista de obras e formulário de obra nova",atividades:"Atividades por pessoa — abre nas suas",alertas:"O que falta preencher ou decidir",contas:"Contas do Mais Controle e quais aparecem para escolha",investidores:"Cadastro de proprietários/investidores (só consulta)"})[k]||""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}</button>`).join("");
+    `<button class="tab ${ABA===k?"on":""}" title="${({obras:"Lista de obras e formulário de obra nova",atividades:"Atividades por pessoa — abre nas suas",alertas:"O que falta preencher ou decidir",contas:"Contas do Mais Controle e quais aparecem para escolha",investidores:"Cadastro de proprietários/investidores (só consulta)"})[k]||""}" onclick="ABA='${k}';FIXAS.clear();pintar()">${r}${k==="alertas"&&nAl?`<span class="nb">${nAl}</span>`:""}${k==="atividades"?`<span class="nb-atv" title="atividades em aberto">${D.atividades.filter(a=>!ehLig(a)&&!atvFeita(a)).length}</span>`:""}</button>`).join("");
 }
 function pintar(){ if(ABA!=="obras"&&ABA!=="atividades"&&ABA!=="alertas") ABA="obras"; pintarTabs(); if(ABA==="obras") pintarObras(); else if(ABA==="atividades") pintarAtividades(); else pintarAlertas(); }
 
@@ -687,7 +688,7 @@ function cmp(a,b){ const va=a==null||a===""?null:a, vb=b==null||b===""?null:b;
   if(typeof va==="number"&&typeof vb==="number") return va-vb;
   return String(va).localeCompare(String(vb),"pt-BR",{numeric:true}); }
 function ordenar(l,st){ return st.k? l.slice().sort((a,b)=>{ const r=cmp(valOrd(a,st.k),valOrd(b,st.k)); return r===0?0:(r*st.d); }) : l; }
-function valOrd(x,k){ if(k==="resp"&&Array.isArray(x.resp)) return x.resp.join(", "); if(k==="tipo") return ordemTipo(x.tipo); return x[k]; }
+function valOrd(x,k){ if(k==="liberada_ha") return diasLiberada(x); if(k==="resp"&&Array.isArray(x.resp)) return x.resp.join(", "); if(k==="tipo") return ordemTipo(x.tipo); return x[k]; }
 function thOrd(rot,k,st,fn,cls){ const on=st.k===k; return `<th class="ord ${cls||""}" title="Ordenar por ${rot}${on?(st.d>0?" (crescente → decrescente)":" (decrescente → crescente)"):""}" onclick="${fn}('${k}')">${rot}${on?`<span class="seta">${st.d>0?"▲":"▼"}</span>`:""}</th>`; }
 function ordObra(k){ SORT_OB=SORT_OB.k===k?{k:k,d:-SORT_OB.d}:{k:k,d:1}; pintarLista(); }
 function ordAtv(k){ SORT_ATV=SORT_ATV.k===k?{k:k,d:-SORT_ATV.d}:{k:k,d:1}; if(OBRA) pintarObraPainel(); if(ABA==="atividades") pintarAtividades(); }
@@ -702,19 +703,33 @@ function pintarLista(l){
   l=ordenar(l,SORT_OB);
   document.getElementById("lista-obras").innerHTML=l.length?`<div class="tabela-wrap"><table><thead><tr>
       ${thOrd("Projeto","titulo",SORT_OB,"ordObra","stick")}${thOrd("Setor","setor",SORT_OB,"ordObra")}${thOrd("Responsável","resp",SORT_OB,"ordObra")}
-      ${thOrd("Prev. término","data_prevista",SORT_OB,"ordObra")}${thOrd("Projeto final.","projeto_finalizado",SORT_OB,"ordObra")}
-      ${thOrd("Orçamento final.","orcamento_finalizado",SORT_OB,"ordObra")}${thOrd("Liberar","liberar",SORT_OB,"ordObra")}
-      ${thOrd("Controle de prazo","controle_prazo",SORT_OB,"ordObra")}${thOrd("Status","status",SORT_OB,"ordObra")}</tr></thead><tbody>`+
+      ${thOrd("Prev. término","data_prevista",SORT_OB,"ordObra")}${thOrd("Status","status",SORT_OB,"ordObra")}
+      ${thOrd("Liberar","liberar",SORT_OB,"ordObra")}${thOrd("Liberada há","liberada_ha",SORT_OB,"ordObra")}
+      ${thOrd("Controle de prazo","controle_prazo",SORT_OB,"ordObra")}</tr></thead><tbody>`+
       l.map(o=>o.pendente?`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink">${esc(o.titulo||"(sem endereço)")}</span> <span class="tag">criando…</span></td>
         <td>${esc(o.setor||"—")}</td><td>${esc(o.resp||"—")}</td><td>${dt(o.data_prevista)}</td>
-        <td>${tagSN(o.projeto_finalizado)}</td><td>${tagSN(o.orcamento_finalizado)}</td><td>${tagSN(o.liberar)}</td>
-        <td class="prazo">${esc(o.controle_prazo||"—")}</td><td><span class="tag">${esc(o.status||"—")}</span></td></tr>`
+        <td><span class="tag">${esc(o.status||"—")}</span></td><td>${tagSN(o.liberar)}</td><td>${liberadaHa(o)}</td>
+        <td class="prazo">${esc(o.controle_prazo||"—")}</td></tr>`
       :`<tr onclick="abrirObra('${o.id}')"><td class="stick"><span class="obralink" title="Abrir a obra">${esc(o.titulo||"(sem endereço)")}</span></td>
         <td>${celObra(o,"setor")}</td><td>${celObra(o,"resp_ids")}</td><td>${celObra(o,"data_prevista")}</td>
-        <td>${celObra(o,"projeto_finalizado")}</td><td>${celObra(o,"orcamento_finalizado")}</td><td>${celObra(o,"liberar")}</td>
-        <td class="prazo">${esc(o.controle_prazo||"—")}</td><td>${celObra(o,"status")}</td></tr>`).join("")+
-      `</tbody></table></div><div class="ajuda" style="margin-top:6px">Preencha direto na tabela: setor, responsável, previsão, projeto/orçamento finalizado, liberar e status gravam no Notion na hora (borda amarela = gravando, verde = gravou). Clique no nome da obra para abrir tudo.</div>`
+        <td>${celObra(o,"status")}</td><td>${celObra(o,"liberar")}</td><td>${liberadaHa(o)}</td>
+        <td class="prazo">${esc(o.controle_prazo||"—")}</td></tr>`).join("")+
+      `</tbody></table></div><div class="ajuda" style="margin-top:6px">Preencha direto na tabela: setor, responsável, previsão, status e liberar gravam no Notion na hora. "Liberada há" conta os dias corridos desde que Liberar virou Sim (borda amarela = gravando, verde = gravou). Clique no nome da obra para abrir tudo.</div>`
       :`<div class="vazio">Nenhuma obra nesta lista.</div>`;
+}
+/* 16/11/2026 (dono, item 2) — CONTADOR DESDE A LIBERAÇÃO. Saíram da tabela "Projeto finalizado" e
+   "Orçamento finalizado"; o Status foi para o lugar delas e entrou "Liberada há": dias corridos desde a
+   DATA DE LIBERAÇÃO (coluna nova na base de obras, carimbada quando Liberar vira Sim). Obra finalizada
+   para de contar na conclusão. Obra liberada antes de existir o carimbo fica "sem data" — dá para
+   preencher à mão no painel da obra (campo "Data de liberação"). */
+function diasLiberada(o){
+  if(N(o.liberar)!=="SIM") return null;
+  return atvDiasCorridos(o.data_liberacao, null, fim(o.status)?o.data_conclusao:null);
+}
+function liberadaHa(o){
+  if(N(o.liberar)!=="SIM") return '<span style="color:var(--text4)">—</span>';
+  if(!o.data_liberacao) return '<span class="dias-c sem" title="Liberada antes do carimbo da data — preencha a Data de liberação no painel da obra">sem data</span>';
+  return atvDiasHtml({inicio:o.data_liberacao, fim:fim(o.status)?o.data_conclusao:null});
 }
 /* 29/09 — célula editável da tabela (usa a mesma gravação do painel da obra) */
 const _SALV_OB=new Set();
@@ -781,7 +796,7 @@ function linhaAtv(a,comObra){
     <div><div class="k">Responsável</div><div class="v">${esc((a.resp||[]).join(", ")||"—")}</div></div>
     <div><div class="k">Status</div><select onchange="gravarAtv('${a.id}','Status',this.value,this)">
       ${(sts.length?sts:[a.status||""]).map(s=>`<option ${N(s)===N(a.status)?"selected":""}>${esc(s)}</option>`).join("")}</select></div>
-    <div><div class="k">Final prevista</div><div class="v">${dt(a.data_final)}</div></div>
+    <div><div class="k">Final prevista</div><div class="v">${dt(a.data_final)} ${atvDiasHtml({inicio:a.data_inicio,criado:a.data_criacao,fim:atvFeita(a)?a.data_conclusao:null,curto:true})}</div></div>
     <div><div class="k">Conclusão</div><input type="date" value="${esc(a.data_conclusao||"")}" onchange="gravarAtv('${a.id}','Data De Conclusão da Atividade',this.value,this)"></div>
     <div><div class="k">Controle de prazo</div><div class="v prazo">${esc(a.controle_prazo||"—")}</div></div>
   </div>`;
@@ -1061,8 +1076,11 @@ const CAMPOS=[
   ["Cota da empresa (%)","cota","COTA DA EMPRESA (%)","num"],["Aquisição do lote","data_lote","DATA DE AQUISIÇÃO DO LOTE","data"],
   ["Implantação","implantacao","IMPLANTAÇÃO","sel"],["Área do lote (m²)","area_lote","ÁREA DO LOTE","num"],
   ["Área construída averbada (m²)","area_averbada","ÁREA CONSTRUÍDA AVERBADA","num"],["Área pós habite-se (m²)","area_habite","ÁREA PÓS HABITE-SE","num"],
-  ["Mais Controle","mais_controle","MAIS CONTROLE","sel"],["Conta bancária","conta","CONTA","conta"]
+  ["Mais Controle","mais_controle","MAIS CONTROLE","sel"],["Conta bancária","conta","CONTA","conta"],
+  ["Data de liberação","data_liberacao","DATA DE LIBERAÇÃO","data"]          // 16/11: carimbada ao liberar
 ];
+/* 16/11/2026 (dono): Projeto finalizado e Orçamento finalizado saíram da tela (continuam no Notion) */
+const CAMPOS_FORA=["projeto_finalizado","orcamento_finalizado"];
 function campoHtml(o,c,i){
   const [rot,k,col,tipo]=c, v=o[k];
   let inp;
@@ -1142,7 +1160,7 @@ function pintarObraPainel(){
   const normais=atv.filter(a=>!ehLig(a)).sort(ordenaAtv), lig=atv.filter(ehLig).sort(ordenaAtv);
   let h=`<div class="chips">${chipsObraHtml(o)}</div>`;
   if(o.end_alterado&&!_END_VALIDADOS[o.id]) h+=`<div class="aviso" style="margin:8px 0;white-space:pre-line">⚠ Alterações nesta obra — confira nos Alertas:\n${esc(o.end_alterado)}</div>`;
-  h+=`<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>campoHtml(o,c,i)).join("")}</div>`;
+  h+=`<div class="grp">Dados da obra ${ehAdmTela()?`<span class="sp"></span><button class="tg" title="Trocar o endereço desta obra (vai junto para DOCUMENTOS, VENDAS, PÓS OBRA, LIGAÇÕES e Mais Controle)" onclick="alterarEndereco('${o.id}')">✏️ Alterar endereço</button>`:""}</div><div class="resumo">${CAMPOS.map((c,i)=>CAMPOS_FORA.indexOf(c[1])>=0?"":campoHtml(o,c,i)).join("")}</div>`;
   /* 22/10/26 — MODELO 3D: o visualizador abre os arquivos que o botão
      MORAIS → Geral → Publicar 3D (pyRevit) gravou na coluna MODELO 3D da obra */
   h+=`<div class="grp">Modelo 3D <span class="sp"></span><a class="tg" style="text-decoration:none" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a></div>
@@ -1264,6 +1282,7 @@ async function gravarObra(i,el,idLinha){
     { const c=celula(); if(c){ c.classList.add("ok"); setTimeout(()=>c.classList.remove("ok"),1800); } }
     if(r.enfileirado) toast(rot+": sem conexão agora — ficou guardado e grava sozinho quando voltar.");
     else if(r.compat&&r.compat.criada) toast("Criado para esta obra: "+(r.compat.criadas||[]).join(" e ")+".");
+    if(k==="liberar") carimbarLiberacao(o,valor);
     atualizarObraVivo(o.id);
   }else{
     /* recusa de verdade: volta — mas só se o campo ainda tem o valor desta gravação */
@@ -1276,6 +1295,22 @@ async function gravarObra(i,el,idLinha){
     const alvo=(el2&&document.body.contains(el2)?el2:null)||celula()||(OBRA===o.id?document.querySelector(`#p1-corpo [onchange^="gravarObra(${i},"]`):null);
     if(alvo){ alvo.classList.add("erro"); if(alvo._cb) comboSync(alvo); }
     toast("Não salvou "+rot+": "+errMsg(r)+" — o campo voltou como estava.");
+  }
+}
+
+/* 16/11/2026 — Liberar = Sim carimba a DATA DE LIBERAÇÃO com hoje (se ainda não tiver); voltar para Não
+   apaga a data, e o contador recomeça na próxima liberação. */
+async function carimbarLiberacao(o,valor){
+  const d=new Date(), sim=N(valor)==="SIM", novo=sim?(d.getFullYear()+"-"+String(d.getMonth()+1).padStart(2,"0")+"-"+String(d.getDate()).padStart(2,"0")):null;
+  if(sim&&o.data_liberacao) return;
+  if(!sim&&!o.data_liberacao) return;
+  const col="DATA DE LIBERAÇÃO", antes=o.data_liberacao||null;
+  o.data_liberacao=novo; ponteGuardar("obras",o.id,col,novo); repintarFundoObras();
+  if(OBRA===o.id) pintarObraPainel();
+  const r=await gravarNaFila({action:"obraUpdate",pageId:o.id,prop:col,valor:novo},"Obra: "+(o.titulo||"")+" — data de liberação");
+  if(!(r&&r.ok)){
+    if(o.data_liberacao===novo){ o.data_liberacao=antes; try{ esquecerEdicao("obras",o.id,col); }catch(e){} repintarFundoObras(); if(OBRA===o.id) pintarObraPainel(); }
+    toast("Liberou, mas não gravou a data de liberação: "+errMsg(r));
   }
 }
 

@@ -1338,6 +1338,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="atv-contadores.js?v=1"></script>
 <script src="venda/painel-casa.js?v=9"></script>
 <script src="venda/FluxoLivre.js?v=24"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
@@ -1380,43 +1381,45 @@ if(SO_LEITURA){
   });
 }
 atualizarStatus(); atualizarBadge();
-let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[], stp:[]}, SETOR_ATUAL="Secretária de Vendas";
+let SCHEMA=[], SCAMPO={}, ATIV=[], ATIV_ALL=[], DADOS={hub:[], set:[], mod:[], stp:[]}, SETOR_ATUAL="Secretaria de Vendas";
 /* De qual setor é a planilha que está desenhada agora (ver abaSetor).
    null = nada desenhado ainda. */
 let PLANILHA_SETOR=null;
 /* item 9: Nº Whatsapp e Email vêm logo depois do CPF (antes ficavam perto de CORRESPONDENTE) */
-/* 16/10: TELEFONE CORRETOR logo depois de CORRETOR (planilha geral, Secretária de Vendas e painel da casa).
+/* 16/10: TELEFONE CORRETOR logo depois de CORRETOR (planilha geral, Secretaria de Vendas e painel da casa).
    Enquanto a coluna não existir no Notion, ela simplesmente não aparece. */
 const RESUMO=["CLIENTES","CPF","Nº Whatsapp","Email","DATA DA VENDA","VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)","CORRETOR","TELEFONE CORRETOR","IMOBILIÁRIA","CORRESPONDENTE","BANCO"];
 
-/* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretária de Vendas"
+/* Departamentos da área de vendas — "Gestores de Vendas" virou "Secretaria de Vendas"
    e foi criado o novo departamento "Gestor de Vendas".
    item 7 do pedido: cada setor só deve ver as atividades/alertas que são "dele".
    O campo "responsavel" abaixo é o valor exato da coluna RESPONSÁVEL (no Notion,
    ATIVIDADES DE VENDAS) que identifica as atividades daquele setor — confirmado
-   por print para "Secretária de Vendas" (= "Construtora Morais").
+   por print para "Secretaria de Vendas" (= "Construtora Morais").
    PENDENTE: qual é o valor de RESPONSÁVEL que identifica "Gestor de Vendas"?
    Enquanto não informar, esse setor continua mostrando todas as atividades
    (mesmo comportamento de antes), pra não esconder nada por engano. */
 /* responsavel: um nome | responsaveis: vários — filtram as atividades do setor
    pelo campo RESPONSÁVEL da atividade. null = todas. */
 const SETORES_AREA=[
-  {nome:"Secretária de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:"Construtora Morais"},
+  {nome:"Secretaria de Vendas", d:"Atividades, alertas e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:"Construtora Morais"},
   {nome:"Gestor de Vendas", d:"Vendas, estoque e planilha", ativo:true, banner:"img/gestores-vendas.jpg", responsavel:null},
   {nome:"Departamento de Projetos", d:"Atividades, alertas e planilha", ativo:true, responsaveis:["José Arthur","felipe berçan"]},
-  {nome:"Júlio César", d:"Atividades, alertas e planilha", ativo:true, responsavel:"Júlio César Gomes de Morais Filho"}
+  {nome:"Júlio César", d:"Atividades e alertas", ativo:true, responsavel:"Júlio César Gomes de Morais Filho"}
 ];
 
 /* Quais abas cada setor mostra, na ordem. A primeira da lista é a que abre.
    Chaves: atividades | alertas | atrasados (Situação do Processo) | planilha |
    modelo (Casas Modelo) | semtipo (Casas Liberadas sem Tipo) | estoque (Estoque de Casas). */
 const ABAS_SETOR={
-  "Secretária de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
+  "Secretaria de Vendas":  ["atividades","alertas","atrasados","planilha","condominio","modelo"],
   // Gestor de Vendas: sem alerta e sem atividade — a página dele é dado de venda
   "Gestor de Vendas":      ["vendidas","estoque","planilha","condominio","modelo"],  // vendidas primeiro; 28/10: + condomínio
   "Departamento de Projetos":["atividades","alertas","planilha","modelo"],
-  // Júlio (22/10/26): + Casas Modelo e Casas Liberadas sem Tipo
-  "Júlio César":           ["atividades","alertas","atrasados","planilha","condominio","modelo","semtipo"]   // 28/10: + condomínio
+  /* 16/11/2026 (dono): a aba do Júlio fica só com Atividades e Alertas — o resto (situação do processo, planilha,
+     condomínio, casas modelo, sem tipo) repetia a Secretaria de Vendas e a Gestão de Documentos. Nem o acesso
+     CONDOMÍNIO acrescenta a Planilha Casas Condomínio aqui (ver abasDoSetor). */
+  "Júlio César":           ["atividades","alertas"]
 };
 const ABAS_PADRAO=["atividades","alertas","atrasados","planilha","modelo"];
 /* 28/10/26 (dono): a Planilha Casas Condomínio (com a Tela de Venda) também por PESSOA — quem tem o acesso
@@ -1429,7 +1432,7 @@ function temAcessoCondominio(){
 }
 function abasDoSetor(nome){
   const abas=(ABAS_SETOR[nome]||ABAS_PADRAO).slice();
-  if(abas.indexOf("condominio")<0 && temAcessoCondominio()){
+  if(abas.indexOf("condominio")<0 && temAcessoCondominio() && nome!=="Júlio César"){   // 16/11: a do Júlio é só atividades e alertas
     const i=abas.indexOf("planilha");
     abas.splice(i>=0?i+1:abas.length,0,"condominio");
   }
@@ -1484,7 +1487,7 @@ const CAMPOS_EXCLUIDOS=["ARQUIVOS E MIDIA"]; // excluído no Notion (item 6 do p
    São FRAGMENTOS do nome, normalizados. Para reverter qualquer item, basta
    apagar a linha correspondente. */
 const CAMPOS_OCULTOS_SETOR={
-  "Secretária de Vendas":{
+  "Secretaria de Vendas":{
     // palavra inteira — "CASA" não derruba "CASAS COMPORTADAS", "REF" não derruba "REFORMA"
     campos:["REF","CIDADE","SETOR","CASA"],
     // bloco inteiro de Reparos e Vistoria. Usa o MESMO padrão que desenha o
@@ -1529,15 +1532,15 @@ function ocultoNoSetor(nome, ondeEstou){
   if(ondeEstou==="painel"){
     // setor que pediu painel enxuto: o que não está na lista não aparece
     if(painelListaBranca()){ if(!noWhitelistDoSetor(nome)) return true; }
-    // Secretária mantém as regras dela (bloco de reparos etc.)
-    else if(SETOR_ATUAL!=="Secretária de Vendas" && COLUNAS_SETOR[SETOR_ATUAL]) return ehAuto(nome);
+    // Secretaria mantém as regras dela (bloco de reparos etc.)
+    else if(SETOR_ATUAL!=="Secretaria de Vendas" && COLUNAS_SETOR[SETOR_ATUAL]) return ehAuto(nome);
   } else if(!noWhitelistDoSetor(nome)) return true;
   const cfg=CAMPOS_OCULTOS_SETOR[SETOR_ATUAL]; if(!cfg) return false;
   const n=normNome(nome);
   if(cfg.blocoReparo && BLOCO_REPARO.test(n)) return true;
   /* 01/10/26 — NOME EXATO, não palavra solta. Com "palavra inteira", o "CASA" da lista
      derrubava também "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?" e "CASA APTA PARA A
-     VISTORIA": a Secretária não via o campo da entrega (nem na planilha, nem no painel)
+     VISTORIA": a Secretaria não via o campo da entrega (nem na planilha, nem no painel)
      e a atividade VERIFICAÇÃO DE ENTREGA só podia ser resolvida pela baixa. */
   return (cfg.campos||[]).some(f=>n===normNome(f));
 }
@@ -1557,7 +1560,7 @@ const ORDEM_PREFIXOS=[
   "TEM MANUAL DE","AGUA TRANSFER","ENERGIA TRANSF","ENTREGOU A CAS","ENTEGOU A CAS","DATA DA ENTREGA","PREENCHEU A PE","GEROU E ARMAZ",
   "PAGOU GCAP","REPAROS PRE VIS","ANEXAR AQUIVO","ANALISE DE REPA","TITULARIDADES","SITUACAO","REF","CIDADE","SETOR",
   /* RESERVADA (nova coluna do BANCO DE DADOS VENDAS) fica logo depois de
-     MODELO?, como pedido para a Secretária de Vendas. Como a ordem geral é por
+     MODELO?, como pedido para a Secretaria de Vendas. Como a ordem geral é por
      PREFIXO, basta esta linha: quando a coluna existir no schema do Notion ela
      entra sozinha nesse lugar; enquanto não existir, nada acontece. */
   "ENG. RESPONS","MODELO?","RESERVADA","TIPO","LAYOUT","FOTOS","LOCALIZACAO"
@@ -1856,7 +1859,7 @@ function abrirSetor(nome){
     if(b){ b.style.display=""; barra.appendChild(b); }   // reordena de fato
   });
   abaSetor(abas[0]);
-  if(abas.indexOf("atividades")>=0) carregarAtividades();
+  if(abas.indexOf("atividades")>=0){ if(ATIV_ALL.length) atvBadge('#view-setor .tab[data-t="atividades"]', atividadesDoSetor(nome).length); carregarAtividades(); }
 }
 function abaSetor(t){
   document.querySelectorAll("#view-setor .tab").forEach(b=>b.classList.toggle("on",b.dataset.t===t));
@@ -3214,6 +3217,7 @@ async function carregarAtividades(){
   const iSetor=SETORES_AREA.findIndex(s=>s.nome===SETOR_ATUAL);
   const badge=document.getElementById("scnt-"+iSetor); if(badge) badge.textContent=ATIV.length;
   document.getElementById("atv-count").textContent = ATIV.length+" atividade(s) em aberto — "+SETOR_ATUAL;
+  atvBadge('#view-setor .tab[data-t="atividades"]', ATIV.length);   // 16/11: quantidade em aberto no botão
   if(!ATIV.length){ box.innerHTML='<div class="vazio">Nenhuma atividade em aberto. 🎉</div>'; return; }
   // agrupa por TIPO de atividade, mesmo formato dos alertas
   box.innerHTML="";
@@ -3241,6 +3245,7 @@ async function carregarAtividades(){
     d.innerHTML=`<span class="tipo">${esc(a.tipo||"—")}</span>
       <span class="nm">${esc(a.nome||"(sem nome)")}${nd?` <small title="o Notion tem ${nd} cópia(s) desta atividade; a baixa resolve todas" style="opacity:.7">(+${nd} cópia${nd>1?"s":""})</small>`:""}</span>
       <span class="dt">prazo: ${fmt(a.dataFinal)}</span>
+      ${atvDiasHtml({inicio:a.dataInicial, criado:a.criado})}
       <span class="bx"><span class="bxlab">Marcar como</span><select>${temAtual?"":'<option value="" selected disabled>Selecione…</option>'}${ops.map(o=>`<option${(temAtual&&o===atual)?" selected":""}>${esc(o)}</option>`).join("")}</select><button class="bt">Dar baixa</button></span>`;
     const sel=d.querySelector("select"), btn=d.querySelector("button");
     if(!a.obraId){ btn.disabled=true; btn.textContent="Sem obra"; sel.disabled=true; }
@@ -3274,6 +3279,7 @@ async function darBaixa(a,valor,d,btn){
       try{ const vd=vendaPorId(a.obraId), c=a.coluna?campoPorNome(a.coluna):null; if(vd&&c){ setV(vd.valores,c.nome,valor); registrarEdicao("vendas",a.obraId,c.nome,valor); } }catch(e){}
       const n=document.querySelectorAll("#atv-lista .atv").length;
       document.getElementById("atv-count").textContent=n+" atividade(s) em aberto — "+SETOR_ATUAL;
+      atvBadge('#view-setor .tab[data-t="atividades"]', n);
       atualizarBadgesSetores();
     },650);
   } else { btn.disabled=false; btn.textContent="Dar baixa"; toast("Erro: "+r.erro); }
@@ -3285,7 +3291,7 @@ async function darBaixa(a,valor,d,btn){
    PENDENTE: confirmar se "Gestor de Vendas" usa esta mesma lista ou nenhuma;
    por ora ele cai no fallback (mostra qualquer coluna ALERTA/ELERTA, igual antes). */
 const ALERTAS_SETOR={
-  "Secretária de Vendas":[
+  "Secretaria de Vendas":[
     "PREENCHER INFORMACOES DE VENDA",
     "ALERTA DATA PRE-VISTORIA","ELERTA DATA PRE-VISTORIA",
     "ALERTA ENVIO CONFORMIDADE","ELERTA ENVIO CONFORMIDADE",
@@ -3351,7 +3357,7 @@ function camposAlertaDoSetor(nome){
   const alvo=lista.map(normNome);
   return SCHEMA.filter(c=>c.tipo==="formula" && alvo.some(a=>normNome(c.nome).indexOf(a)>=0));
 }
-/* ALERTA DE FAIXA (pedido set/26): a Secretária precisa notar preenchimento
+/* ALERTA DE FAIXA (pedido set/26): a Secretaria precisa notar preenchimento
    fora do esperado em VALOR DA PARCELA e VALOR DO FGTS. Cada coluna é conferida
    SEPARADAMENTE (sem somar): se o valor preenchido for menor que R$1.000 ou
    maior que R$50.000, entra na aba de alertas e a célula fica destacada na
@@ -3359,7 +3365,7 @@ function camposAlertaDoSetor(nome){
    FAIXA_COLS; para mudar os limites, edite FAIXA_MIN/FAIXA_MAX. */
 const FAIXA_MIN=1000, FAIXA_MAX=50000;
 const FAIXA_COLS=["VALOR DA PARCELA","VALOR DO FGTS"];
-const FAIXA_SETORES=["Secretária de Vendas"];   // setores que veem este alerta
+const FAIXA_SETORES=["Secretaria de Vendas"];   // setores que veem este alerta
 /* lê número tolerante: aceita number puro (Notion, o caso normal) ou texto
    "1.234,56" / "R$ 1.200" / "1200". VALOR DA PARCELA/FGTS são number no Notion,
    então quase sempre já chega como número — o parse de texto é rede de segurança. */
@@ -3409,7 +3415,7 @@ function renderAlertas(){
   // alerta calculado no site (não existe como fórmula no Notion): casa
   // disponível — VALOR NA MÃO preenchido — e ainda sem TIPO.
   const cTipo=campoExatoOuFrag("TIPO");
-  const querTipo=["Secretária de Vendas","Departamento de Projetos"].indexOf(SETOR_ATUAL)>=0;
+  const querTipo=["Secretaria de Vendas","Departamento de Projetos"].indexOf(SETOR_ATUAL)>=0;
   const colsFaixa=setorTemAlertaFaixa()?colunasDeFaixa():[];
   dados.forEach(v=>{
     alertaCampos.forEach(c=>{ const val=getV(v.valores,c.nome); if(val && val!=="-" && /PREENCHER|⚠️/.test(String(val))) linhas.push({v, end:getV(v.valores,"ENDEREÇO")||"(sem endereço)", txt:String(val)}); });
@@ -4691,7 +4697,7 @@ function pnTrocarAba(aba){
   const body=document.getElementById("pn-body"); if(body) body.scrollTop=0;
 }
 function pnAbaDoCampo(nome){ try{ return window.PainelCasa&&window.PainelCasa.abaDoCampo ? window.PainelCasa.abaDoCampo(nome) : "andamento"; }catch(e){ return "andamento"; } }
-/* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha da Secretária de Vendas (venda/painel-casa.js, porEtapa) */
+/* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha da Secretaria de Vendas (venda/painel-casa.js, porEtapa) */
 function pnPorEtapa(nomes){
   try{ if(window.PainelCasa&&window.PainelCasa.porEtapa) return window.PainelCasa.porEtapa(nomes); }catch(e){}
   return nomes.length?[{titulo:"Preenchimento",campos:nomes}]:[];
@@ -4831,8 +4837,8 @@ function renderPainel(V,pageId,sensPendente){
   }
 
   // Ligações de água e energia: leitura, não edição — o cadastro continua
-  // sendo feito no Notion. Só na Secretária de Vendas, que foi onde foi pedido.
-  if(SETOR_ATUAL==="Secretária de Vendas"){
+  // sendo feito no Notion. Só na Secretaria de Vendas, que foi onde foi pedido.
+  if(SETOR_ATUAL==="Secretaria de Vendas"){
     const ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
     if(ligs.length){
       sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
@@ -4885,14 +4891,14 @@ function renderPainel(V,pageId,sensPendente){
     `<button type="button" class="bt az bt-mini" id="coment-btn" onclick='enviarComentario(${jsArg(pageId)})'>Enviar</button></div>`+
     `</div>`;
 
-  // DISTRATO: só no setor da Secretária de Vendas e só para quem tem o acesso.
+  // DISTRATO: só no setor da Secretaria de Vendas e só para quem tem o acesso.
   // A permissão de verdade é conferida no Apps Script — isto aqui só evita
   // mostrar um botão que a pessoa não conseguiria usar.
   /* !SO_LEITURA: o perfil TESTES passa no podeAcessar (ele enxerga tudo), mas
      distrato é destrutivo — nem o botão deve aparecer pra ele. O Apps Script
      recusaria de qualquer forma (MODO_TESTE), mas mostrar um botão vermelho
      que só dá erro é pedir pra alguém tentar. */
-  if(SETOR_ATUAL==="Secretária de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S) && !SO_LEITURA){
+  if(SETOR_ATUAL==="Secretaria de Vendas" && podeAcessar(S,"VENDAS") && !ehMaster(S) && !SO_LEITURA){
     sec.rodape+=`<div class="grp">Distrato</div><div class="campo">`+
       `<button class="bt danger" onclick='pedirDistrato(${jsArg(pageId)})'>DISTRATO</button>`+
       `<div class="ajuda">Desistência do cliente: limpa os dados da venda e apaga as atividades desta obra. Pede sua senha.</div></div>`;

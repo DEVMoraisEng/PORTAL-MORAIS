@@ -866,6 +866,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
+<script src="atv-contadores.js?v=1"></script>
 <script src="painel-abas.js?v=2"></script>
 <script>
 /* ===================== TABELA DE GARANTIAS =====================
@@ -1553,8 +1554,20 @@ function boot(){
     document.getElementById("view-hub").style.display = "none";
     return;
   }
-  carregar();
+  carregar().then(abrirChamadoDaUrl);
   if(ehAdmTela()) setTimeout(carregarValidacoes, 2500);
+}
+/* 16/11/2026 — pos-obra.html#chamado=<id da obra>:<id do chamado>: é o link das atividades do Pós Obra que
+   agora aparecem na aba Atividades ("De outras abas") — abre a obra e já o painel do serviço. */
+function abrirChamadoDaUrl(){
+  const m = /^#chamado=([0-9a-f-]{32,36}):([0-9a-f-]{32,36})$/i.exec(location.hash||"");
+  if(!m) return;
+  const oid = m[1], cid = m[2], mesmo = x => semHifen(x) === semHifen(cid);
+  abrirObra(oid, function(){
+    const a = (OBRA && OBRA.atividades || []).find(x=>mesmo(x.id));
+    if(a) abrirChamado(a.id);
+  });
+  try{ history.replaceState(null, "", location.pathname); }catch(e){}
 }
 
 function aplicarBoot(r){
@@ -3239,8 +3252,10 @@ function acharInfoRm(val, nivel){
 /* ---------- kanban (item 7: só colunas com item) ---------- */
 function renderKanban(){
   const atvs = OBRA.atividades || [];
+  /* 16/11/2026 (dono, item 5): quantos estão em aberto, além do total */
+  const abertosK = atvs.filter(a=>!/FINALIZ/.test(normN(a.andamento||""))).length;
   document.getElementById("kanban-info").textContent =
-    atvs.length + (atvs.length===1 ? " serviço" : " serviços");
+    atvs.length + (atvs.length===1 ? " serviço" : " serviços") + " · " + abertosK + " em aberto";
   const blocos = [];
   const semStatus = atvs.filter(a=>!a.andamento);
   if(semStatus.length) blocos.push(["SEM ANDAMENTO", semStatus]);
@@ -3261,7 +3276,10 @@ function colunaKanban(titulo, lista){
     const cor = resp ? corDe(resp) : "var(--azul)";
     return '<div class="kcard" style="border-left-color:'+cor+'" onclick="abrirChamado(\''+a.id+'\')">'+
       '<div class="sv">'+esc(serv || "Serviço sem tipo")+(a.enviando?' <span class="pill novo">enviando…</span>':(a.pendente?' <span class="pill novo">novo</span>':""))+'</div>'+
-      '<div class="mt">'+[dbrh(dt), resp].filter(Boolean).map(esc).join(" · ")+'</div></div>';
+      '<div class="mt">'+[dbrh(dt), resp].filter(Boolean).map(esc).join(" · ")+'</div>'+
+      /* 16/11/2026 (dono, item 6): dias corridos desde a DATA DO CHAMADO (finalizado não conta) */
+      (!/FINALIZ/.test(normN(a.andamento||"")) && typeof atvDiasHtml==="function" ? '<div class="mt" style="margin-top:5px">'+atvDiasHtml({inicio:v["DATA DO CHAMADO"]})+'</div>' : '')+
+      '</div>';
   }).join("");
   return '<div class="kcol"><div class="kcol-tit">'+esc(titulo)+'<span class="n">'+lista.length+'</span></div>'+cards+'</div>';
 }
