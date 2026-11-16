@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Conferência de compras (OC) — 16/11/2026: fornecedores, dias úteis e o que vira alerta."""
 import datetime as dt
+import json
 
 import robo_mc_ocs as ro
 
@@ -126,3 +127,52 @@ def test_lista_da_resposta_nodes_ou_edges():
     assert nos == [{"id": 1}] and info == {"hasNextPage": False}
     nos, _ = ro._lista_da_resposta({"data": {"purchaseOrders": {"edges": [{"node": {"id": 2}}]}}})
     assert nos == [{"id": 2}]
+
+
+def test_arquivos_validos_tira_temporario_e_poe_extensao():
+    l = [{"id": "1", "name": "NF 123", "extension": "pdf", "sizeInBytes": 10},
+         {"id": "2", "name": "boleto.pdf", "extension": "pdf"},
+         {"id": "3", "name": "pela metade", "temporary": True},
+         {"id": "4", "name": "vazio", "sizeInBytes": 0}]
+    assert ro.arquivos_validos(l) == ["NF 123.pdf", "boleto.pdf"]
+
+
+class AbaFalsa:
+    def __init__(self, respostas):
+        self.respostas, self.urls = respostas, []
+
+    def cabecalhos(self, host):
+        return {"authorization": "x"}
+
+    def fetch(self, metodo, url, cab, corpo=None):
+        self.urls.append(url)
+        for trecho, (st, corpo_r) in self.respostas.items():
+            if trecho in url:
+                return st, json.dumps(corpo_r)
+        return 404, ""
+
+
+def test_anexos_da_oc_pelas_pastas_e_pela_rota_nova():
+    aba = AbaFalsa({"/folder?": (200, [{"id": "p1", "name": "Notas", "files": [{"id": "f", "name": "NF 9.pdf"}]},
+                                      {"id": "p2", "name": "Outros"}]),
+                    "/folder/p2": (200, {"files": [{"id": "g", "name": "foto", "extension": "jpg"}]})})
+    assert ro.anexos_da_oc(aba, "6486e261-b336-4263-99e5-a27de4efb5ca") == ["NF 9.pdf", "foto.jpg"]
+    assert "origin=PURCHASE_ORDER" in aba.urls[0]
+    aba2 = AbaFalsa({"/attachments/v2": (200, {"items": [{"id": "a", "fileName": "nota.xml"}]})})
+    assert ro.anexos_da_oc(aba2, "6486e261-b336-4263-99e5-a27de4efb5ca") == ["nota.xml"]
+
+
+def test_com_anexos_pula_feita_e_marca_as_outras():
+    aba = AbaFalsa({"/folder?": (200, [{"id": "p", "files": [{"id": "f", "name": "NF.pdf"}]}])})
+    linhas = [{"oc_id": "a", "numero": 1}, {"oc_id": "b", "numero": 2}]
+    est = ro.com_anexos(aba, linhas, {"b": {"robo_situacao": "FEITO"}})
+    assert linhas[0]["anexos"] == 1 and linhas[0]["anexos_nomes"] == "NF.pdf" and "anexos" not in linhas[1]
+    assert est == {"conferidas": 1, "com_nf": 1, "erros": 0}
+
+
+def test_gravar_agrupa_por_chaves():
+    sb = ro.Supa("http://x", "k")
+    lotes = []
+    sb.pedir = lambda m, c, corpo=None, prefer="": lotes.append(corpo)
+    sb.gravar([{"oc_id": "a", "acao": "APROVAR"}, {"oc_id": "b"}, {"oc_id": "c", "acao": "PARCELA"}])
+    assert sorted(len(l) for l in lotes) == [1, 2]

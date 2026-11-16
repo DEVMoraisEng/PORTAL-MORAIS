@@ -979,7 +979,7 @@ function moMedSalvar_(sess, p) {
  * Tabela: supabase/oc_conferencia.sql (rodar uma vez no SQL Editor). */
 var MO_OC_TAREFA = "MoraisEng - Conferencia de OCs";
 var MO_OC_COLS = "oc_id,numero,fornecedor,acao,obra,descricao,criada_em,aprovacao_mc,status_compra_mc,resposta," +
-                 "respondido_por,respondido_em,robo_situacao,robo_msg,robo_em,robo_tentativas";
+                 "respondido_por,respondido_em,robo_situacao,robo_msg,robo_em,robo_tentativas,anexos,anexos_nomes,anexos_em";
 function moPodeOc_(sess) {
   return !!sess && !ehTestes_(sess) && (ehAdm_(sess) || temAcesso_(sess, "OBRAS") || temAcesso_(sess, "DOCUMENTOS"));
 }

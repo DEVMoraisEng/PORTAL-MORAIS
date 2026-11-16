@@ -70,6 +70,11 @@ ANTIGAS_MESES = int(os.environ.get("OCS_ANTIGAS_MESES") or 6)
 #: (as que têm lançamento ficam anotadas em _central\ocs-com-lancamento.json e não são abertas de novo).
 MAX_CONFERIR = int(os.environ.get("OCS_MAX_CONFERIR") or 30)
 COM_LANCAMENTO = CENTRAL / "ocs-com-lancamento.json"
+#: 16/11 (dono, tarde): arquivo na aba "Arquivos" da OC = NF anexada → a linha fica VERMELHA no mapa com "NF anexada".
+#: Confere toda OC da conferência ainda não feita (no máximo isto por rodada).
+MAX_ANEXOS = int(os.environ.get("OCS_MAX_ANEXOS") or 200)
+LEGACY = "https://legacy-api.maiscontroleerp.com.br/maiscontrole/services"
+CORE = "https://prod-erp-api.maiscontroleerp.com.br"
 MAX_TENTATIVAS = 3          # ERRO volta a ser tentado até aqui; depois fica para fazer à mão (o mapa mostra)
 TABELA = "oc_conferencia"
 MC = "https://acessar.maiscontroleerp.com.br/"
@@ -358,9 +363,15 @@ class Supa:
         return {x["oc_id"]: x for x in l}
 
     def gravar(self, linhas: list) -> None:
-        for i in range(0, len(linhas), 200):
-            self.pedir("POST", TABELA + "?on_conflict=oc_id", linhas[i:i + 200],
-                       prefer="resolution=merge-duplicates,return=minimal")
+        """Upsert por oc_id. O PostgREST exige as MESMAS chaves em todas as linhas de um lote: agrupa por chaves
+        (nova tem fornecedor/ação; a que já existe, não; a conferida tem os anexos)."""
+        grupos: dict = {}
+        for ln in linhas:
+            grupos.setdefault(tuple(sorted(ln)), []).append(ln)
+        for lote in grupos.values():
+            for i in range(0, len(lote), 200):
+                self.pedir("POST", TABELA + "?on_conflict=oc_id", lote[i:i + 200],
+                           prefer="resolution=merge-duplicates,return=minimal")
 
     def pendentes(self) -> list:
         """SIM do engenheiro, OC não cancelada, robô ainda não fez (ou simulou / errou menos de MAX_TENTATIVAS)."""
@@ -898,6 +909,10 @@ def descobrir() -> int:
                 tela.abrir_oc(alvo["id"])
                 log("tela da OC %s — rótulos/listas: %s" % (EXEMPLO, json.dumps(tela.page.evaluate(_JS_ROTULOS), ensure_ascii=False)[:2500]))
                 log("tela da OC %s — botões: %s" % (EXEMPLO, tela.page.evaluate(_JS_BOTOES)))
+                try:
+                    log("arquivos da OC %s (aba Arquivos): %s" % (EXEMPLO, anexos_da_oc(aba, alvo["id"]) or "nenhum"))
+                except Exception as e:      # noqa: BLE001
+                    log("arquivos da OC %s: %s" % (EXEMPLO, e))
                 for r, m in (("Aprovação", "aprov"), ("Status da Compra", "stcompra")):
                     log("campo %s: %s" % (r, json.dumps(tela.campo(r, m), ensure_ascii=False)))
                 if (acao_do_fornecedor(oc_do_no(alvo)["fornecedor"]) or ("", ""))[1] == "PARCELA":
@@ -916,6 +931,83 @@ def descobrir() -> int:
         return 1
     finally:
         aba.fechar()
+
+
+# ------------------------------------------------------------------------------------------- anexos da OC
+def _lista_de(x) -> list:
+    if isinstance(x, list):
+        return x
+    if isinstance(x, dict):
+        for k in ("content", "items", "folders", "files", "data", "attachments"):
+            if isinstance(x.get(k), list):
+                return x[k]
+    return []
+
+
+def arquivos_validos(lista) -> list:
+    """Arquivos de verdade (tira o registro temporário de um envio que não terminou e o de tamanho 0)."""
+    out = []
+    for a in lista or []:
+        if not isinstance(a, dict) or a.get("temporary") is True or a.get("sizeInBytes") == 0:
+            continue
+        nome = str(a.get("name") or a.get("fileName") or a.get("originalName") or "").strip()
+        ext = str(a.get("extension") or "").strip().lstrip(".")
+        if ext and nome and not nome.lower().endswith("." + ext.lower()):
+            nome += "." + ext
+        out.append(nome or "(sem nome)")
+    return out
+
+
+def anexos_da_oc(aba, oc_id: str) -> list:
+    """Nomes dos arquivos da aba "Arquivos" da OC. Pastas da OC: GET /folder?id=<oc>&origin=PURCHASE_ORDER (a mesma
+    rota das pastas do Orçamento e da venda, ver venda/mc/ANEXOS-ERP.md); a pasta sem `files` é aberta (/folder/{id}).
+    Se a rota de pastas não responder, tenta a de anexos nova (/attachments/v2?entityOrigin=PURCHASE_ORDER)."""
+    def get(url, host):
+        st, txt = aba.fetch("GET", url, aba.cabecalhos(host), None)
+        if st in (401, 403):
+            raise RuntimeError("o Mais Controle recusou a leitura dos arquivos (HTTP %s) — a sessão do porteiro caiu?" % st)
+        if st >= 300:
+            return None, st
+        return (json.loads(txt) if (txt or "").strip() else None), st
+    q = urllib.parse.urlencode({"id": oc_id, "origin": "PURCHASE_ORDER"})
+    pastas, st = get("%s/folder?%s" % (LEGACY, q), "legacy-api.maiscontroleerp.com.br")
+    if pastas is not None:
+        nomes = []
+        for p in _lista_de(pastas):
+            arqs = _lista_de(p.get("files")) if isinstance(p, dict) else []
+            if not arqs and isinstance(p, dict) and p.get("id"):
+                det, _ = get("%s/folder/%s" % (LEGACY, p["id"]), "legacy-api.maiscontroleerp.com.br")
+                arqs = _lista_de((det or {}).get("files") if isinstance(det, dict) else det)
+            nomes += arquivos_validos(arqs)
+        return nomes
+    q2 = urllib.parse.urlencode({"entityIds": oc_id, "entityOrigin": "PURCHASE_ORDER"})
+    j, st2 = get("%s/attachments/v2?%s" % (CORE, q2), "prod-erp-api.maiscontroleerp.com.br")
+    if j is None:
+        raise RuntimeError("as duas rotas de arquivos da OC falharam (folder HTTP %s, attachments HTTP %s)" % (st, st2))
+    return arquivos_validos(_lista_de(j))
+
+
+def com_anexos(aba, linhas: list, existentes: dict, limite: int = MAX_ANEXOS) -> dict:
+    """Põe anexos / anexos_nomes / anexos_em nas linhas (novas e atualizadas) das OCs ainda não feitas pelo robô.
+    Erro numa OC não para a rodada: a linha fica sem os campos (o mapa mantém o que já sabia)."""
+    est = {"conferidas": 0, "com_nf": 0, "erros": 0}
+    agora = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    for ln in linhas:
+        if (existentes.get(ln["oc_id"]) or {}).get("robo_situacao") == "FEITO" or ln.get("cancelada"):
+            continue
+        if est["conferidas"] >= limite:
+            break
+        try:
+            nomes = anexos_da_oc(aba, ln["oc_id"])
+        except Exception as e:      # noqa: BLE001
+            est["erros"] += 1
+            if est["erros"] <= 3:
+                log("   OC %s: não consegui ver os arquivos (%s)" % (ln.get("numero"), str(e)[:150]))
+            continue
+        est["conferidas"] += 1
+        est["com_nf"] += bool(nomes)
+        ln.update({"anexos": len(nomes), "anexos_nomes": " · ".join(nomes)[:500] or None, "anexos_em": agora})
+    return est
 
 
 # ------------------------------------------------------------------------------------------- rodada
@@ -991,9 +1083,12 @@ def main() -> int:
                 return True
             novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento)
             guardar_com_lancamento(com_lanc)
+            ea = com_anexos(aba, novas + atual, existentes)
             sb.gravar(novas + atual)
             log("OCs lidas: %d (novas desde %s; antigas sem lançamento desde %s) · novas na conferência: %d · "
                 "atualizadas: %d" % (est["ocs"], A_PARTIR_DE, antigas_desde(), len(novas), len(atual)))
+            log("   arquivos (NF) nas OCs em aberto: %d conferida(s) · %d com arquivo anexado%s" % (
+                ea["conferidas"], ea["com_nf"], " · %d sem resposta do MC" % ea["erros"] if ea["erros"] else ""))
             if conf["vistas"]:
                 log("   OCs antigas conferidas na tela: %d (sem lançamento: %d · com: %d%s)" % (
                     conf["vistas"], conf["sem"], conf["com"],
