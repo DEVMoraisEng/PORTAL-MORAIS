@@ -115,7 +115,7 @@
         if (!desc || !(q > 0)) return;
         if (iTipo >= 0 && v[iTipo] && NN(v[iTipo]) !== "ITEM") return;
         const nome = desc + (iDiam >= 0 && v[iDiam] ? " " + v[iDiam] + " mm" : "");
-        out.push({ disc: t.disc, tabela: t.nome || "", secao: secao, arrimo: /ARRIMO/.test(NN(secao)), nome: nome, k: chave(nome), q: q, un: iUn >= 0 ? String(v[iUn] || "") : "" });
+        out.push({ disc: t.disc, tabela: t.nome || "", secao: secao, arrimo: /ARRIMO/.test(NN(secao)), nome: nome, k: chave(nome), q: q, un: iUn >= 0 ? String(v[iUn] || "") : "", raw: l });
       });
     });
     return out;
@@ -160,7 +160,7 @@
           if (rows.length) {
             rows.forEach(x => usados.add(x));
             const base = rows.reduce((s, x) => s + x.q, 0), m = mult[r.disc] || 1, fa = r.fator || 1;
-            Object.assign(ln, { q: arred(base * m * fa, r.arred), revit: { base: base, disc: r.disc, fator: fa, arred: r.arred },
+            Object.assign(ln, { q: arred(base * m * fa, r.arred), revit: { base: base, disc: r.disc, fator: fa, arred: r.arred }, refs: refsDe(rows),
               origem: "Revit " + r.disc + ": " + numBr(base) + (m !== 1 ? " × " + m : "") + (fa !== 1 ? " × " + fa : "") });
           } else {
             const p = r.padrao || { t: "fixo", q: 0 };
@@ -206,13 +206,15 @@
       const et = etapaDaSecao(x.secao);
       const m = mult[x.disc] || 1;
       L.push({ id: "l" + (++seq), etapa: et, idx: "", cod: c ? c[1] : "", cat: c ? c[0] : "", nome: c ? c[2] : x.nome, un: c ? c[3] : x.un,
-        q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" },
+        q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" }, refs: refsDe([x]),
         origem: "Revit " + x.disc + " (" + x.tabela + "): " + numBr(x.q) + (m !== 1 ? " × " + m : ""), extra: true,
         aviso: c ? "veio do Revit e não está no modelo — conferir" : "veio do Revit e não achei no catálogo do MC: escolha o código" });
     });
     if (!temRevit) alertas.push(revit && revit.erro ? "Quantitativos do Revit: " + revit.erro + " — as linhas do Revit saíram pela proporção do REF." : "Sem quantitativos do Revit — as linhas do Revit saíram pela proporção do REF.");
     return { linhas: L, mult: mult, alertas: alertas };
   }
+  /* de onde veio cada linha do Revit: disciplina, tabela, nome (chave) e se é do arrimo — o visualizador 3D usa para marcar */
+  function refsDe(rows) { const v = {}; rows.forEach(x => { v[x.disc + "|" + x.tabela + "|" + x.k + "|" + (x.arrimo ? 1 : 0)] = 1; }); return Object.keys(v); }
   function qtdSimples(r, nC) {
     if (r.t === "casa") return Math.round((r.f || 0) * nC * 100) / 100;
     if (r.t === "lote") return r.f || 0;
@@ -231,6 +233,56 @@
     if (m) { const e = MODELO.etapas.find(x => x.idx === m[1]) || MODELO.etapas.find(x => NN(x.nome) === NN(m[2])); if (e) return e.idx; }
     if (/ARRIMO/.test(NN(secao))) { const e = MODELO.etapas.find(x => /ARRIMO/.test(NN(x.nome))); if (e) return e.idx; }
     return "_revit";
+  }
+
+  /* ---------------- contratos de empreiteiros (medição no MC) ----------------
+     Os 4 contratos de casa de rua analisados no MC (11/11/2026). Cada contrato tem uma etapa por casa (CASA 1, CASA 2…),
+     como no MC, e se liga à etapa do orçamento (vínculo por ETAPA). Os preços são o padrão de hoje e ficam editáveis aqui
+     (vão salvos junto com a prévia da obra). */
+  const CONTRATOS = [
+    { id: "412", nome: "Cerâmica — assentamento de pisos e revestimentos", modelo: "412 - CERÂMICA", etapa: "8", tipo: "m2",
+      precos: { comum: 19.5, retificado: 31.67 }, itens: [["8.1", "Piso da casa", "comum"], ["8.2", "Piso banheiro, área de serviço e garagem", "comum"],
+        ["8.3", "Revestimento branco padrão", "comum"], ["8.4", "Revestimento detalhe da cozinha (retificado)", "retificado"],
+        ["8.5", "Revestimento da ducha", "comum"], ["8.7", "Revestimento do box do banheiro (retificado)", "retificado"]] },
+    { id: "411", nome: "Elétrica — instalações elétricas por casa", modelo: "411 - ELÉTRICA", etapa: "12", tipo: "vb", preco: 1900, item: "Instalações elétricas — empreitada" },
+    { id: "406", nome: "Pintura — mão de obra por casa", modelo: "406 - PINTURA", etapa: "11", tipo: "vb", preco: 3450, item: "Pintura — empreitada" },
+    { id: "372", nome: "Mestre de obras (com hidráulica)", modelo: "372 - MESTRE DE OBRAS", etapa: "16", tipo: "vb", preco: 31500, item: "Empreitada do mestre — tabela 2026-2 3Q" }
+  ];
+  function gerarContratos(s) {
+    const nC = Math.max(Number(s.nCasas) || 1, 1), out = [];
+    CONTRATOS.forEach(c => {
+      const k = { id: c.id, nome: c.nome, modelo: c.modelo, etapa: c.etapa, linhas: [] };
+      for (let n = 1; n <= nC; n++) {
+        if (c.tipo === "vb") k.linhas.push({ casa: n, item: c.item, un: "VB", q: 1, preco: c.preco });
+        else c.itens.forEach(([idx, nome, tp]) => {
+          const l = s.linhas.find(x => x.idx === idx); if (!l || !/m/i.test(l.un || "")) return;
+          const q = Math.round((Number(l.q) || 0) / nC * 100) / 100; if (!q) return;
+          k.linhas.push({ casa: n, item: nome, un: "m²", q: q, preco: c.precos[tp], tipo: tp, de: idx });
+        });
+      }
+      out.push(k);
+    });
+    return out;
+  }
+  const totalContrato = k => k.linhas.reduce((t, l) => t + (Number(l.q) || 0) * (Number(l.preco) || 0), 0);
+  function contratosHtml(s) {
+    if (!s.contratos) s.contratos = gerarContratos(s);
+    const nomeEt = idx => { const e = MODELO && MODELO.etapas.find(x => x.idx === idx); return e ? e.idx + " · " + e.nome : idx; };
+    let h = `<div class="ct-top"><div><b>Contratos de empreiteiros</b><span>um contrato por empreiteiro, uma etapa por casa — como a medição do Mais Controle. Quantidades da cerâmica saem da planilha acima (dividida pelas casas); preços editáveis.</span></div>
+      <button class="bt ghost" onclick="OrcObra.refazerContratos()" title="Monta os contratos de novo pela planilha atual e pelos preços padrão">↻ Refazer pelos números do orçamento</button></div><div class="cts">`;
+    s.contratos.forEach((k, ki) => {
+      const tot = totalContrato(k), casas = [...new Set(k.linhas.map(l => l.casa))];
+      h += `<div class="ct"><div class="ct-h"><span class="ct-n">${escH(k.id)}</span><div class="ct-t"><b>${escH(k.nome)}</b><span>modelo ${escH(k.modelo)} · vínculo: etapa ${escH(nomeEt(k.etapa))}</span></div><b class="ct-v">${moeda(tot)}</b></div>
+        <table class="ct-tb"><colgroup><col><col style="width:38px"><col style="width:70px"><col style="width:78px"><col style="width:96px"></colgroup>
+        <thead><tr><th>Item</th><th>Un</th><th class="n">Qtd</th><th class="n">Preço un.</th><th class="n">Total</th></tr></thead><tbody>${casas.map(c => {
+          const ls = k.linhas.map((l, i) => [l, i]).filter(([l]) => l.casa === c), sub = ls.reduce((t, [l]) => t + (l.q || 0) * (l.preco || 0), 0);
+          return `<tr class="cs"><td colspan="4"><b>CASA ${c}</b></td><td class="n"><b>${moeda(sub)}</b></td></tr>` + ls.map(([l, i]) => `<tr><td>${escH(l.item)}${l.de ? `<small class="mu"> · linha ${escH(l.de)}</small>` : ""}</td><td class="mu">${escH(l.un)}</td>
+            <td class="n"><input type="number" step="any" min="0" value="${escH(l.q)}" onchange="OrcObra.ctEditar(${ki},${i},'q',this.value)"></td>
+            <td class="n"><input type="number" step="any" min="0" value="${escH(l.preco)}" onchange="OrcObra.ctEditar(${ki},${i},'preco',this.value)"></td>
+            <td class="n">${moeda((l.q || 0) * (l.preco || 0))}</td></tr>`).join("");
+        }).join("") || `<tr><td colspan="5" class="mu">Sem linhas — a planilha não tem os itens desta etapa.</td></tr>`}</tbody></table></div>`;
+    });
+    return h + `</div>`;
   }
 
   /* ---------------- estado / ações ---------------- */
@@ -259,7 +311,7 @@
       s.podeSalvar = !p || p.podeSalvar !== false;
       if (p && p.ok && p.previa && p.previa.dados && Array.isArray(p.previa.dados.linhas)) {
         const d = p.previa.dados;
-        Object.assign(s, { linhas: d.linhas, mult: d.mult || {}, alertas: d.alertas || [], versao: p.previa.versao, salvoPor: p.previa.salvo_por,
+        Object.assign(s, { linhas: d.linhas, mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
           salvoEm: p.previa.salvo_em, revitEm: d.revit_em || "", sujo: false, carregando: false, msg: "", origemTxt: "salva" });
         precificar(s); g.OrcObra.repintar(); return s;
       }
@@ -268,14 +320,16 @@
     s.msg = "Lendo os quantitativos do Revit…"; g.OrcObra.repintar();
     let rv; try { rv = await carregarRevit(o.id); } catch (e) { rv = { erro: String(e.message || e) }; }
     const gx = gerar(o, ctx, rv && !rv.erro ? rv : { erro: rv && rv.erro });
-    Object.assign(s, { linhas: gx.linhas, mult: gx.mult, alertas: gx.alertas, revitEm: rv && rv.em || "", sujo: true, carregando: false, msg: "", origemTxt: "gerada" });
+    Object.assign(s, { linhas: gx.linhas, mult: gx.mult, alertas: gx.alertas, revitEm: rv && rv.em || "", sujo: true, carregando: false, msg: "", origemTxt: "gerada", nCasas: Number(o.n_casas) || 1 });
+    s.contratos = gerarContratos(s);
     precificar(s); g.OrcObra.repintar(); return s;
   }
   async function salvar(o) {
     const s = ST[sT(o.id)]; if (!s) return;
     s.salvando = true; g.OrcObra.repintar();
     const dados = { modelo: MODELO && MODELO.versao, linhas: s.linhas.map(l => { const c = Object.assign({}, l); delete c.semCat; delete c.inativo; return c; }),
-      mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", total: total(s), gerado_em: new Date().toISOString() };
+      mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", total: total(s), gerado_em: new Date().toISOString(),
+      n_casas: s.nCasas || null, contratos: s.contratos || null };
     let r; try { r = await g.chamar({ action: "orcPreviaSalvar", obra_id: o.id, obra: o.titulo || "", versao: s.versao == null ? null : s.versao, dados: dados }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     s.salvando = false;
     if (r && r.ok) { Object.assign(s, { versao: r.versao, salvoPor: r.salvo_por, salvoEm: r.salvo_em, sujo: false }); g.toast && g.toast("Orçamento salvo ✓"); }
@@ -335,6 +389,7 @@
       <label class="sw ${s.soAvisos ? "on" : ""}"><input type="checkbox" ${s.soAvisos ? "checked" : ""} onchange="OrcObra.soAvisos(this.checked)" style="display:none">⚠ só o que conferir</label>
       <span class="mults" title="Multiplicador das quantidades do Revit por disciplina (o HID costuma ser modelado com 1 casa)">${Object.keys(s.mult || {}).map(d => `${d} × <input type="number" min="0" step="1" value="${escH(s.mult[d])}" onchange="OrcObra.mult('${d}',this.value)">`).join("")}</span>
       <span class="sp"></span>
+      <button class="bt az" onclick="OrcObra.acrescentar(null)" title="Acrescenta uma linha buscando a composição ou o insumo no catálogo do Mais Controle (bases Própria e Condomínio)">+ Nova linha</button>
       <button class="bt ghost" onclick="OrcObra.regerar()" title="Monta a planilha de novo pelo modelo, pelos quantitativos do Revit e pelos dados da obra (descarta as edições não salvas)">↻ Gerar de novo</button>
       <button class="bt ghost" onclick="OrcObra.baixar()" title="Baixa a planilha em CSV (abre no Excel)">⬇ Baixar planilha</button>
       <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button>
@@ -361,6 +416,7 @@
       }).join("") + `<tr class="add"><td></td><td colspan="7"><button onclick="OrcObra.acrescentar('${gp.k}')">+ acrescentar item nesta etapa</button></td></tr></tbody>`;
     });
     h += `<tfoot><tr><td colspan="6"><b>TOTAL PREVISTO</b></td><td class="n"><b>${moeda(tot)}</b></td><td></td></tr></tfoot></table></div>`;
+    h += contratosHtml(s);
     h += `<div class="ajuda" style="margin:8px 0 0">O modelo é o orçamento REF 127 (casa de rua). Quantidades do Revit seguem o que foi publicado no 3D; o resto sai das regras por casa/lote, do formulário de obra e dos dados da obra. O custo é o do catálogo do Mais Controle. Enviar ao MC fica para a próxima etapa.</div>`;
     return h;
   }
@@ -372,6 +428,7 @@
     let d = document.getElementById("orc-busca");
     if (!d) { d = document.createElement("div"); d.id = "orc-busca"; document.body.appendChild(d); }
     d.innerHTML = `<div class="ob-cx"><div class="ob-t"><b>${alvo.linha ? "Trocar o item" : "Acrescentar item"}</b><span class="sp"></span><button onclick="OrcObra.fecharBusca()">✕</button></div>
+      ${alvo.linha ? "" : `<label class="ob-et">Etapa do orçamento <select id="ob-et">${(MODELO ? MODELO.etapas.filter(e => e.idx.indexOf(".") < 0) : []).map(e => `<option value="${e.idx}"${e.idx === alvo.etapa ? " selected" : ""}>${escH(e.idx + " · " + e.nome)}</option>`).join("")}</select></label>`}
       <input id="ob-q" class="busca" placeholder="Código (ex.: MAI-SIN-105087 ou 27) ou parte do nome…" oninput="OrcObra.buscar(this.value)" value="${escH(alvo.q || "")}">
       <div id="ob-r" class="ob-r"></div></div>`;
     d.classList.add("on");
@@ -396,7 +453,7 @@
       const l = s.linhas.find(x => x.id === BUSCA.linha);
       if (l) Object.assign(l, { cod: c[1], cat: c[0], nome: c[2] + (l.nome.indexOf(" — CASA ") > 0 ? l.nome.slice(l.nome.indexOf(" — CASA ")) : ""), un: c[3], custo: Number(c[4]) || 0, editado: true, aviso: "", semCat: false, inativo: !c[7], origem: (l.origem || "") + " · trocado na mão" });
     } else {
-      const k = BUSCA.etapa, n = s.linhas.filter(x => String(x.etapa).split(".")[0] === k).length;
+      const sel = document.getElementById("ob-et"), k = (sel && sel.value) || BUSCA.etapa || "_revit", n = s.linhas.filter(x => String(x.etapa).split(".")[0] === k).length;
       const pos = s.linhas.map((x, i) => String(x.etapa).split(".")[0] === k || (k === "_revit" && x.etapa === "_revit") ? i : -1).filter(i => i >= 0).pop();
       const nova = { id: "m" + Date.now(), etapa: k, idx: k === "_revit" ? "" : k + "." + (n + 1) + "*", cod: c[1], cat: c[0], nome: c[2], un: c[3], q: 1, custo: Number(c[4]) || 0, origem: "acrescentado na mão", manual: true, editado: true, inativo: !c[7] };
       s.linhas.splice(pos == null ? s.linhas.length : pos + 1, 0, nova);
@@ -408,9 +465,10 @@
   /* API para a obras.html */
   function atual() { const o = g.OBRA_OBJ && g.OBRA_OBJ(); return o ? { o: o, s: ST[sT(o.id)] } : {}; }
   g.OrcObra = {
-    html: html, abrir: abrir, chave: chave, gerar: gerar, _st: ST,
+    html: html, abrir: abrir, gerar: gerar, _st: ST, linhasRevit: j => lerTabelas(j), refKey: x => x.disc + "|" + x.tabela + "|" + x.k + "|" + (x.arrimo ? 1 : 0),
     repintar: () => { if (typeof g.repintarOrcamento === "function") g.repintarOrcamento(); },
     resumo: o => { const s = ST[sT(o.id)]; return s && s.linhas.length ? { total: total(s), linhas: s.linhas.length, avisos: avisos(s).length, salvo: !!s.salvoEm, sujo: !!s.sujo } : null; },
+    totalContrato: totalContrato,
     salvar: () => { const a = atual(); return a.o ? salvar(a.o) : null; },
     baixar: () => { const a = atual(); if (a.o) baixar(a.o); },
     regerar: () => { const a = atual(); if (!a.o) return; if (a.s && (a.s.sujo || a.s.salvoEm) && !confirm("Gerar a planilha de novo pelo modelo e pelo Revit? As edições feitas aqui somem (a versão salva só muda se você salvar depois).")) return; abrir(a.o, g.ctxOrcamento ? g.ctxOrcamento(a.o) : {}, { regerar: true }); },
@@ -426,6 +484,8 @@
     apagar: id => { const a = atual(); if (!a.s) return; a.s.linhas = a.s.linhas.filter(x => x.id !== id); a.s.sujo = true; g.OrcObra.repintar(); },
     trocar: id => { const a = atual(); if (!a.s) return; const l = a.s.linhas.find(x => x.id === id); abrirBusca({ linha: id, q: l ? (l.cod ? "" : l.nome.split(" ").slice(0, 3).join(" ")) : "" }); },
     acrescentar: k => abrirBusca({ etapa: k }),
-    buscar: buscar, escolher: escolher, fecharBusca: fecharBusca
+    buscar: buscar, escolher: escolher, fecharBusca: fecharBusca, chave: chave,
+    ctEditar: (ki, i, campo, v) => { const a = atual(); if (!a.s || !a.s.contratos) return; const l = a.s.contratos[ki].linhas[i]; if (!l) return; l[campo] = Math.max(0, Number(String(v).replace(",", ".")) || 0); a.s.sujo = true; g.OrcObra.repintar(); },
+    refazerContratos: () => { const a = atual(); if (!a.s) return; a.s.contratos = gerarContratos(a.s); a.s.sujo = true; g.OrcObra.repintar(); }
   };
 })(window);

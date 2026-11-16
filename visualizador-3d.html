@@ -415,6 +415,64 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   }
   return { ok: true, titulo: r.titulo, base: r.base || null, arquivos: r.arquivos, obter: (a, prog) => baixarModelo3d(obraId, a, prog) };
 };
+/* ===== ORÇAMENTO NO 3D (16/11/26, pedido do dono) =========================
+ * A planilha prévia do orçamento salva na obra (aba 3D e Orçamento da janela
+ * da obra) entra como a 1ª tabela do 3D: "ORÇAMENTO (prévia salva)". Clicar
+ * numa linha marca no 3D os elementos das linhas do Revit que deram aquela
+ * quantidade (cada linha do orçamento guarda de quais tabelas/itens do Revit
+ * ela veio — refs). Linhas que não vêm do Revit (por casa, por lote…) não
+ * têm elemento para marcar. Só se marca por GUID: o id do Revit se repete
+ * entre disciplinas e a tabela do orçamento junta todas.
+ * ===================================================================== */
+(function () {
+  const base = window.MODELO3D_ENDPOINT;
+  function normalizar(e) {
+    if (!e || !e.disciplinas || Array.isArray(e.disciplinas)) return e;
+    const t = Object.keys(e.disciplinas).sort(), tab = [];
+    t.forEach(u => (e.disciplinas[u].tabelas || []).forEach(d => tab.push(Object.assign({ disciplina: u }, d))));
+    return { obra: e.obra, gerado_em: e.atualizado_em, aberturas: Object.assign({}, ...t.map(u => e.disciplinas[u].aberturas || {})),
+      faces: Object.fromEntries(t.map(u => [u, e.disciplinas[u].faces || null])), legendas: Object.fromEntries(t.map(u => [u, e.disciplinas[u].legenda || null])),
+      disciplinas: t.map(u => ({ codigo: u, arquivo: e.disciplinas[u].arquivo })), tabelas: tab };
+  }
+  function tabelaOrcamento(j, p, etapas) {
+    const cols = ["Índice", "Código", "Descrição", "Un.", "Qtd", "Total (R$)"];
+    const pv = p && p.ok && p.previa && p.previa.dados;
+    if (!pv || !Array.isArray(pv.linhas) || !window.OrcObra) return { nome: "ORÇAMENTO (prévia salva)", colunas: cols, linhas: [{ valores: ["", "", "Ainda não há planilha salva — monte e salve na obra: Obras → 3D e Orçamento", "", "", ""] }] };
+    const porRef = {};
+    OrcObra.linhasRevit(j).forEach(x => { (porRef[OrcObra.refKey(x)] = porRef[OrcObra.refKey(x)] || []).push(x.raw); });
+    const linhas = [], et = {};
+    const raiz = l => String(l.etapa || l.idx || "").split(".")[0];
+    pv.linhas.forEach(l => {
+      const r = raiz(l);
+      if (!et[r]) { et[r] = 1; const e = (etapas || []).find(x => x.idx === r); linhas.push({ valores: [r === "_revit" ? "Do Revit, fora do modelo" : r + " " + (e ? e.nome : "etapa"), "", "", "", "", ""] }); }
+      const raws = (l.refs || []).flatMap(k => porRef[k] || []);
+      const guids = [...new Set(raws.flatMap(x => x.guids || []))];
+      const q = Number(l.q) || 0, tot = Math.round(q * (Number(l.custo) || 0) * 100) / 100;
+      const v = { valores: [l.idx || "", l.cod || "", l.nome || "", l.un || "", q, tot] };
+      if (guids.length) v.guids = guids;
+      linhas.push(v);
+    });
+    return { nome: "ORÇAMENTO (prévia salva" + (p.previa.salvo_em ? " em " + new Date(p.previa.salvo_em).toLocaleDateString("pt-BR") : "") + ")", colunas: cols, linhas: linhas };
+  }
+  window.MODELO3D_ENDPOINT = async function (obraId) {
+    const r = await base(obraId);
+    if (!r || !r.ok) return r;
+    const pv = chamar({ action: "orcPreviaLer", obra_id: obraId }, 30000, true).catch(() => null);
+    const obter = r.obter;
+    r.obter = async (a, prog) => {
+      const u8 = await obter(a, prog);
+      if (!/\.json$/i.test(a.nome)) return u8;
+      try {
+        const j = JSON.parse(new TextDecoder().decode(u8)), n = normalizar(j);
+        if (!n || !Array.isArray(n.tabelas)) return u8;
+        let etapas = null; try { etapas = (await (await fetch("orcamento/modelo-casa-rua.json?v=1")).json()).etapas; } catch (e) {}
+        n.tabelas.unshift(tabelaOrcamento(j, await pv, etapas));
+        return new TextEncoder().encode(JSON.stringify(n));
+      } catch (e) { console.warn("[3D] orçamento:", e); return u8; }
+    };
+    return r;
+  };
+})();
 /* ===== MODO REUNIÃO (23/10/26) ===========================================
  * Várias pessoas no mesmo 3D: bonecos, laser, apresentar, chat e voz.
  * Usa o mesmo Supabase Realtime do aviso "ao vivo" do portal (ação
@@ -451,6 +509,7 @@ window.REUNIAO_CFG = (function () {
   };
 })();
 </script>
+<script src="js/obra-orcamento.js?v=2"></script>
 <script src="js/visualizador-3d.js?v=14"></script>
 </body>
 </html>
