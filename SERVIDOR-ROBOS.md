@@ -521,3 +521,76 @@ acesso `BOLETOS E FINANCEIRO` da coluna ACESSOS.
 - **Último financeiro bom:** `_central\financeiro-condominio.json`, usado quando o Notion falha.
 - **Pedidos:** Segurar e Soltar entram na FILA DO ROBÔ com o tipo `boleto-segurar`; Atualizar agora usa o `robo-rodar` da tarefa
   `MoraisEng - Robo retratos`. A fila de teste não segura boleto.
+
+---
+
+# CONFERÊNCIA DE COMPRAS (OC) (16/11/2026) — robô `ocs`
+
+Pedido do dono: o pagamento das OCs da **Rocha Mármores e Granitos**, da **VIDRO ALVES** e da **Serralheria do Fabio**
+só sai depois que o engenheiro confirma no **Mapa de Obras** (índice › 🧾 Conferência de compras) que a entrega / o
+serviço foi finalizado (OBRA · FORNECEDOR · Nº OC · DATA DA OC · ENGENHEIRO · SERVIÇO FINALIZADO? SIM/NÃO). Com o SIM:
+- Rocha / VIDRO ALVES → na OC, **Aprovação = Aprovado** e depois **Status da Compra = Aguardando**
+  (OC que já está aprovada não é mexida);
+- Serralheria do Fabio → no lançamento da OC, **vencimento da 2ª parcela = próximo dia útil** depois do SIM
+  (parcela já paga não é mexida; OC com mais de um lançamento vinculado = erro, fazer à mão).
+- Quem responde: só engenheiros (acesso OBRAS / DOCUMENTOS, ou ADM). Estagiário não — o dono libera depois.
+- NF anexada: a cada rodada o robô olha a aba **Arquivos** de cada OC ainda não feita (`GET /folder?id=<oc>&origin=PURCHASE_ORDER`,
+  ou `/attachments/v2` se a primeira não responder). Tem arquivo → a linha fica **vermelha** no mapa com "📎 NF anexada".
+  A lista no mapa vai da OC mais antiga para a mais nova.
+
+Robô `robo_mc_ocs.py` (`python servidor\robo_fila.py --robo ocs`): lê as OCs pelo GraphQL de Compras (o mesmo pedido
+da tela Ordem de Compra), põe as novas (criadas a partir de `OCS_A_PARTIR_DE`, padrão 2026-11-16) — e, da Rocha /
+VIDRO ALVES, também as **antigas ainda sem lançamento e sem aprovação** dos últimos `OCS_ANTIGAS_MESES` (6) meses (pedido
+do dono, 16/11 tarde; quando a lista não diz se há lançamento, o robô abre "$ Lançamento" na tela, até `OCS_MAX_CONFERIR`
+(30) por rodada, e anota as que têm em `_central\ocs-com-lancamento.json`) — na tabela
+`oc_conferencia` do Supabase ORÇADO/REALIZADO e, para cada SIM, faz a mudança **pela tela** do MC (mesmos campos e
+botões de uma pessoa), relê para conferir e grava FEITO / ERRO / SIMULADO na linha. Só pelo porteiro.
+
+**Trava própria:** grava no ERP só com `_central\OCS_APLICAR.txt` (o dono cria). O `ROBOS_APLICAR.txt` NÃO liga este.
+Sem a chave: SIMULAÇÃO — abre a OC e o lançamento, acha os campos e escreve no mapa "faria: …".
+
+## 1. (dono) Tabela no Supabase
+SQL Editor do projeto ORÇADO/REALIZADO › colar `supabase/oc_conferencia.sql` › Run.
+
+## 2. (dono) Apps Script
+Colar o `apps-script/MapaObras.gs` novo nos TRÊS projetos (PORTAL-LEITURA, PORTAL-ESCRITA, PORTAL-ATIVIDADES) e
+publicar nova versão. Opcional: Propriedade `DB_FILA_ROBO` no **PORTAL-ESCRITA** (o id da FILA DO ROBÔ de produção, o
+mesmo do PORTAL-LEITURA) — com ela o SIM chama o robô na hora; sem ela, ele roda no horário. Teste: `mapaVersao` → `mo13`.
+
+## 3. (servidor) Atualizar o clone e testar
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"; git pull
+python -m pytest -q tests/test_robo_mc_ocs.py tests/test_robo_fila.py
+```
+Não precisa de chave nova em `robos-portal.json` (usa `supabase_key_arquivo` e `vars.SUPABASE_URL` do robô de anexos).
+
+## 4. (servidor) Descoberta — só formato, nada gravado
+```powershell
+$env:DESCOBRIR="1"; $env:OCS_A_PARTIR_DE="2026-10-01"; $env:OCS_EXEMPLO="8312"
+python servidor\robo_fila.py --robo ocs
+Remove-Item Env:DESCOBRIR, Env:OCS_A_PARTIR_DE, Env:OCS_EXEMPLO
+```
+Devolver a saída: consulta da tela, campos de uma OC, códigos de aprovação/status, as OCs dos três fornecedores e os
+campos/botões da tela da OC de exemplo (para uma da Serralheria, use o nº dela em `OCS_EXEMPLO`: mostra as parcelas).
+Esperado na última linha: `OK: descoberta das OCs — N lida(s), M dos fornecedores da lista.`
+
+## 5. (servidor) Simulação
+`python servidor\robo_fila.py --robo ocs` — a última linha termina com `(SIMULAÇÃO)`. As OCs novas aparecem no mapa; um
+SIM de teste mostra "🧪 robô em teste" com o que ele faria.
+
+## 6. (dono) Ligar a gravação
+Criar `_central\OCS_APLICAR.txt` (vazio). Primeira vez com cuidado, uma OC só:
+```powershell
+$env:OCS_SO="8312"; python servidor\robo_fila.py --robo ocs; Remove-Item Env:OCS_SO
+```
+Conferir a OC no MC antes de deixar a tarefa rodar solta. Desligar = apagar o arquivo.
+
+## 7. (servidor, com o ok do dono) Tarefa agendada — seg a sáb, 07:10 a 19:10, de 2 em 2 h
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_central"
+.\registrar_tarefa.ps1 -Nome "Conferencia de OCs" -Pasta "C:\AUTOMAÇÕES MAIS CONTROLE\_portal" `
+    -Comando 'python servidor\robo_fila.py --robo ocs' -Hora 07:10 -Dias Monday,Tuesday,Wednesday,Thursday,Friday,Saturday `
+    -RepetirHoras 2 -DuracaoHoras 12 -SoMostrar
+```
+O nome **tem** que ser "MoraisEng - Conferencia de OCs" (é o que o SIM do mapa pede para rodar na hora). O Escritório de
+Robôs mostra a mesa "Conferência de compras (OC)".

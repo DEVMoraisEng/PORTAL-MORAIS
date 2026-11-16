@@ -627,6 +627,10 @@ ROBOS = {
     # 06/11: boletos do mês do Reserva dos Ipês pela Cobrança Fácil (venda/mc/boletos.py).
     # Dias úteis 10:00; já emite, mas só com _central\BOLETOS_APLICAR.txt (o dono cria). Sem ele, só a lista.
     "boletos": [["robo_mc_boletos.py", "--emitir"]],
+    # 16/11: conferência de compras (OC) do Mapa de Obras — Rocha Mármores / VIDRO ALVES (aprova a OC) e Serralheria do
+    # Fabio (2ª parcela para o próximo dia útil) depois do SIM do engenheiro. Tabela oc_conferencia no Supabase
+    # (supabase_key_arquivo + vars.SUPABASE_URL). Grava no ERP SÓ com _central\OCS_APLICAR.txt (trava própria, o dono cria).
+    "ocs": ["robo_mc_ocs.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"
