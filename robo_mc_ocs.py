@@ -89,7 +89,7 @@ FORNECEDORES = {
 
 APROVADO = {"APPROVED", "APROVADO", "APROVADA"}
 CANCELADA = {"CANCELED", "CANCELLED", "CANCELADO", "CANCELADA", "REJECTED", "REFUSED", "REPROVADO", "REPROVADA",
-             "RECUSADO", "RECUSADA"}
+             "RECUSADO", "RECUSADA", "DENIED", "NEGADO", "NEGADA"}
 
 
 def log(*a):
@@ -272,7 +272,9 @@ def oc_do_no(no: dict) -> dict:
             "descricao": str(_primeiro(no, ("description", "title")) or "")[:300] or None,
             "criada_em": criada if re.match(r"^\d{4}-\d\d-\d\d$", criada) else None,
             "aprovacao_mc": aprov.upper() or None, "status_compra_mc": status.upper() or None,
-            "cancelada": N(aprov) in CANCELADA or N(status) in CANCELADA, "tem_lancamento": tem_lanc}
+            "cancelada": N(aprov) in CANCELADA or N(status) in CANCELADA, "tem_lancamento": tem_lanc,
+            # 16/11: a lista já diz se a aba Arquivos tem algo (hasAnyFile) — só abre as pastas de quem tem
+            "tem_arquivo": no.get("hasAnyFile") if isinstance(no.get("hasAnyFile"), bool) else None}
 
 
 def antigas_desde(hoje: dt.date | None = None) -> str:
@@ -599,11 +601,20 @@ def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple
                 ini = dt.date.fromisoformat(desde) - dt.timedelta(days=1)
                 esp[k] = {"start": _com_data(esp[k].get("start"), ini),
                           "end": _com_data(esp[k].get("end"), hoje + dt.timedelta(days=1))}
+        # 16/11 (1ª descoberta): a tela manda specification.startDate / endDate soltos
+        ini = dt.date.fromisoformat(desde) - dt.timedelta(days=1)
+        if esp.get("startDate"):
+            esp["startDate"] = _com_data(esp["startDate"], ini)
+        if esp.get("endDate"):
+            esp["endDate"] = _com_data(esp["endDate"], hoje + dt.timedelta(days=1))
         for k in ("keyword", "search", "text"):
             esp.pop(k, None)
     cursor = _cursor(v)
     if cursor:
         v["first"], v["after"] = 50, None
+    # 16/11: a consulta da tela traz "first: 10" escrito na própria consulta (205 páginas para 2047 OCs) — pede 50
+    if "$first" not in visto["query"]:
+        visto = dict(visto, query=re.sub(r"\bfirst:\s*\d+", "first: 50", visto["query"], count=1))
     est = {"paginas": 0, "ocs": 0, "cursor": cursor, "fonte": "graphql"}
     todas, ids = [], set()
     for _ in range(400):
@@ -810,7 +821,7 @@ def aprovar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
     if N(ap["atual"]) in ("APROVADO", "APROVADA"):
         stc = tela.campo("Status da Compra", "stcompra")
         return "FEITO", "já estava Aprovado no MC (status da compra: %s) — nada mudado" % ((stc or {}).get("atual") or "—")
-    if N(ap["atual"]) in ("REPROVADO", "REPROVADA", "CANCELADO", "CANCELADA", "RECUSADO"):
+    if N(ap["atual"]) in ("REPROVADO", "REPROVADA", "CANCELADO", "CANCELADA", "RECUSADO", "NEGADO", "NEGADA"):
         raise RuntimeError("a OC está \"%s\" no MC — não aprovo por cima; conferir com Compras" % ap["atual"])
     if not aplicar:
         ops = ap.get("opcoes") or []
@@ -1134,13 +1145,16 @@ def anexos_da_oc(aba, oc_id: str) -> list:
     return arquivos_validos(_lista_de(j))
 
 
-def com_anexos(aba, linhas: list, existentes: dict, limite: int = MAX_ANEXOS) -> dict:
+def com_anexos(aba, linhas: list, existentes: dict, limite: int = MAX_ANEXOS, tem_arquivo: dict | None = None) -> dict:
     """Põe anexos / anexos_nomes / anexos_em nas linhas (novas e atualizadas) das OCs ainda não feitas pelo robô.
     Erro numa OC não para a rodada: a linha fica sem os campos (o mapa mantém o que já sabia)."""
     est = {"conferidas": 0, "com_nf": 0, "erros": 0}
     agora = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     for ln in linhas:
         if (existentes.get(ln["oc_id"]) or {}).get("robo_situacao") == "FEITO" or ln.get("cancelada"):
+            continue
+        if (tem_arquivo or {}).get(ln["oc_id"]) is False:      # a lista do MC já disse: aba Arquivos vazia
+            ln.update({"anexos": 0, "anexos_nomes": None, "anexos_em": agora})
             continue
         if est["conferidas"] >= limite:
             break
@@ -1230,7 +1244,7 @@ def main() -> int:
                 return True
             novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento)
             guardar_com_lancamento(com_lanc)
-            ea = com_anexos(aba, novas + atual, existentes)
+            ea = com_anexos(aba, novas + atual, existentes, tem_arquivo={o["oc_id"]: o.get("tem_arquivo") for o in ocs})
             sb.gravar(novas + atual)
             log("OCs lidas: %d (novas desde %s; antigas sem lançamento desde %s) · novas na conferência: %d · "
                 "atualizadas: %d" % (est["ocs"], A_PARTIR_DE, antigas_desde(), len(novas), len(atual)))
