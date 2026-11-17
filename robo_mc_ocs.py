@@ -850,9 +850,21 @@ class Tela:
         return False
 
     def abrir_oc(self, oc_id: str) -> None:
-        self.ir("#/purchase-order/edit/%s" % oc_id, "Aprova", 45)
-        if not self.esperar_texto("Fornecedor", 20):
-            raise RuntimeError("a tela da OC não abriu (sem o campo Fornecedor)")
+        """17/11: com o servidor lento (rodada das 14:30) a OC não abriu em 65 s — tenta de novo recarregando a
+        página e esperando mais; se ainda não abrir, guarda a foto da tela e para (sem mexer em nada)."""
+        for tentativa in (1, 2):
+            if tentativa == 2:
+                log("   a OC demorou a abrir — recarregando e tentando de novo")
+                try:
+                    self.page.reload(wait_until="domcontentloaded", timeout=60000)
+                    self.page.wait_for_timeout(3000)
+                except Exception:       # noqa: BLE001
+                    pass
+            self.ir("#/purchase-order/edit/%s" % oc_id, "Aprova", 45 if tentativa == 1 else 90)
+            if self.esperar_texto("Fornecedor", 20 if tentativa == 1 else 40):
+                return
+        o_que = foto_da_tela(self, "abrir-" + str(oc_id)[:8])
+        raise RuntimeError("a tela da OC não abriu (sem o campo Fornecedor), nem recarregando (%s)" % o_que)
 
     def campo(self, rotulo: str, marca: str, dentro: str = "") -> dict | None:
         return self.page.evaluate(_JS_CAMPO, [rotulo, marca, dentro])
