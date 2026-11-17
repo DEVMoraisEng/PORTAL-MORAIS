@@ -4848,8 +4848,13 @@ function rentObra(e,d){
   let acc=0, expMax=0; for(let m=meses[0],i=0;m<=meses[meses.length-1];m=mAdd(m,1),i++){ acc+=fl[i]+(f.s[m]||0); if(-acc>expMax) expMax=-acc; }
   if(tir!=null&&(expMax<custo*0.1||(lucro>0)!==(tir>0))) tir=null;  // sem capital exposto de verdade ou sinal incoerente: TIR não informa
   const mor=ehObraMorais(d.endereco);
-  return {e,d,co,ct,cv,custo,rec,lucro,roi:lucro/custo*100,margem:rec>0?lucro/rec*100:null,tir:mor&&tir!=null?(Math.pow(1+tir,12)-1)*100:null,
-    dur:ini&&fim?mDif(ini,fim):null,ciclo:fl.length,fim,ini,m0:meses[0],fl,ultimo:meses[meses.length-1],n:d.n_casas||1,mor,cli:clienteObra(d),expMax};
+  /* 17/11/26 (pedido do Morais): ciclo de caixa pelas datas do Mais Controle.
+     Morais: 1º pagamento → último recebimento. Investidor: 1º pagamento → o que vier depois entre o término (Notion) e o último aporte. */
+  const mRec=Object.keys(f.r).filter(m=>f.r[m]>0).sort(), ultRec=mRec.length?mRec[mRec.length-1]:null;
+  const fimCiclo=mor?ultRec:([fim,ultRec].filter(Boolean).sort().pop()||null);
+  const ciclo=fimCiclo?Math.max(1,mDif(meses[0],fimCiclo)):null;
+  return {e,d,co,ct,cv,custo,rec,lucro,ultRec,fimCiclo,roi:lucro/custo*100,margem:rec>0?lucro/rec*100:null,tir:mor&&tir!=null?(Math.pow(1+tir,12)-1)*100:null,
+    dur:ini&&fim?mDif(ini,fim):null,ciclo,fim,ini,m0:meses[0],fl,ultimo:meses[meses.length-1],n:d.n_casas||1,mor,cli:clienteObra(d),expMax};
 }
 /* 17/11/26: Rentabilidade reformulada — Morais (incorporação) e investidores (prestação de serviço) separados;
    a janela conta à parte para cada lado; TIR só para a Morais (no investidor o dinheiro vem antes do gasto). */
@@ -4864,7 +4869,7 @@ function rtAgg(w){
       const i0=arr.findIndex(v=>Math.abs(v)>1); if(i0>=0&&arr[i0]<0&&arr.some(v=>v>0)){ const x=calcTIR(arr.slice(i0),0.02); if(x!=null){ const aa=(Math.pow(1+x,12)-1)*100; if(isFinite(aa)&&aa>-100&&aa<1000) tirC=aa; } } } }
   return {q:w.length,c,r,l,n,co:w.reduce((a,o)=>a+o.co,0),ct:w.reduce((a,o)=>a+o.ct,0),cv:w.reduce((a,o)=>a+o.cv,0),
     roi:c?l/c*100:null,margem:r>0?l/r*100:null,tir:med(t.map(o=>o.tir)),tirC,nTir:t.length,
-    dur:du.length?du.reduce((a,o)=>a+o.dur,0)/du.length:null,ciclo:w.length?w.reduce((a,o)=>a+o.ciclo,0)/w.length:null,
+    dur:du.length?du.reduce((a,o)=>a+o.dur,0)/du.length:null,ciclo:(()=>{ const c=w.filter(o=>o.ciclo!=null); return c.length?c.reduce((a,o)=>a+o.ciclo,0)/c.length:null; })(),
     lObra:w.length?l/w.length:null,lCasa:n?l/n:null,expMax:w.length?Math.max(...w.map(o=>o.expMax)):0};
 }
 function rtTipObra(o){
@@ -4875,7 +4880,7 @@ function rtTipObra(o){
     ${L(o.mor?'Lucro':'Lucro da Morais',fmtBRL(o.lucro),1)}</table>
     <table>${L('Margem (lucro ÷ '+(o.mor?'recebido':'aporte')+')',o.margem!=null?fmtN(o.margem,1)+'%':'—')}${L(o.mor?'Lucro ÷ custo':'Taxa sobre o custo',fmtN(o.roi,1)+'%')}${L('Lucro por casa ('+o.n+')',fmtBRL(o.lucro/o.n))}
     ${o.mor?L('TIR anual',o.tir!=null?fmtN(o.tir,1)+'%':'— (fluxo não permite)'):''}${L('Exposição máxima',fmtBRL(o.expMax))}
-    ${L('Obra (Notion)',(o.ini?fmtM(o.ini):'?')+' → '+(o.fim?fmtM(o.fim):'?')+(o.dur!=null?' · '+o.dur+' m':''))}${L('Ciclo de caixa',fmtM(o.m0)+' → '+fmtM(o.ultimo)+' · '+o.ciclo+' m')}</table>
+    ${L('Obra (Notion)',(o.ini?fmtM(o.ini):'?')+' → '+(o.fim?fmtM(o.fim):'?')+(o.dur!=null?' · '+o.dur+' m':''))}${L('Ciclo de caixa',fmtM(o.m0)+' → '+(o.fimCiclo?fmtM(o.fimCiclo)+' · '+o.ciclo+' m':'sem '+(o.mor?'recebimento':'término nem aporte')))}</table>
     ${av.length?`<div class="fora" style="margin-top:6px">⚠ ${esc(av.join('; '))}</div>`:''}`;
 }
 function buildRentab(){
@@ -4906,7 +4911,7 @@ function buildRentab(){
     card('m3','TIR anual',pct(M.tirC),`mediana por obra ${pct(M.tir)}`,cls(M.tirC),`<h4>TIR anual da carteira</h4><div class="tv">${pct(M.tirC)}</div><div>Junta lucro e tempo: é a taxa de juros que o dinheiro aplicado nas obras rendeu por ano. Soma o fluxo de todas as obras da janela mês a mês (recebido − pago) e calcula uma TIR só, então obra grande pesa mais. Compare com o CDI do período.</div>${tb([['TIR da carteira',pct(M.tirC),1],['Mediana das obras',pct(M.tir)],['Obras com TIR própria',M.nTir+' de '+M.q]])}<div class="fora" style="margin-top:6px">Uma obra fica sem TIR própria quando o fluxo começa recebendo, quando quase não teve dinheiro próprio exposto (menos de 10% do custo) ou quando o resultado sai de −100% a +1000% a.a. Casas recebidas pela Caixa durante a obra deixam a TIR alta, porque pouco capital fica preso.</div>`),
     card('m4','Lucro por casa',fmtBRL(M.lCasa),`${M.n} casa(s)`,cls(M.lCasa),`<h4>Lucro por casa</h4><div>Lucro líquido ÷ número de casas (Notion) das obras da janela. Bom para comparar lotes de 1, 2 ou mais casas.</div>${tb([['Lucro',fmtBRL(M.l)],['÷ Casas',M.n],['Lucro por casa',fmtBRL(M.lCasa),1]])}`),
     card('m5','Tempo de obra',mes(M.dur),'início → término (Notion)','',`<h4>Tempo médio de obra</h4><div>Média de meses entre a data de início e a data de término no Notion.</div>${semFimN(selM)?`<div class="fora" style="margin-top:6px">${semFimN(selM)} obra(s) sem data de término ficaram fora da média.</div>`:''}`),
-    card('m6','Ciclo de caixa',mes(M.ciclo),'1º pagamento → último recebimento','',`<h4>Ciclo de caixa médio</h4><div>Meses entre o primeiro pagamento e o último movimento no centro de custo da obra (inclui compra do lote e o repasse da venda). Quanto menor, mais rápido o dinheiro volta para a próxima obra.</div>${tb([['Tempo de obra',mes(M.dur)],['Ciclo de caixa',mes(M.ciclo),1]])}`)
+    card('m6','Ciclo de caixa',mes(M.ciclo),M.ciclo?`giro ${fmtN(12/M.ciclo,2)}× por ano`:'1º pagamento → último recebimento','',`<h4>Ciclo de caixa e giro do capital</h4><div>Meses entre o primeiro pagamento no centro de custo da obra (normalmente o lote) e o mês do <b>último recebimento</b> lançado no Mais Controle. Giro = 12 ÷ ciclo: quantas voltas completas o dinheiro dá por ano. Quanto mais rápido, mais obras o mesmo capital paga.</div>${tb([['Tempo de obra',mes(M.dur)],['Ciclo de caixa',mes(M.ciclo),1],['Giro do capital',M.ciclo?fmtN(12/M.ciclo,2)+'× por ano':'—']])}<div class="fora" style="margin-top:6px">Com o filtro "Fechadas" o último recebimento é o final de verdade (todas as casas recebidas). Com "Todas" ou "Prontas" o ciclo sai curto, porque ainda falta dinheiro entrar.</div>`)
   ].join('');
   document.getElementById('rt-k-i').innerHTML=!I.q?vazio('de investidores',sitI):[
     card('i1','Lucro da Morais',fmtBRL(I.l),`${fmtBRL(I.lObra)} por obra`,cls(I.l),`<h4>Lucro da Morais nas obras de investidores</h4><div class="tv">${fmtBRL(I.l)}</div>${tb([['Aportado pelos investidores',fmtBRL(I.r)],['− Custo de obra',fmtBRL(I.co)],['− Terreno',fmtBRL(I.ct)],['− Custo de venda',fmtBRL(I.cv)],['Lucro da Morais',fmtBRL(I.l),1]])}<div>O investidor aporta o valor estipulado no contrato e a venda da casa vai direto para ele; o que sobra do aporte depois do custo da obra é o lucro da Morais.</div>${qual(I,totI.length,sitI)}`),
@@ -4914,7 +4919,7 @@ function buildRentab(){
     card('i3','Taxa sobre o custo',pct(I.roi),'lucro ÷ custo da obra',cls(I.roi),`<h4>Taxa sobre o custo</h4><div class="tv">${pct(I.roi)}</div><div>É a "taxa de administração" efetiva: quanto a Morais ganhou para cada R$ 100 gastos na obra. Compare com a taxa combinada nos contratos — abaixo dela, a obra custou mais que o previsto.</div>${tb([['Lucro',fmtBRL(I.l)],['÷ Custo',fmtBRL(I.c)],['Taxa',pct(I.roi),1]])}`),
     card('i4','Lucro por casa',fmtBRL(I.lCasa),`${I.n} casa(s)`,cls(I.lCasa),`<h4>Lucro por casa</h4><div>Lucro da Morais ÷ número de casas (Notion) das obras de investidores da janela.</div>${tb([['Lucro',fmtBRL(I.l)],['÷ Casas',I.n],['Lucro por casa',fmtBRL(I.lCasa),1]])}`),
     card('i5','Tempo de obra',mes(I.dur),'início → término (Notion)','',`<h4>Tempo médio de obra</h4><div>Média de meses entre a data de início e a data de término no Notion.</div>${semFimN(selI)?`<div class="fora" style="margin-top:6px">${semFimN(selI)} obra(s) sem data de término ficaram fora da média.</div>`:''}`),
-    card('i6','Sem TIR','—','o investidor paga antes','',`<h4>Por que não tem TIR aqui</h4><div>Na obra de investidor o dinheiro do aporte entra antes ou junto com o gasto, então a Morais quase não coloca capital próprio. Sem capital empatado a TIR não tem significado (sai infinita ou sem sentido). O que mede essas obras é a margem sobre o aporte e a taxa sobre o custo.</div>`)
+    card('i6','Ciclo da obra',mes(I.ciclo),'1º pagamento → último aporte ou término','',`<h4>Ciclo da obra de investidor</h4><div>Meses entre o primeiro pagamento no centro de custo e o que vier por último: o término da obra no Notion ou o último aporte do investidor lançado no Mais Controle. Mostra quanto tempo a equipe fica presa em cada contrato.</div>${tb([['Tempo de obra',mes(I.dur)],['Ciclo da obra',mes(I.ciclo),1]])}<div class="fora" style="margin-top:6px">Não tem TIR: o aporte entra antes ou junto com o gasto, então a Morais quase não coloca capital próprio e a TIR não tem significado. O que mede essas obras é a margem sobre o aporte e a taxa sobre o custo.</div>`)
   ].join('');
 
   // barras: margem por obra
