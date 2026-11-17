@@ -904,46 +904,72 @@ def _sim(info: dict | None, opcao: str) -> bool:
     return bool(info) and N(info.get("atual")) == N(opcao)
 
 
+def _status_compra(tela: Tela, seg: float = 10):
+    """Espera o campo Status da Compra aparecer (ele só aparece com a OC aprovada)."""
+    limite = time.monotonic() + seg
+    while True:
+        stc = tela.campo("Status da Compra", "stcompra")
+        if stc or time.monotonic() >= limite:
+            return stc
+        tela.page.wait_for_timeout(500)
+
+
 def aprovar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
-    """ROBÔ 1: Aprovação → Aprovado; depois Status da Compra → Aguardando. Devolve (situação, mensagem)."""
+    """ROBÔ 1: Aprovação → Aprovado; depois Status da Compra → Aguardando. Devolve (situação, mensagem).
+    17/11: no MC escolher na lista Aprovação já grava (PATCH update-approval-status) e o Status da Compra só aparece
+    depois — por isso o robô aprova, salva, REABRE a OC e só então mexe no Status da Compra."""
+    num = linha.get("numero")
+    passo("OC %s (aprovar): abrindo a OC" % num)
     tela.abrir_oc(linha["oc_id"])
     ap = tela.campo("Aprovação", "aprov")
     if not ap:
         raise RuntimeError("não achei o campo Aprovação na OC")
-    if N(ap["atual"]) in ("APROVADO", "APROVADA"):
-        stc = tela.campo("Status da Compra", "stcompra")
-        return "FEITO", "já estava Aprovado no MC (status da compra: %s) — nada mudado" % ((stc or {}).get("atual") or "—")
     if N(ap["atual"]) in ("REPROVADO", "REPROVADA", "CANCELADO", "CANCELADA", "RECUSADO", "NEGADO", "NEGADA"):
         raise RuntimeError("a OC está \"%s\" no MC — não aprovo por cima; conferir com Compras" % ap["atual"])
+    ja = N(ap["atual"]) in ("APROVADO", "APROVADA")
     if not aplicar:
         ops = ap.get("opcoes") or []
-        if ops and not any(N(o) == "APROVADO" for o in ops):
+        if not ja and ops and not any(N(o) == "APROVADO" for o in ops):
             raise RuntimeError("a lista Aprovação não tem \"Aprovado\" (tem: %s)" % ", ".join(ops))
         return "SIMULADO", "faria: Aprovação \"%s\" → \"Aprovado\" e Status da Compra → \"Aguardando\" (achei os campos; " \
                            "falta a chave OCS_APLICAR.txt)" % ap["atual"]
     marca = len(tela.escritas)
-    tela.escolher("aprov", ap, "Aprovado")
-    tela.confirmar_se_perguntar()
-    tela.page.wait_for_timeout(1500)
-    stc = None
-    for _ in range(10):                      # o Status da Compra aparece depois da aprovação
-        stc = tela.campo("Status da Compra", "stcompra")
-        if stc:
-            break
-        tela.page.wait_for_timeout(500)
+    if not ja:
+        passo("OC %s (aprovar): escolhendo \"Aprovado\"" % num)
+        tela.escolher("aprov", ap, "Aprovado")
+        tela.confirmar_se_perguntar()
+        tela.page.wait_for_timeout(2000)
+        if not _status_compra(tela, 4):
+            passo("OC %s (aprovar): salvando a aprovação" % num)
+            tela.clicar_botao("Salvar")
+            tela.confirmar_se_perguntar()
+            tela.page.wait_for_timeout(3000)
+        passo("OC %s (aprovar): reabrindo a OC" % num)
+        tela.abrir_oc(linha["oc_id"])
+        ap = tela.campo("Aprovação", "aprov")
+        if not _sim(ap, "Aprovado"):
+            _, rotas = tela.gravou(marca)
+            raise RuntimeError("escolhi Aprovado, mas a OC reabriu com Aprovação \"%s\" (%s)" % ((ap or {}).get("atual"), rotas))
+    passo("OC %s (aprovar): Status da Compra" % num)
+    stc = _status_compra(tela, 10)
     if not stc:
-        raise RuntimeError("aprovei na tela, mas o campo Status da Compra não apareceu — NÃO salvei; conferir a OC")
+        _, rotas = tela.gravou(marca)
+        raise RuntimeError("a OC está Aprovado, mas o campo Status da Compra não apareceu — mudar para Aguardando à mão (%s)" % rotas)
     if not _sim(stc, "Aguardando"):
         tela.escolher("stcompra", stc, "Aguardando")
-    tela.clicar_botao("Salvar")
-    tela.confirmar_se_perguntar()
-    tela.page.wait_for_timeout(3000)
+        tela.confirmar_se_perguntar()
+        tela.page.wait_for_timeout(1000)
+        passo("OC %s (aprovar): salvando o Status da Compra" % num)
+        tela.clicar_botao("Salvar")
+        tela.confirmar_se_perguntar()
+        tela.page.wait_for_timeout(3000)
     ok, rotas = tela.gravou(marca)
-    # confere relendo a OC
+    passo("OC %s (aprovar): conferindo (gravações: %s)" % (num, rotas))
     tela.abrir_oc(linha["oc_id"])
-    ap2, st2 = tela.campo("Aprovação", "aprov"), tela.campo("Status da Compra", "stcompra")
+    ap2, st2 = tela.campo("Aprovação", "aprov"), _status_compra(tela, 10)
     if _sim(ap2, "Aprovado") and _sim(st2, "Aguardando"):
-        return "FEITO", "Aprovação → Aprovado e Status da Compra → Aguardando (conferido na OC) · %s" % rotas
+        return "FEITO", "Aprovação → Aprovado e Status da Compra → Aguardando (conferido na OC)%s · %s" % (
+            " — já estava Aprovado" if ja else "", rotas)
     raise RuntimeError("salvei, mas a OC voltou com Aprovação \"%s\" e Status da Compra \"%s\" (%s)"
                        % ((ap2 or {}).get("atual"), (st2 or {}).get("atual"), rotas if not ok else "gravação ok"))
 
