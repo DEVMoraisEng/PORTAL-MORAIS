@@ -5471,7 +5471,7 @@ function renderConfig(){
     <p class="desc">A <b>categoria</b> é o tipo do gasto no Mais Controle (Materiais, ITBI, Salário…). Aqui você define <b>em que item cada tipo de gasto entra</b>.</p>
     <div class="cfg-como"><b>Como ler cada linha</b><ul>
       <li>O mesmo gasto pode entrar em lugares diferentes conforme <b>onde foi lançado</b> (o centro de custo). Por isso há uma coluna para cada lugar: <b>obra</b>, <b>escritório</b> e <b>pós-obra</b>.</li>
-      <li><b>Operacional</b>: é custo do negócio. Entra nos custos (Fluxo de Caixa, Desempenho, ROI) e no card Operacional. Numa obra, você ainda escolhe se é custo de obra, terreno ou custo de venda.</li>
+      <li><b>Operacional</b> (custo de obra, terreno, custo de venda, escritório ou pós-obra): é custo do negócio. Entra nos custos (Fluxo de Caixa, Desempenho, ROI) e no card Operacional. Tudo que não estiver como "Não operacional" é operacional.</li>
       <li><b>Não operacional</b>: não é custo do negócio (devolução de sinal, distrato, despesa pessoal…). Sai dos custos e aparece só no card Não operacional.</li>
       <li><b>Aporte ou distribuição de sócio?</b> Marcado, vale por cima das três colunas: o gasto sai de todos os custos e vai para a coluna Sócios do Fluxo de Caixa.</li></ul>
       <span class="ex">Exemplo: ITBI lançado numa obra entra como <b>Terreno</b> daquela obra; o mesmo ITBI lançado no escritório entra como <b>custo do escritório</b>.</span></div>
@@ -5483,9 +5483,9 @@ function renderConfig(){
         const vo=o.obra||ao, ve=o.esc||ae, vp=o.pos||ap, vs=o.soc!==undefined?o.soc:as;
         const att=(campo,auto)=>`${CFG_PODE?'':'disabled'} onchange="cfgSet('cats','${jq(c.n)}','${campo}',this.value,'${auto}');this.classList.toggle('mud',this.value!=='${auto}')"`;
         h+=`<tr data-q="${esc(c.n+' '+nzC(c.plano))}"><td>${esc(c.nome)}</td><td class="nr">${c.nl}</td><td class="nr">${c.p12?fmt0(c.p12):'—'}</td>
-          <td>${cfgSel([['obra','Custo de obra (operacional)'],['ter','Terreno (operacional)'],['venda','Custo de venda (operacional)'],['nao','Não operacional']],vo,ao,att('obra',ao)+(vo!==ao?' class="mud"':''))}</td>
-          <td>${cfgSel([['conta','Custo do escritório (operacional)'],['nao','Não operacional']],ve,ae,att('esc',ae)+(ve!==ae?' class="mud"':''))}</td>
-          <td>${cfgSel([['conta','Custo do pós-obra (operacional)'],['nao','Não operacional']],vp,ap,att('pos',ap)+(vp!==ap?' class="mud"':''))}</td>
+          <td>${cfgSel([['obra','Custo de obra'],['ter','Terreno'],['venda','Custo de venda'],['nao','Não operacional']],vo,ao,att('obra',ao)+(vo!==ao?' class="mud"':''))}</td>
+          <td>${cfgSel([['conta','Escritório'],['nao','Não operacional']],ve,ae,att('esc',ae)+(ve!==ae?' class="mud"':''))}</td>
+          <td>${cfgSel([['conta','Pós-obra'],['nao','Não operacional']],vp,ap,att('pos',ap)+(vp!==ap?' class="mud"':''))}</td>
           <td style="text-align:center"><input type="checkbox" ${vs?'checked':''} ${CFG_PODE?'':'disabled'} onchange="cfgSetSoc('${jq(c.n)}',this.checked,${as})" title="Movimento dos sócios: não operacional, não entra como gasto nem lucro"></td></tr>`; });
       return h; })()}
     </tbody></table></div>${cfgRodape('cats')}</div>
