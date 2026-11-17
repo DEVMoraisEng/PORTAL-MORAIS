@@ -1474,7 +1474,8 @@ function moOrcEnviarMC_(sess, p) {
     if (env0.travado) return { ok: false, erro: "JA_ENVIADO", envio: env0 };
     var quem = String(sess.n || sess.u || "").slice(0, 80), agora = new Date().toISOString();
     var linhas = ((atual.dados || {}).linhas || []), total = 0;
-    linhas.forEach(function (l) { total += Number(l.total || (Number(l.qtd) || 0) * (Number(l.custo) || 0)) || 0; });
+    linhas.forEach(function (l) { total += (Number(l.q) || 0) * (Number(l.custo) || 0); });
+    if (Number((atual.dados || {}).total) > 0) total = Number(atual.dados.total);   /* a tela grava o total junto */
     var hist = (env0.historico || []).slice(-30);
     hist.push({ acao: "envio", por: quem, em: agora, versao: atual.versao });
     var envio = { travado: true, situacao: "NA FILA", pedido_em: agora, pedido_por: quem, versao: atual.versao,
