@@ -225,7 +225,7 @@ GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código d
   ["G-PER-1",3,"Índice paisagístico mínimo de 15% da área do lote. Só grama conta como 'cobertura vegetal permeável'. Concregrama conta como 'cobertura vegetal não permeável' em no máximo 5% do lote."],
   ["G-PER-2",3,"A soma das áreas permeáveis cotadas em planta (cada canteiro) é igual ao valor do carimbo, do quadro de áreas e do memorial."],
   ["G-PER-3",3,"Nomenclatura correta em planta e memorial: grama = 'COBERTURA VEGETAL PERMEÁVEL'; concregrama = 'COBERTURA VEGETAL NÃO PERMEÁVEL'. Nunca 'cobertura vegetal impermeável' nem concregrama rotulado como área permeável."],
-  ["G-PER-4",2,"Quadro de áreas mostra só a área permeável em grama. Se usar concregrama, o memorial especifica as duas áreas separadas e o carimbo traz o valor exato da planta (ex.: 6 x 3,46 = 20,76 m²)."],
+  ["G-PER-4",3,"Concregrama (cobertura vegetal não permeável) aparece SOMENTE no carimbo, com o valor exato da planta (ex.: 6 x 3,46 = 20,76 m²). O quadro de áreas e o memorial da caixa de recarga trazem só a área permeável em grama, sem linha de concregrama e sem repetir áreas permeáveis/impermeáveis."],
   ["G-ACE-1",3,"Acesso de veículos em faixas: faixa central de grama com no máximo 1,00 m; faixas de rolagem com no mínimo 0,50 m cada; conjunto de 2,40 m; as rodas não podem passar sobre a grama."],
  ]],
  ["Caixa de recarga",[
@@ -251,6 +251,8 @@ GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código d
  ]],
  ["Situação, quadro de áreas e cortes",[
   ["G-SIT-1",2,"Planta de situação representa a quadra inteira."],
+  ["G-QUA-0",3,"Quadro de áreas no modelo do projeto simplificado, nesta ordem: ÁREA DO TERRENO, ÁREA CONSTRUÍDA, ÁREA PERMEÁVEL (só grama), NÚMERO DE VAGAS DE ESTACIONAMENTO. Em geminada/seriada entram também a área construída e a fração ideal de cada unidade. O valor de ÁREA PERMEÁVEL é a soma das áreas de grama cotadas em planta."],
+  ["G-REC-0",3,"Memorial de cálculo da caixa de recarga no modelo do projeto simplificado, linha a linha: ÁREA DO TERRENO; ÍNDICE PAISAGÍSTICO (COBERTURA VEGETAL PERMEÁVEL) = soma da grama em planta; ÁREA IMPERMEABILIZADA = terreno − grama; VOLUME NECESSÁRIO = impermeabilizada ÷ 200; DIMENSÕES: ÁREA DA BASE, ALTURA, VOLUME UNITÁRIO (= base x altura), Nº DE CAIXAS, VOLUME TOTAL (= unitário x nº de caixas, ≥ necessário). Conferir cada linha com a planta e com o carimbo (I.P. e I.C.C.A.P.)."],
   ["G-QUA-1",3,"Quadro de áreas especifica a fração ideal de cada unidade, com o valor real de cada uma (não repetir valor igual se as frações diferem em planta) e mínimo de 90 m² por fração."],
   ["G-QUA-2",2,"Vagas de garagem informadas no quadro; vaga descrita como coberta ou descoberta de acordo com o desenho."],
   ["G-COR-1",3,"Linha natural do terreno (L.N.T.) traçada em todos os cortes."],
@@ -449,7 +451,7 @@ Responda SOMENTE com JSON:
 }
 function promptLaudo(p, leituras, texto){
   const nums = p==="GYN"
-  ? `{"area_lote":null,"area_construida":null,"permeavel_grama":null,"concregrama":null,"permeavel_no_carimbo":null,"permeavel_no_quadro":null,"permeavel_soma_planta":null,"volume_caixa_necessario_memorial":null,"volume_caixa_utilizado":null,"n_caixas":null,"rebaixos_m":[],"fracoes_m2":[],"faixa_grama_acesso_m":null,"faixa_rolagem_m":null,"recuo_frontal_m":null,"altura_na_divisa_m":null,"nivel_calcada_lote":null,"nivel_calcada_sarjeta":null,"largura_calcada_m":null}`
+  ? `{"area_lote":null,"area_construida":null,"permeavel_grama":null,"concregrama":null,"permeavel_no_carimbo":null,"permeavel_no_quadro":null,"permeavel_soma_planta":null,"volume_caixa_necessario_memorial":null,"volume_caixa_utilizado":null,"n_caixas":null,"rebaixos_m":[],"fracoes_m2":[],"faixa_grama_acesso_m":null,"faixa_rolagem_m":null,"indice_paisagistico_memorial":null,"area_impermeabilizada_memorial":null,"area_base_caixa":null,"altura_caixa":null,"volume_unitario_caixa":null,"recuo_frontal_m":null,"altura_na_divisa_m":null,"nivel_calcada_lote":null,"nivel_calcada_sarjeta":null,"largura_calcada_m":null}`
   : `{"area_lote":null,"area_construida":null,"permeavel_m2":null,"permeavel_no_quadro":null,"permeavel_exigido_pct":null,"volume_caixa_total":null,"n_caixas":null,"volume_por_caixa":null,"faixa_servico_m":null,"faixa_livre_m":null,"vaga_larg_m":null,"vaga_comp_m":null,"menor_dim_dormitorio_m":null,"soma_cotas_frente_m":null,"frente_terreno_m":null,"ambientes":[{"nome":"","tipo":"sala|dormitorio|escritorio|cozinha|banheiro|outro","area_piso":null,"area_aberturas":null}]}`;
   return `${ctxProjeto(p)}
 
@@ -499,6 +501,14 @@ function contas(p, n){
     const fg=numBR(n.faixa_grama_acesso_m), fr=numBR(n.faixa_rolagem_m);
     if (fg!=null) add("Faixa de grama do acesso", `${fmt(fg)} m`, "máximo 1,00 m", fg<=1+1e-9, "G-ACE-1");
     if (fr!=null) add("Faixa de rolagem", `${fmt(fr)} m`, "mínimo 0,50 m", fr>=.5-1e-9, "G-ACE-1");
+    if (fg!=null&&fr!=null) add("Largura do acesso em faixas", `${fmt(fr)} + ${fmt(fg)} + ${fmt(fr)} = ${fmt(2*fr+fg)} m`, "conjunto de 2,40 m", 2*fr+fg>=2.4-1e-9, "G-ACE-1");
+    const ipm=numBR(n.indice_paisagistico_memorial), aim=numBR(n.area_impermeabilizada_memorial);
+    if (ipm!=null&&g!=null) add("Memorial: índice paisagístico", `${fmt(ipm)} m²`, `soma da grama em planta = ${fmt(g)} m²`, Math.abs(ipm-g)<=0.011, "G-REC-0");
+    if (aim!=null&&lote&&g!=null) add("Memorial: área impermeabilizada", `${fmt(aim)} m²`, `${fmt(lote)} − ${fmt(g)} = ${fmt(lote-g)} m²`, Math.abs(aim-(lote-g))<=0.011, "G-REC-0");
+    if (pq!=null&&g!=null) add("Quadro: área permeável", `${fmt(pq)} m²`, `soma da grama em planta = ${fmt(g)} m²`, Math.abs(pq-g)<=0.011, "G-QUA-0");
+    const ab=numBR(n.area_base_caixa), ah=numBR(n.altura_caixa), vu1=numBR(n.volume_unitario_caixa), nc=numBR(n.n_caixas), vtot=numBR(n.volume_caixa_utilizado);
+    if (ab!=null&&ah!=null&&vu1!=null) add("Memorial: volume unitário", `${fmt(vu1)} m³`, `${fmt(ab)} x ${fmt(ah)} = ${fmt(ab*ah)} m³`, Math.abs(vu1-ab*ah)<=0.011, "G-REC-0");
+    if (vu1!=null&&nc&&vtot!=null) add("Memorial: volume total", `${fmt(vtot)} m³`, `${fmt(vu1)} x ${fmt(nc,0)} = ${fmt(vu1*nc)} m³`, Math.abs(vtot-vu1*nc)<=0.011, "G-REC-0");
     const rf=numBR(n.recuo_frontal_m); if (rf!=null) add("Recuo frontal", `${fmt(rf)} m`, "mínimo 5,00 m", rf>=5-1e-9, "G-LOC-1");
     const ad=numBR(n.altura_na_divisa_m); if (ad!=null) add("Altura na divisa", `${fmt(ad)} m`, "máximo 7,50 m", ad<=7.5+1e-9, "G-LOC-5");
     const nl=numBR(n.nivel_calcada_lote), ns=numBR(n.nivel_calcada_sarjeta), lc=numBR(n.largura_calcada_m);
