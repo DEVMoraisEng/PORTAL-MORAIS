@@ -36,6 +36,24 @@ header::after{content:"";display:block;height:4px;background:linear-gradient(90d
 .htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
 .hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
 .hspace{flex:1}
+#pr-ov{position:fixed;inset:0;background:rgba(10,25,35,.55);z-index:90;display:none;padding:2vh 2vw}
+#pr-ov.on{display:flex}
+.pr-cx{flex:1;display:grid;grid-template-columns:300px 1fr;background:var(--sup);border-radius:14px;overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,.4)}
+.pr-lista{border-right:1px solid var(--border2);overflow:auto;background:var(--bg2)}
+.pr-tt{display:flex;align-items:center;justify-content:space-between;padding:12px 14px;font:800 16px 'Barlow Condensed',sans-serif;text-transform:uppercase;color:var(--azul);position:sticky;top:0;background:var(--bg2);border-bottom:1px solid var(--border2)}
+.pr-tt button{background:none;border:0;font-size:16px;cursor:pointer;color:var(--text3)}
+.pr-g{padding:8px 14px 2px;font-size:10px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--text4)}
+.pr-i{display:flex;gap:8px;width:100%;text-align:left;background:none;border:0;border-left:3px solid transparent;padding:7px 14px;font:inherit;font-size:12.5px;color:var(--text);cursor:pointer}
+.pr-i:hover{background:var(--hover)}.pr-i.on{background:var(--sel);border-left-color:var(--sel-bd)}
+.pr-i b{min-width:46px;color:var(--azul)}
+.pr-ver{display:flex;flex-direction:column;min-width:0}
+.pr-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--border2)}
+.pr-bar b{font-size:14px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pr-bar button,.pr-bar a{border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:8px;padding:5px 10px;font:inherit;font-size:12px;font-weight:700;cursor:pointer;text-decoration:none}
+.pr-corpo{flex:1;position:relative;background:#525659}
+.pr-corpo iframe{position:absolute;inset:0;width:100%;height:100%;border:0}
+.pr-vazio{color:#ddd;padding:40px;text-align:center}
+@media(max-width:800px){ .pr-cx{grid-template-columns:1fr;grid-template-rows:38vh 1fr} .pr-lista{border-right:0;border-bottom:1px solid var(--border2)} }
 .hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;
   padding:7px 12px;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
 .hbtn:hover{background:rgba(255,255,255,.22)}
@@ -263,11 +281,23 @@ body.drone #drone-pad{display:grid}
     </div>
     <div class="hspace"></div>
     <span id="gerado"></span>
+    <button class="hbtn" id="b-pranchas" style="display:none" onclick="abrirPranchas()" title="Pranchas em PDF publicadas pelo Revit (MORAIS → Geral → Publicar 3D)">📄 Pranchas</button>
     <a class="hbtn" id="b-voltar" href="obras.html" title="Voltar para Obras">← Obras</a>
     <button class="hbtn so-mob" id="b-lado" title="Mostrar/esconder a tabela">☰ Tabela</button>
     <button class="hbtn" id="btema" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){};location.reload()})()" title="Alternar claro/escuro">◐</button>
   </div>
 </header>
+
+<!-- 17/11/26 — PRANCHAS EM PDF: as que o Publicar 3D subiu junto com o modelo (por disciplina) -->
+<div id="pr-ov" onclick="if(event.target===this)fecharPranchas()">
+  <div class="pr-cx">
+    <div class="pr-lista"><div class="pr-tt">Pranchas <button onclick="fecharPranchas()" title="Fechar (Esc)">✕</button></div><div id="pr-itens"></div></div>
+    <div class="pr-ver"><div class="pr-bar"><b id="pr-nome">Escolha uma prancha</b><span style="flex:1"></span>
+      <button id="pr-ant" onclick="passoPrancha(-1)" title="Anterior">‹</button><button id="pr-prox" onclick="passoPrancha(1)" title="Próxima">›</button>
+      <a id="pr-abrir" target="_blank" rel="noopener" title="Abrir em outra aba (dá para imprimir)">↗ Abrir</a><a id="pr-baixar" title="Baixar o PDF">⬇ Baixar</a></div>
+      <div id="pr-corpo" class="pr-corpo"><div class="pr-vazio">Escolha uma prancha na lista.</div></div></div>
+  </div>
+</div>
 
 <div class="corpo">
   <aside id="lado">
@@ -456,6 +486,49 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
     });
     return { nome: "ORÇAMENTO DA OBRA (" + pl.rotulo + ")", colunas: cols, linhas: linhas };
   }
+  /* pranchas: o manifesto traz disciplinas[cod].pranchas = [{numero, nome, arquivo}]; o arquivo está na mesma
+     coluna MODELO 3D da obra, então baixa pelo mesmo caminho do IFC (r.obter) */
+  const PR = { lista: [], r: null, atual: -1, urls: {} };
+  function registrarPranchas(j, r) {
+    const L = [];
+    Object.keys((j && j.disciplinas) || {}).sort().forEach(d => ((j.disciplinas[d] || {}).pranchas || []).forEach(p => L.push(Object.assign({ disc: d }, p))));
+    const tem = new Set((r.arquivos || []).map(a => a.nome));
+    PR.lista = L.filter(p => tem.has(p.arquivo)); PR.r = r;
+    const b = document.getElementById("b-pranchas");
+    if (b) { b.style.display = PR.lista.length ? "" : "none"; b.textContent = "📄 Pranchas (" + PR.lista.length + ")"; }
+  }
+  const NOME_DISC = { ARQ: "Arquitetura", HID: "Hidrossanitário", ELE: "Elétrico", EST: "Estrutural", TEL: "Telhado / Madeiramento", SAN: "Sanitário" };
+  window.abrirPranchas = function () {
+    const box = document.getElementById("pr-itens"); let h = "", ult = "";
+    PR.lista.forEach((p, i) => { if (p.disc !== ult) { ult = p.disc; h += `<div class="pr-g">${NOME_DISC[p.disc] || p.disc}</div>`; }
+      h += `<button class="pr-i ${i === PR.atual ? "on" : ""}" onclick="mostrarPrancha(${i})"><b>${(p.numero || "").replace(/</g, "&lt;")}</b><span>${(p.nome || p.arquivo).replace(/</g, "&lt;")}</span></button>`; });
+    box.innerHTML = h || `<div class="pr-vazio" style="color:var(--text3)">Nenhuma prancha publicada.</div>`;
+    document.getElementById("pr-ov").classList.add("on");
+    if (PR.atual < 0 && PR.lista.length) mostrarPrancha(0);
+  };
+  window.fecharPranchas = function () { document.getElementById("pr-ov").classList.remove("on"); };
+  window.passoPrancha = function (d) { if (!PR.lista.length) return; mostrarPrancha((PR.atual + d + PR.lista.length) % PR.lista.length); };
+  window.mostrarPrancha = async function (i) {
+    const p = PR.lista[i]; if (!p || !PR.r) return; PR.atual = i;
+    document.querySelectorAll(".pr-i").forEach((b, k) => b.classList.toggle("on", k === i));
+    document.getElementById("pr-nome").textContent = (p.numero ? p.numero + " — " : "") + (p.nome || p.arquivo);
+    const corpo = document.getElementById("pr-corpo");
+    let url = PR.urls[p.arquivo];
+    if (!url) {
+      corpo.innerHTML = `<div class="pr-vazio">Baixando a prancha…</div>`;
+      try {
+        const a = (PR.r.arquivos || []).find(x => x.nome === p.arquivo);
+        const u8 = await PR.r.obter(a, f => { const v = corpo.querySelector(".pr-vazio"); if (v) v.textContent = "Baixando a prancha… " + Math.round(f * 100) + "%"; });
+        url = PR.urls[p.arquivo] = URL.createObjectURL(new Blob([u8], { type: "application/pdf" }));
+      } catch (e) { corpo.innerHTML = `<div class="pr-vazio">Não consegui baixar: ${String(e.message || e).replace(/</g, "&lt;")}</div>`; return; }
+      if (PR.atual !== i) return;
+    }
+    corpo.innerHTML = `<iframe src="${url}#view=FitH" title="Prancha"></iframe>`;
+    const ab = document.getElementById("pr-abrir"), bx = document.getElementById("pr-baixar");
+    ab.href = url; bx.href = url; bx.download = p.arquivo;
+  };
+  document.addEventListener("keydown", e => { if (!document.getElementById("pr-ov").classList.contains("on")) return;
+    if (e.key === "Escape") { e.stopPropagation(); fecharPranchas(); } else if (e.key === "ArrowRight") passoPrancha(1); else if (e.key === "ArrowLeft") passoPrancha(-1); }, true);
   window.MODELO3D_ENDPOINT = async function (obraId) {
     const r = await base(obraId);
     if (!r || !r.ok) return r;
@@ -466,6 +539,7 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
       if (!/\.json$/i.test(a.nome)) return u8;
       try {
         const j = JSON.parse(new TextDecoder().decode(u8)), n = normalizar(j);
+        try { registrarPranchas(j, r); } catch (e) { console.warn("[3D] pranchas:", e); }
         if (!n || !Array.isArray(n.tabelas)) return u8;
         let etapas = null; try { etapas = (await (await fetch("orcamento/modelo-casa-rua.json?v=1")).json()).etapas; } catch (e) {}
         n.tabelas.unshift(await tabelaOrcamento(obraId, j, await pv, etapas));
