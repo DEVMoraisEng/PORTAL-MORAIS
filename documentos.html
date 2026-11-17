@@ -207,6 +207,8 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .grp{font-family:'Barlow Condensed';font-size:15px;font-weight:800;letter-spacing:.5px;text-transform:uppercase;color:var(--azul);margin:20px 22px 12px;padding-bottom:7px;border-bottom:2px solid var(--verde)}
 .grp.sub{color:var(--orange);border-bottom-color:var(--orange);font-size:13.5px}
 .campo{padding:0 22px;margin-bottom:13px}
+/* par TAREFA → DATA (17/11/26): a tarefa sempre abre a linha e a data fica ao lado */
+.pa-grade>.campo.par-tarefa{grid-column-start:1}
 .campo label{display:block;font-size:11px;font-weight:700;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.3px}
 .campo input,.campo select{width:100%}
 /* checkboxes de multi_select (ex.: Análise de Reparos) — item "marcadores bugados":
@@ -1347,34 +1349,98 @@ const COLS_PROJETOS=[
   "PROJETO APROVADO E ALVARA","DATA DE APROVAÇÃO DO PROJETO",
   "EMITIU ART DE ACRESC","EMITIU DOCUMENTOS","REF."
 ];
-/* Ordem das primeiras colunas da planilha — a mesma do print que você mandou.
-   O que não estiver nesta lista vem depois, na ordem do Notion. ENDEREÇO é
+/* Ordem das colunas — na TABELA e no PAINEL da obra (as abas só separam; dentro de
+   cada aba vale esta ordem).
+   1º os dados da obra (a mesma ordem do print da planilha). ENDEREÇO é
    obrigatoriamente a PRIMEIRA: é a coluna fixa da esquerda (a que abre a obra
-   ao clicar), então o cabeçalho tem que ser o dela. */
+   ao clicar), então o cabeçalho tem que ser o dela.
+   Depois, 17/11/26: as etapas do processo NA ORDEM DA VISÃO DO NOTION (prints
+   do Morais) — antes iam em ordem alfabética (a API do Notion não manda a
+   ordem da visão) e cada data ficava longe da sua tarefa.
+   REGRA: SEMPRE O PAR TAREFA → DATA (ver PARES_TAREFA_DATA): a data vem logo
+   depois da tarefa, na tabela e no painel (no painel, na mesma linha: tarefa
+   à esquerda, data à direita).
+   Os nomes valem pelo COMEÇO (sem acento): "TAXAS ENTRADA ALVAR" pega
+   "TAXAS ENTRADA ALVARÁ EMITIDAS E PAGAS?". O que não estiver aqui vem no fim. */
+const PARES_TAREFA_DATA=[
+  ["OBRA INCIADA","DATA DE INÍCIO DA OBRA"],
+  ["OBRA INICIADA","DATA DE INÍCIO DA OBRA"],
+  ["OBRA FINALIZADA","DATA DE TÉRMINO DE OBRA"],
+  ["USO DO SOLO SOLICITADO","DATA DE SOLICITAÇÃO USO DO SOLO"],
+  ["USO DO SOLO EMITIDO","DATA DE EMISSÃO DO USO DO SOLO"],
+  ["TAXAS ENTRADA ALVAR","DATA DE ENTRADA DE ALVAR"],
+  ["PROJETO APROVADO","DATA DE APROVAÇÃO DO PROJETO"],
+  ["FOI DADO ENTRADA NA INCORPORA","DATA DE ENTRADA NA INCORPORA"],
+  ["INCORPORAÇÃO FINALI","DATA DE FINALIZAÇÃO DA INCORPORA"],
+  ["FOI DATA A ENTRADA NO RET","DATA DE ENTRADA DO RET"],
+  ["FOI DADA A ENTRADA NO RET","DATA DE ENTRADA DO RET"],
+  ["RET ARMAZENADO","DATA DE FINALIZAÇÃO DO RET"],
+  ["AGENDOU HABITE","DATA HABITE"],
+  ["APROVOU HABITE","DATA DE APROVAÇÃO DO HABITE"],
+  ["SAIRAM AS CERTID","DATA DE EMISSÃO DAS CERTID"]
+];
 const ORDEM_TABELA=[
   "ENDEREÇO","Nº DE CASAS","IMPLANTAÇÃO","SETOR","CIDADE","DATA DE AQUISIÇÃO DO LOTE",
   "COTA DA EMPRESA","PROPRIETARIO DOCUMENTO","PROPRIETARIO REAL","CPF/CNPJ","MESTRE",
   "DESPACHANTE","ENG. EXECUÇÃO","ENGENHEIRO RT","PREVISÃO DE INÍCIO DE OBRA",
-  "OBRA INCIADA","DATA DE INÍCIO DA OBRA","OBRA FINALIZADA","DATA DE TÉRMINO DE OBRA","REF.",
-  /* 20/10/26: escritura do lote, juntas e na ordem do processo (pedido do
-     Júlio César — no Notion elas ficavam espalhadas em ordem alfabética e
-     "não apareciam" no meio das outras 60 colunas) */
-  "ESCRITURA ASSINADA POR TODOS","ITBI PAGO","REGISTRO PAGO","ESCRITURA REGISTRADA"
+  "OBRA INCIADA","OBRA INICIADA","DATA DE INÍCIO DA OBRA","REF.",
+  /* etapas — ordem da visão do Notion, com cada data logo depois da sua tarefa */
+  "USO DO SOLO SOLICITADO","DATA DE SOLICITAÇÃO USO DO SOLO",
+  "USO DO SOLO EMITIDO","DATA DE EMISSÃO DO USO DO SOLO",
+  "ESCRITURA ASSINADA POR TODOS","ITBI PAGO","REGISTRO PAGO",
+  "PROJETO FEITO","ART FEITA E PAGA",
+  "ESCRITURA REGISTRADA","CERTIDÃO DO LOTE","CONTRATO MESTRE","CONTRATO INVESTIDOR",
+  "TAXAS ENTRADA ALVAR","DATA DE ENTRADA DE ALVAR",
+  "MAO OBRA INICIAL",
+  "PROJETO APROVADO","DATA DE APROVAÇÃO DO PROJETO",
+  "FOI DADO ENTRADA NA INCORPORA","DATA DE ENTRADA NA INCORPORA",
+  "FORAM EMITIDAS E PAG",
+  "INCORPORAÇÃO FINALI","DATA DE FINALIZAÇÃO DA INCORPORA",
+  "FOI DATA A ENTRADA NO RET","FOI DADA A ENTRADA NO RET","DATA DE ENTRADA DO RET",
+  "RET ARMAZENADO","DATA DE FINALIZAÇÃO DO RET",
+  "AGENDOU HABITE","DATA HABITE","TURNO HABITE",
+  "APROVOU HABITE","DATA DE APROVAÇÃO DO HABITE",
+  "ARMAZENOU HABITE","GEROU E ARMAZENOU",
+  "EMITIU CNO E CND","EMITIU ART DE ACRESC",
+  "SAIRAM AS CERTID","DATA DE EMISSÃO DAS CERTID",
+  "EMITIU DOCUMENTOS","PAGOU BOLETOS",
+  "OBRA FINALIZADA","DATA DE TÉRMINO DE OBRA",
+  "PROCESSO COMPLETO"
 ];
+function posNaOrdem(nome){
+  const n=normNome(nome);
+  let melhor=999, tam=-1;
+  /* o nome MAIS LONGO que casar ganha ("DATA DE APROVAÇÃO DO PROJETO" e
+     "DATA DE APROVAÇÃO DO HABITE-SE" não se confundem, nem "OBRA FINALIZADA"
+     com algo mais comprido que comece igual) */
+  for(let i=0;i<ORDEM_TABELA.length;i++){
+    const a=normNome(ORDEM_TABELA[i]);
+    if((n===a||n.indexOf(a)===0) && a.length>tam){ melhor=i; tam=a.length; }
+  }
+  return melhor;
+}
+/* a coluna c é a DATA da tarefa t? (pelo começo do nome, sem acento) */
+function ehParTarefaData(t,c){
+  if(!t||!c) return false;
+  const nt=normNome(t.nome), nc=normNome(c.nome);
+  return PARES_TAREFA_DATA.some(([a,b])=>nt.indexOf(normNome(a))===0 && nc.indexOf(normNome(b))===0);
+}
 function ordenarColunas(cols){
-  const pos=c=>{
-    const n=normNome(c.nome);
-    for(let i=0;i<ORDEM_TABELA.length;i++){
-      const a=normNome(ORDEM_TABELA[i]);
-      if(n===a||n.indexOf(a)===0) return i;
-    }
-    return 999;
-  };
-  return cols.slice().sort((a,b)=>{
-    const pa=pos(a), pb=pos(b);
+  const idx=new Map(cols.map((c,i)=>[c,i]));
+  let out=cols.slice().sort((a,b)=>{
+    const pa=posNaOrdem(a.nome), pb=posNaOrdem(b.nome);
     if(pa!==pb) return pa-pb;
-    return 0;                 // empate: mantém a ordem do Notion
+    return idx.get(a)-idx.get(b);   // empate: mantém a ordem que veio
   });
+  /* garantia do par TAREFA → DATA: se a data existir e não estiver logo depois
+     da tarefa (nome novo no Notion, por ex.), ela é puxada para lá */
+  out.slice().forEach(t=>{
+    const d=out.find(c=>c!==t && ehParTarefaData(t,c));
+    if(!d) return;
+    out.splice(out.indexOf(d),1);
+    out.splice(out.indexOf(t)+1,0,d);
+  });
+  return out;
 }
 function colunasDaTela(escopo){
   let out;
@@ -2222,13 +2288,16 @@ function renderPainel(o){
   const escopo = SETOR_ATUAL ? escopoDoSetor(SETOR_ATUAL) : "TUDO";
   const cols=colunasDaTela(escopo).filter(c=>normNome(c.nome)!=="ENDEREÇO");
   const podeEditar = !SO_LEITURA;
-  const linhas=cols.map(c=>{
+  const linhas=cols.map((c,i)=>{
     let v=getV(o.valores,c.nome);
     const oculto = v===undefined && o.sens && o.sens[c.nome]!==undefined;
     const ctrl = (podeEditar && c.editavel && c.tipo!=="files")
       ? controle(c, v, o.id)
       : `<span class="ro-inline">${oculto?"•••":esc(Array.isArray(v)?v.join(", "):(v==null||v===""?"—":v))}</span>`;
-    return `<div class="campo"><label>${esc(c.nome.trim())}</label>${ctrl}</div>`;
+    /* par TAREFA → DATA na mesma linha: a tarefa começa a linha (coluna da
+       esquerda) e a data vem logo depois (coluna da direita) */
+    const par = ehParTarefaData(c, cols[i+1]) ? " par-tarefa" : (ehParTarefaData(cols[i-1], c) ? " par-data" : "");
+    return `<div class="campo${par}"><label>${esc(c.nome.trim())}</label>${ctrl}</div>`;
   }).join("");
   const anexos=CAMPOS.filter(c=>c.tipo==="files").map(c=>{
     const n=(o.sens&&o.sens[c.nome])||0;
