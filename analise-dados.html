@@ -3886,6 +3886,11 @@ function buildFluxo(){
 
   // Tabela de resultado por obra (todas, ordenadas do maior para menor)
   const obrasResultado=[];
+  /* lote = pagamento na categoria AQUISIÇÃO DE TERRENO; ITBI, escritura, registro e comissão de lote sozinhos não contam como "c/ lote" */
+  const terPorCC={}; (window._pagFull||[]).forEach(p=>{ if(!p.cc) return; const k=cls(p); if(k.t!=='obra'||!['obra','ter','venda'].includes(k.i)) return;
+    const u=normS(p.cc), o=terPorCC[u]||(terPorCC[u]={lote:0,outros:0,obra:0,venda:0});
+    if(k.i==='obra') o.obra+=p.valor||0; else if(k.i==='venda') o.venda+=p.valor||0;
+    else if(nzC(p.categoria)==='AQUISICAO DE TERRENO') o.lote+=p.valor||0; else o.outros+=p.valor||0; });
   Object.entries(pags).forEach(([cc,mp])=>{
     const u=normS(cc);
     const ehEsc=/ESCRIT/i.test(u);
@@ -3910,10 +3915,38 @@ function buildFluxo(){
     const resultado=totalRecCC-totalPagCC;
     // Filtro "só concluídas": regra única em obraConcluida (17/11/26)
     if(soConcluidas&&!obraConcluida(u))return;
-    obrasResultado.push({obra:cc,pago:totalPagCC,recebido:totalRecCC,resultado,morais});
+    const cs=casasRecebidas(u);
+    const tr=terPorCC[u]||{lote:0,outros:0,obra:0,venda:0}, rn={};
+    fats.filter(f=>normS(f.cc||'')===u).forEach(f=>{ const n=f.nat||'(sem natureza)'; rn[n]=(rn[n]||0)+(f.valor||0); });
+    obrasResultado.push({obra:cc,pago:totalPagCC,recebido:totalRecCC,resultado,morais,lote:tr.lote,terOutros:tr.outros,cObra:tr.obra,cVenda:tr.venda,recNat:rn,
+      recFallback:totalRecCC>0&&!Object.keys(rn).length,cOk:cs.ok,cTot:cs.tot,linhas:cs.linhas});
   });
-  // Ordenar: positivo para negativo (maior resultado primeiro)
-  obrasResultado.sort((a,b)=>b.resultado-a.resultado);
+  FLX_RES=obrasResultado; flxResRender();
+}
+/* 17/11/26 (dono): Resultado por obra — colunas ordenáveis com clique, casas com RECEBEU OK (x/y) e se o total pago inclui o lote */
+let FLX_RES=[], FLX_RES_ORD={k:'resultado',d:-1};
+function casasRecebidas(u){ const linhas=vendas.filter(v=>normS(v.endereco||'')===u);
+  const doc=docs.find(d=>normS(d.endereco||'')===u), n=Math.max(Number(doc&&doc.n_casas)||1,linhas.length);
+  return {ok:linhas.filter(v=>OBRA_OK_RECEBEU.has(nzC(v.recebeu))).length,tot:n,linhas}; }
+function flxResTip(o){
+  const L=(r,v,b)=>`<tr><td style="padding:1px 12px 1px 0;border:0;background:none;text-align:left${b?';font-weight:700':''}">${r}</td><td style="padding:1px 0;border:0;background:none;text-align:right;font-family:'JetBrains Mono',monospace${b?';font-weight:700':''}">${v}</td></tr>`;
+  const pago=[o.cObra&&L('Custo de obra',fmtBRL2(o.cObra)), L('Compra do lote',o.lote?fmtBRL2(o.lote):'não lançada'), o.terOutros&&L('Comissão de lote, ITBI, escritura, registro',fmtBRL2(o.terOutros)),
+    o.cVenda&&L('Custo de venda (comissão, RET, ganho de capital)',fmtBRL2(o.cVenda)), L('Total pago',fmtBRL2(o.pago),1)].filter(Boolean).join('');
+  const rec=Object.entries(o.recNat||{}).sort((a,b)=>b[1]-a[1]).map(([n,v])=>L(esc(n),fmtBRL2(v))).join('')+(o.recFallback?L('Valor na mão das vendas (o ERP não trouxe recebimentos)',fmtBRL2(o.recebido)):'')+L('Total recebido',o.recebido?fmtBRL2(o.recebido):'—',1);
+  const st={}; (o.linhas||[]).forEach(v=>{ const k=String(v.recebeu||'vazio').toUpperCase().trim()||'VAZIO'; st[k]=(st[k]||0)+1; });
+  const falta=Math.max(0,o.cTot-(o.linhas||[]).length);
+  const casas=Object.entries(st).map(([k,n])=>n+'× '+esc(k)).join(' · ')+(falta?(Object.keys(st).length?' · ':'')+falta+' sem linha na planilha de Vendas':'');
+  const inv=o.morais?'':`<div style="margin-top:6px;color:var(--text3)">Obra de <b>investidor</b>: o recebido é o que o investidor pagou à Morais para construir (prestação de serviços), e o pago é o que já foi gasto na obra. O resultado é o que sobrou desse dinheiro, não o lucro da venda da casa. Obra em andamento costuma aparecer com ROI alto porque ainda não gastou tudo.</div>`;
+  return `<h4>${esc(o.obra)} · ${o.morais?'Morais':'Investidor'}</h4><table style="border-collapse:collapse;font-size:12px;margin:2px 0">
+    <tr><td colspan="2" style="padding:4px 0 1px;border:0;background:none;color:var(--text3);font-size:11px;text-transform:uppercase;text-align:left">Pago</td></tr>${pago}
+    <tr><td colspan="2" style="padding:6px 0 1px;border:0;background:none;color:var(--text3);font-size:11px;text-transform:uppercase;text-align:left">Recebido</td></tr>${rec}
+    <tr><td colspan="2" style="padding:6px 0 1px;border:0;background:none"></td></tr>${L('Resultado (recebido − pago)',fmtBRL2(o.resultado),1)}${L('ROI (resultado ÷ pago)',o.pago?fmtN(o.resultado/o.pago*100,1)+'%':'—')}</table>
+    <div><b>Casas (${o.cOk}/${o.cTot} com RECEBEU OK):</b> ${casas||'nenhuma linha na planilha de Vendas'}</div>${inv}`; }
+function flxResOrd(k){ FLX_RES_ORD=FLX_RES_ORD.k===k?{k,d:-FLX_RES_ORD.d}:{k,d:k==='obra'?1:-1}; flxResRender(); }
+function flxResRender(){
+  const obrasResultado=FLX_RES.slice(), {k,d}=FLX_RES_ORD; TIP_NS='fr'; TIPS.fr={};
+  const val=o=>k==='obra'?o.obra:k==='casas'?(o.cTot?o.cOk/o.cTot:0)+o.cOk/1e4:k==='roi'?(o.pago?o.resultado/o.pago:0):o[k];
+  obrasResultado.sort((a,b)=>{ const x=val(a), y=val(b); return (typeof x==='string'?x.localeCompare(y,'pt-BR',{numeric:true}):x-y)*d; });
 
   if(!obrasResultado.length){
     document.getElementById('tbl-fluxo-negativo').innerHTML=
@@ -3924,18 +3957,24 @@ function buildFluxo(){
       const badge=o.morais
         ?'<span style="font-size:10px;background:#295778;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">Morais</span>'
         :'<span style="font-size:10px;background:#d46a1a;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px">Invest.</span>';
-      return`<tr>
+      const casas=`<span title="${o.cOk} de ${o.cTot} casa(s) do lote com RECEBEU = SIM, INEXISTE ou ÁGIO" style="font-weight:700;color:${o.cOk>=o.cTot?'#2a9d5c':o.cOk?'#b08d1a':'var(--text3)'}">${o.cOk}/${o.cTot}</span>`;
+      const lote=o.lote>0
+        ?`<span title="O total pago inclui ${fmtBRL2(o.lote)} da compra do lote${o.terOutros?' e '+fmtBRL2(o.terOutros)+' de comissão de lote, ITBI, escritura e registro':''}" style="font-size:10px;border:1px solid #2a9d5c;color:#2a9d5c;border-radius:3px;padding:0 4px;margin-right:6px;font-family:inherit">c/ lote</span>`
+        :`<span title="Nenhuma compra de lote lançada nesta obra: o lote NÃO está no total pago${o.terOutros?' (só '+fmtBRL2(o.terOutros)+' de comissão de lote, ITBI, escritura ou registro)':''}" style="font-size:10px;border:1px solid var(--text4);color:var(--text3);border-radius:3px;padding:0 4px;margin-right:6px;font-family:inherit">s/ lote</span>`;
+      return`<tr${tipX('r'+obrasResultado.indexOf(o),flxResTip(o))}>
         <td>${o.obra}${badge}</td>
-        <td class="nr">${fmtBRL2(o.pago)}</td>
+        <td class="nr" style="text-align:center">${casas}</td>
+        <td class="nr">${lote}${fmtBRL2(o.pago)}</td>
         <td class="nr">${o.recebido>0?fmtBRL2(o.recebido):'—'}</td>
         <td class="nr" style="${corRes}">${fmtBRL2(o.resultado)}</td>
         <td class="nr">${o.pago>0?fmtN(o.resultado/o.pago*100,1)+'%':'—'}</td>
       </tr>`;
     }).join('');
-    document.getElementById('tbl-fluxo-negativo').innerHTML=`<table>
+    const th=(kk,t,cls,tit)=>`<th class="${cls||''}" data-k="${kk}" onclick="flxResOrd('${kk}')" style="cursor:pointer;user-select:none" title="${tit||'Clique para ordenar'}">${t}${FLX_RES_ORD.k===kk?(FLX_RES_ORD.d>0?' ▲':' ▼'):''}</th>`;
+    document.getElementById('tbl-fluxo-negativo').innerHTML=`<div style="font-size:12px;color:var(--text3);margin:0 0 6px">Clique no nome da coluna para ordenar. Passe o mouse numa obra para ver o resumo dela. <b>Total pago</b>: custo de obra + terreno + custo de venda lançados no centro de custo da obra (<b>c/ lote</b> = a compra do lote está no total; <b>s/ lote</b> = não está — passe o mouse para ver os valores). <b>Total recebido</b>: recebimentos de receita (Venda e Prestação de Serviços) no centro de custo da obra. <b>Casas</b>: casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO.</div><table>
       <thead><tr>
-        <th class="left">Obra</th><th>Total Pago</th><th>Total Recebido</th>
-        <th>Resultado</th><th>ROI</th>
+        ${th('obra','Obra','left')}${th('casas','Casas recebidas','','Casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO · clique para ordenar')}${th('pago','Total Pago')}${th('recebido','Total Recebido')}
+        ${th('resultado','Resultado')}${th('roi','ROI')}
       </tr></thead>
       <tbody>${rowsRes}</tbody>
     </table>`;
