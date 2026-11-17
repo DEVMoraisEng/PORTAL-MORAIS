@@ -3936,16 +3936,16 @@ function flxResTip(o){
   const st={}; (o.linhas||[]).forEach(v=>{ const k=String(v.recebeu||'vazio').toUpperCase().trim()||'VAZIO'; st[k]=(st[k]||0)+1; });
   const falta=Math.max(0,o.cTot-(o.linhas||[]).length);
   const casas=Object.entries(st).map(([k,n])=>n+'× '+esc(k)).join(' · ')+(falta?(Object.keys(st).length?' · ':'')+falta+' sem linha na planilha de Vendas':'');
-  const inv=o.morais?'':`<div style="margin-top:6px;color:var(--text3)">Obra de <b>investidor</b>: o recebido é o que o investidor pagou à Morais para construir (prestação de serviços), e o pago é o que já foi gasto na obra. O resultado é o que sobrou desse dinheiro, não o lucro da venda da casa. Obra em andamento costuma aparecer com ROI alto porque ainda não gastou tudo.</div>`;
+  const inv=o.morais?'':`<div style="margin-top:6px;color:var(--text3)">Obra de <b>investidor</b>: o recebido é o que o investidor pagou à Morais para construir (prestação de serviços), e o pago é o que já foi gasto na obra. O resultado é o que sobrou desse dinheiro, não o lucro da venda da casa. Obra em andamento costuma aparecer com resultado alto porque ainda não gastou tudo.</div>`;
   return `<h4>${esc(o.obra)} · ${o.morais?'Morais':'Investidor'}</h4><table style="border-collapse:collapse;font-size:12px;margin:2px 0">
     <tr><td colspan="2" style="padding:4px 0 1px;border:0;background:none;color:var(--text3);font-size:11px;text-transform:uppercase;text-align:left">Pago</td></tr>${pago}
     <tr><td colspan="2" style="padding:6px 0 1px;border:0;background:none;color:var(--text3);font-size:11px;text-transform:uppercase;text-align:left">Recebido</td></tr>${rec}
-    <tr><td colspan="2" style="padding:6px 0 1px;border:0;background:none"></td></tr>${L('Resultado (recebido − pago)',fmtBRL2(o.resultado),1)}${L('ROI (resultado ÷ pago)',o.pago?fmtN(o.resultado/o.pago*100,1)+'%':'—')}</table>
+    <tr><td colspan="2" style="padding:6px 0 1px;border:0;background:none"></td></tr>${L('Resultado (recebido − pago)',fmtBRL2(o.resultado),1)}</table>
     <div><b>Casas (${o.cOk}/${o.cTot} com RECEBEU OK):</b> ${casas||'nenhuma linha na planilha de Vendas'}</div>${inv}`; }
 function flxResOrd(k){ FLX_RES_ORD=FLX_RES_ORD.k===k?{k,d:-FLX_RES_ORD.d}:{k,d:k==='obra'?1:-1}; flxResRender(); }
 function flxResRender(){
   const obrasResultado=FLX_RES.slice(), {k,d}=FLX_RES_ORD; TIP_NS='fr'; TIPS.fr={};
-  const val=o=>k==='obra'?o.obra:k==='casas'?(o.cTot?o.cOk/o.cTot:0)+o.cOk/1e4:k==='roi'?(o.pago?o.resultado/o.pago:0):o[k];
+  const val=o=>k==='obra'?o.obra:k==='casas'?(o.cTot?o.cOk/o.cTot:0)+o.cOk/1e4:o[k];
   obrasResultado.sort((a,b)=>{ const x=val(a), y=val(b); return (typeof x==='string'?x.localeCompare(y,'pt-BR',{numeric:true}):x-y)*d; });
 
   if(!obrasResultado.length){
@@ -3967,14 +3967,13 @@ function flxResRender(){
         <td class="nr">${lote}${fmtBRL2(o.pago)}</td>
         <td class="nr">${o.recebido>0?fmtBRL2(o.recebido):'—'}</td>
         <td class="nr" style="${corRes}">${fmtBRL2(o.resultado)}</td>
-        <td class="nr">${o.pago>0?fmtN(o.resultado/o.pago*100,1)+'%':'—'}</td>
       </tr>`;
     }).join('');
     const th=(kk,t,cls,tit)=>`<th class="${cls||''}" data-k="${kk}" onclick="flxResOrd('${kk}')" style="cursor:pointer;user-select:none" title="${tit||'Clique para ordenar'}">${t}${FLX_RES_ORD.k===kk?(FLX_RES_ORD.d>0?' ▲':' ▼'):''}</th>`;
     document.getElementById('tbl-fluxo-negativo').innerHTML=`<div style="font-size:12px;color:var(--text3);margin:0 0 6px">Clique no nome da coluna para ordenar. Passe o mouse numa obra para ver o resumo dela. <b>Total pago</b>: custo de obra + terreno + custo de venda lançados no centro de custo da obra (<b>c/ lote</b> = a compra do lote está no total; <b>s/ lote</b> = não está — passe o mouse para ver os valores). <b>Total recebido</b>: recebimentos de receita (Venda e Prestação de Serviços) no centro de custo da obra. <b>Casas</b>: casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO.</div><table>
       <thead><tr>
         ${th('obra','Obra','left')}${th('casas','Casas recebidas','','Casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO · clique para ordenar')}${th('pago','Total Pago')}${th('recebido','Total Recebido')}
-        ${th('resultado','Resultado')}${th('roi','ROI')}
+        ${th('resultado','Resultado')}
       </tr></thead>
       <tbody>${rowsRes}</tbody>
     </table>`;
