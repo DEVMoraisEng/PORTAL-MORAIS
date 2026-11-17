@@ -434,17 +434,19 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
       faces: Object.fromEntries(t.map(u => [u, e.disciplinas[u].faces || null])), legendas: Object.fromEntries(t.map(u => [u, e.disciplinas[u].legenda || null])),
       disciplinas: t.map(u => ({ codigo: u, arquivo: e.disciplinas[u].arquivo })), tabelas: tab };
   }
-  function tabelaOrcamento(j, p, etapas) {
+  /* 17/11 (dono): a planilha da obra aparece mesmo antes de salvar — o rascunho deste navegador (se estiver mais novo
+     que a salva), a salva, ou, sem nenhuma das duas, gerada na hora pelo modelo (sem o formulário de obra) */
+  async function tabelaOrcamento(obraId, j, p, etapas) {
     const cols = ["Índice", "Código", "Descrição", "Un.", "Qtd", "Total (R$)"];
-    const pv = p && p.ok && p.previa && p.previa.dados;
-    if (!pv || !Array.isArray(pv.linhas) || !window.OrcObra) return { nome: "ORÇAMENTO (prévia salva)", colunas: cols, linhas: [{ valores: ["", "", "Ainda não há planilha salva — monte e salve na obra: Obras → 3D e Orçamento", "", "", ""] }] };
+    const pl = window.OrcObra ? await OrcObra.paraVisualizador(obraId, j, p && p.ok ? p.previa : null) : null;
+    if (!pl || !pl.linhas || !pl.linhas.length) return { nome: "ORÇAMENTO DA OBRA", colunas: cols, linhas: [{ valores: ["", "", "Não consegui montar a planilha — abra a obra: Obras → 3D e Orçamento", "", "", ""] }] };
     const porRef = {};
     OrcObra.linhasRevit(j).forEach(x => { (porRef[OrcObra.refKey(x)] = porRef[OrcObra.refKey(x)] || []).push(x.raw); });
-    const linhas = [], et = {};
+    const linhas = [], et = {}, nomes = pl.nomes || {};
     const raiz = l => String(l.etapa || l.idx || "").split(".")[0];
-    pv.linhas.forEach(l => {
+    pl.linhas.forEach(l => {
       const r = raiz(l);
-      if (!et[r]) { et[r] = 1; const e = (etapas || []).find(x => x.idx === r); linhas.push({ valores: [r === "_revit" ? "Do Revit, fora do modelo" : r + " " + (e ? e.nome : "etapa"), "", "", "", "", ""] }); }
+      if (!et[r]) { et[r] = 1; const e = (etapas || []).find(x => x.idx === r); linhas.push({ valores: [r === "_revit" ? "Do Revit, fora do modelo" : r + " " + (nomes[r] || (e ? e.nome : "etapa")), "", "", "", "", ""] }); }
       const raws = (l.refs || []).flatMap(k => porRef[k] || []);
       const guids = [...new Set(raws.flatMap(x => x.guids || []))];
       const q = Number(l.q) || 0, tot = Math.round(q * (Number(l.custo) || 0) * 100) / 100;
@@ -452,7 +454,7 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
       if (guids.length) v.guids = guids;
       linhas.push(v);
     });
-    return { nome: "ORÇAMENTO (prévia salva" + (p.previa.salvo_em ? " em " + new Date(p.previa.salvo_em).toLocaleDateString("pt-BR") : "") + ")", colunas: cols, linhas: linhas };
+    return { nome: "ORÇAMENTO DA OBRA (" + pl.rotulo + ")", colunas: cols, linhas: linhas };
   }
   window.MODELO3D_ENDPOINT = async function (obraId) {
     const r = await base(obraId);
@@ -466,7 +468,7 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
         const j = JSON.parse(new TextDecoder().decode(u8)), n = normalizar(j);
         if (!n || !Array.isArray(n.tabelas)) return u8;
         let etapas = null; try { etapas = (await (await fetch("orcamento/modelo-casa-rua.json?v=1")).json()).etapas; } catch (e) {}
-        n.tabelas.unshift(tabelaOrcamento(j, await pv, etapas));
+        n.tabelas.unshift(await tabelaOrcamento(obraId, j, await pv, etapas));
         return new TextEncoder().encode(JSON.stringify(n));
       } catch (e) { console.warn("[3D] orçamento:", e); return u8; }
     };
@@ -509,7 +511,7 @@ window.REUNIAO_CFG = (function () {
   };
 })();
 </script>
-<script src="js/obra-orcamento.js?v=2"></script>
+<script src="js/obra-orcamento.js?v=3"></script>
 <script src="js/visualizador-3d.js?v=14"></script>
 </body>
 </html>
