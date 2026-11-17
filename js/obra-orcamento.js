@@ -449,7 +449,7 @@
   /* ---------------- 17/11: Enviar ao Mais Controle ----------------
      O envio TRAVA: depois de enviado, o botão some e só a senha da Paula (pedida aqui, conferida no Apps Script
      contra o login dela) destrava para enviar de novo. O robô do servidor escreve o andamento em s.envio. */
-  const SIT_ENVIO = { "NA FILA": ["⏳", "na fila do robô"], "TRABALHANDO": ["⚙", "o robô está trabalhando"], "PRÉVIA PRONTA": ["👀", "prévia pronta — o robô achou o orçamento no MC e guardou uma cópia; ainda não gravou"],
+  const SIT_ENVIO = { "NA FILA": ["⏳", "na fila do robô do servidor (ele olha a cada 2 minutos)"], "TRABALHANDO": ["⚙", "o robô está trabalhando"], "PRÉVIA PRONTA": ["👀", "prévia pronta — o robô achou o orçamento no MC e guardou uma cópia; ainda não gravou"],
     "FEITO": ["✓", "lançado no Mais Controle"], "ERRO": ["⚠", "o robô não conseguiu"], "SEM FILA": ["⚠", "o robô do servidor não está ligado neste portal (DB_FILA_ROBO)"] };
   function envioBotao(s) {
     if (s.envio && s.envio.travado) return "";
@@ -507,7 +507,7 @@
     let r; try { r = await g.chamar({ action: "orcEnviarMC", obra_id: o.id, versao: s.versao }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     if (r && (r.ok || r.erro === "JA_ENVIADO") && r.envio) s.envio = r.envio;
     fecharJanela();
-    g.toast && g.toast(r && r.ok ? (r.envio.situacao === "SEM FILA" ? "Envio travado, mas o robô do servidor não está ligado neste portal" : "Enviado para a fila do robô ✓ — o envio ficou travado") : "Não enviou: " + (ERR_ENVIO[r && r.erro] || (r && r.erro) || "erro"));
+    g.toast && g.toast(r && r.ok ? "Enviado para a fila do robô ✓ — o envio ficou travado" : "Não enviou: " + (ERR_ENVIO[r && r.erro] || (r && r.erro) || "erro"));
     g.OrcObra.repintar();
   }
   function pedirDesbloqueio(o) {

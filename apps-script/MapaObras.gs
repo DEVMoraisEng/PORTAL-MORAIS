@@ -28,8 +28,8 @@
  *                  "3D e Orçamento" da obra busca, troca e precifica as linhas com ele
  *   orcPreviaLer   (mo14) a planilha prévia do orçamento salva da obra (tabela orc_previas)
  *   orcPreviaSalvar (mo14) grava a planilha prévia (quem tem acesso OBRAS ou DOCUMENTOS, ou ADM)
- *   orcEnviarMC    (mo16, 17/11) "Enviar ao Mais Controle": TRAVA o envio da obra e põe o pedido mc-orcamento na
- *                  FILA DO ROBÔ (DB_FILA_ROBO); o robô do servidor faz o resto e escreve o andamento em envio
+ *   orcEnviarMC    (mo16, 17/11) "Enviar ao Mais Controle": TRAVA o envio da obra e deixa o pedido "NA FILA" em
+ *                  orc_previas.envio; o robô do servidor (orcamento-mc) faz o resto e escreve o andamento ali
  *   orcEnvioDesbloquear (mo16) destrava o envio — só com a SENHA DA PAULA (login dela no LOGINS; Propriedade
  *                  ORC_DESBLOQUEIO_LOGIN se precisar fixar qual login), 5 erros = bloqueia por um tempo
  *   ocResponder    (mo13) grava SERVIÇO FINALIZADO? = SIM / NÃO de uma OC; com SIM,
@@ -1455,7 +1455,7 @@ function moOrcPreviaLer_(sess, p) {
  * Pedido do dono: o botão "Enviar ao Mais Controle" na planilha prévia; ao clicar o envio TRAVA e só a senha da
  * PAULA destrava. O estado fica em orc_previas.envio (jsonb, ver supabase/orc_previas.sql):
  *   { travado, situacao, pedido_em, pedido_por, versao, total, linhas, fila, robo:{…}, historico:[…] }
- * situacao: NA FILA → (robô) TRABALHANDO → PRÉVIA PRONTA / FEITO / ERRO; SEM FILA = o projeto não tem DB_FILA_ROBO.
+ * situacao: NA FILA → (robô do servidor) TRABALHANDO → PRÉVIA PRONTA / FEITO / ERRO.
  * O robô do servidor (pedido mc-orcamento) acha o orçamento da obra no MC, guarda uma cópia do que está lá antes de
  * mexer e escreve o andamento aqui mesmo (robo, situacao). Destravar NÃO apaga nada no MC: só libera um novo envio. */
 var MO_ORC_TRAVA_PAULA = "orc_desbloqueio_paula";
@@ -1480,19 +1480,10 @@ function moOrcEnviarMC_(sess, p) {
     hist.push({ acao: "envio", por: quem, em: agora, versao: atual.versao });
     var envio = { travado: true, situacao: "NA FILA", pedido_em: agora, pedido_por: quem, versao: atual.versao,
                   total: Math.round(total * 100) / 100, linhas: linhas.length,
-                  contratos: (((atual.dados || {}).contratos) || []).length, fila: "", robo: null, historico: hist };
-    var db = String(prop_("DB_FILA_ROBO") || "").trim();
-    if (!db) envio.situacao = "SEM FILA";
-    else {
-      var props = {};
-      props["PEDIDO"] = { title: [{ type: "text", text: { content: ("mc-orcamento " + (atual.obra || id)).slice(0, 120) } }] };
-      props["TIPO"] = { select: { name: "mc-orcamento" } };
-      props["PAYLOAD"] = { rich_text: [{ type: "text", text: { content: JSON.stringify({ obraId: id, versao: atual.versao, quem: quem }) } }] };
-      props["SITUAÇÃO"] = { select: { name: "PENDENTE" } };
-      props["PEDIDO EM"] = { date: { start: agora } };
-      var pg = notion_("POST", "/pages", { parent: { database_id: db }, properties: props });
-      envio.fila = (pg && pg.id) || "";
-    }
+                  contratos: (((atual.dados || {}).contratos) || []).length, robo: null, historico: hist };
+    /* o pedido é o próprio envio "NA FILA": o robô do servidor (C:\AUTOMAÇÕES MAIS CONTROLE\orcamento-mc, a cada
+       2 min) procura aqui no Supabase. Não vai para a FILA DO ROBÔ do Notion: o robo_fila.py marcaria ERRO num tipo
+       que ele não conhece. */
     moSupa_("patch", "orc_previas?obra_id=eq." + id, { envio: envio });
     console.log("ORÇAMENTO MC: " + quem + " enviou " + (atual.obra || id) + " v" + atual.versao + " (" + envio.situacao + ")");
     return { ok: true, envio: envio };
