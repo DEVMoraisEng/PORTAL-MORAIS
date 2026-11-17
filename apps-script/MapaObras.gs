@@ -28,9 +28,9 @@
  *                  "3D e Orçamento" da obra busca, troca e precifica as linhas com ele
  *   orcPreviaLer   (mo14) a planilha prévia do orçamento salva da obra (tabela orc_previas)
  *   orcPreviaSalvar (mo14) grava a planilha prévia (quem tem acesso OBRAS ou DOCUMENTOS, ou ADM)
- *   orcEnviarMC    (mo16, 17/11) "Enviar ao Mais Controle": TRAVA o envio da obra e deixa o pedido "NA FILA" em
+ *   orcEnviarMC    (mo16/mo17, 17/11) "Enviar ao Mais Controle" de UM item (orçamento ou um contrato): TRAVA esse item e deixa o pedido "NA FILA" em
  *                  orc_previas.envio; o robô do servidor (orcamento-mc) faz o resto e escreve o andamento ali
- *   orcEnvioDesbloquear (mo16) destrava o envio — só com a SENHA DA PAULA (login dela no LOGINS; Propriedade
+ *   orcEnvioDesbloquear (mo16/mo17) destrava o envio de um item — só com a SENHA DA PAULA (login dela no LOGINS; Propriedade
  *                  ORC_DESBLOQUEIO_LOGIN se precisar fixar qual login), 5 erros = bloqueia por um tempo
  *   ocResponder    (mo13) grava SERVIÇO FINALIZADO? = SIM / NÃO de uma OC; com SIM,
  *                  pede ao servidor para rodar o robô na hora (FILA DO ROBÔ, se a
@@ -83,7 +83,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-11-17 mo16";   // mo16: Enviar ao Mais Controle (trava o envio; só a senha da Paula desbloqueia) · mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
+var MO_VERSAO = "2026-11-17 mo17";   // mo17: um envio por item (orçamento e cada contrato) · mo16: Enviar ao Mais Controle (trava o envio; só a senha da Paula desbloqueia) · mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -1459,9 +1459,30 @@ function moOrcPreviaLer_(sess, p) {
  * O robô do servidor (pedido mc-orcamento) acha o orçamento da obra no MC, guarda uma cópia do que está lá antes de
  * mexer e escreve o andamento aqui mesmo (robo, situacao). Destravar NÃO apaga nada no MC: só libera um novo envio. */
 var MO_ORC_TRAVA_PAULA = "orc_desbloqueio_paula";
+/* mo17 (17/11): UM ENVIO POR ITEM — o orçamento da obra e cada contrato de empreita têm a sua trava, a sua situação e
+   o seu resultado:  envio = { itens: { "orcamento": {…}, "ct:411": {…}, … }, tem_fila, historico:[…] }
+   item = { travado, situacao, pedido_em, pedido_por, versao, nome, total, linhas, robo }. tem_fila = algum item
+   travado e "NA FILA" (é por ele que o robô do servidor procura). O formato antigo (um envio só) vira itens.orcamento. */
+function moOrcEnvioNorm_(e) {
+  e = e || {};
+  if (e.itens) return e;
+  var n = { itens: {}, tem_fila: false, historico: e.historico || [] };
+  if (e.pedido_em) {
+    var it = {}; for (var k in e) if (k !== "historico") it[k] = e[k];
+    n.itens.orcamento = it;
+  }
+  n.tem_fila = moOrcTemFila_(n);
+  return n;
+}
+function moOrcTemFila_(e) {
+  for (var k in (e.itens || {})) { var x = e.itens[k]; if (x && x.travado && x.situacao === "NA FILA") return true; }
+  return false;
+}
+function moOrcItem_(v) { var s = String(v || "orcamento"); return /^(orcamento|ct:[0-9A-Za-z_-]{1,12})$/.test(s) ? s : ""; }
 function moOrcEnviarMC_(sess, p) {
   if (!moPodeOrc_(sess) || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
   var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
+  var item = moOrcItem_(p.item); if (!item) return { ok: false, erro: "ITEM_INVALIDO" };
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     var atual;
@@ -1470,22 +1491,33 @@ function moOrcEnviarMC_(sess, p) {
     if (!atual) return { ok: false, erro: "NAO_SALVO" };
     /* envia a versão SALVA — quem tem alteração na tela salva antes (a tela manda a versão que está vendo) */
     if (p.versao == null || Number(p.versao) !== Number(atual.versao)) return { ok: false, erro: "SALVE_ANTES", versao: atual.versao };
-    var env0 = atual.envio || {};
-    if (env0.travado) return { ok: false, erro: "JA_ENVIADO", envio: env0 };
+    var envio = moOrcEnvioNorm_(atual.envio);
+    var ant = envio.itens[item] || {};
+    if (ant.travado) return { ok: false, erro: "JA_ENVIADO", envio: envio };
+    var dados = atual.dados || {}, total = 0, nLinhas = 0, nome = "Orçamento da obra";
+    if (item === "orcamento") {
+      var linhas = dados.linhas || [];
+      linhas.forEach(function (l) { total += (Number(l.q) || 0) * (Number(l.custo) || 0); });
+      if (Number(dados.total) > 0) total = Number(dados.total);   /* a tela grava o total junto */
+      nLinhas = linhas.length;
+    } else {
+      var cid = item.slice(3), ct = null;
+      (dados.contratos || []).forEach(function (k) { if (String(k.id) === cid) ct = k; });
+      if (!ct) return { ok: false, erro: "CONTRATO_NAO_SALVO" };
+      (ct.linhas || []).forEach(function (l) { total += (Number(l.q) || 0) * (Number(l.preco) || 0); });
+      nLinhas = (ct.linhas || []).length; nome = "Contrato " + ct.id + " · " + String(ct.nome || "").split(" — ")[0];
+    }
     var quem = String(sess.n || sess.u || "").slice(0, 80), agora = new Date().toISOString();
-    var linhas = ((atual.dados || {}).linhas || []), total = 0;
-    linhas.forEach(function (l) { total += (Number(l.q) || 0) * (Number(l.custo) || 0); });
-    if (Number((atual.dados || {}).total) > 0) total = Number(atual.dados.total);   /* a tela grava o total junto */
-    var hist = (env0.historico || []).slice(-30);
-    hist.push({ acao: "envio", por: quem, em: agora, versao: atual.versao });
-    var envio = { travado: true, situacao: "NA FILA", pedido_em: agora, pedido_por: quem, versao: atual.versao,
-                  total: Math.round(total * 100) / 100, linhas: linhas.length,
-                  contratos: (((atual.dados || {}).contratos) || []).length, robo: null, historico: hist };
-    /* o pedido é o próprio envio "NA FILA": o robô do servidor (C:\AUTOMAÇÕES MAIS CONTROLE\orcamento-mc, a cada
-       2 min) procura aqui no Supabase. Não vai para a FILA DO ROBÔ do Notion: o robo_fila.py marcaria ERRO num tipo
-       que ele não conhece. */
+    envio.itens[item] = { travado: true, situacao: "NA FILA", pedido_em: agora, pedido_por: quem, versao: atual.versao,
+                          nome: nome, total: Math.round(total * 100) / 100, linhas: nLinhas, robo: null };
+    envio.tem_fila = true;
+    envio.historico = (envio.historico || []).slice(-40);
+    envio.historico.push({ acao: "envio", item: item, por: quem, em: agora, versao: atual.versao });
+    /* o pedido é o próprio item "NA FILA" (envio.tem_fila): o robô do servidor (C:\AUTOMAÇÕES MAIS CONTROLE\orcamento-mc,
+       a cada 2 min) procura aqui no Supabase. Não vai para a FILA DO ROBÔ do Notion: o robo_fila.py marcaria ERRO
+       num tipo que ele não conhece. */
     moSupa_("patch", "orc_previas?obra_id=eq." + id, { envio: envio });
-    console.log("ORÇAMENTO MC: " + quem + " enviou " + (atual.obra || id) + " v" + atual.versao + " (" + envio.situacao + ")");
+    console.log("ORÇAMENTO MC: " + quem + " enviou " + item + " de " + (atual.obra || id) + " v" + atual.versao);
     return { ok: true, envio: envio };
   } finally { lock.releaseLock(); }
 }
@@ -1515,6 +1547,7 @@ function moOrcNomeDesbloqueio_() {
 function moOrcDesbloquear_(sess, p) {
   if (!moPodeOrc_(sess) || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
   var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
+  var item = moOrcItem_(p.item); if (!item) return { ok: false, erro: "ITEM_INVALIDO" };
   var senha = String(p.senha || "");
   if (!senha) return { ok: false, erro: "INFORME_A_SENHA" };
   if (tentativas_(MO_ORC_TRAVA_PAULA) >= CONFIG.MAX_TENTATIVAS) return { ok: false, erro: "BLOQUEADO" };
@@ -1529,13 +1562,15 @@ function moOrcDesbloquear_(sess, p) {
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     var atual = (moSupa_("get", "orc_previas?select=obra,envio&obra_id=eq." + id) || [])[0];
-    if (!atual || !atual.envio) return { ok: false, erro: "NAO_ENVIADO" };
-    var envio = atual.envio, quem = String(sess.n || sess.u || "").slice(0, 80);
-    envio.travado = false;
-    envio.historico = (envio.historico || []).slice(-30);
-    envio.historico.push({ acao: "desbloqueio", por: quem, autorizou: paula.nome, em: new Date().toISOString() });
+    var envio = moOrcEnvioNorm_(atual && atual.envio);
+    if (!atual || !envio.itens[item]) return { ok: false, erro: "NAO_ENVIADO" };
+    var quem = String(sess.n || sess.u || "").slice(0, 80);
+    envio.itens[item].travado = false;
+    envio.tem_fila = moOrcTemFila_(envio);
+    envio.historico = (envio.historico || []).slice(-40);
+    envio.historico.push({ acao: "desbloqueio", item: item, por: quem, autorizou: paula.nome, em: new Date().toISOString() });
     moSupa_("patch", "orc_previas?obra_id=eq." + id, { envio: envio });
-    console.log("ORÇAMENTO MC: " + quem + " desbloqueou o envio de " + (atual.obra || id) + " com a senha de " + paula.nome);
+    console.log("ORÇAMENTO MC: " + quem + " desbloqueou " + item + " de " + (atual.obra || id) + " com a senha de " + paula.nome);
     return { ok: true, envio: envio };
   } finally { lock.releaseLock(); }
 }
