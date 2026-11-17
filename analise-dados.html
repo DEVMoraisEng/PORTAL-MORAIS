@@ -4173,18 +4173,43 @@ async function buildSetor(){
   // ── Linha 1: Lucros (Total + Morais + Investidores) ──
   const kpisLucros=[];
   const lucroTotal=temMorais?lucroLiq+(temInvest?lucroInvest:0):lucroInvest;  /* 27/10: só investidor não soma duas vezes */
-  kpisLucros.push(`<div class="roi-card"><div class="roi-lbl">Lucro Líquido Total</div><div class="roi-val ${lucroTotal>=0?'g':'r'}">${fmtBRL(lucroTotal)}</div><div class="roi-sub">Morais + Investidores</div></div>`);
+  // 17/11/26 (dono): resumo ao passar o mouse em cada indicador do Resultado financeiro
+  tipNS('st');
+  const _tl=rows=>'<table style="border-collapse:collapse;font-size:12px;margin:4px 0">'+rows.filter(Boolean).map(([a,b,neg])=>`<tr><td style="padding:1px 12px 1px 0;border:0;background:none;text-align:left${neg?';font-weight:700':''}">${a}</td><td style="padding:1px 0;border:0;background:none;text-align:right;font-family:'JetBrains Mono',monospace${neg?';font-weight:700':''}">${b}</td></tr>`).join('')+'</table>';
+  const _per=meses.length?fmtM(meses[0])+' a '+fmtM(meses[meses.length-1])+' ('+meses.length+' meses)':'—';
+  const _nM=enderecosMorais.size, _nI=enderecosInvest.size, _iMax=expPos.indexOf(expMaxima), _mMax=_iMax>=0?fmtM(meses[_iMax]):'—';
+  const _baseM=`<div style="color:var(--text3);margin-top:4px">${_nM} obra(s) da Morais · ${_per}. Aportes e distribuições não entram no lucro.</div>`;
+  const D={
+    lt:`<h4>Lucro líquido total</h4>${_tl([['Lucro das obras da Morais',fmtBRL(temMorais?lucroLiq:0)],['Lucro das obras de investidores',fmtBRL(temInvest?lucroInvest:0)],['Total',fmtBRL(lucroTotal),1]])}<div style="color:var(--text3)">${_nM} obra(s) da Morais e ${_nI} de investidores na seleção.</div>`,
+    lm:`<h4>Lucro líquido (Morais)</h4>${_tl([['Recebido (venda e prestação de serviços)',fmtBRL(totalRecebido)],['Gasto (obra, terreno e custo de venda)','− '+fmtBRL(totalGasto)],['Lucro',fmtBRL(lucroLiq),1]])}${_baseM}`,
+    li:`<h4>Lucro líquido (investidores)</h4>${_tl([['Recebido (o que os investidores pagaram à Morais)',fmtBRL(totalRecInvest)],['Pago (gasto nas obras deles)','− '+fmtBRL(totalGastoInvest)],['Resultado',fmtBRL(lucroInvest),1]])}<div style="color:var(--text3);margin-top:4px">${_nI} obra(s) de investidores. É o que sobrou do dinheiro do investidor depois do gasto da obra, não o lucro da venda da casa (a venda é do investidor).</div>`,
+    em:`<h4>Exposição média</h4><div>Quanto dinheiro da empresa ficou aplicado nas obras, em média, no período. Os meses mais antigos pesam mais (multiplicador).</div>${_tl([['Σ exposição proporcional',fmtBRL(Math.abs(somaExpProp))],['÷ Σ multiplicadores',fmtN(somaMultip,0)],['Exposição média',fmtBRL(Math.abs(expMedia)),1]])}${_baseM}`,
+    ex:`<h4>Exposição máxima</h4><div>O maior volume de dinheiro da empresa aplicado nas obras ao mesmo tempo (recebido − pago + sócios, acumulado).</div>${_tl([['Pico',fmtBRL(expMaxima),1],['Mês do pico',_mMax]])}${_baseM}`,
+    rb:`<h4>ROI bruto</h4><div>Quanto o lucro representa sobre tudo o que foi gasto.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Gasto total',fmtBRL(totalGasto)],['ROI bruto',roiBruto!=null?fmtN(roiBruto,2)+'%':'—',1]])}${_baseM}`,
+    re:`<h4>ROI sobre a exposição máxima</h4><div>Lucro em relação ao maior volume de dinheiro que a empresa precisou ter aplicado.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Exposição máxima',fmtBRL(expMaxima)],['ROI',roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—',1]])}${_baseM}`,
+    ra:`<h4>ROI ajustado</h4><div>Lucro em relação ao dinheiro aplicado em média. Fica alto quando a obra gira rápido e usa pouco capital ao mesmo tempo.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Exposição média',fmtBRL(Math.abs(expMedia))],['ROI ajustado',roiAjust!=null?fmtN(roiAjust,2)+'%':'—',1]])}${_baseM}`,
+    tm:`<h4>TIR mensal</h4><div>A taxa de rendimento por mês do dinheiro aplicado: a taxa que faz o fluxo mês a mês (recebido − pago) valer zero hoje. Dá para comparar com o CDI/poupança.</div>${_tl([['TIR mensal',tirAm!=null?fmtN(tirAm*100,3)+'% a.m.':'—',1],[benchNome+' (referência)',taxaBenchAm.toFixed(2)+'% a.m.']])}${_baseM}`,
+    ta:`<h4>TIR anual</h4><div>A TIR mensal levada para 12 meses com juros compostos: (1 + TIR mensal)¹² − 1.</div>${_tl([['TIR anual',tirAa!=null?fmtN(tirAa*100,2)+'% a.a.':'—',1]])}${_baseM}`,
+    mt:`<h4>MTIR (TIR modificada)</h4><div>Versão mais realista da TIR: considera que o dinheiro que falta é pego à taxa de financiamento e o que sobra é reaplicado à taxa de reinvestimento.</div>${_tl([['Taxa de financiamento',(rFin*100).toFixed(2)+'% a.m.'],['Taxa de reinvestimento ('+benchNome+')',(rRein*100).toFixed(2)+'% a.m.'],['MTIR mensal',mtirAm!=null?fmtN(mtirAm*100,3)+'%':'—',1],['MTIR anual',mtirAa!=null?fmtN(mtirAa*100,2)+'%':'—',1]])}${_baseM}`,
+    mg:`<h4>Margem bruta</h4><div>Quanto de cada real recebido virou lucro.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Recebido',fmtBRL(totalRecebido)],['Margem',margemBruta!=null?fmtN(margemBruta,2)+'%':'—',1]])}${_baseM}`,
+    mu:`<h4>Múltiplo do capital</h4><div>Quantas vezes o recebido cobre o gasto.</div>${_tl([['Recebido',fmtBRL(totalRecebido)],['÷ Gasto',fmtBRL(totalGasto)],['Múltiplo',multiploGasto!=null?fmtN(multiploGasto,3)+'×':'—',1]])}${_baseM}`,
+    mx:`<h4>Múltiplo sobre a exposição máxima</h4><div>Quantas vezes o recebido cobre o pico de dinheiro aplicado.</div>${_tl([['Recebido',fmtBRL(totalRecebido)],['÷ Exposição máxima',fmtBRL(expMaxima)],['Múltiplo',multiploCapital!=null?fmtN(multiploCapital,3)+'×':'—',1]])}${_baseM}`,
+    pb:`<h4>Payback</h4><div>Quantos meses, desde o primeiro gasto, até o dinheiro aplicado voltar (exposição acumulada chegar a zero).</div>${_tl([['Payback',paybackMeses!=null?paybackMeses+' mês(es)':'ainda negativo',1],['Primeiro mês',meses.length?fmtM(meses[0]):'—'],['Mês em que zerou',paybackMeses!=null?fmtM(meses[paybackMeses-1]):'—']])}${_baseM}`,
+    cm:`<h4>Custo médio mensal</h4>${_tl([['Gasto total',fmtBRL(totalGasto)],['÷ Meses no período',String(meses.length)],['Custo médio',custoMedioMensal!=null?fmtBRL(custoMedioMensal):'—',1]])}${_baseM}`,
+    sp:`<h4>Spread TIR − ${benchNome}</h4><div>Quanto a TIR mensal das obras rende a mais (ou a menos) que o ${benchNome} no mês.</div>${_tl([['TIR mensal',tirAm!=null?fmtN(tirAm*100,3)+'%':'—'],['− '+benchNome,taxaBenchAm.toFixed(2)+'%'],['Spread',spreadTirCdi!=null?fmtN(spreadTirCdi,3)+' p.p.':'—',1]])}${_baseM}`};
+  const T=k=>tipX(k,D[k]||'');
+  kpisLucros.push(`<div class="roi-card"${T('lt')}><div class="roi-lbl">Lucro Líquido Total</div><div class="roi-val ${lucroTotal>=0?'g':'r'}">${fmtBRL(lucroTotal)}</div><div class="roi-sub">Morais + Investidores</div></div>`);
   if(temMorais)
-    kpisLucros.push(`<div class="roi-card"><div class="roi-lbl">Lucro Líquido (Morais)</div><div class="roi-val ${lucroLiq>=0?'g':''}">${fmtBRL(lucroLiq)}</div><div class="roi-sub">Recebido − Gasto (Morais)</div></div>`);
+    kpisLucros.push(`<div class="roi-card"${T('lm')}><div class="roi-lbl">Lucro Líquido (Morais)</div><div class="roi-val ${lucroLiq>=0?'g':''}">${fmtBRL(lucroLiq)}</div><div class="roi-sub">Recebido − Gasto (Morais)</div></div>`);
   if(temInvest)
-    kpisLucros.push(`<div class="roi-card"><div class="roi-lbl">Lucro Líquido (Investidores)</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago (Investidores)</div></div>`);
+    kpisLucros.push(`<div class="roi-card"${T('li')}><div class="roi-lbl">Lucro Líquido (Investidores)</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago (Investidores)</div></div>`);
   document.getElementById('roi-res-lucros').innerHTML=kpisLucros.join('');
 
   // ── Linha 2: Exposições (só Morais) ──
   const kpisExp=[];
   if(temMorais){
-    kpisExp.push(`<div class="roi-card"><div class="roi-lbl">Exposição Média</div><div class="roi-val">${fmtBRL(Math.abs(expMedia))}</div><div class="roi-sub">Σ Exp. Prop. / Σ Multiplicadores</div></div>`);
-    kpisExp.push(`<div class="roi-card"><div class="roi-lbl">Exposição Máxima</div><div class="roi-val">${fmtBRL(expMaxima)}</div><div class="roi-sub">Pico de capital exposto</div></div>`);
+    kpisExp.push(`<div class="roi-card"${T('em')}><div class="roi-lbl">Exposição Média</div><div class="roi-val">${fmtBRL(Math.abs(expMedia))}</div><div class="roi-sub">Σ Exp. Prop. / Σ Multiplicadores</div></div>`);
+    kpisExp.push(`<div class="roi-card"${T('ex')}><div class="roi-lbl">Exposição Máxima</div><div class="roi-val">${fmtBRL(expMaxima)}</div><div class="roi-sub">Pico de capital exposto</div></div>`);
   }
   document.getElementById('roi-res-exp').innerHTML=kpisExp.join('');
 
@@ -4194,22 +4219,22 @@ async function buildSetor(){
     let indicadoresHtml=[];
     if(indSel==='basico'||indSel==='todos'){
       indicadoresHtml.push(
-        `<div class="roi-card"><div class="roi-lbl">ROI Bruto</div><div class="roi-val ${roiBruto>=0?'g':''}">${roiBruto!=null?fmtN(roiBruto,2)+'%':'—'}</div><div class="roi-sub">Lucro / Gasto Total</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">ROI Exp. Máxima</div><div class="roi-val ${roiExpMax>=0?'g':''}">${roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exposição Máxima</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">ROI Ajustado</div><div class="roi-val ${roiAjust>=0?'g':''}">${roiAjust!=null?fmtN(roiAjust,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exposição Média</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">TIR Mensal</div><div class="roi-val g">${tirAm!=null?fmtN(tirAm*100,3)+'%':'—'}</div><div class="roi-sub">Newton-Raphson, chute 2%</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">TIR Anual</div><div class="roi-val g">${tirAa!=null?fmtN(tirAa*100,2)+'%':'—'}</div><div class="roi-sub">(1+TIRam)¹²−1</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">MTIR Mensal / Anual</div><div class="roi-val">${mtirAm!=null?fmtN(mtirAm*100,3)+'% / '+fmtN((mtirAa||0)*100,2)+'%':'—'}</div><div class="roi-sub">Fin: ${(rFin*100).toFixed(2)}% · Rein: ${(rRein*100).toFixed(2)}%</div></div>`
+        `<div class="roi-card"${T('rb')}><div class="roi-lbl">ROI Bruto</div><div class="roi-val ${roiBruto>=0?'g':''}">${roiBruto!=null?fmtN(roiBruto,2)+'%':'—'}</div><div class="roi-sub">Lucro / Gasto Total</div></div>`,
+        `<div class="roi-card"${T('re')}><div class="roi-lbl">ROI Exp. Máxima</div><div class="roi-val ${roiExpMax>=0?'g':''}">${roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exposição Máxima</div></div>`,
+        `<div class="roi-card"${T('ra')}><div class="roi-lbl">ROI Ajustado</div><div class="roi-val ${roiAjust>=0?'g':''}">${roiAjust!=null?fmtN(roiAjust,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exposição Média</div></div>`,
+        `<div class="roi-card"${T('tm')}><div class="roi-lbl">TIR Mensal</div><div class="roi-val g">${tirAm!=null?fmtN(tirAm*100,3)+'%':'—'}</div><div class="roi-sub">Newton-Raphson, chute 2%</div></div>`,
+        `<div class="roi-card"${T('ta')}><div class="roi-lbl">TIR Anual</div><div class="roi-val g">${tirAa!=null?fmtN(tirAa*100,2)+'%':'—'}</div><div class="roi-sub">(1+TIRam)¹²−1</div></div>`,
+        `<div class="roi-card"${T('mt')}><div class="roi-lbl">MTIR Mensal / Anual</div><div class="roi-val">${mtirAm!=null?fmtN(mtirAm*100,3)+'% / '+fmtN((mtirAa||0)*100,2)+'%':'—'}</div><div class="roi-sub">Fin: ${(rFin*100).toFixed(2)}% · Rein: ${(rRein*100).toFixed(2)}%</div></div>`
       );
     }
     if(indSel==='avancado'||indSel==='todos'){
       indicadoresHtml.push(
-        `<div class="roi-card"><div class="roi-lbl">Margem Bruta</div><div class="roi-val ${margemBruta>=0?'g':''}">${margemBruta!=null?fmtN(margemBruta,2)+'%':'—'}</div><div class="roi-sub">Lucro / Total Recebido</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">Múltiplo do Capital</div><div class="roi-val ${multiploGasto>=1?'g':''}">${multiploGasto!=null?fmtN(multiploGasto,3)+'×':'—'}</div><div class="roi-sub">Recebido / Gasto Total</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">Múltiplo s/ Exp. Máx.</div><div class="roi-val ${multiploCapital>=1?'g':''}">${multiploCapital!=null?fmtN(multiploCapital,3)+'×':'—'}</div><div class="roi-sub">Recebido / Exposição Máxima</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">Payback</div><div class="roi-val">${paybackMeses!=null?paybackMeses+' mes'+( paybackMeses===1?'':'es'):'Ainda negativo'}</div><div class="roi-sub">Meses até exposição zerar</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">Custo Médio Mensal</div><div class="roi-val">${custoMedioMensal!=null?fmtBRL(custoMedioMensal):'—'}</div><div class="roi-sub">Gasto Total / Nº de Meses</div></div>`,
-        `<div class="roi-card"><div class="roi-lbl">Spread TIR−${benchNome} (a.m.)</div><div class="roi-val ${spreadTirCdi!=null&&spreadTirCdi>=0?'g':'r'}">${spreadTirCdi!=null?fmtN(spreadTirCdi,3)+' p.p.':'—'}</div><div class="roi-sub">TIR mensal vs ${benchNome} (${taxaBenchAm.toFixed(2)}%)</div></div>`
+        `<div class="roi-card"${T('mg')}><div class="roi-lbl">Margem Bruta</div><div class="roi-val ${margemBruta>=0?'g':''}">${margemBruta!=null?fmtN(margemBruta,2)+'%':'—'}</div><div class="roi-sub">Lucro / Total Recebido</div></div>`,
+        `<div class="roi-card"${T('mu')}><div class="roi-lbl">Múltiplo do Capital</div><div class="roi-val ${multiploGasto>=1?'g':''}">${multiploGasto!=null?fmtN(multiploGasto,3)+'×':'—'}</div><div class="roi-sub">Recebido / Gasto Total</div></div>`,
+        `<div class="roi-card"${T('mx')}><div class="roi-lbl">Múltiplo s/ Exp. Máx.</div><div class="roi-val ${multiploCapital>=1?'g':''}">${multiploCapital!=null?fmtN(multiploCapital,3)+'×':'—'}</div><div class="roi-sub">Recebido / Exposição Máxima</div></div>`,
+        `<div class="roi-card"${T('pb')}><div class="roi-lbl">Payback</div><div class="roi-val">${paybackMeses!=null?paybackMeses+' mes'+( paybackMeses===1?'':'es'):'Ainda negativo'}</div><div class="roi-sub">Meses até exposição zerar</div></div>`,
+        `<div class="roi-card"${T('cm')}><div class="roi-lbl">Custo Médio Mensal</div><div class="roi-val">${custoMedioMensal!=null?fmtBRL(custoMedioMensal):'—'}</div><div class="roi-sub">Gasto Total / Nº de Meses</div></div>`,
+        `<div class="roi-card"${T('sp')}><div class="roi-lbl">Spread TIR−${benchNome} (a.m.)</div><div class="roi-val ${spreadTirCdi!=null&&spreadTirCdi>=0?'g':'r'}">${spreadTirCdi!=null?fmtN(spreadTirCdi,3)+' p.p.':'—'}</div><div class="roi-sub">TIR mensal vs ${benchNome} (${taxaBenchAm.toFixed(2)}%)</div></div>`
       );
     }
     document.getElementById('roi-res2').innerHTML=indicadoresHtml.join('');
