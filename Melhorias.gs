@@ -64,6 +64,8 @@ function melhoriasRotear_(action, sess, p) {
   if (typeof escRotear_ === "function") { var rEsc = escRotear_(action, sess, p); if (rEsc) return rEsc; }
   /* 09/11/26 — BOLETOS E FINANCEIRO (apps-script/BoletosFinanceiro.gs) */
   if (typeof bfRotear_ === "function") { var rBf = bfRotear_(action, sess, p); if (rBf) return rBf; }
+  /* 17/11/26 — ANALISTA DE PROJETOS (apps-script/AnalistaProjetos.gs): confere o PDF do projeto pela IA */
+  if (typeof anaRotear_ === "function") { var rAna = anaRotear_(action, sess, p); if (rAna) return rAna; }
   var cfg = MEL_ACOES[action];
   if (!cfg) return null;
   if (cfg.acesso && !temAcesso_(sess, cfg.acesso)) {
