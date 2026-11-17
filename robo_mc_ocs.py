@@ -937,8 +937,17 @@ def aprovar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
     if not ja:
         passo("OC %s (aprovar): escolhendo \"Aprovado\"" % num)
         tela.escolher("aprov", ap, "Aprovado")
+        tela.page.wait_for_timeout(800)
+        try:        # 17/11: anota a janela que o MC abrir ao aprovar (para entender se pedir algo diferente de Sim/OK)
+            jan = tela.page.evaluate(r"""() => [...document.querySelectorAll('.modal.in, .modal.show, [role=dialog], .swal2-popup')]
+                .filter(e => e.offsetWidth || e.offsetHeight).map(e => e.innerText.replace(/\s+/g, ' ').trim().slice(0, 200))""")
+            if jan:
+                log("   OC %s: janela do MC ao aprovar: %s" % (num, " | ".join(jan)))
+        except Exception:       # noqa: BLE001
+            pass
         tela.confirmar_se_perguntar()
         tela.page.wait_for_timeout(2000)
+        log("   OC %s: depois de escolher Aprovado — gravações: %s" % (num, tela.gravou(marca)[1]))
         if not _status_compra(tela, 4):
             passo("OC %s (aprovar): salvando a aprovação" % num)
             tela.clicar_botao("Salvar")
