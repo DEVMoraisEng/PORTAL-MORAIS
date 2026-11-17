@@ -1616,6 +1616,11 @@ function obraConcluida(end){ const e=normS(end||''); if(!e) return false;
   const doc=docs.find(d=>normS(d.endereco||'')===e), nCasas=Number(doc&&doc.n_casas)||1;
   return linhas.length>=nCasas&&linhas.every(v=>OBRA_OK_RECEBEU.has(nzC(v.recebeu))); }
 function natDest(nat){const n=nzC(nat); if(!n) return 'receita'; return CFG.naturezas[n]||CFG_NAT[n]||'nao';}
+/* 17/11/26 (dono): nas obras de INVESTIDOR, o investidor aporta o valor do contrato e a venda vai direto para ele;
+   aporte − custo da obra = lucro da Morais. Então "Aporte de Investidor" lançado numa obra de investidor é recebido
+   (receita) da obra; no resto continua sendo movimento de sócios. */
+function natDestF(f){ const d=natDest(f.nat); if(d!=='socios'||nzC(f.nat)!=='APORTE DE INVESTIDOR'||!f.cc) return d;
+  const c=ccInfo(f.cc); return c.tipo==='obra'&&c.dono==='INVESTIDOR'?'receita':d; }
 /* 17/11/26 (dono): opção DESCONSIDERAR — o lançamento sai da análise inteira (nem operacional nem não operacional,
    nem Fluxo, Desempenho ou ROI). Vale para centro de custo, categoria (por coluna obra/escritório/pós-obra) e natureza.
    window._pagTodos / FATS_ALL guardam tudo (as Configurações mostram tudo para dar para voltar atrás);
@@ -1693,7 +1698,7 @@ function aplicarConfig(){
   OB_FIN={}; const ob=cc=>{ const k=normS(cc); return OB_FIN[k]||(OB_FIN[k]={o:{},t:{},v:{},r:{},s:{}}); };
   (window._pagFull||[]).forEach(p=>{ if(!p.mes||!p.cc||!/^\d{4}-\d{2}$/.test(p.mes)) return; const k=cls(p); if(k.t!=='obra'&&k.i!=='soc') return;
     const o=ob(p.cc), m=p.mes; if(k.i==='soc') o.s[m]=(o.s[m]||0)-p.valor; else if(k.i==='obra') o.o[m]=(o.o[m]||0)+p.valor; else if(k.i==='ter') o.t[m]=(o.t[m]||0)+p.valor; else if(k.i==='venda') o.v[m]=(o.v[m]||0)+p.valor; });
-  FATS_TODOS.forEach(f=>{ const c=ccInfo(f.cc||''); const d=c.tipo==='soc'?'socios':natDest(f.nat);
+  FATS_TODOS.forEach(f=>{ const c=ccInfo(f.cc||''); const d=c.tipo==='soc'?'socios':natDestF(f);
     if(d==='socios') FATS_SOC.push(f); else if(d==='receita'&&c.tipo==='obra') fats.push(f);
     if(/^\d{4}-\d{2}$/.test(f.mes||'')&&(d==='socios'||(d==='receita'&&c.tipo==='obra'))){ const k=normS(f.cc||''); const o=OB_FIN[k]||(OB_FIN[k]={o:{},t:{},v:{},r:{},s:{}}); if(d==='socios') o.s[f.mes]=(o.s[f.mes]||0)+f.valor; else o.r[f.mes]=(o.r[f.mes]||0)+f.valor; } });
 }
@@ -3843,7 +3848,6 @@ function buildFluxo(){
     kT('pago',fT.pago,kpi('Total Pago (Filtro Ativo)',fmtBRL(totalGasto))),
     kT('rec',fT.rec,kpi('Total Recebido (Filtro Ativo)',fmtBRL(totalRecebido))),
     kT('emax',fT.expMax,kpi('Exposição Máxima',fmtBRL(expMaxima))),
-    kT('emed',fT.expMed,kpi('Exposição Média Ponderada',fmtBRL(Math.abs(expMedia)))),
   ].join('');
 
   // KPI Lucro por proprietário (só se há os dois)
@@ -3852,7 +3856,7 @@ function buildFluxo(){
   if(totalGastoMorais>0||totalRecMorais>0)
     kpisLucro.push(kT('lm',fT.lucro('Lucro líquido Morais',lucroMorais,totalGastoMorais,totalRecMorais,'Obras do Grupo Morais (Configurações › 1).'),kpi('Lucro Líquido Morais',fmtBRL(lucroMorais),'Obras da Morais',lucroMorais>=0?'g':'r')));
   if(totalGastoInvest>0||totalRecInvest>0)
-    kpisLucro.push(kT('li',fT.lucro('Lucro líquido investidores',lucroInvest,totalGastoInvest,totalRecInvest,'Obras de investidores: recebido do investidor − pago na obra.'),kpi('Lucro Líquido Investidores',fmtBRL(lucroInvest),'Obras de terceiros',lucroInvest>=0?'g':'r')));
+    kpisLucro.push(kT('li',fT.lucro('Lucro da Morais nas obras de investidores',lucroInvest,totalGastoInvest,totalRecInvest,'O investidor aporta o valor do contrato (a venda da casa vai direto para ele); aporte − custo da obra = lucro da Morais.'),kpi('Lucro Morais em obras de investidores',fmtBRL(lucroInvest),'Aporte do investidor − custo da obra',lucroInvest>=0?'g':'r')));
   document.getElementById('kpi-fluxo-lucro').innerHTML=kpisLucro.join('');
 
   // Tabela fluxo mensal
@@ -3866,22 +3870,19 @@ function buildFluxo(){
       <td class="nr">${receitas[i]>0?fmtBRL2(receitas[i]):'—'}</td>
       ${comSoc?`<td class="nr">${socios[i]?fmtBRL2(socios[i]):'—'}</td>`:''}
       <td class="nr" style="${corExp}">${fmtBRL2(v)}</td>
-      <td class="nr">${mult[i]}</td>
-      <td class="nr">${fmtBRL2(expProp[i])}</td>
     </tr>`;
   }).join('');
   document.getElementById('tbl-fluxo').innerHTML=`<table>
     <thead><tr>
       <th class="left">Mês</th><th${tipX('hp','<h4>Total pago</h4><div>Custo de obra, terreno e custo de venda pagos no mês nos CCs de obra dos filtros.</div>')}>Total Pago</th><th${tipX('hr','<h4>Total recebido</h4><div>Recebimentos do mês com natureza Receita nos CCs de obra dos filtros.</div>')}>Total Recebido</th>${comSoc?`<th${tipX('hs','<h4>Sócios</h4><div>Aportes recebidos (+) menos distribuições pagas (−) nos CCs dos filtros. Só entra aqui e na exposição; nunca no pago, recebido ou lucro.</div>')}>Sócios (aportes − distribuições)</th>`:''}
-      <th${tipX('he','<h4>Exposição de caixa</h4><div>Acumulado até o mês de: recebido − pago + sócios. Negativo = dinheiro aplicado nas obras.</div>')}>Exposição de Caixa</th><th${tipX('hm','<h4>Multiplicador</h4><div>Quantos meses faltam até o último mês da tabela (o primeiro mês tem o maior peso). Usado na exposição média ponderada.</div>')}>Multiplicador</th><th${tipX('hx','<h4>Exposição proporcional</h4><div>Exposição de caixa × multiplicador. A soma ÷ soma dos multiplicadores dá a exposição média ponderada.</div>')}>Exp. Proporcional</th>
+      <th${tipX('he','<h4>Exposição de caixa</h4><div>Acumulado até o mês de: recebido − pago + sócios. Negativo = dinheiro aplicado nas obras.</div>')}>Exposição de Caixa</th>
     </tr></thead>
     <tbody>${rows}</tbody>
     <tfoot><tr>
       <td>TOTAL</td><td class="nr">${fmtBRL2(totalGasto)}</td>
       <td class="nr">${fmtBRL2(totalRecebido)}</td>
       ${comSoc?`<td class="nr">${fmtBRL2(socios.reduce((a,b)=>a+b,0))}</td>`:''}
-      <td class="nr"></td><td class="nr">${somaMultip}</td>
-      <td class="nr">${fmtBRL2(expProp.reduce((a,b)=>a+b,0))}</td>
+      <td class="nr"></td>
     </tr></tfoot>
   </table>`;
 
@@ -4192,35 +4193,32 @@ async function buildSetor(){
   const _nM=enderecosMorais.size, _nI=enderecosInvest.size, _iMax=expPos.indexOf(expMaxima), _mMax=_iMax>=0?fmtM(meses[_iMax]):'—';
   const _baseM=`<div style="color:var(--text3);margin-top:4px">${_nM} obra(s) da Morais · ${_per}. Aportes e distribuições não entram no lucro.</div>`;
   const D={
-    lt:`<h4>Lucro líquido total</h4>${_tl([['Lucro das obras da Morais',fmtBRL(temMorais?lucroLiq:0)],['Lucro das obras de investidores',fmtBRL(temInvest?lucroInvest:0)],['Total',fmtBRL(lucroTotal),1]])}<div style="color:var(--text3)">${_nM} obra(s) da Morais e ${_nI} de investidores na seleção.</div>`,
+    lt:`<h4>Lucro líquido total</h4>${_tl([['Lucro das obras da Morais',fmtBRL(temMorais?lucroLiq:0)],['Lucro nas obras de investidores',fmtBRL(temInvest?lucroInvest:0)],['Total',fmtBRL(lucroTotal),1]])}<div style="color:var(--text3)">${_nM} obra(s) da Morais e ${_nI} de investidores na seleção.</div>`,
     lm:`<h4>Lucro líquido (Morais)</h4>${_tl([['Recebido (venda e prestação de serviços)',fmtBRL(totalRecebido)],['Gasto (obra, terreno e custo de venda)','− '+fmtBRL(totalGasto)],['Lucro',fmtBRL(lucroLiq),1]])}${_baseM}`,
-    li:`<h4>Lucro líquido (investidores)</h4>${_tl([['Recebido (o que os investidores pagaram à Morais)',fmtBRL(totalRecInvest)],['Pago (gasto nas obras deles)','− '+fmtBRL(totalGastoInvest)],['Resultado',fmtBRL(lucroInvest),1]])}<div style="color:var(--text3);margin-top:4px">${_nI} obra(s) de investidores. É o que sobrou do dinheiro do investidor depois do gasto da obra, não o lucro da venda da casa (a venda é do investidor).</div>`,
-    em:`<h4>Exposição média</h4><div>Quanto dinheiro da empresa ficou aplicado nas obras, em média, no período. Os meses mais antigos pesam mais (multiplicador).</div>${_tl([['Σ exposição proporcional',fmtBRL(Math.abs(somaExpProp))],['÷ Σ multiplicadores',fmtN(somaMultip,0)],['Exposição média',fmtBRL(Math.abs(expMedia)),1]])}${_baseM}`,
+    li:`<h4>Lucro da Morais nas obras de investidores</h4>${_tl([['Aportado pelos investidores (valor do contrato)',fmtBRL(totalRecInvest)],['Custo das obras','− '+fmtBRL(totalGastoInvest)],['Lucro da Morais',fmtBRL(lucroInvest),1]])}<div style="color:var(--text3);margin-top:4px">${_nI} obra(s) de investidores. O investidor aporta o valor estipulado no contrato e a venda da casa vai direto para ele; o que sobra do aporte depois do custo da obra é o lucro da Morais. Entram Prestação de Serviços, Aporte de Investidor e as demais naturezas de receita lançadas na obra.</div>`,
     ex:`<h4>Exposição máxima</h4><div>O maior volume de dinheiro da empresa aplicado nas obras ao mesmo tempo (recebido − pago + sócios, acumulado).</div>${_tl([['Pico',fmtBRL(expMaxima),1],['Mês do pico',_mMax]])}${_baseM}`,
     rb:`<h4>ROI bruto</h4><div>Quanto o lucro representa sobre tudo o que foi gasto.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Gasto total',fmtBRL(totalGasto)],['ROI bruto',roiBruto!=null?fmtN(roiBruto,2)+'%':'—',1]])}${_baseM}`,
     re:`<h4>ROI sobre a exposição máxima</h4><div>Lucro em relação ao maior volume de dinheiro que a empresa precisou ter aplicado.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Exposição máxima',fmtBRL(expMaxima)],['ROI',roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—',1]])}${_baseM}`,
-    ra:`<h4>ROI ajustado</h4><div>Lucro em relação ao dinheiro aplicado em média. Fica alto quando a obra gira rápido e usa pouco capital ao mesmo tempo.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Exposição média',fmtBRL(Math.abs(expMedia))],['ROI ajustado',roiAjust!=null?fmtN(roiAjust,2)+'%':'—',1]])}${_baseM}`,
     tm:`<h4>TIR mensal</h4><div>A taxa de rendimento por mês do dinheiro aplicado: a taxa que faz o fluxo mês a mês (recebido − pago) valer zero hoje. Dá para comparar com o CDI/poupança.</div>${_tl([['TIR mensal',tirAm!=null?fmtN(tirAm*100,3)+'% a.m.':'—',1],[benchNome+' (referência)',taxaBenchAm.toFixed(2)+'% a.m.']])}${_baseM}`,
     ta:`<h4>TIR anual</h4><div>A TIR mensal levada para 12 meses com juros compostos: (1 + TIR mensal)¹² − 1.</div>${_tl([['TIR anual',tirAa!=null?fmtN(tirAa*100,2)+'% a.a.':'—',1]])}${_baseM}`,
     mt:`<h4>MTIR (TIR modificada)</h4><div>Versão mais realista da TIR: considera que o dinheiro que falta é pego à taxa de financiamento e o que sobra é reaplicado à taxa de reinvestimento.</div>${_tl([['Taxa de financiamento',(rFin*100).toFixed(2)+'% a.m.'],['Taxa de reinvestimento ('+benchNome+')',(rRein*100).toFixed(2)+'% a.m.'],['MTIR mensal',mtirAm!=null?fmtN(mtirAm*100,3)+'%':'—',1],['MTIR anual',mtirAa!=null?fmtN(mtirAa*100,2)+'%':'—',1]])}${_baseM}`,
-    mg:`<h4>Margem bruta</h4><div>Quanto de cada real recebido virou lucro.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Recebido',fmtBRL(totalRecebido)],['Margem',margemBruta!=null?fmtN(margemBruta,2)+'%':'—',1]])}${_baseM}`,
+    mg:`<h4>Margem líquida do empreendimento</h4><div>Quanto de cada real recebido virou lucro, depois de obra, terreno e custo de venda (comissão, RET, ganho de capital).</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Recebido',fmtBRL(totalRecebido)],['Margem',margemBruta!=null?fmtN(margemBruta,2)+'%':'—',1]])}${_baseM}`,
     mu:`<h4>Múltiplo do capital</h4><div>Quantas vezes o recebido cobre o gasto.</div>${_tl([['Recebido',fmtBRL(totalRecebido)],['÷ Gasto',fmtBRL(totalGasto)],['Múltiplo',multiploGasto!=null?fmtN(multiploGasto,3)+'×':'—',1]])}${_baseM}`,
     mx:`<h4>Múltiplo sobre a exposição máxima</h4><div>Quantas vezes o recebido cobre o pico de dinheiro aplicado.</div>${_tl([['Recebido',fmtBRL(totalRecebido)],['÷ Exposição máxima',fmtBRL(expMaxima)],['Múltiplo',multiploCapital!=null?fmtN(multiploCapital,3)+'×':'—',1]])}${_baseM}`,
     pb:`<h4>Payback</h4><div>Quantos meses, desde o primeiro gasto, até o dinheiro aplicado voltar (exposição acumulada chegar a zero).</div>${_tl([['Payback',paybackMeses!=null?paybackMeses+' mês(es)':'ainda negativo',1],['Primeiro mês',meses.length?fmtM(meses[0]):'—'],['Mês em que zerou',paybackMeses!=null?fmtM(meses[paybackMeses-1]):'—']])}${_baseM}`,
     cm:`<h4>Custo médio mensal</h4>${_tl([['Gasto total',fmtBRL(totalGasto)],['÷ Meses no período',String(meses.length)],['Custo médio',custoMedioMensal!=null?fmtBRL(custoMedioMensal):'—',1]])}${_baseM}`,
     sp:`<h4>Spread TIR − ${benchNome}</h4><div>Quanto a TIR mensal das obras rende a mais (ou a menos) que o ${benchNome} no mês.</div>${_tl([['TIR mensal',tirAm!=null?fmtN(tirAm*100,3)+'%':'—'],['− '+benchNome,taxaBenchAm.toFixed(2)+'%'],['Spread',spreadTirCdi!=null?fmtN(spreadTirCdi,3)+' p.p.':'—',1]])}${_baseM}`};
   const T=k=>tipX(k,D[k]||'');
-  kpisLucros.push(`<div class="roi-card"${T('lt')}><div class="roi-lbl">Lucro Líquido Total</div><div class="roi-val ${lucroTotal>=0?'g':'r'}">${fmtBRL(lucroTotal)}</div><div class="roi-sub">Morais + Investidores</div></div>`);
+  kpisLucros.push(`<div class="roi-card"${T('lt')}><div class="roi-lbl">Lucro Líquido Total</div><div class="roi-val ${lucroTotal>=0?'g':'r'}">${fmtBRL(lucroTotal)}</div><div class="roi-sub">Obras da Morais + lucro nas obras de investidores</div></div>`);
   if(temMorais)
     kpisLucros.push(`<div class="roi-card"${T('lm')}><div class="roi-lbl">Lucro Líquido (Morais)</div><div class="roi-val ${lucroLiq>=0?'g':''}">${fmtBRL(lucroLiq)}</div><div class="roi-sub">Recebido − Gasto (Morais)</div></div>`);
   if(temInvest)
-    kpisLucros.push(`<div class="roi-card"${T('li')}><div class="roi-lbl">Lucro Líquido (Investidores)</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago (Investidores)</div></div>`);
+    kpisLucros.push(`<div class="roi-card"${T('li')}><div class="roi-lbl">Lucro Morais em obras de investidores</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Aporte do investidor − custo da obra</div></div>`);
   document.getElementById('roi-res-lucros').innerHTML=kpisLucros.join('');
 
   // ── Linha 2: Exposições (só Morais) ──
   const kpisExp=[];
   if(temMorais){
-    kpisExp.push(`<div class="roi-card"${T('em')}><div class="roi-lbl">Exposição Média</div><div class="roi-val">${fmtBRL(Math.abs(expMedia))}</div><div class="roi-sub">Σ Exp. Prop. / Σ Multiplicadores</div></div>`);
     kpisExp.push(`<div class="roi-card"${T('ex')}><div class="roi-lbl">Exposição Máxima</div><div class="roi-val">${fmtBRL(expMaxima)}</div><div class="roi-sub">Pico de capital exposto</div></div>`);
   }
   document.getElementById('roi-res-exp').innerHTML=kpisExp.join('');
@@ -4233,7 +4231,6 @@ async function buildSetor(){
       indicadoresHtml.push(
         `<div class="roi-card"${T('rb')}><div class="roi-lbl">ROI Bruto</div><div class="roi-val ${roiBruto>=0?'g':''}">${roiBruto!=null?fmtN(roiBruto,2)+'%':'—'}</div><div class="roi-sub">Lucro / Gasto Total</div></div>`,
         `<div class="roi-card"${T('re')}><div class="roi-lbl">ROI Exp. Máxima</div><div class="roi-val ${roiExpMax>=0?'g':''}">${roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exposição Máxima</div></div>`,
-        `<div class="roi-card"${T('ra')}><div class="roi-lbl">ROI Ajustado</div><div class="roi-val ${roiAjust>=0?'g':''}">${roiAjust!=null?fmtN(roiAjust,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exposição Média</div></div>`,
         `<div class="roi-card"${T('tm')}><div class="roi-lbl">TIR Mensal</div><div class="roi-val g">${tirAm!=null?fmtN(tirAm*100,3)+'%':'—'}</div><div class="roi-sub">Newton-Raphson, chute 2%</div></div>`,
         `<div class="roi-card"${T('ta')}><div class="roi-lbl">TIR Anual</div><div class="roi-val g">${tirAa!=null?fmtN(tirAa*100,2)+'%':'—'}</div><div class="roi-sub">(1+TIRam)¹²−1</div></div>`,
         `<div class="roi-card"${T('mt')}><div class="roi-lbl">MTIR Mensal / Anual</div><div class="roi-val">${mtirAm!=null?fmtN(mtirAm*100,3)+'% / '+fmtN((mtirAa||0)*100,2)+'%':'—'}</div><div class="roi-sub">Fin: ${(rFin*100).toFixed(2)}% · Rein: ${(rRein*100).toFixed(2)}%</div></div>`
@@ -4241,7 +4238,7 @@ async function buildSetor(){
     }
     if(indSel==='avancado'||indSel==='todos'){
       indicadoresHtml.push(
-        `<div class="roi-card"${T('mg')}><div class="roi-lbl">Margem Bruta</div><div class="roi-val ${margemBruta>=0?'g':''}">${margemBruta!=null?fmtN(margemBruta,2)+'%':'—'}</div><div class="roi-sub">Lucro / Total Recebido</div></div>`,
+        `<div class="roi-card"${T('mg')}><div class="roi-lbl">Margem líquida do empreendimento</div><div class="roi-val ${margemBruta>=0?'g':''}">${margemBruta!=null?fmtN(margemBruta,2)+'%':'—'}</div><div class="roi-sub">Lucro / Total Recebido</div></div>`,
         `<div class="roi-card"${T('mu')}><div class="roi-lbl">Múltiplo do Capital</div><div class="roi-val ${multiploGasto>=1?'g':''}">${multiploGasto!=null?fmtN(multiploGasto,3)+'×':'—'}</div><div class="roi-sub">Recebido / Gasto Total</div></div>`,
         `<div class="roi-card"${T('mx')}><div class="roi-lbl">Múltiplo s/ Exp. Máx.</div><div class="roi-val ${multiploCapital>=1?'g':''}">${multiploCapital!=null?fmtN(multiploCapital,3)+'×':'—'}</div><div class="roi-sub">Recebido / Exposição Máxima</div></div>`,
         `<div class="roi-card"${T('pb')}><div class="roi-lbl">Payback</div><div class="roi-val">${paybackMeses!=null?paybackMeses+' mes'+( paybackMeses===1?'':'es'):'Ainda negativo'}</div><div class="roi-sub">Meses até exposição zerar</div></div>`,
@@ -4265,8 +4262,6 @@ async function buildSetor(){
       <td class="nr">${receitas[i]>0?fmtBRL2(receitas[i]):'—'}</td>
       <td class="nr">${socios[i]?fmtBRL2(socios[i]):'—'}</td>
       <td class="nr" style="${corExp}">${fmtBRL2(v)}</td>
-      <td class="nr">${mult[i]}</td>
-      <td class="nr">${fmtBRL2(expProp[i])}</td>
     </tr>`;
   }).join('');
   const totFluxo=fluxoLiq.reduce((a,b)=>a+b,0);
@@ -4277,8 +4272,6 @@ async function buildSetor(){
       <th>Valor Recebido</th>
       <th>Sócios (aportes − distribuições)</th>
       <th>Exposição de Caixa</th>
-      <th>Multiplicador</th>
-      <th>Exp. Proporcional</th>
     </tr></thead>
     <tbody>${rowsExp}</tbody>
     <tfoot><tr>
@@ -4287,8 +4280,6 @@ async function buildSetor(){
       <td class="nr">${fmtBRL2(totalRecebido)}</td>
       <td class="nr">${fmtBRL2(socios.reduce((a,b)=>a+b,0))}</td>
       <td class="nr"></td>
-      <td class="nr">${somaMultip}</td>
-      <td class="nr">${fmtBRL2(somaExpProp)}</td>
     </tr></tfoot>
   </table>`;
 
@@ -5307,7 +5298,7 @@ function predItem(item){ return p=>{ const k=cls(p);
   if(item==='saiOp') return (k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda'))||((k.t==='esc'||k.t==='pos')&&k.i==='conta');
   if(item==='saiNop') return !((k.t==='obra'&&(k.i==='obra'||k.i==='ter'||k.i==='venda'))||((k.t==='esc'||k.t==='pos')&&k.i==='conta'));
   return false; }; }
-function recOp(f){ const c=ccInfo(f.cc||''); return c.tipo!=='soc'&&c.tipo!=='ign'&&natDest(f.nat)==='receita'; }
+function recOp(f){ const c=ccInfo(f.cc||''); return c.tipo!=='soc'&&c.tipo!=='ign'&&natDestF(f)==='receita'; }
 function somaPag(item,ml){ const set=new Set(ml), pr=predItem(item); let t=0; (window._pagFull||[]).forEach(p=>{ if(set.has(p.mes)&&pr(p)) t+=p.valor||0; }); return t; }
 function somaRec(op,ml){ const set=new Set(ml); let t=0; FATS_TODOS.forEach(f=>{ if(set.has(f.mes)&&(recOp(f)===op)) t+=f.valor||0; }); return t; }
 function blocoOperacional(){
@@ -5969,7 +5960,7 @@ async function buildComp(side){
 
   if(!mesesComMov.length){
     // Só investidor
-    if(el1)el1.innerHTML=`<div class="roi-card"><div class="roi-lbl">Lucro Líquido (Investidores)</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago</div></div>`;
+    if(el1)el1.innerHTML=`<div class="roi-card"><div class="roi-lbl">Lucro Morais em obras de investidores</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago</div></div>`;
     if(el2)el2.innerHTML='';
     buildPrazosSelecao(docsF,'comp-pz1-'+side,'comp-pz2-'+side,'comp-pz3-'+side);
     return;
@@ -6015,16 +6006,14 @@ async function buildComp(side){
   if(el1){
     let kpisR1=[
       `<div class="roi-card"><div class="roi-lbl">Lucro Líquido (Morais)</div><div class="roi-val ${lucroLiq>=0?'g':''}">${fmtBRL(lucroLiq)}</div><div class="roi-sub">Recebido − Gasto</div></div>`,
-      `<div class="roi-card"><div class="roi-lbl">Exposição Média</div><div class="roi-val">${fmtBRL(Math.abs(expMedia))}</div><div class="roi-sub">Σ Exp. Prop. / Σ Mult.</div></div>`,
       `<div class="roi-card"><div class="roi-lbl">Exposição Máxima</div><div class="roi-val">${fmtBRL(expMaxima)}</div><div class="roi-sub">Pico de capital exposto</div></div>`,
     ];
-    if(temInvest) kpisR1.push(`<div class="roi-card"><div class="roi-lbl">Lucro Líquido (Investidores)</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago</div></div>`);
+    if(temInvest) kpisR1.push(`<div class="roi-card"><div class="roi-lbl">Lucro Morais em obras de investidores</div><div class="roi-val ${lucroInvest>=0?'g':'r'}">${fmtBRL(lucroInvest)}</div><div class="roi-sub">Recebido − Pago</div></div>`);
     el1.innerHTML=kpisR1.join('');
   }
   if(el2)el2.innerHTML=[
     `<div class="roi-card"><div class="roi-lbl">ROI Bruto</div><div class="roi-val ${(roiBruto||0)>=0?'g':''}">${roiBruto!=null?fmtN(roiBruto,2)+'%':'—'}</div><div class="roi-sub">Lucro / Gasto Total</div></div>`,
     `<div class="roi-card"><div class="roi-lbl">ROI Exp. Máxima</div><div class="roi-val ${(roiExpMax||0)>=0?'g':''}">${roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exp. Máxima</div></div>`,
-    `<div class="roi-card"><div class="roi-lbl">ROI Ajustado</div><div class="roi-val ${(roiAjust||0)>=0?'g':''}">${roiAjust!=null?fmtN(roiAjust,2)+'%':'—'}</div><div class="roi-sub">Lucro / Exp. Média</div></div>`,
     `<div class="roi-card"><div class="roi-lbl">TIR Mensal</div><div class="roi-val g">${tirAm!=null?fmtN(tirAm*100,3)+'%':'—'}</div><div class="roi-sub">Newton-Raphson</div></div>`,
     `<div class="roi-card"><div class="roi-lbl">TIR Anual</div><div class="roi-val g">${tirAa!=null?fmtN(tirAa*100,2)+'%':'—'}</div><div class="roi-sub">(1+TIRam)¹²−1</div></div>`,
     `<div class="roi-card"><div class="roi-lbl">MTIR Anual</div><div class="roi-val">${mtirAa!=null?fmtN(mtirAa*100,2)+'%':'—'}</div><div class="roi-sub">Fin: ${(rFin*100).toFixed(2)}% · Rein: ${(rRein*100).toFixed(2)}%</div></div>`,
@@ -6040,21 +6029,18 @@ async function buildComp(side){
         <td class="nr">${fmtBRL2(gastos[i])}</td>
         <td class="nr">${receitas[i]>0?fmtBRL2(receitas[i]):'—'}</td>
         <td class="nr" style="${cor}">${fmtBRL2(v)}</td>
-        <td class="nr">${mult[i]}</td>
-        <td class="nr">${fmtBRL2(expProp[i])}</td>
       </tr>`;
     }).join('');
     elT.innerHTML=`<table>
       <thead><tr>
         <th class="left">Mês</th><th>Valor Gasto</th><th>Valor Recebido</th>
-        <th>Exposição de Caixa</th><th>Multiplicador</th><th>Exp. Proporcional</th>
+        <th>Exposição de Caixa</th>
       </tr></thead>
       <tbody>${rowsExp}</tbody>
       <tfoot><tr>
         <td>TOTAL</td><td class="nr">${fmtBRL2(totalGasto)}</td>
         <td class="nr">${fmtBRL2(totalRecebido)}</td>
-        <td class="nr"></td><td class="nr">${somaMultip}</td>
-        <td class="nr">${fmtBRL2(somaExpProp)}</td>
+        <td class="nr"></td>
       </tr></tfoot>
     </table>`;
   }
