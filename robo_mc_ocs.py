@@ -803,6 +803,7 @@ class Tela:
     def __init__(self, aba, page=None, escritas: list | None = None):
         self.aba, self.page = aba, page or aba._page
         self.escritas: list = escritas if escritas is not None else []
+        self._ruins: list = []
 
         def ouvir(resp):
             try:
@@ -812,6 +813,8 @@ class Tela:
                     caminho = "/" + resp.url.split("://", 1)[-1].split("/", 1)[-1].split("?", 1)[0]
                     caminho = re.sub(r"[0-9a-f]{8}-[0-9a-f-]{27}", "{id}", caminho)
                     self.escritas.append((rq.method, caminho, resp.status))
+                    if resp.status >= 400:      # 17/11: o motivo vem no corpo (lido fora do evento, em gravou)
+                        self._ruins.append((len(self.escritas) - 1, resp))
             except Exception:
                 pass
         self.page.on("response", ouvir)
@@ -897,6 +900,17 @@ class Tela:
             return False, "a tela não mandou nada ao Mais Controle"
         ruins = [x for x in novas if x[2] >= 400]
         txt = ", ".join("%s %s → %s" % x for x in novas[:4])
+        motivos = []
+        for i, resp in self._ruins:
+            if i >= desde:
+                try:
+                    corpo = re.sub(r"\s+", " ", resp.text() or "")[:250]
+                except Exception:       # noqa: BLE001
+                    corpo = ""
+                if corpo:
+                    motivos.append("MC respondeu %s: %s" % (resp.status, corpo))
+        if motivos:
+            txt += " — " + " | ".join(motivos[:2])
         return (not ruins), txt
 
 
