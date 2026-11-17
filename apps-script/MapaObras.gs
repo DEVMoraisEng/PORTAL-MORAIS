@@ -28,6 +28,10 @@
  *                  "3D e Orçamento" da obra busca, troca e precifica as linhas com ele
  *   orcPreviaLer   (mo14) a planilha prévia do orçamento salva da obra (tabela orc_previas)
  *   orcPreviaSalvar (mo14) grava a planilha prévia (quem tem acesso OBRAS ou DOCUMENTOS, ou ADM)
+ *   orcEnviarMC    (mo16, 17/11) "Enviar ao Mais Controle": TRAVA o envio da obra e põe o pedido mc-orcamento na
+ *                  FILA DO ROBÔ (DB_FILA_ROBO); o robô do servidor faz o resto e escreve o andamento em envio
+ *   orcEnvioDesbloquear (mo16) destrava o envio — só com a SENHA DA PAULA (login dela no LOGINS; Propriedade
+ *                  ORC_DESBLOQUEIO_LOGIN se precisar fixar qual login), 5 erros = bloqueia por um tempo
  *   ocResponder    (mo13) grava SERVIÇO FINALIZADO? = SIM / NÃO de uma OC; com SIM,
  *                  pede ao servidor para rodar o robô na hora (FILA DO ROBÔ, se a
  *                  Propriedade DB_FILA_ROBO existir neste projeto; senão ele roda no
@@ -79,7 +83,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-11-17 mo15";   // mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
+var MO_VERSAO = "2026-11-17 mo16";   // mo16: Enviar ao Mais Controle (trava o envio; só a senha da Paula desbloqueia) · mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -153,6 +157,8 @@ function moRotear_(action, sess, p) {
     case "orcCatalogo":      return moOrcCatalogo_(sess, p || {});
     case "orcPreviaLer":     return moOrcPreviaLer_(sess, p || {});
     case "orcPreviaSalvar":  return moOrcPreviaSalvar_(sess, p || {});
+    case "orcEnviarMC":      return moOrcEnviarMC_(sess, p || {});
+    case "orcEnvioDesbloquear": return moOrcDesbloquear_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -1431,14 +1437,119 @@ function moOrcPreviaLer_(sess, p) {
   if (!moPodeOrc_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
   var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
   var l;
-  try { l = moSupa_("get", "orc_previas?select=obra_id,obra,dados,salvo_por,salvo_em,versao&obra_id=eq." + id) || []; }
+  try {
+    try { l = moSupa_("get", "orc_previas?select=obra_id,obra,dados,salvo_por,salvo_em,versao,envio&obra_id=eq." + id) || []; }
+    catch (e0) {   /* mo16: antes de rodar o alter table da coluna envio, lê como antes (a aba não pode quebrar) */
+      if (String(e0).indexOf("envio") < 0) throw e0;
+      l = moSupa_("get", "orc_previas?select=obra_id,obra,dados,salvo_por,salvo_em,versao&obra_id=eq." + id) || [];
+    }
+  }
   catch (e) {
     var t = String(e);
     if (t.indexOf("SUPABASE_404") === 0 || t.indexOf("orc_previas") >= 0) return { ok: true, previa: null, aviso: "A tabela orc_previas ainda não foi criada no Supabase." };
     throw e;
   }
-  return { ok: true, previa: l[0] || null, podeSalvar: moPodeOrc_(sess) && !ehTestes_(sess) };
+  return { ok: true, previa: l[0] || null, podeSalvar: moPodeOrc_(sess) && !ehTestes_(sess), desbloqueio: moOrcNomeDesbloqueio_() };
 }
+/* ======================= mo16 — ENVIAR AO MAIS CONTROLE (17/11/2026) =======================
+ * Pedido do dono: o botão "Enviar ao Mais Controle" na planilha prévia; ao clicar o envio TRAVA e só a senha da
+ * PAULA destrava. O estado fica em orc_previas.envio (jsonb, ver supabase/orc_previas.sql):
+ *   { travado, situacao, pedido_em, pedido_por, versao, total, linhas, fila, robo:{…}, historico:[…] }
+ * situacao: NA FILA → (robô) TRABALHANDO → PRÉVIA PRONTA / FEITO / ERRO; SEM FILA = o projeto não tem DB_FILA_ROBO.
+ * O robô do servidor (pedido mc-orcamento) acha o orçamento da obra no MC, guarda uma cópia do que está lá antes de
+ * mexer e escreve o andamento aqui mesmo (robo, situacao). Destravar NÃO apaga nada no MC: só libera um novo envio. */
+var MO_ORC_TRAVA_PAULA = "orc_desbloqueio_paula";
+function moOrcEnviarMC_(sess, p) {
+  if (!moPodeOrc_(sess) || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var atual;
+    try { atual = (moSupa_("get", "orc_previas?select=obra,versao,envio,dados&obra_id=eq." + id) || [])[0]; }
+    catch (e) { if (String(e).indexOf("envio") >= 0) return { ok: false, erro: "FALTA_COLUNA_ENVIO" }; throw e; }
+    if (!atual) return { ok: false, erro: "NAO_SALVO" };
+    /* envia a versão SALVA — quem tem alteração na tela salva antes (a tela manda a versão que está vendo) */
+    if (p.versao == null || Number(p.versao) !== Number(atual.versao)) return { ok: false, erro: "SALVE_ANTES", versao: atual.versao };
+    var env0 = atual.envio || {};
+    if (env0.travado) return { ok: false, erro: "JA_ENVIADO", envio: env0 };
+    var quem = String(sess.n || sess.u || "").slice(0, 80), agora = new Date().toISOString();
+    var linhas = ((atual.dados || {}).linhas || []), total = 0;
+    linhas.forEach(function (l) { total += Number(l.total || (Number(l.qtd) || 0) * (Number(l.custo) || 0)) || 0; });
+    var hist = (env0.historico || []).slice(-30);
+    hist.push({ acao: "envio", por: quem, em: agora, versao: atual.versao });
+    var envio = { travado: true, situacao: "NA FILA", pedido_em: agora, pedido_por: quem, versao: atual.versao,
+                  total: Math.round(total * 100) / 100, linhas: linhas.length,
+                  contratos: (((atual.dados || {}).contratos) || []).length, fila: "", robo: null, historico: hist };
+    var db = String(prop_("DB_FILA_ROBO") || "").trim();
+    if (!db) envio.situacao = "SEM FILA";
+    else {
+      var props = {};
+      props["PEDIDO"] = { title: [{ type: "text", text: { content: ("mc-orcamento " + (atual.obra || id)).slice(0, 120) } }] };
+      props["TIPO"] = { select: { name: "mc-orcamento" } };
+      props["PAYLOAD"] = { rich_text: [{ type: "text", text: { content: JSON.stringify({ obraId: id, versao: atual.versao, quem: quem }) } }] };
+      props["SITUAÇÃO"] = { select: { name: "PENDENTE" } };
+      props["PEDIDO EM"] = { date: { start: agora } };
+      var pg = notion_("POST", "/pages", { parent: { database_id: db }, properties: props });
+      envio.fila = (pg && pg.id) || "";
+    }
+    moSupa_("patch", "orc_previas?obra_id=eq." + id, { envio: envio });
+    console.log("ORÇAMENTO MC: " + quem + " enviou " + (atual.obra || id) + " v" + atual.versao + " (" + envio.situacao + ")");
+    return { ok: true, envio: envio };
+  } finally { lock.releaseLock(); }
+}
+/* Quem desbloqueia: Propriedade ORC_DESBLOQUEIO_LOGIN (o LOGIN exato) ou, sem ela, o único login do LOGINS cujo
+   LOGIN ou PESSOA tem "Paula". Achou mais de um → pede a Propriedade (não chuta). */
+function moOrcLoginPaula_() {
+  var fixo = String(prop_("ORC_DESBLOQUEIO_LOGIN") || "").trim().toLowerCase();
+  var rows = queryAll_(CONFIG.DB.LOGINS, {}), achados = [];
+  for (var i = 0; i < rows.length; i++) {
+    var pr = rows[i].properties, lg = titulo_(pr["LOGIN"]);
+    var pa = ((pr["PESSOA"] && pr["PESSOA"].people) || [])[0], nome = pa ? (pa.name || "") : "";
+    if (fixo ? lg.toLowerCase() === fixo : /paula/i.test(lg + " " + nome))
+      achados.push({ login: lg, nome: nome || lg, senha: String(texto_(pr["SENHA"])) });
+  }
+  if (!achados.length) return { erro: "SEM_LOGIN_PAULA" };
+  if (achados.length > 1) return { erro: "MAIS_DE_UMA_PAULA", nomes: achados.map(function (a) { return a.nome; }) };
+  return achados[0];
+}
+function moOrcNomeDesbloqueio_() {
+  try {
+    var c = CacheService.getScriptCache(), v = c.get("mo_orc_paula_nome");
+    if (v != null) return v;
+    var a = moOrcLoginPaula_(); v = a.erro ? "" : a.nome;
+    c.put("mo_orc_paula_nome", v, 3600); return v;
+  } catch (e) { return ""; }
+}
+function moOrcDesbloquear_(sess, p) {
+  if (!moPodeOrc_(sess) || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
+  var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
+  var senha = String(p.senha || "");
+  if (!senha) return { ok: false, erro: "INFORME_A_SENHA" };
+  if (tentativas_(MO_ORC_TRAVA_PAULA) >= CONFIG.MAX_TENTATIVAS) return { ok: false, erro: "BLOQUEADO" };
+  var paula = moOrcLoginPaula_();
+  if (paula.erro) return { ok: false, erro: paula.erro, nomes: paula.nomes || [] };
+  if (!verificaSenha_(senha, paula.senha)) {
+    var n = registrarFalha_(MO_ORC_TRAVA_PAULA);
+    console.log("ORÇAMENTO MC: senha errada no desbloqueio (" + (sess.n || sess.u) + ")");
+    return { ok: false, erro: "SENHA_INCORRETA", restantes: Math.max(0, CONFIG.MAX_TENTATIVAS - n) };
+  }
+  limparFalhas_(MO_ORC_TRAVA_PAULA);
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var atual = (moSupa_("get", "orc_previas?select=obra,envio&obra_id=eq." + id) || [])[0];
+    if (!atual || !atual.envio) return { ok: false, erro: "NAO_ENVIADO" };
+    var envio = atual.envio, quem = String(sess.n || sess.u || "").slice(0, 80);
+    envio.travado = false;
+    envio.historico = (envio.historico || []).slice(-30);
+    envio.historico.push({ acao: "desbloqueio", por: quem, autorizou: paula.nome, em: new Date().toISOString() });
+    moSupa_("patch", "orc_previas?obra_id=eq." + id, { envio: envio });
+    console.log("ORÇAMENTO MC: " + quem + " desbloqueou o envio de " + (atual.obra || id) + " com a senha de " + paula.nome);
+    return { ok: true, envio: envio };
+  } finally { lock.releaseLock(); }
+}
+/* Rode no editor (Executar) para ver qual login vai desbloquear — não mostra senha. */
+function moOrcVerQuemDesbloqueia() { var a = moOrcLoginPaula_(); console.log(a.erro ? (a.erro + " " + (a.nomes || []).join(", ")) : ("desbloqueia: " + a.nome + " (login " + a.login + ")")); }
+
 function moOrcPreviaSalvar_(sess, p) {
   if (!moPodeOrc_(sess) || ehTestes_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
   var id = moOrcId_(p.obra_id); if (!id) return { ok: false, erro: "OBRA_INVALIDA" };
