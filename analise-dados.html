@@ -3945,8 +3945,10 @@ function flxResTip(o){
 function flxResOrd(k){ FLX_RES_ORD=FLX_RES_ORD.k===k?{k,d:-FLX_RES_ORD.d}:{k,d:k==='obra'?1:-1}; flxResRender(); }
 function flxResRender(){
   const obrasResultado=FLX_RES.slice(), {k,d}=FLX_RES_ORD; TIP_NS='fr'; TIPS.fr={};
-  const val=o=>k==='obra'?o.obra:k==='casas'?(o.cTot?o.cOk/o.cTot:0)+o.cOk/1e4:o[k];
-  obrasResultado.sort((a,b)=>{ const x=val(a), y=val(b); return (typeof x==='string'?x.localeCompare(y,'pt-BR',{numeric:true}):x-y)*d; });
+  /* 17/11/26 (dono): ordenar por Obra = agrupar Morais × Investidor (▲ Morais primeiro, ▼ Investidor primeiro); dentro do grupo, pelo nome */
+  const val=o=>k==='obra'?(o.morais?'0':'1')+'|'+o.obra:k==='casas'?(o.cTot?o.cOk/o.cTot:0)+o.cOk/1e4:o[k];
+  obrasResultado.sort((a,b)=>{ if(k==='obra'&&a.morais!==b.morais) return (a.morais?-1:1)*d;
+    const x=k==='obra'?a.obra:val(a), y=k==='obra'?b.obra:val(b); return k==='obra'?x.localeCompare(y,'pt-BR',{numeric:true}):(x-y)*d; });
 
   if(!obrasResultado.length){
     document.getElementById('tbl-fluxo-negativo').innerHTML=
@@ -3972,7 +3974,7 @@ function flxResRender(){
     const th=(kk,t,cls,tit)=>`<th class="${cls||''}" data-k="${kk}" onclick="flxResOrd('${kk}')" style="cursor:pointer;user-select:none" title="${tit||'Clique para ordenar'}">${t}${FLX_RES_ORD.k===kk?(FLX_RES_ORD.d>0?' ▲':' ▼'):''}</th>`;
     document.getElementById('tbl-fluxo-negativo').innerHTML=`<div style="font-size:12px;color:var(--text3);margin:0 0 6px">Clique no nome da coluna para ordenar. Passe o mouse numa obra para ver o resumo dela. <b>Total pago</b>: custo de obra + terreno + custo de venda lançados no centro de custo da obra (<b>c/ lote</b> = a compra do lote está no total; <b>s/ lote</b> = não está — passe o mouse para ver os valores). <b>Total recebido</b>: recebimentos de receita (Venda e Prestação de Serviços) no centro de custo da obra. <b>Casas</b>: casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO.</div><table>
       <thead><tr>
-        ${th('obra','Obra','left')}${th('casas','Casas recebidas','','Casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO · clique para ordenar')}${th('pago','Total Pago')}${th('recebido','Total Recebido')}
+        ${th('obra','Obra','left','Clique para agrupar: Morais primeiro (▲) ou Investidor primeiro (▼)')}${th('casas','Casas recebidas','','Casas do lote com RECEBEU = SIM, INEXISTE ou ÁGIO · clique para ordenar')}${th('pago','Total Pago')}${th('recebido','Total Recebido')}
         ${th('resultado','Resultado')}
       </tr></thead>
       <tbody>${rowsRes}</tbody>
