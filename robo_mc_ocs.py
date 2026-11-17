@@ -1001,9 +1001,22 @@ def lancamentos_vinculados(tela: Tela, oc_id: str) -> int:
     """Quantos lançamentos a OC tem (janela "$ Lançamento › Lançamentos vinculados"). Só olha, não muda nada."""
     tela.abrir_oc(oc_id)
     tela.clicar_botao("Lançamento", exato=False)
-    if not tela.esperar_texto("Lançamentos vinculados", 12):
+    # 17/11: OC SEM lançamento: o MC não mostra "Lançamentos vinculados" — pergunta "Deseja apropriar os insumos desta
+    # ordem de compra para o novo lançamento? Sim / Não" (é o começo de um lançamento NOVO). O robô NÃO responde
+    # (nem Sim nem Não): recarrega a página e conta 0.
+    limite = time.monotonic() + 15
+    while time.monotonic() < limite:
+        corpo = N(tela.page.evaluate("() => document.body ? document.body.innerText : ''"))
+        if N("Lançamentos vinculados") in corpo:
+            break
+        if N("Deseja apropriar os insumos desta ordem de compra para o novo lançamento") in corpo:
+            tela.page.reload(wait_until="domcontentloaded")
+            tela.page.wait_for_timeout(1500)
+            return 0
+        tela.page.wait_for_timeout(400)
+    else:
         o_que = foto_da_tela(tela, "lancamento-" + str(oc_id)[:8])
-        raise RuntimeError("cliquei em $ Lançamento e a janela Lançamentos vinculados não abriu (%s)" % o_que)
+        raise RuntimeError("cliquei em $ Lançamento e não reconheci a tela (%s)" % o_que)
     tela.page.wait_for_timeout(1200)
     n = tela.page.evaluate(_JS_LANCAMENTOS)
     if n < 0:
