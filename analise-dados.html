@@ -191,6 +191,20 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .cd-chips button{border:1.5px solid var(--border);background:var(--bg2);color:var(--text);border-radius:20px;padding:4px 12px;font:700 12px 'Barlow',sans-serif;cursor:pointer}
 .cd-chips button.on{background:var(--ac);border-color:var(--ac);color:#fff}
 .dc-h .dc-tg+.dc-tg{margin-left:6px}
+/* 17/11/26: Fluxo de Caixa e Desempenho no estilo da Visão Geral (cards lado a lado) */
+.dc .kpi-row,.dc .roi-grid{margin-bottom:10px}
+.dc .kpi-card,.dc .roi-card{background:var(--bg2);border-color:var(--border2);box-shadow:none}
+.dc .kpi-row.r4{grid-template-columns:repeat(2,minmax(0,1fr))}
+.dc .roi-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
+.dc .exp-table-wrap{margin-bottom:0}
+.dc .roi-val{font-size:clamp(20px,1.7vw,28px)}
+.dc-scroll{max-height:560px;overflow:auto;border-radius:8px}
+.dc-leg{display:flex;gap:16px;align-items:center;margin:-4px 0 8px;flex-wrap:wrap;font-size:12px;font-weight:600;color:var(--text3)}
+.dc-leg span{display:flex;align-items:center;gap:6px}.dc-leg i{display:inline-block;width:14px;height:10px;border-radius:2px}
+.dc-h .dc-dir{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);font-weight:600}
+.dc-h .dc-dir select{font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--branco);color:var(--text)}
+.pg-full{padding:16px 28px 40px}
+@media (max-width:700px){.pg-full{padding:12px 12px 30px}}
 /* 13/11/26: botão "Ver centros de custo" no cabeçalho dos cards Escritório / Pós-obra */
 .dc-bt{margin-left:auto;border:1.5px solid var(--border);background:transparent;color:var(--text3);border-radius:8px;padding:5px 11px;
   font:700 11.5px 'Barlow',sans-serif;text-transform:uppercase;letter-spacing:.05em;cursor:pointer;white-space:nowrap}
@@ -699,6 +713,7 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
     <button class="pt-tab on" data-pg="dash">Visão Geral</button>
     <button class="pt-tab" data-pg="fluxo">Fluxo de Caixa</button>
     <button class="pt-tab" data-pg="setor">Desempenho</button>
+    <button class="pt-tab" data-pg="tempo">Tempo × Custo</button>
     <button class="pt-tab" data-pg="metas">Metas</button>
     <button class="pt-tab" data-pg="prazos">Prazos</button>
     <button class="pt-tab" data-pg="custos">Custos</button>
@@ -714,6 +729,7 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
   <nav class="dash-nav">
     <button class="nav-btn" onclick="irPara('fluxo','Fluxo de Caixa',this)">Fluxo de Caixa</button>
     <button class="nav-btn" onclick="irPara('setor','Análise de Desempenho',this)">Análise de Desempenho</button>
+    <button class="nav-btn" onclick="irPara('tempo','Tempo × Custo',this)">Tempo × Custo</button>
     <button class="nav-btn" onclick="irPara('metas','Metas',this)">Metas</button>
     <button class="nav-btn" onclick="irPara('prazos','Análise de Prazos',this)">Análise de Prazos</button>
     <button class="nav-btn" onclick="irPara('custos','Análise de Custos',this)">Análise de Custos</button>
@@ -1029,39 +1045,24 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
       </div>
     </div>
 
-    <!-- KPIs resumo -->
-    <div class="blk-title">Resumo Geral</div>
-    <div class="kpi-row r4" id="kpi-fluxo-resumo" style="margin-bottom:20px"></div>
-
-    <!-- Lucro líquido por proprietário -->
-    <div class="blk-title">Lucro Líquido por Proprietário</div>
-    <div class="kpi-row r3" id="kpi-fluxo-lucro" style="margin-bottom:20px"></div>
-
-    <!-- Fluxo de Caixa Mensal -->
-    <div class="blk-title" id="blk-fluxo-mensal">Fluxo de Caixa Mensal — Todas as Obras</div>
-    <div class="exp-table-wrap" id="tbl-fluxo"></div>
-
-    <!-- Gráfico Exposição -->
-    <div class="blk-title" style="margin-top:20px">Exposição de Caixa ao Longo do Tempo</div>
-    <div class="graf-card-full">
-      <div class="graf-body" style="padding:16px 16px 20px">
-        <div style="display:flex;gap:20px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-          <span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1a3347">
-            <span style="display:inline-block;width:14px;height:12px;background:#c0392b;border-radius:2px"></span>
-            Capital exposto (empresa investindo)
-          </span>
-          <span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1a3347">
-            <span style="display:inline-block;width:14px;height:12px;background:#2a9d5c;border-radius:2px"></span>
-            Retorno positivo (lucro)
-          </span>
-        </div>
-        <div class="chart-wrap"><canvas id="ch-fluxo-exp" height="320"></canvas></div>
-      </div>
+    <!-- 17/11/26: cards lado a lado no estilo da Visão Geral -->
+    <div class="dg c2">
+      <div class="dc" style="--ac:#295778"><div class="dc-h"><div class="dc-i">💰</div><div class="dc-t">Resumo geral</div><div class="dc-st">pago, recebido e resultado do período</div></div>
+        <div class="kpi-row r4" id="kpi-fluxo-resumo"></div></div>
+      <div class="dc" style="--ac:#2a9d5c"><div class="dc-h"><div class="dc-i">📈</div><div class="dc-t">Lucro líquido por proprietário</div></div>
+        <div class="kpi-row r3" id="kpi-fluxo-lucro"></div></div>
     </div>
-
-    <!-- Resultado por obra (todas, ordenadas) -->
-    <div class="blk-title" style="margin-top:20px">Resultado por Obra <span style="font-size:12px;font-weight:500;text-transform:none;letter-spacing:0;opacity:.75">· série completa (não muda com o período)</span></div>
-    <div id="tbl-fluxo-negativo"></div>
+    <div class="dg c2">
+      <div class="dc" style="--ac:#c0392b"><div class="dc-h"><div class="dc-i">📉</div><div class="dc-t">Exposição de caixa</div><div class="dc-st">ao longo do tempo</div></div>
+        <div class="dc-leg"><span><i style="background:#c0392b"></i>Capital exposto (empresa investindo)</span><span><i style="background:#2a9d5c"></i>Retorno positivo (lucro)</span></div>
+        <div class="chart-wrap"><canvas id="ch-fluxo-exp" height="420"></canvas></div></div>
+      <div class="dc" style="--ac:#295778"><div class="dc-h"><div class="dc-i">🗓️</div><div class="dc-t" id="blk-fluxo-mensal">Fluxo de Caixa Mensal — Todas as Obras</div></div>
+        <div class="dc-scroll"><div class="exp-table-wrap" id="tbl-fluxo"></div></div></div>
+    </div>
+    <div class="dg c1">
+      <div class="dc" style="--ac:#b08d1a"><div class="dc-h"><div class="dc-i">🏠</div><div class="dc-t">Resultado por obra</div><div class="dc-st">série completa (não muda com o período)</div></div>
+        <div id="tbl-fluxo-negativo"></div></div>
+    </div>
   </div>
 </div>
 
@@ -1075,14 +1076,13 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
   <div class="sub-tabs-outer">
     <div class="sub-tabs-box">
       <button class="sub-tab active" id="tab-setor-analise" onclick="showSetorSub('analise',this)">Análise de Desempenho</button>
-      <button class="sub-tab" id="tab-setor-tempo" onclick="showSetorSub('tempo',this)">Tempo × Custo</button>
       <button class="sub-tab" id="tab-setor-rent" onclick="showSetorSub('rent',this)">Rentabilidade</button>
       <button class="sub-tab" id="tab-setor-comp" onclick="showSetorSub('comp',this)">Modo Comparativo</button>
     </div>
   </div>
 
-  <!-- FILTROS COMPARTILHADOS (Análise, Tempo × Custo, Rentabilidade) -->
-  <div id="setor-filtros" style="padding:16px 28px 0">
+  <!-- FILTROS COMPARTILHADOS (Desempenho e página Tempo × Custo — 17/11/26: o bloco muda de página com a navegação) -->
+  <div id="setor-filtros-slot"><div id="setor-filtros" style="padding:16px 28px 0">
     <div class="controles">
       <span class="sel-lbl">Cidade:</span>
       <select id="sel-cid-st" onchange="setorFiltrou()"><option value="">Todas</option></select>
@@ -1126,7 +1126,7 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
       <span id="sit-cont" class="cfg-auto"></span>
     </div>
     <details class="av-box" id="av-sit" style="display:none"><summary></summary><div class="av-l"></div></details>
-  </div>
+  </div></div>
 
   <!-- SUB: ANÁLISE DE DESEMPENHO -->
   <div class="sub-pg active metas-body" id="setor-sub-analise" style="overflow-y:auto">
@@ -1160,71 +1160,36 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
       <span class="mtir-badge" id="mtir-cdi-badge">CDI auto</span>
     </div>
 
-    <!-- KPIs financeiros (Morais: completo | Investidor: só lucro) -->
-    <div class="blk-title" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
-      <span>Resultado Financeiro</span>
-      <div style="display:flex;align-items:center;gap:8px">
-        <span style="font-size:11px;color:var(--text3);font-weight:500">Indicadores:</span>
-        <select id="sel-indicadores-st" onchange="buildSetor()"
-          style="font-size:12px;padding:4px 8px;border:1.5px solid var(--border);border-radius:6px;background:var(--branco);color:var(--text)">
-          <option value="basico">Básicos (ROI, TIR, MTIR)</option>
-          <option value="avancado">Avançados (Margem, Múltiplo, Payback)</option>
-          <option value="todos">Todos os indicadores</option>
-        </select>
-      </div>
+    <!-- 17/11/26: cards lado a lado no estilo da Visão Geral -->
+    <div class="dg c1">
+      <div class="dc" style="--ac:#2a9d5c"><div class="dc-h"><div class="dc-i">💰</div><div class="dc-t">Resultado financeiro</div>
+          <div class="dc-dir">Indicadores:
+            <select id="sel-indicadores-st" onchange="buildSetor()">
+              <option value="basico">Básicos (ROI, TIR, MTIR)</option>
+              <option value="avancado">Avançados (Margem, Múltiplo, Payback)</option>
+              <option value="todos">Todos os indicadores</option>
+            </select></div></div>
+        <div class="roi-grid" id="roi-res-lucros"></div>
+        <div class="roi-grid" id="roi-res-exp"></div>
+        <div class="roi-grid" id="roi-res2"></div></div>
     </div>
-    <div class="roi-grid" id="roi-res-lucros" style="margin-bottom:6px"></div>
-    <div class="roi-grid" id="roi-res-exp" style="margin-bottom:6px"></div>
-    <div class="roi-grid" id="roi-res2"></div>
-
-    <!-- Fluxo e gráfico — só obras Morais -->
-    <div id="setor-morais-only">
-      <div class="blk-title">Fluxo de Caixa Mensal</div>
-      <div class="exp-table-wrap" id="tbl-exp"></div>
-      <div class="blk-title">Exposição de Caixa ao Longo do Tempo</div>
-      <div class="graf-card-full">
-        <div class="graf-body" style="padding:16px 16px 20px">
-          <div style="display:flex;gap:20px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
-            <span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1a3347">
-              <span style="display:inline-block;width:14px;height:12px;background:#c0392b;border-radius:2px"></span>
-              Empresa exposta (capital investido)
-            </span>
-            <span style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#1a3347">
-              <span style="display:inline-block;width:14px;height:12px;background:#2a9d5c;border-radius:2px"></span>
-              Retorno positivo (lucro)
-            </span>
-          </div>
-          <div class="chart-wrap"><canvas id="ch-exp" height="280"></canvas></div>
-        </div>
-      </div>
+    <div class="dg c2" id="setor-morais-only">
+      <div class="dc" style="--ac:#c0392b"><div class="dc-h"><div class="dc-i">📉</div><div class="dc-t">Exposição de caixa</div><div class="dc-st">ao longo do tempo</div></div>
+        <div class="dc-leg"><span><i style="background:#c0392b"></i>Empresa exposta (capital investido)</span><span><i style="background:#2a9d5c"></i>Retorno positivo (lucro)</span></div>
+        <div class="chart-wrap"><canvas id="ch-exp" height="420"></canvas></div></div>
+      <div class="dc" style="--ac:#295778"><div class="dc-h"><div class="dc-i">🗓️</div><div class="dc-t">Fluxo de caixa mensal</div></div>
+        <div class="dc-scroll"><div class="exp-table-wrap" id="tbl-exp"></div></div></div>
     </div>
-
-    <!-- Tempos médios -->
-    <div class="blk-title">Tempos Médios da Seleção</div>
-    <div class="kpi-row r3" id="kpi-st-t1" style="margin-bottom:8px"></div>
-    <div class="kpi-row r3" id="kpi-st-t2" style="margin-bottom:8px"></div>
-    <div class="kpi-row r2" id="kpi-st-t3" style="margin-bottom:20px"></div>
+    <div class="dg c1">
+      <div class="dc" style="--ac:#7d5ba6"><div class="dc-h"><div class="dc-i">⏱️</div><div class="dc-t">Tempos médios da seleção</div></div>
+        <div class="kpi-row r3" id="kpi-st-t1"></div>
+        <div class="kpi-row r3" id="kpi-st-t2"></div>
+        <div class="kpi-row r2" id="kpi-st-t3"></div></div>
+    </div>
     </div>
   </div>
 
   <!-- SUB: COMPARATIVO DE DESEMPENHO -->
-  <!-- SUB: TEMPO × CUSTO -->
-  <div class="sub-pg metas-body" id="setor-sub-tempo" style="overflow-y:auto">
-    <div style="padding:8px 28px 40px">
-      <div class="controles">
-        <span class="sel-lbl">Mostrar:</span>
-        <select id="tc-modo" onchange="buildTempoCusto()"><option value="pct">% do custo final</option><option value="m2">R$ por m²</option><option value="tot">R$ total</option></select>
-        <span class="sel-lbl">Custo:</span>
-        <select id="tc-base" onchange="buildTempoCusto()"><option value="o">Obra (sem terreno)</option><option value="ot">Obra + terreno</option></select>
-        <span class="cfg-auto">Mês 0 = mês da data de início da obra no Notion. Pagamentos anteriores entram no mês 0.</span>
-      </div>
-      <div class="roi-grid" id="tc-kpis" style="margin-bottom:16px"></div>
-      <div id="tc-aporte"></div>
-      <div class="svg-ch"><div class="leg-l" id="tc-leg"></div><div id="tc-graf"></div></div>
-      <div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="tc-tab"></table></div>
-    </div>
-  </div>
-
   <!-- SUB: RENTABILIDADE -->
   <div class="sub-pg metas-body" id="setor-sub-rent" style="overflow-y:auto">
     <div style="padding:8px 28px 40px">
@@ -1375,6 +1340,30 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
     </div><!-- /padding -->
   </div><!-- /setor-sub-comp -->
 </div><!-- /page-setor -->
+
+<!-- TEMPO × CUSTO (17/11/26: saiu de Desempenho e virou aba própria; usa os mesmos filtros, que mudam de página) -->
+<div class="page" id="page-tempo">
+  <div class="metas-hdr">
+    <button class="btn-volta-dash" onclick="voltarDash()">← Voltar para o Dashboard</button>
+    <div class="metas-hdr-title">Tempo × Custo</div>
+  </div>
+  <div id="tempo-filtros-slot"></div>
+  <div class="pg-full">
+    <div class="dc" style="--ac:#295778"><div class="dc-h"><div class="dc-i">⏳</div><div class="dc-t">Tempo × custo</div><div class="dc-st">como o custo da obra se distribui mês a mês desde o início</div></div>
+      <div class="controles">
+        <span class="sel-lbl">Mostrar:</span>
+        <select id="tc-modo" onchange="buildTempoCusto()"><option value="pct">% do custo final</option><option value="m2">R$ por m²</option><option value="tot">R$ total</option></select>
+        <span class="sel-lbl">Custo:</span>
+        <select id="tc-base" onchange="buildTempoCusto()"><option value="o">Obra (sem terreno)</option><option value="ot">Obra + terreno</option></select>
+        <span class="cfg-auto">Mês 0 = mês da data de início da obra no Notion. Pagamentos anteriores entram no mês 0.</span>
+      </div>
+      <div class="roi-grid" id="tc-kpis" style="margin-bottom:16px"></div>
+      <div id="tc-aporte"></div>
+      <div class="svg-ch"><div class="leg-l" id="tc-leg"></div><div id="tc-graf"></div></div>
+      <div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="tc-tab"></table></div>
+    </div>
+  </div>
+</div>
 
 <!-- CONFIGURAÇÕES (24/10) -->
 <div class="page" id="page-config">
@@ -1731,7 +1720,7 @@ function fechar(){
     }
   }catch(e){history.back();}
 }
-const PT_NOMES={dash:'Análise de Dados',fluxo:'Fluxo de Caixa',setor:'Análise de Desempenho',metas:'Metas',prazos:'Análise de Prazos',custos:'Análise de Custos',config:'Configurações'};
+const PT_NOMES={dash:'Análise de Dados',fluxo:'Fluxo de Caixa',setor:'Análise de Desempenho',tempo:'Tempo × Custo',metas:'Metas',prazos:'Análise de Prazos',custos:'Análise de Custos',config:'Configurações'};
 function ptMarcar(id){ document.querySelectorAll('#pt-tabs .pt-tab').forEach(b=>b.classList.toggle('on',b.dataset.pg===id)); }
 document.addEventListener('click',e=>{ const b=e.target.closest('#pt-tabs .pt-tab'); if(!b) return; const id=b.dataset.pg; if(id==='dash') voltarDash(); else irPara(id,PT_NOMES[id],null); window.scrollTo({top:0}); });
 function adTrocarTema(){ const novo=document.documentElement.dataset.tema==="escuro"?"claro":"escuro"; document.documentElement.dataset.tema=novo;
@@ -1781,15 +1770,19 @@ function renderPagina(id){
   else if(id==='metas')renderSubAtiva();
   else if(id==='prazos'){popularFiltrosTabelaPz();buildPrazos();}
   else if(id==='setor'){
-    // Renderiza a sub-aba ativa
-    const ativa=document.querySelector('#setor-sub-analise.active');
-    if(ativa)buildSetor();
-    else{initCompObras('a');initCompObras('b');buildComp('a');buildComp('b');}
+    setorFiltrosPara('setor-filtros-slot');
+    const fl=document.getElementById('setor-filtros'); if(fl) fl.style.display=SETOR_SUB==='comp'?'none':'';
+    if(SETOR_SUB==='rent') buildRentab();
+    else if(SETOR_SUB==='comp'){initCompObras('a');initCompObras('b');buildComp('a');buildComp('b');}
+    else buildSetor();
   }
+  else if(id==='tempo'){ setorFiltrosPara('tempo-filtros-slot'); const fl=document.getElementById('setor-filtros'); if(fl) fl.style.display=''; initObrasSetor(); buildTempoCusto(); }
   else if(id==='custos'){initCustosSelects();buildCustos();}
   else if(id==='config'){renderConfig();}
 }
 
+/* 17/11/26: os filtros do Desempenho também servem a página Tempo × Custo — o bloco muda de lugar */
+function setorFiltrosPara(slot){ const fl=document.getElementById('setor-filtros'), s=document.getElementById(slot); if(fl&&s&&fl.parentElement!==s) s.appendChild(fl); }
 // Controla sub-abas da Análise de Desempenho
 function showSetorSub(id,btn){
   document.querySelectorAll('#page-setor .sub-pg').forEach(p=>p.classList.remove('active'));
@@ -1800,7 +1793,6 @@ function showSetorSub(id,btn){
   SETOR_SUB=id;
   setTimeout(()=>{
     if(id==='analise')buildSetor();
-    else if(id==='tempo')buildTempoCusto();
     else if(id==='rent')buildRentab();
     else{initCompObras('a');initCompObras('b');buildComp('a');buildComp('b');}
   },60);
@@ -3998,7 +3990,7 @@ async function buildSetor(){
   const avisoEl=document.getElementById('aviso-setor-prop');
   // CORREÇÃO: mostrar fluxo/MTIR para qualquer seleção que tenha dados (Morais OU Investidor)
   const temDadosFluxo=temMorais||temInvest;
-  if(moraisOnly)moraisOnly.style.display=temDadosFluxo?'block':'none';
+  if(moraisOnly)moraisOnly.style.display=temDadosFluxo?'':'none';
   if(mtirBox)mtirBox.style.display=temDadosFluxo?'flex':'none';
   if(avisoEl){
     if(temInvest&&!temMorais){
@@ -4648,7 +4640,7 @@ function docsSetorFiltrados(semSelecao){
   if(!semSelecao){ const sel=getEnderecosSelecionados(); if(sel) a=a.filter(d=>sel.includes(d.endereco)); }
   return a;
 }
-function setorFiltrou(){ initObrasSetor(); if(SETOR_SUB==='tempo') buildTempoCusto(); else if(SETOR_SUB==='rent') buildRentab(); else buildSetor(); }
+function setorFiltrou(){ initObrasSetor(); if(paginaAtual==='tempo') buildTempoCusto(); else if(SETOR_SUB==='rent') buildRentab(); else buildSetor(); }
 const mDif=(a,b)=>{ const [ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number); return (by-ay)*12+(bm-am); };
 const mAdd=(a,n)=>{ let [y,m]=a.split('-').map(Number); m+=n; while(m>12){m-=12;y++;} while(m<1){m+=12;y--;} return y+'-'+String(m).padStart(2,'0'); };
 const MES_HOJE=(()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');})();
