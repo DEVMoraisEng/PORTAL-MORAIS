@@ -204,6 +204,22 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 @media (max-width:1100px){.dg.c2.tb{grid-template-columns:minmax(0,1fr)}}
 .dc .roi-val{font-size:clamp(20px,1.7vw,28px)}
 .dc-scroll{max-height:560px;overflow:auto;border-radius:8px}
+/* 17/11/26: Rentabilidade reformulada — barras de margem por obra */
+.rt-sec{display:flex;justify-content:space-between;gap:8px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--text3);margin:10px 0 4px}
+.rt-sec:first-child{margin-top:0}
+.rt-bar{display:grid;grid-template-columns:minmax(110px,36%) 1fr 56px;gap:8px;align-items:center;font-size:12px;padding:3px 6px;border-radius:6px}
+.rt-bar:hover{background:var(--bg2)}
+.rt-n{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--text)}
+.rt-tr{position:relative;height:14px;background:color-mix(in srgb,var(--text4) 14%,transparent);border-radius:4px}
+.rt-tr .b{position:absolute;top:0;bottom:0;border-radius:4px}
+.rt-tr .z{position:absolute;top:-3px;bottom:-3px;width:1px;background:var(--text3)}
+.rt-tr .md{position:absolute;top:-4px;bottom:-4px;border-left:2px dashed var(--text)}
+.rt-v{text-align:right;font-weight:700;font-variant-numeric:tabular-nums}
+.rt-gr{max-height:520px;overflow:auto;padding-right:4px}
+.rt-vazio{color:var(--text4);font-size:13px;padding:10px 2px}
+.dc .tbl-wrap{max-width:none;overflow-x:auto}
+#rt-obras td,#rt-obras th,#rt-grupos td,#rt-grupos th{padding:6px 10px}
+.rt-bd{font-size:10px;color:#fff;border-radius:3px;padding:1px 5px;margin-left:6px;white-space:nowrap}
 .dc-leg{display:flex;gap:16px;align-items:center;margin:-4px 0 8px;flex-wrap:wrap;font-size:12px;font-weight:600;color:var(--text3)}
 .dc-leg span{display:flex;align-items:center;gap:6px}.dc-leg i{display:inline-block;width:14px;height:10px;border-radius:2px}
 .dc-h .dc-dir{margin-left:auto;display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text3);font-weight:600}
@@ -1116,14 +1132,14 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
     </div>
     <div class="controles" style="margin-top:-6px">
       <span class="sel-lbl" title="Quais obras do Grupo Morais entram na análise">Obras Morais:</span>
-      <select id="sel-sit-mor" onchange="setorFiltrou()">
-        <option value="ret">Prontas + RET armazenado + todas as casas recebidas</option>
-        <option value="prontas">Só obras prontas</option>
+      <select id="sel-sit-mor" onchange="setorFiltrou()" title="Fechadas = obra pronta (OBRA FINALIZADA? = SIM ou data de término), RET ARMAZENADO = SIM e todas as casas do lote vendidas com RECEBEU = SIM, INEXISTE ou ÁGIO. Prontas = só a obra pronta, mesmo com casa a vender ou a receber.">
+        <option value="ret">Fechadas: prontas + RET armazenado + todas as casas recebidas</option>
+        <option value="prontas">Só obras prontas (mesmo com casa a receber)</option>
         <option value="todas">Todas (inclui em andamento)</option>
         <option value="nenhuma">Nenhuma</option>
       </select>
       <span class="sel-lbl" title="Quais obras de investidores entram na análise">Obras de investidores:</span>
-      <select id="sel-sit-inv" onchange="setorFiltrou()">
+      <select id="sel-sit-inv" onchange="setorFiltrou()" title="Finalizadas = OBRA FINALIZADA? = SIM ou com data de término no Notion. Venda e RET não contam: a casa é do investidor.">
         <option value="fin">Só finalizadas</option>
         <option value="todas">Todas (inclui em andamento)</option>
         <option value="nenhuma">Nenhuma</option>
@@ -1197,7 +1213,7 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
   </div>
 
   <!-- SUB: COMPARATIVO DE DESEMPENHO -->
-  <!-- SUB: RENTABILIDADE -->
+  <!-- SUB: RENTABILIDADE (17/11/26: reformulada no estilo da Visão Geral; Morais e investidores separados) -->
   <div class="sub-pg metas-body" id="setor-sub-rent" style="overflow-y:auto">
     <div style="padding:8px 28px 40px">
       <div class="controles">
@@ -1206,15 +1222,29 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
           <option value="n5">Últimas 5 obras</option><option value="n10" selected>Últimas 10 obras</option><option value="n20">Últimas 20 obras</option>
           <option value="m12">Terminadas nos últimos 12 meses</option><option value="m24">Terminadas nos últimos 24 meses</option><option value="todas">Todas</option>
         </select>
-        <span class="sel-lbl">Agrupar:</span>
+        <span class="sel-lbl">Tabela por grupo:</span>
         <select id="rt-grp" onchange="buildRentab()"><option value="cli">Por investidor / cliente</option><option value="dono">Morais × investidores</option></select>
-        <span class="cfg-auto">"Últimas" = ordenadas pela data de término no Notion; a janela vale para cada grupo.</span>
+        <span class="cfg-auto">"Últimas" = pela data de término no Notion, contadas à parte para a Morais e para os investidores.</span>
       </div>
-      <div class="roi-grid" id="rt-kpis" style="margin-bottom:16px"></div>
-      <div class="blk-title" style="margin:6px 0 8px">Média por grupo</div>
-      <div class="tbl-wrap tbl-wide" style="margin-bottom:18px;overflow-x:auto"><table class="tbl" id="rt-grupos"></table></div>
-      <div class="blk-title" style="margin:6px 0 8px">Obras na janela</div>
-      <div class="tbl-wrap tbl-wide" style="overflow-x:auto"><table class="tbl" id="rt-obras"></table></div>
+      <div class="dg c2">
+        <div class="dc" style="--ac:#2a9d5c"><div class="dc-h"><div class="dc-i">🏠</div><div class="dc-t">Obras da Morais</div><div class="dc-st" id="rt-st-m"></div></div>
+          <div class="roi-grid" id="rt-k-m"></div>
+          <div style="font-size:11.5px;color:var(--text3)">Incorporação: a Morais compra o lote, constrói e vende. Passe o mouse em cada número para ver a conta.</div></div>
+        <div class="dc" style="--ac:#d46a1a"><div class="dc-h"><div class="dc-i">🤝</div><div class="dc-t">Obras de investidores</div><div class="dc-st" id="rt-st-i"></div></div>
+          <div class="roi-grid" id="rt-k-i"></div>
+          <div style="font-size:11.5px;color:var(--text3)">Prestação de serviço: o investidor aporta o valor do contrato e a venda vai direto para ele. Lucro da Morais = aporte − custo da obra.</div></div>
+      </div>
+      <div class="dg c2">
+        <div class="dc" style="--ac:#b08d1a"><div class="dc-h"><div class="dc-i">📊</div><div class="dc-t">Margem por obra</div><div class="dc-st">lucro ÷ recebido · linha tracejada = média do grupo</div></div>
+          <div class="dc-leg"><span><i style="background:#2a9d5c"></i>Morais</span><span><i style="background:#d46a1a"></i>Investidor</span><span><i style="background:#c0392b"></i>Prejuízo</span></div>
+          <div class="rt-gr" id="rt-graf"></div></div>
+        <div class="dc" style="--ac:#295778"><div class="dc-h"><div class="dc-i">👥</div><div class="dc-t">Por grupo</div><div class="dc-st">clique na coluna para ordenar</div></div>
+          <div class="dc-scroll"><div class="tbl-wrap tbl-wide" style="overflow-x:auto;margin:0"><table class="tbl" id="rt-grupos"></table></div></div></div>
+      </div>
+      <div class="dg c1">
+        <div class="dc" style="--ac:#7d5ba6"><div class="dc-h"><div class="dc-i">📋</div><div class="dc-t">Obras na janela</div><div class="dc-st">clique na coluna para ordenar · passe o mouse numa obra para ver a conta</div></div>
+          <div class="dc-scroll"><div class="tbl-wrap tbl-wide" style="overflow-x:auto;margin:0"><table class="tbl" id="rt-obras"></table></div></div></div>
+      </div>
     </div>
   </div>
 
@@ -4807,7 +4837,7 @@ function paDesenhar(){
 function rentObra(e,d){
   const f=OB_FIN[e]; if(!f) return null;
   const meses=[...new Set([...Object.keys(f.o),...Object.keys(f.t),...Object.keys(f.v),...Object.keys(f.r)])].sort(); if(!meses.length) return null;
-  const custo=somaO(f.o)+somaO(f.t)+somaO(f.v), rec=somaO(f.r); if(!(custo>0)) return null;
+  const co=somaO(f.o), ct=somaO(f.t), cv=somaO(f.v), custo=co+ct+cv, rec=somaO(f.r); if(!(custo>0)) return null;
   const fl=[]; for(let m=meses[0];m<=meses[meses.length-1];m=mAdd(m,1)) fl.push((f.r[m]||0)-(f.o[m]||0)-(f.t[m]||0)-(f.v[m]||0));
   /* TIR só faz sentido quando o fluxo começa investindo (negativo) e depois volta; fora de -100%…+1000% a.a. é descartada */
   const i0=fl.findIndex(v=>Math.abs(v)>1); let tir=(i0>=0&&fl[i0]<0&&fl.some(v=>v>0))?calcTIR(fl.slice(i0),0.02):null;
@@ -4817,41 +4847,103 @@ function rentObra(e,d){
   // exposição máxima (com aportes/distribuições, como na Análise)
   let acc=0, expMax=0; for(let m=meses[0],i=0;m<=meses[meses.length-1];m=mAdd(m,1),i++){ acc+=fl[i]+(f.s[m]||0); if(-acc>expMax) expMax=-acc; }
   if(tir!=null&&(expMax<custo*0.1||(lucro>0)!==(tir>0))) tir=null;  // sem capital exposto de verdade ou sinal incoerente: TIR não informa
-  return {e,d,custo,rec,lucro,roi:lucro/custo*100,margem:rec>0?lucro/rec*100:null,tir:tir!=null?(Math.pow(1+tir,12)-1)*100:null,
-    dur:ini&&fim?mDif(ini,fim):null,ciclo:fl.length,fim,ini,ultimo:meses[meses.length-1],n:d.n_casas||1,mor:ehObraMorais(d.endereco),cli:clienteObra(d),expMax};
+  const mor=ehObraMorais(d.endereco);
+  return {e,d,co,ct,cv,custo,rec,lucro,roi:lucro/custo*100,margem:rec>0?lucro/rec*100:null,tir:mor&&tir!=null?(Math.pow(1+tir,12)-1)*100:null,
+    dur:ini&&fim?mDif(ini,fim):null,ciclo:fl.length,fim,ini,m0:meses[0],fl,ultimo:meses[meses.length-1],n:d.n_casas||1,mor,cli:clienteObra(d),expMax};
+}
+/* 17/11/26: Rentabilidade reformulada — Morais (incorporação) e investidores (prestação de serviço) separados;
+   a janela conta à parte para cada lado; TIR só para a Morais (no investidor o dinheiro vem antes do gasto). */
+let RT_ORD={g:{k:'l',d:-1},o:{k:'ref',d:-1}};
+function rtOrd(t,k){ const s=RT_ORD[t]; RT_ORD[t]=s.k===k?{k,d:-s.d}:{k,d:(k==='nome'||k==='grupo')?1:-1}; buildRentab(); }
+function rtAgg(w){
+  const c=w.reduce((a,o)=>a+o.custo,0), r=w.reduce((a,o)=>a+o.rec,0), l=r-c, t=w.filter(o=>o.tir!=null), du=w.filter(o=>o.dur!=null), n=w.reduce((a,o)=>a+o.n,0);
+  const med=v=>{ v=v.slice().sort((x,y)=>x-y); const h=v.length>>1; return v.length?(v.length%2?v[h]:(v[h-1]+v[h])/2):null; };
+  /* TIR da carteira: soma o fluxo de todas as obras mês a mês (calendário) e calcula uma TIR só — obra grande pesa mais */
+  let tirC=null; if(t.length){ const fx={}; w.filter(o=>o.mor).forEach(o=>o.fl.forEach((v,i)=>{ const m=mAdd(o.m0,i); fx[m]=(fx[m]||0)+v; }));
+    const ms=Object.keys(fx).sort(); if(ms.length){ const arr=[]; for(let m=ms[0];m<=ms[ms.length-1];m=mAdd(m,1)) arr.push(fx[m]||0);
+      const i0=arr.findIndex(v=>Math.abs(v)>1); if(i0>=0&&arr[i0]<0&&arr.some(v=>v>0)){ const x=calcTIR(arr.slice(i0),0.02); if(x!=null){ const aa=(Math.pow(1+x,12)-1)*100; if(isFinite(aa)&&aa>-100&&aa<1000) tirC=aa; } } } }
+  return {q:w.length,c,r,l,n,co:w.reduce((a,o)=>a+o.co,0),ct:w.reduce((a,o)=>a+o.ct,0),cv:w.reduce((a,o)=>a+o.cv,0),
+    roi:c?l/c*100:null,margem:r>0?l/r*100:null,tir:med(t.map(o=>o.tir)),tirC,nTir:t.length,
+    dur:du.length?du.reduce((a,o)=>a+o.dur,0)/du.length:null,ciclo:w.length?w.reduce((a,o)=>a+o.ciclo,0)/w.length:null,
+    lObra:w.length?l/w.length:null,lCasa:n?l/n:null,expMax:w.length?Math.max(...w.map(o=>o.expMax)):0};
+}
+function rtTipObra(o){
+  const L=(a,b,tot)=>`<tr${tot?' style="font-weight:800"':''}><td>${a}</td><td>${b}</td></tr>`;
+  const sit=(window._SIT||{})[o.e]; const av=[...(sit?sit.av:[])]; if(o.rec<=0) av.push('sem recebimento no ERP'); if(!o.fim) av.push('sem data de término no Notion');
+  return `<h4>${esc(o.d.endereco)} · ${o.mor?'Morais':'Investidor'}</h4><table>
+    ${L(o.mor?'Recebido (vendas)':'Aportado pelo investidor',fmtBRL(o.rec))}${L('− Custo de obra',fmtBRL(o.co))}${o.ct?L('− Terreno (lote, ITBI, escritura…)',fmtBRL(o.ct)):''}${o.cv?L('− Custo de venda',fmtBRL(o.cv)):''}
+    ${L(o.mor?'Lucro':'Lucro da Morais',fmtBRL(o.lucro),1)}</table>
+    <table>${L('Margem (lucro ÷ '+(o.mor?'recebido':'aporte')+')',o.margem!=null?fmtN(o.margem,1)+'%':'—')}${L(o.mor?'Lucro ÷ custo':'Taxa sobre o custo',fmtN(o.roi,1)+'%')}${L('Lucro por casa ('+o.n+')',fmtBRL(o.lucro/o.n))}
+    ${o.mor?L('TIR anual',o.tir!=null?fmtN(o.tir,1)+'%':'— (fluxo não permite)'):''}${L('Exposição máxima',fmtBRL(o.expMax))}
+    ${L('Obra (Notion)',(o.ini?fmtM(o.ini):'?')+' → '+(o.fim?fmtM(o.fim):'?')+(o.dur!=null?' · '+o.dur+' m':''))}${L('Ciclo de caixa',fmtM(o.m0)+' → '+fmtM(o.ultimo)+' · '+o.ciclo+' m')}</table>
+    ${av.length?`<div class="fora" style="margin-top:6px">⚠ ${esc(av.join('; '))}</div>`:''}`;
 }
 function buildRentab(){
   tipNS('rt');
   const jan=document.getElementById('rt-jan')?.value||'n10', grp=document.getElementById('rt-grp')?.value||'cli';
+  const janTxt=document.getElementById('rt-jan')?.selectedOptions[0]?.textContent||'';
   const todas=obrasUnicas(docsSetorFiltrados(false)).map(([e,d])=>rentObra(e,d)).filter(Boolean);
-  const chave=o=>grp==='dono'?(o.mor?'Grupo Morais':'Investidores'):(o.mor?'Grupo Morais · '+o.cli:o.cli);
-  const grupos={}; todas.forEach(o=>(grupos[chave(o)]=grupos[chave(o)]||[]).push(o));
-  const ref=o=>o.fim||o.ultimo; const semFim=todas.filter(o=>!o.fim).length;
+  const ref=o=>o.fim||o.ultimo;
   const janela=arr=>{ const a=arr.slice().sort((x,y)=>ref(y).localeCompare(ref(x)));
     if(jan.startsWith('n')) return a.slice(0,+jan.slice(1));
     if(jan.startsWith('m')){ const lim=mAdd(MES_HOJE,-(+jan.slice(1))); return a.filter(o=>o.fim&&o.fim>lim); }
     return a; };
-  const sel=[]; const linG=Object.entries(grupos).map(([g,arr])=>{ const w=janela(arr); sel.push(...w); return [g,w,arr.length]; }).filter(x=>x[1].length).sort((a,b)=>b[1].reduce((s,o)=>s+o.lucro,0)-a[1].reduce((s,o)=>s+o.lucro,0));
-  const agg=w=>{ const c=w.reduce((a,o)=>a+o.custo,0), r=w.reduce((a,o)=>a+o.rec,0), l=r-c, t=w.filter(o=>o.tir!=null), du=w.filter(o=>o.dur!=null), n=w.reduce((a,o)=>a+o.n,0);
-    return {q:w.length,c,r,l,roi:c?l/c*100:null,tir:t.length?(()=>{const v=t.map(o=>o.tir).sort((x,y)=>x-y),h=v.length>>1;return v.length%2?v[h]:(v[h-1]+v[h])/2;})():null,nTir:t.length,dur:du.length?du.reduce((a,o)=>a+o.dur,0)/du.length:null,ciclo:w.length?w.reduce((a,o)=>a+o.ciclo,0)/w.length:null,lObra:w.length?l/w.length:null,lCasa:n?l/n:null,exp:w.reduce((a,o)=>a+o.expMax,0)}; };
-  const T=agg(sel);
-  const janTxt=document.getElementById('rt-jan')?.selectedOptions[0]?.textContent||'';
-  const regra=`<div class="fora" style="margin-top:6px">Custo = custo de obra + terreno + custo de venda do CC da obra. Recebido = entradas com natureza Receita. Aportes e distribuições não entram no lucro.</div>`;
-  document.getElementById('rt-kpis').innerHTML=[
-    `<div class="roi-card"${tipX('r1',`<h4>Obras na janela</h4><div>${esc(janTxt)} de cada grupo, entre as obras que passaram nos filtros e na situação escolhida.</div>${semFim?`<div class="fora" style="margin-top:6px">${semFim} obra(s) sem data de término no Notion: para ordenar, usei o último mês com pagamento ou recebimento.</div>`:''}`)}><div class="roi-lbl">Obras</div><div class="roi-val">${T.q}</div><div class="roi-sub">${linG.length} grupo(s)</div></div>`,
-    `<div class="roi-card"${tipX('r2',`<h4>Lucro total</h4><div class="tv">${fmtBRL(T.l)}</div><table><tr><td>Recebido</td><td>${fmtBRL(T.r)}</td></tr><tr><td>− Custo</td><td>${fmtBRL(T.c)}</td></tr></table>${regra}`)}><div class="roi-lbl">Lucro total</div><div class="roi-val ${T.l>=0?'g':'r'}">${fmtBRL(T.l)}</div><div class="roi-sub">${fmtBRL(T.lObra)} por obra</div></div>`,
-    `<div class="roi-card"${tipX('r3',`<h4>ROI ponderado</h4><div>Soma dos lucros ÷ soma dos custos das obras da janela. Obra grande pesa mais.</div>${regra}`)}><div class="roi-lbl">ROI</div><div class="roi-val ${T.roi>=0?'g':'r'}">${T.roi!=null?fmtN(T.roi,1)+'%':'—'}</div><div class="roi-sub">lucro ÷ custo</div></div>`,
-    `<div class="roi-card"${tipX('r4',`<h4>TIR mediana (a.a.)</h4><div>Mediana da TIR anual das obras (metade das obras rendeu mais, metade menos). A TIR de cada obra usa o fluxo mês a mês (recebido − pago) do primeiro ao último movimento do CC.</div><div class="fora" style="margin-top:6px">Sem TIR quando o fluxo começa recebendo ou a exposição de caixa foi menor que 10% do custo (ex.: investidor que adianta o dinheiro), quando o sinal não bate com o lucro, ou quando o resultado sai do intervalo −100% a +1000% a.a. Calculada em ${T.nTir||0} de ${T.q} obras.</div>`)}><div class="roi-lbl">TIR mediana a.a.</div><div class="roi-val">${T.tir!=null?fmtN(T.tir,1)+'%':'—'}</div><div class="roi-sub">por obra</div></div>`,
-    `<div class="roi-card"${tipX('r5',`<h4>Tempo médio</h4><div><b>Obra</b>: início → término no Notion. <b>Ciclo de caixa</b>: do primeiro pagamento ao último movimento do CC (inclui compra do terreno e venda).</div>`)}><div class="roi-lbl">Tempo de obra</div><div class="roi-val">${T.dur!=null?fmtN(T.dur,1)+' m':'—'}</div><div class="roi-sub">ciclo de caixa ${T.ciclo!=null?fmtN(T.ciclo,0)+' m':'—'}</div></div>`,
-    `<div class="roi-card"${tipX('r6',`<h4>Lucro por casa</h4><div>Lucro total ÷ número de casas (Notion) das obras da janela.</div>`)}><div class="roi-lbl">Lucro / casa</div><div class="roi-val">${fmtBRL(T.lCasa)}</div><div class="roi-sub">média</div></div>`
+  const totM=todas.filter(o=>o.mor), totI=todas.filter(o=>!o.mor);
+  const selM=janela(totM), selI=janela(totI), sel=[...selM,...selI];
+  const M=rtAgg(selM), I=rtAgg(selI);
+  const sitM=document.getElementById('sel-sit-mor')?.selectedOptions[0]?.textContent||'', sitI=document.getElementById('sel-sit-inv')?.selectedOptions[0]?.textContent||'';
+  const pct=v=>v!=null?fmtN(v,1)+'%':'—', mes=v=>v!=null?fmtN(v,1)+' m':'—', cls=v=>v==null?'':v>=0?'g':'r';
+  const card=(id,lbl,val,sub,c,tip)=>`<div class="roi-card"${tipX(id,tip)}><div class="roi-lbl">${lbl}</div><div class="roi-val ${c||''}">${val}</div><div class="roi-sub">${sub}</div></div>`;
+  const tb=rows=>`<table>${rows.map(([a,b,t])=>`<tr${t?' style="font-weight:800"':''}><td>${a}</td><td>${b}</td></tr>`).join('')}</table>`;
+  const qual=(w,tot,sit)=>`<div class="fora" style="margin-top:6px">${w.q} de ${tot} obra(s) que passaram nos filtros (${esc(janTxt.toLowerCase())}; situação: ${esc(sit)}).</div>`;
+  const semFimN=w=>w.filter(o=>!o.fim).length;
+  document.getElementById('rt-st-m').textContent=`${M.q} de ${totM.length} obra(s) · ${M.n} casa(s)`;
+  document.getElementById('rt-st-i').textContent=`${I.q} de ${totI.length} obra(s) · ${I.n} casa(s)`;
+  const vazio=(lado,sit)=>`<div class="rt-vazio" style="grid-column:1/-1">Nenhuma obra ${lado} na seleção. Confira o filtro <b>${lado==='da Morais'?'Obras Morais':'Obras de investidores'}</b> (${esc(sit)}) e os filtros acima.</div>`;
+  document.getElementById('rt-k-m').innerHTML=!M.q?vazio('da Morais',sitM):[
+    card('m1','Lucro líquido',fmtBRL(M.l),`${fmtBRL(M.lObra)} por obra`,cls(M.l),`<h4>Lucro líquido · obras da Morais</h4><div class="tv">${fmtBRL(M.l)}</div>${tb([['Recebido (vendas)',fmtBRL(M.r)],['− Custo de obra',fmtBRL(M.co)],['− Terreno',fmtBRL(M.ct)],['− Custo de venda',fmtBRL(M.cv)],['Lucro',fmtBRL(M.l),1]])}<div>Custo = tudo lançado no centro de custo da obra (obra, terreno e venda). Recebido = entradas com natureza Receita. Escritório, aportes e distribuições não entram.</div>${qual(M,totM.length,sitM)}`),
+    card('m2','Margem líquida',pct(M.margem),'lucro ÷ vendas recebidas',cls(M.margem),`<h4>Margem líquida</h4><div class="tv">${pct(M.margem)}</div><div>De cada R$ 100 recebidos das vendas, quanto sobrou de lucro depois de pagar obra, terreno e venda. É o número que banco e mercado usam para comparar incorporadoras.</div>${tb([['Lucro',fmtBRL(M.l)],['÷ Recebido',fmtBRL(M.r)],['Margem',pct(M.margem),1],['Lucro ÷ custo (para comparação)',pct(M.roi)]])}`),
+    card('m3','TIR anual',pct(M.tirC),`mediana por obra ${pct(M.tir)}`,cls(M.tirC),`<h4>TIR anual da carteira</h4><div class="tv">${pct(M.tirC)}</div><div>Junta lucro e tempo: é a taxa de juros que o dinheiro aplicado nas obras rendeu por ano. Soma o fluxo de todas as obras da janela mês a mês (recebido − pago) e calcula uma TIR só, então obra grande pesa mais. Compare com o CDI do período.</div>${tb([['TIR da carteira',pct(M.tirC),1],['Mediana das obras',pct(M.tir)],['Obras com TIR própria',M.nTir+' de '+M.q]])}<div class="fora" style="margin-top:6px">Uma obra fica sem TIR própria quando o fluxo começa recebendo, quando quase não teve dinheiro próprio exposto (menos de 10% do custo) ou quando o resultado sai de −100% a +1000% a.a. Casas recebidas pela Caixa durante a obra deixam a TIR alta, porque pouco capital fica preso.</div>`),
+    card('m4','Lucro por casa',fmtBRL(M.lCasa),`${M.n} casa(s)`,cls(M.lCasa),`<h4>Lucro por casa</h4><div>Lucro líquido ÷ número de casas (Notion) das obras da janela. Bom para comparar lotes de 1, 2 ou mais casas.</div>${tb([['Lucro',fmtBRL(M.l)],['÷ Casas',M.n],['Lucro por casa',fmtBRL(M.lCasa),1]])}`),
+    card('m5','Tempo de obra',mes(M.dur),'início → término (Notion)','',`<h4>Tempo médio de obra</h4><div>Média de meses entre a data de início e a data de término no Notion.</div>${semFimN(selM)?`<div class="fora" style="margin-top:6px">${semFimN(selM)} obra(s) sem data de término ficaram fora da média.</div>`:''}`),
+    card('m6','Ciclo de caixa',mes(M.ciclo),'1º pagamento → último recebimento','',`<h4>Ciclo de caixa médio</h4><div>Meses entre o primeiro pagamento e o último movimento no centro de custo da obra (inclui compra do lote e o repasse da venda). Quanto menor, mais rápido o dinheiro volta para a próxima obra.</div>${tb([['Tempo de obra',mes(M.dur)],['Ciclo de caixa',mes(M.ciclo),1]])}`)
   ].join('');
-  document.getElementById('rt-grupos').innerHTML=`<thead><tr><th>${grp==='dono'?'Grupo':'Investidor / cliente'}</th><th>Obras</th><th>Recebido</th><th>Custo</th><th>Lucro</th><th>Lucro/obra</th><th>Lucro/casa</th><th>ROI</th><th>TIR mediana a.a.</th><th>Tempo de obra</th><th>Ciclo de caixa</th></tr></thead><tbody>`+
-    linG.map(([g,w,tot])=>{ const a=agg(w); return `<tr><td>${esc(g)}</td><td class="nr">${a.q}${tot>a.q?` <span class="cfg-auto">de ${tot}</span>`:''}</td><td class="nr">${fmtBRL(a.r)}</td><td class="nr">${fmtBRL(a.c)}</td><td class="nr" style="color:${a.l>=0?'var(--verde)':'#c0392b'};font-weight:700">${fmtBRL(a.l)}</td><td class="nr">${fmtBRL(a.lObra)}</td><td class="nr">${fmtBRL(a.lCasa)}</td><td class="nr">${a.roi!=null?fmtN(a.roi,1)+'%':'—'}</td><td class="nr">${a.tir!=null?fmtN(a.tir,1)+'%':'—'}</td><td class="nr">${a.dur!=null?fmtN(a.dur,1)+' m':'—'}</td><td class="nr">${a.ciclo!=null?fmtN(a.ciclo,0)+' m':'—'}</td></tr>`; }).join('')+
-    (linG.length>1?`<tr style="font-weight:800"><td>Total</td><td class="nr">${T.q}</td><td class="nr">${fmtBRL(T.r)}</td><td class="nr">${fmtBRL(T.c)}</td><td class="nr">${fmtBRL(T.l)}</td><td class="nr">${fmtBRL(T.lObra)}</td><td class="nr">${fmtBRL(T.lCasa)}</td><td class="nr">${T.roi!=null?fmtN(T.roi,1)+'%':'—'}</td><td class="nr">${T.tir!=null?fmtN(T.tir,1)+'%':'—'}</td><td class="nr">${T.dur!=null?fmtN(T.dur,1)+' m':'—'}</td><td class="nr">${T.ciclo!=null?fmtN(T.ciclo,0)+' m':'—'}</td></tr>`:'')+'</tbody>';
-  document.getElementById('rt-obras').innerHTML=`<thead><tr><th>Obra</th><th>${grp==='dono'?'Grupo':'Investidor / cliente'}</th><th>Término</th><th>Casas</th><th>Recebido</th><th>Custo</th><th>Lucro</th><th>ROI</th><th>TIR a.a.</th><th>Exposição máx.</th><th>Tempo de obra</th><th>Aviso</th></tr></thead><tbody>`+
-    sel.sort((a,b)=>ref(b).localeCompare(ref(a))).map(o=>{ const sit=(window._SIT||{})[o.e]; const av=[...(sit?sit.av:[])]; if(o.rec<=0) av.push('sem recebimento no ERP'); if(!o.fim) av.push('sem término');
-      return `<tr><td>${esc(o.d.endereco)}</td><td>${esc(chave(o))}</td><td>${o.fim?fmtM(o.fim):'—'}</td><td class="nr">${o.n}</td><td class="nr">${fmtBRL(o.rec)}</td><td class="nr">${fmtBRL(o.custo)}</td><td class="nr" style="color:${o.lucro>=0?'var(--verde)':'#c0392b'};font-weight:700">${fmtBRL(o.lucro)}</td><td class="nr">${fmtN(o.roi,1)}%</td><td class="nr">${o.tir!=null?fmtN(o.tir,1)+'%':'—'}</td><td class="nr">${fmtBRL(o.expMax)}</td><td class="nr">${o.dur!=null?o.dur+' m':'—'}</td><td class="av">${esc(av.join('; '))}</td></tr>`; }).join('')+'</tbody>';
-  if(!sel.length) document.getElementById('rt-obras').innerHTML='<tbody><tr><td style="padding:20px;text-align:center;color:var(--text4)">Nenhuma obra para os filtros e a janela escolhidos.</td></tr></tbody>';
+  document.getElementById('rt-k-i').innerHTML=!I.q?vazio('de investidores',sitI):[
+    card('i1','Lucro da Morais',fmtBRL(I.l),`${fmtBRL(I.lObra)} por obra`,cls(I.l),`<h4>Lucro da Morais nas obras de investidores</h4><div class="tv">${fmtBRL(I.l)}</div>${tb([['Aportado pelos investidores',fmtBRL(I.r)],['− Custo de obra',fmtBRL(I.co)],['− Terreno',fmtBRL(I.ct)],['− Custo de venda',fmtBRL(I.cv)],['Lucro da Morais',fmtBRL(I.l),1]])}<div>O investidor aporta o valor estipulado no contrato e a venda da casa vai direto para ele; o que sobra do aporte depois do custo da obra é o lucro da Morais.</div>${qual(I,totI.length,sitI)}`),
+    card('i2','Margem sobre o aporte',pct(I.margem),'lucro ÷ aportado',cls(I.margem),`<h4>Margem sobre o aporte</h4><div class="tv">${pct(I.margem)}</div><div>De cada R$ 100 que o investidor aportou, quanto ficou para a Morais depois de pagar a obra.</div>${tb([['Lucro',fmtBRL(I.l)],['÷ Aportado',fmtBRL(I.r)],['Margem',pct(I.margem),1]])}`),
+    card('i3','Taxa sobre o custo',pct(I.roi),'lucro ÷ custo da obra',cls(I.roi),`<h4>Taxa sobre o custo</h4><div class="tv">${pct(I.roi)}</div><div>É a "taxa de administração" efetiva: quanto a Morais ganhou para cada R$ 100 gastos na obra. Compare com a taxa combinada nos contratos — abaixo dela, a obra custou mais que o previsto.</div>${tb([['Lucro',fmtBRL(I.l)],['÷ Custo',fmtBRL(I.c)],['Taxa',pct(I.roi),1]])}`),
+    card('i4','Lucro por casa',fmtBRL(I.lCasa),`${I.n} casa(s)`,cls(I.lCasa),`<h4>Lucro por casa</h4><div>Lucro da Morais ÷ número de casas (Notion) das obras de investidores da janela.</div>${tb([['Lucro',fmtBRL(I.l)],['÷ Casas',I.n],['Lucro por casa',fmtBRL(I.lCasa),1]])}`),
+    card('i5','Tempo de obra',mes(I.dur),'início → término (Notion)','',`<h4>Tempo médio de obra</h4><div>Média de meses entre a data de início e a data de término no Notion.</div>${semFimN(selI)?`<div class="fora" style="margin-top:6px">${semFimN(selI)} obra(s) sem data de término ficaram fora da média.</div>`:''}`),
+    card('i6','Sem TIR','—','o investidor paga antes','',`<h4>Por que não tem TIR aqui</h4><div>Na obra de investidor o dinheiro do aporte entra antes ou junto com o gasto, então a Morais quase não coloca capital próprio. Sem capital empatado a TIR não tem significado (sai infinita ou sem sentido). O que mede essas obras é a margem sobre o aporte e a taxa sobre o custo.</div>`)
+  ].join('');
+
+  // barras: margem por obra
+  const ms=sel.filter(o=>o.margem!=null).map(o=>o.margem);
+  const lo=Math.min(0,...ms,0), hi=Math.max(0,...ms,0), span=(hi-lo)||1, X=v=>(v-lo)/span*100;
+  let bi=0;
+  const secao=(tit,arr,a,cor)=>{ if(!arr.length) return '';
+    return `<div class="rt-sec"><span>${tit}</span><span>média ${pct(a.margem)}</span></div>`+arr.slice().sort((x,y)=>(y.margem??-1e9)-(x.margem??-1e9)).map(o=>{ const m=o.margem; const l=m==null?0:X(Math.min(m,0)), w=m==null?0:Math.abs(m)/span*100;
+      return `<div class="rt-bar"${tipX('b'+(bi++),rtTipObra(o))}><span class="rt-n">${esc(o.d.endereco)}</span><span class="rt-tr"><i class="z" style="left:${X(0)}%"></i><i class="b" style="left:${l}%;width:${w}%;background:${m!=null&&m<0?'#c0392b':cor}"></i>${a.margem!=null?`<i class="md" style="left:${X(a.margem)}%"></i>`:''}</span><span class="rt-v" style="color:${m!=null&&m<0?'#c0392b':'var(--text)'}">${pct(m)}</span></div>`; }).join(''); };
+  document.getElementById('rt-graf').innerHTML=sel.length?secao('Obras da Morais',selM,M,'#2a9d5c')+secao('Obras de investidores',selI,I,'#d46a1a'):'<div class="rt-vazio">Nenhuma obra para os filtros e a janela escolhidos.</div>';
+
+  // tabela por grupo
+  const chave=o=>grp==='dono'?(o.mor?'Grupo Morais':'Investidores'):(o.mor?'Grupo Morais':o.cli);
+  const grupos={}; sel.forEach(o=>(grupos[chave(o)]=grupos[chave(o)]||[]).push(o));
+  const ordena=(arr,st,val)=>arr.sort((a,b)=>{ const x=val(a,st.k), y=val(b,st.k); if(x==null&&y==null) return 0; if(x==null) return 1; if(y==null) return -1; return (typeof x==='string'?x.localeCompare(y,'pt-BR',{numeric:true}):x-y)*st.d; });
+  const th=(t,k,lbl,c)=>`<th class="${c||''}" onclick="rtOrd('${t}','${k}')" style="cursor:pointer;user-select:none" title="Clique para ordenar">${lbl}${RT_ORD[t].k===k?(RT_ORD[t].d>0?' ▲':' ▼'):''}</th>`;
+  const badge=mor=>mor?'<span class="rt-bd" style="background:#2a9d5c">Morais</span>':'<span class="rt-bd" style="background:#d46a1a">Invest.</span>';
+  const linG=ordena(Object.entries(grupos).map(([g,w])=>({g,mor:w[0].mor,a:rtAgg(w)})),RT_ORD.g,(x,k)=>k==='grupo'?x.g:x.a[k]);
+  document.getElementById('rt-grupos').innerHTML=!linG.length?'<tbody><tr><td class="rt-vazio">Nenhuma obra.</td></tr></tbody>':
+    `<thead><tr>${th('g','grupo',grp==='dono'?'Grupo':'Investidor / cliente','left')}${th('g','q','Obras')}${th('g','l','Lucro')}${th('g','margem','Margem')}${th('g','lCasa','Lucro/casa')}</tr></thead><tbody>`+
+    linG.map(({g,mor,a},i)=>`<tr${tipX('g'+i,`<h4>${esc(g)}</h4><table><tr><td>${mor?'Recebido':'Aportado'}</td><td>${fmtBRL(a.r)}</td></tr><tr><td>− Custo</td><td>${fmtBRL(a.c)}</td></tr><tr style="font-weight:800"><td>Lucro</td><td>${fmtBRL(a.l)}</td></tr><tr><td>Lucro por obra</td><td>${fmtBRL(a.lObra)}</td></tr>${mor?`<tr><td>TIR anual (carteira)</td><td>${pct(a.tirC)}</td></tr>`:`<tr><td>Taxa sobre o custo</td><td>${pct(a.roi)}</td></tr>`}<tr><td>Tempo de obra</td><td>${mes(a.dur)}</td></tr><tr><td>Ciclo de caixa</td><td>${mes(a.ciclo)}</td></tr></table>`)}><td style="text-align:left">${esc(g)}${badge(mor)}</td><td class="nr">${a.q}</td><td class="nr" style="color:${a.l>=0?'var(--verde)':'#c0392b'};font-weight:700">${fmtBRL(a.l)}</td><td class="nr">${pct(a.margem)}</td><td class="nr">${fmtBRL(a.lCasa)}</td></tr>`).join('')+'</tbody>';
+
+  // tabela de obras
+  const vO=(o,k)=>k==='nome'?o.d.endereco:k==='grupo'?chave(o):k==='ref'?ref(o):k==='lCasa'?o.lucro/o.n:o[k];
+  ordena(sel,RT_ORD.o,vO);
+  document.getElementById('rt-obras').innerHTML=!sel.length?'<tbody><tr><td style="padding:20px;text-align:center;color:var(--text4)">Nenhuma obra para os filtros e a janela escolhidos.</td></tr></tbody>':
+    `<thead><tr>${th('o','nome','Obra','left')}${th('o','grupo',grp==='dono'?'Grupo':'Investidor / cliente','left')}${th('o','ref','Término')}${th('o','n','Casas')}${th('o','rec','Recebido / aportado')}${th('o','custo','Custo')}${th('o','lucro','Lucro')}${th('o','margem','Margem')}${th('o','lCasa','Lucro/casa')}${th('o','tir','TIR a.a.')}${th('o','expMax','Exposição máx.')}${th('o','dur','Tempo de obra')}<th>Aviso</th></tr></thead><tbody>`+
+    sel.map((o,i)=>{ const sit=(window._SIT||{})[o.e]; const av=[...(sit?sit.av:[])]; if(o.rec<=0) av.push('sem recebimento no ERP'); if(!o.fim) av.push('sem término');
+      return `<tr${tipX('o'+i,rtTipObra(o))}><td style="text-align:left">${esc(o.d.endereco)}${badge(o.mor)}</td><td style="text-align:left">${esc(chave(o))}</td><td>${o.fim?fmtM(o.fim):'—'}</td><td class="nr">${o.n}</td><td class="nr">${fmtBRL(o.rec)}</td><td class="nr">${fmtBRL(o.custo)}</td><td class="nr" style="color:${o.lucro>=0?'var(--verde)':'#c0392b'};font-weight:700">${fmtBRL(o.lucro)}</td><td class="nr">${pct(o.margem)}</td><td class="nr">${fmtBRL(o.lucro/o.n)}</td><td class="nr">${o.mor?pct(o.tir):'<span class="cfg-auto">n/a</span>'}</td><td class="nr">${fmtBRL(o.expMax)}</td><td class="nr">${o.dur!=null?o.dur+' m':'—'}</td><td class="av">${esc(av.join('; '))}</td></tr>`; }).join('')+'</tbody>';
 }
 
 
