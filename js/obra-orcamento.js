@@ -449,31 +449,45 @@
   /* ---------------- 17/11: Enviar ao Mais Controle ----------------
      O envio TRAVA: depois de enviado, o botão some e só a senha da Paula (pedida aqui, conferida no Apps Script
      contra o login dela) destrava para enviar de novo. O robô do servidor escreve o andamento em s.envio. */
-  const SIT_ENVIO = { "NA FILA": ["⏳", "na fila do robô do servidor (ele olha a cada 2 minutos)"], "TRABALHANDO": ["⚙", "o robô está trabalhando"], "PRÉVIA PRONTA": ["👀", "prévia pronta — o robô achou o orçamento no MC e guardou uma cópia; ainda não gravou"],
-    "FEITO": ["✓", "lançado no Mais Controle"], "ERRO": ["⚠", "o robô não conseguiu"], "SEM FILA": ["⚠", "o robô do servidor não está ligado neste portal (DB_FILA_ROBO)"] };
-  function envioBotao(s) {
-    if (s.envio && s.envio.travado) return "";
-    const pode = s.podeSalvar !== false && s.salvoEm && !s.sujo && !s.salvando;
-    const tit = s.podeSalvar === false ? "Sem permissão para enviar" : !s.salvoEm ? "Salve a planilha antes de enviar" : s.sujo ? "Há alterações não salvas — salve antes de enviar" : "Envia esta versão salva para o orçamento da obra no Mais Controle";
-    return `<button class="bt envmc" ${pode ? "" : "disabled"} title="${escH(tit)}" onclick="OrcObra.enviarMC()">📤 Enviar ao Mais Controle</button>`;
+  const SIT_ENVIO = { "NA FILA": ["⏳", "na fila do robô do servidor — ele olha a cada 2 min; com o MC ocupado por outro robô pode levar uns 15 min"],
+    "TRABALHANDO": ["⚙", "o robô está trabalhando"], "PRÉVIA PRONTA": ["👀", "prévia pronta — o robô leu o Mais Controle e guardou uma cópia; ainda não gravou nada"],
+    "FEITO": ["✓", "lançado no Mais Controle"], "ERRO": ["⚠", "o robô não conseguiu"] };
+  /* 17/11 (mo17): um envio por ITEM — "orcamento" e "ct:<id>" de cada contrato —, cada um com a sua trava (só a senha
+     da Paula destrava), a sua situação e o seu resultado. O formato antigo (um envio só) vira o item do orçamento. */
+  function normEnvio(e) {
+    e = e || {};
+    if (e.itens) return e;
+    const it = {}; Object.keys(e).forEach(k => { if (k !== "historico") it[k] = e[k]; });
+    return { itens: e.pedido_em ? { orcamento: it } : {}, historico: e.historico || [] };
   }
-  function envioFaixa(s) {
-    const e = s.envio; if (!e || !e.pedido_em) return "";
-    const sit = SIT_ENVIO[e.situacao] || ["•", String(e.situacao || "").toLowerCase()];
-    const quando = new Date(e.pedido_em).toLocaleString("pt-BR");
-    const mudou = e.travado && s.versao && e.versao && Number(s.versao) !== Number(e.versao);
-    const rb = e.robo || {};
-    const ult = (e.historico || []).filter(x => x.acao === "desbloqueio").slice(-1)[0];
-    if (!e.travado) return `<div class="orc-envio livre">🔓 <span>Envio desbloqueado${ult ? " por <b>" + escH(ult.por || "") + "</b> com a senha de " + escH(ult.autorizou || "") + " em " + escH(new Date(ult.em).toLocaleString("pt-BR")) : ""}. O último envio foi em ${escH(quando)} (versão ${escH(e.versao)}) — já pode enviar de novo.</span></div>`;
-    return `<div class="orc-envio ${e.situacao === "ERRO" || e.situacao === "SEM FILA" ? "erro" : e.situacao === "FEITO" ? "ok" : ""}">
-      <div class="oe-t">🔒 <b>Enviado ao Mais Controle</b> em ${escH(quando)} por <b>${escH(e.pedido_por || "")}</b> · versão ${escH(e.versao)} · ${escH(moeda(e.total || 0))} · ${escH(e.linhas || 0)} linhas
-        <span class="oe-sit">${sit[0]} ${escH(sit[1])}</span></div>
-      ${rb.msg ? `<div class="oe-m">${escH(rb.msg)}</div>` : ""}
-      ${rb.copia ? `<div class="oe-m">Cópia de segurança do orçamento que estava no MC: <b>${escH(rb.copia)}</b>${rb.itens_mc != null ? " (" + escH(rb.itens_mc) + " itens)" : ""}</div>` : ""}
-      ${mudou ? `<div class="oe-m rd">A planilha mudou depois do envio (agora versão ${escH(s.versao)}). O Mais Controle recebe a versão ${escH(e.versao)}; para mandar a nova é preciso desbloquear.</div>` : ""}
-      <div class="oe-b"><button class="bt ghost" onclick="OrcObra.envioAtualizar()">↻ Atualizar situação</button>
-        <button class="bt ghost" onclick="OrcObra.desbloquear()">🔓 Desbloquear${s.desbloqueio ? " (senha da " + escH(s.desbloqueio.split(" ")[0]) + ")" : " (senha da Paula)"}</button></div>
-    </div>`;
+  const itemEnvio = (s, item) => (normEnvio(s.envio).itens || {})[item] || null;
+  const travado = (s, item) => !!(itemEnvio(s, item) || {}).travado;
+  function rotuloItem(s, item) {
+    if (item === "orcamento") return "o orçamento da obra";
+    const k = (s.contratos || []).find(x => "ct:" + x.id === item);
+    return k ? "o contrato " + k.id + " · " + k.nome.split(" — ")[0] : "o contrato " + item.slice(3);
+  }
+  function envioBloco(s, item) {
+    const e = itemEnvio(s, item), rot = rotuloItem(s, item), q = "'" + item + "'";
+    const nomeP = (s.desbloqueio || "Paula").split(" ")[0];
+    if (e && e.travado) {
+      const sit = SIT_ENVIO[e.situacao] || ["•", String(e.situacao || "").toLowerCase()], rb = e.robo || {};
+      const mudou = s.versao && e.versao && Number(s.versao) !== Number(e.versao);
+      return `<div class="orc-envio ${e.situacao === "ERRO" ? "erro" : e.situacao === "FEITO" ? "ok" : ""}">
+        <div class="oe-t">🔒 <b>${escH(rot.charAt(0).toUpperCase() + rot.slice(1))} foi enviado ao Mais Controle</b> em ${escH(new Date(e.pedido_em).toLocaleString("pt-BR"))} por <b>${escH(e.pedido_por || "")}</b> · versão ${escH(e.versao)} · ${escH(moeda(e.total || 0))}
+          <span class="oe-sit">${sit[0]} ${escH(sit[1])}</span></div>
+        ${rb.msg ? `<div class="oe-m">${escH(rb.msg)}</div>` : ""}
+        ${rb.copia ? `<div class="oe-m">Cópia de segurança do que estava no MC: <b>${escH(rb.copia)}</b></div>` : ""}
+        ${mudou ? `<div class="oe-m rd">A planilha mudou depois do envio (agora versão ${escH(s.versao)}). O Mais Controle recebe a versão ${escH(e.versao)}; para mandar a nova é preciso desbloquear.</div>` : ""}
+        <div class="oe-b"><button class="bt ghost" onclick="OrcObra.envioAtualizar()">↻ Atualizar situação</button>
+          <button class="bt ghost" onclick="OrcObra.desbloquear(${q})">🔓 Desbloquear (senha da ${escH(nomeP)})</button></div>
+      </div>`;
+    }
+    const pode = s.podeSalvar !== false && s.salvoEm && !s.sujo && !s.salvando;
+    const tit = s.podeSalvar === false ? "Sem permissão para enviar" : !s.salvoEm ? "Salve a planilha antes de enviar" : s.sujo ? "Há alterações não salvas — salve antes de enviar" : "Envia esta versão salva ao Mais Controle";
+    const ult = e && (normEnvio(s.envio).historico || []).filter(x => x.acao === "desbloqueio" && x.item === item).slice(-1)[0];
+    return `<div class="orc-envio pronto"><span>📤 Enviar <b>${escH(rot)}</b> ao Mais Controle${e ? ` <small class="mu">· desbloqueado${ult ? " por " + escH(ult.por || "") + " com a senha de " + escH(ult.autorizou || "") : ""}; último envio em ${escH(new Date(e.pedido_em).toLocaleString("pt-BR"))} (versão ${escH(e.versao)})</small>` : ""}${!pode ? ` <small class="mu">· ${escH(tit)}</small>` : ""}</span>
+      <button class="bt envmc" ${pode ? "" : "disabled"} title="${escH(tit)}" onclick="OrcObra.enviarMC(${q})">📤 Enviar ${item === "orcamento" ? "orçamento" : "contrato " + escH(item.slice(3))}</button></div>`;
   }
   function janela(htmlInt) {
     fecharJanela();
@@ -484,48 +498,58 @@
     return d;
   }
   function fecharJanela() { const d = document.getElementById("orc-mod"); if (d) d.remove(); }
-  function confirmarEnvio(o) {
+  function confirmarEnvio(o, item) {
     const s = ST[sT(o.id)]; if (!s) return;
-    const CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length;
-    janela(`<h3>📤 Enviar ao Mais Controle</h3>
+    let corpo;
+    if (item === "orcamento") {
+      const CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length;
+      corpo = `<div class="om-l"><span>Total previsto</span><b>${moeda(total(s))} · ${s.linhas.length} linhas</b></div>
+        ${nAlto ? `<div class="om-av">⚠ A conferência apontou <b>${nAlto} possíveis erros</b>. Confira antes de enviar.</div>` : ""}
+        <p>O robô do servidor acha o orçamento desta obra no Mais Controle, <b>guarda uma cópia do que está lá</b> e coloca no lugar o desta planilha (com as etapas e os índices daqui). Se a obra ainda não tiver orçamento, ele cria. Os contratos vão cada um pela guia dele.</p>`;
+    } else {
+      const k = (s.contratos || []).find(x => "ct:" + x.id === item); if (!k) return;
+      const casas = new Set(k.linhas.map(l => l.casa)).size;
+      corpo = `<div class="om-l"><span>Contrato</span><b>${escH(k.id)} · ${escH(k.nome)}</b></div>
+        <div class="om-l"><span>Modelo no MC</span><b>${escH(k.modelo || "")}</b></div>
+        <div class="om-l"><span>Total</span><b>${moeda(totalContrato(k))} · ${casas} casa(s) · ${k.linhas.length} linhas</b></div>
+        <p>O robô do servidor procura este contrato da obra no Mais Controle; se já existir, <b>guarda uma cópia</b> e acerta pelo desta guia; se não existir, cria pelo modelo ${escH(k.modelo || "")}, uma etapa por casa ligada à etapa ${escH(k.etapa)} do orçamento.</p>`;
+    }
+    janela(`<h3>📤 Enviar ${escH(rotuloItem(s, item))} ao Mais Controle</h3>
       <div class="om-l"><span>Obra</span><b>${escH(o.titulo || "")}</b></div>
       <div class="om-l"><span>Versão salva</span><b>${escH(s.versao)} — ${escH(s.salvoPor || "")}, ${escH(new Date(s.salvoEm).toLocaleString("pt-BR"))}</b></div>
-      <div class="om-l"><span>Total previsto</span><b>${moeda(total(s))} · ${s.linhas.length} linhas</b></div>
-      <div class="om-l"><span>Contratos</span><b>${(s.contratos || []).map(k => escH(k.id + " " + k.nome.split(" — ")[0]) + " (" + moeda(totalContrato(k)) + ")").join("<br>") || "—"}</b></div>
-      ${nAlto ? `<div class="om-av">⚠ A conferência apontou <b>${nAlto} possíveis erros</b>. Confira antes de enviar.</div>` : ""}
-      <p>O robô do servidor acha o orçamento desta obra no Mais Controle, <b>guarda uma cópia do que está lá</b> e coloca no lugar o desta planilha (com as etapas e os índices daqui). Se a obra ainda não tiver orçamento, ele cria. Depois cria os contratos dos empreiteiros.</p>
-      <p class="om-tr">🔒 Depois de enviar, o envio fica <b>travado</b>: só a senha da ${escH(s.desbloqueio || "Paula")} desbloqueia para enviar de novo.</p>
-      <div class="om-b"><button class="bt ghost" onclick="OrcObra.fecharJanela()">Cancelar</button><button class="bt envmc" id="om-ok" onclick="OrcObra.enviarConfirmado()">📤 Enviar</button></div>`);
+      ${corpo}
+      <p class="om-tr">🔒 Depois de enviar, o envio ${item === "orcamento" ? "do orçamento" : "deste contrato"} fica <b>travado</b>: só a senha da ${escH(s.desbloqueio || "Paula")} desbloqueia para enviar de novo. Os outros itens continuam livres.</p>
+      <div class="om-b"><button class="bt ghost" onclick="OrcObra.fecharJanela()">Cancelar</button><button class="bt envmc" id="om-ok" onclick="OrcObra.enviarConfirmado('${item}')">📤 Enviar</button></div>`);
   }
   const ERR_ENVIO = { SALVE_ANTES: "Salve a planilha antes de enviar (a versão salva mudou).", JA_ENVIADO: "Esta obra já foi enviada — o envio está travado.", NAO_SALVO: "Salve a planilha antes de enviar.",
     FALTA_COLUNA_ENVIO: "Falta preparar o Supabase para o envio (coluna envio da orc_previas).", SEM_PERMISSAO: "Sem permissão para enviar.",
     SENHA_INCORRETA: "Senha incorreta.", BLOQUEADO: "Muitas tentativas erradas — espere alguns minutos e tente de novo.", INFORME_A_SENHA: "Digite a senha.",
-    SEM_LOGIN_PAULA: "Não achei o login da Paula no portal (LOGINS).", MAIS_DE_UMA_PAULA: "Há mais de um login com Paula — falta dizer qual (Propriedade ORC_DESBLOQUEIO_LOGIN).", NAO_ENVIADO: "Esta obra não tem envio para desbloquear." };
-  async function enviarConfirmado(o) {
+    SEM_LOGIN_PAULA: "Não achei o login da Paula no portal (LOGINS).", MAIS_DE_UMA_PAULA: "Há mais de um login com Paula — falta dizer qual (Propriedade ORC_DESBLOQUEIO_LOGIN).", NAO_ENVIADO: "Este item não tem envio para desbloquear.", ITEM_INVALIDO: "Item inválido.", CONTRATO_NAO_SALVO: "Este contrato não está na versão salva — salve a planilha antes." };
+  async function enviarConfirmado(o, item) {
     const s = ST[sT(o.id)]; if (!s) return;
     const b = document.getElementById("om-ok"); if (b) { b.disabled = true; b.textContent = "Enviando…"; }
-    let r; try { r = await g.chamar({ action: "orcEnviarMC", obra_id: o.id, versao: s.versao }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
+    let r; try { r = await g.chamar({ action: "orcEnviarMC", obra_id: o.id, versao: s.versao, item: item }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     if (r && (r.ok || r.erro === "JA_ENVIADO") && r.envio) s.envio = r.envio;
     fecharJanela();
     g.toast && g.toast(r && r.ok ? "Enviado para a fila do robô ✓ — o envio ficou travado" : "Não enviou: " + (ERR_ENVIO[r && r.erro] || (r && r.erro) || "erro"));
     g.OrcObra.repintar();
   }
-  function pedirDesbloqueio(o) {
+  function pedirDesbloqueio(o, item) {
     const s = ST[sT(o.id)]; if (!s) return;
     const nome = s.desbloqueio || "Paula";
-    janela(`<h3>🔓 Desbloquear o envio</h3>
+    janela(`<h3>🔓 Desbloquear o envio ${escH(rotuloItem(s, item).replace(/^o /, "do "))}</h3>
       <p>Só a <b>${escH(nome)}</b> desbloqueia. Peça para ela digitar a senha dela do portal.</p>
-      <input type="password" id="om-senha" autocomplete="off" placeholder="Senha da ${escH(nome.split(" ")[0])}" onkeydown="if(event.key==='Enter')OrcObra.desbloquearConfirmado()">
+      <input type="password" id="om-senha" autocomplete="off" placeholder="Senha da ${escH(nome.split(" ")[0])}" onkeydown="if(event.key==='Enter')OrcObra.desbloquearConfirmado('${item}')">
       <div class="om-er" id="om-er"></div>
-      <div class="om-b"><button class="bt ghost" onclick="OrcObra.fecharJanela()">Cancelar</button><button class="bt" id="om-ok" onclick="OrcObra.desbloquearConfirmado()">Desbloquear</button></div>`);
+      <div class="om-b"><button class="bt ghost" onclick="OrcObra.fecharJanela()">Cancelar</button><button class="bt" id="om-ok" onclick="OrcObra.desbloquearConfirmado('${item}')">Desbloquear</button></div>`);
     setTimeout(() => { const i = document.getElementById("om-senha"); if (i) i.focus(); }, 30);
   }
-  async function desbloquearConfirmado(o) {
+  async function desbloquearConfirmado(o, item) {
     const s = ST[sT(o.id)]; if (!s) return;
     const i = document.getElementById("om-senha"), er = document.getElementById("om-er"), b = document.getElementById("om-ok");
     const senha = i ? i.value : ""; if (!senha) { if (er) er.textContent = "Digite a senha."; return; }
     if (b) { b.disabled = true; b.textContent = "Conferindo…"; }
-    let r; try { r = await g.chamar({ action: "orcEnvioDesbloquear", obra_id: o.id, senha: senha }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
+    let r; try { r = await g.chamar({ action: "orcEnvioDesbloquear", obra_id: o.id, senha: senha, item: item }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     if (i) i.value = "";
     if (r && r.ok) { s.envio = r.envio; fecharJanela(); g.toast && g.toast("Envio desbloqueado ✓"); g.OrcObra.repintar(); return; }
     if (b) { b.disabled = false; b.textContent = "Desbloquear"; }
@@ -552,9 +576,9 @@
     const tot = total(s), CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length, sub = s.sub || "orc";
     /* 17/11: guias — o orçamento da obra, a conferência e um contrato por guia */
     h += `<div class="orc-guias">
-      <button class="og-g ${sub === "orc" ? "on" : ""}" onclick="OrcObra.guia('orc')"><b>Orçamento da obra</b><span>${moeda(tot)} · ${s.linhas.length} linhas</span></button>
+      <button class="og-g ${sub === "orc" ? "on" : ""}" onclick="OrcObra.guia('orc')"><b>Orçamento da obra${travado(s, "orcamento") ? " 🔒" : ""}</b><span>${moeda(tot)} · ${s.linhas.length} linhas</span></button>
       <button class="og-g ${sub === "conf" ? "on" : ""} ${nAlto ? "rd" : ""}" onclick="OrcObra.guia('conf')"><b>Conferência ${CF.length ? "⚠ " + CF.length : "✓"}</b><span>${nAlto ? nAlto + " possíveis erros" : CF.length ? "pontos para olhar" : "nada estranho"}</span></button>
-      ${s.contratos.map((k, ki) => `<button class="og-g ct ${sub === "ct" + ki ? "on" : ""}" onclick="OrcObra.guia('ct${ki}')"><b>Contrato ${escH(k.id)} · ${escH(k.nome.split(" — ")[0])}</b><span>${moeda(totalContrato(k))}</span></button>`).join("")}
+      ${s.contratos.map((k, ki) => `<button class="og-g ct ${sub === "ct" + ki ? "on" : ""}" onclick="OrcObra.guia('ct${ki}')"><b>Contrato ${escH(k.id)} · ${escH(k.nome.split(" — ")[0])}${travado(s, "ct:" + k.id) ? " 🔒" : ""}</b><span>${moeda(totalContrato(k))}</span></button>`).join("")}
     </div>`;
     h += `<div class="orc-kpis">
       <div class="kp"><b>${moeda(tot)}</b><span>total previsto</span></div>
@@ -563,11 +587,10 @@
       <button class="bt ghost" onclick="OrcObra.regerar()" title="Monta a planilha de novo pelo modelo, pelos quantitativos do Revit e pelos dados da obra (descarta as edições não salvas)">↻ Gerar de novo</button>
       <button class="bt ghost" onclick="OrcObra.baixar()" title="Baixa a planilha em CSV (abre no Excel)">⬇ Baixar planilha</button>
       <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button>
-      ${envioBotao(s)}
     </div>`;
-    h += envioFaixa(s);
     if (sub === "conf") return h + conferenciaHtml(s, CF);
-    if (/^ct\d+$/.test(sub)) return h + contratoHtml(s, Number(sub.slice(2)));
+    if (/^ct\d+$/.test(sub)) { const k = s.contratos[Number(sub.slice(2))]; return h + (k ? envioBloco(s, "ct:" + k.id) : "") + contratoHtml(s, Number(sub.slice(2))); }
+    h += envioBloco(s, "orcamento");
     const marca = {}; CF.forEach(x => { if (x.id) (marca[x.id] = marca[x.id] || []).push(x); });
     h += `<div class="orc-bar">
       <input class="busca" placeholder="Buscar na planilha (nome ou código)…" value="${escH(s.filtro || "")}" oninput="OrcObra.filtrar(this.value)">
@@ -708,10 +731,10 @@
     resumo: o => { const s = ST[sT(o.id)]; return s && s.linhas.length ? { total: total(s), linhas: s.linhas.length, avisos: avisos(s).length, salvo: !!s.salvoEm, sujo: !!s.sujo } : null; },
     totalContrato: totalContrato,
     salvar: () => { const a = atual(); return a.o ? salvar(a.o) : null; },
-    enviarMC: () => { const a = atual(); if (a.o) confirmarEnvio(a.o); },
-    enviarConfirmado: () => { const a = atual(); if (a.o) enviarConfirmado(a.o); },
-    desbloquear: () => { const a = atual(); if (a.o) pedirDesbloqueio(a.o); },
-    desbloquearConfirmado: () => { const a = atual(); if (a.o) desbloquearConfirmado(a.o); },
+    enviarMC: item => { const a = atual(); if (a.o) confirmarEnvio(a.o, item || "orcamento"); },
+    enviarConfirmado: item => { const a = atual(); if (a.o) enviarConfirmado(a.o, item || "orcamento"); },
+    desbloquear: item => { const a = atual(); if (a.o) pedirDesbloqueio(a.o, item || "orcamento"); },
+    desbloquearConfirmado: item => { const a = atual(); if (a.o) desbloquearConfirmado(a.o, item || "orcamento"); },
     envioAtualizar: () => { const a = atual(); if (a.o) envioAtualizar(a.o); },
     fecharJanela: fecharJanela,
     baixar: () => { const a = atual(); if (a.o) baixar(a.o); },
