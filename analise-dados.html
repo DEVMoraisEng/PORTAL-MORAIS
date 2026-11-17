@@ -641,6 +641,8 @@ html[data-tema="escuro"] a.cfg-ir,html[data-tema="escuro"] button.cfg-ir{color:v
 button.cfg-ir.bt{text-decoration:none;border:1px solid currentColor;border-radius:999px;padding:2px 9px;font-size:11.5px}
 button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
 .cfg-flash{animation:cfgFlash 3s ease-out}
+.cfg-como{border:1px solid var(--border2);border-radius:10px;padding:10px 14px;margin:0 0 10px;font-size:13px;line-height:1.5;background:rgba(41,87,120,.06);max-width:1100px}
+.cfg-como ul{margin:4px 0 6px;padding-left:20px}.cfg-como li{margin:0 0 3px}.cfg-como .ex{color:var(--text3);font-size:12px}
 @keyframes cfgFlash{0%,55%{background:rgba(212,160,23,.28);box-shadow:inset 0 0 0 2px #d4a017}100%{background:transparent;box-shadow:none}}
 .pt-chip.fonte{border:1px solid rgba(212,160,23,.6)}
 @media (max-width:700px){#lanc-dlg{padding:12px} #lanc-dlg .lc-t{font-size:12px}}
@@ -1563,10 +1565,10 @@ const CFG_NAO_OBRA=new Set(['DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','
 const CFG_NAO_ESC=new Set(['ADIANTAMENTO DE COMISSAO','DESPESA JC PESSOAL','DESPESA JV PESSOAL','DEVOLUCAO SINAL / ENTRADA / VLR A MAIS CREDITADO','DISTRATO','PAGAMENTO DUPLICADO','ADIANTAMENTO A CLIENTE',...CFG_TER]);
 const CFG_NAT={'VENDA':'receita','PRESTACAO DE SERVICOS':'receita','EXECUCAO DE OBRAS':'receita','APORTE DE CAPITAL':'socios','APORTE DE INVESTIDOR':'socios'};
 const CFG_CLI_MORAIS=new Set([...CLIENTES_MORAIS].map(nzC).concat(['MORAIS FLORENCA SPE','MORAIS PARTICIPACOES IMOBILIARIAS SPE','MORAIS VALE DAS BRISAS SPE LTDA']));
-const ROT_TIPO={obra:'Obra',esc:'Escritório',pos:'Pós-obra',soc:'Sócios (aportes/distribuições)',ign:'Não conta'};
+const ROT_TIPO={obra:'Obra',esc:'Escritório',pos:'Pós-obra',soc:'Não operacional · sócios',ign:'Não operacional · outros'};
 const ROT_DONO={MORAIS:'Grupo Morais',INVESTIDOR:'Investidor'};
 const ROT_IMO={COND:'Condomínio',RUA:'Casa de rua'};
-const ROT_OBRA={obra:'Custo de obra',ter:'Terreno',venda:'Custo de venda',nao:'Não conta'};
+const ROT_OBRA={obra:'Custo de obra',ter:'Terreno',venda:'Custo de venda',nao:'Não operacional'};
 let VENDAS_COND=[]; const vendasVGV=()=>VENDAS_COND.length?vendas.concat(VENDAS_COND):vendas;
 let OBRAS_ERP={}, DOC_IDX={}, FATS_TODOS=[], PAGS_SOC={}, FATS_SOC=[], OB_FIN={};
 function grupoAuto(cli){const n=nzC(cli); if(!n) return ''; if(CFG_CLI_MORAIS.has(n)) return 'MORAIS';
@@ -5015,11 +5017,11 @@ function ccLanc(cc){ if(!CC_VER) return; const n=nzC(cc), {tipo,ml}=CC_VER;
    - todo o resto é não operacional. Período = 12 meses do card. Clique numa linha
      = lançamentos daquela linha. */
 let OP_MESES=[], OPV_F=[];
-const ROT_REC={receita:'Receita',socios:'Movimento dos sócios',nao:'Não conta'};
+const ROT_REC={receita:'Operacional (receita)',socios:'Não operacional · sócios',nao:'Não operacional · outros'};
 /* 16/11/26 (dono): textos para quem nunca viu a tela. O texto também agrupa as linhas (lista de lançamentos usa a mesma função). */
 function opMotivoRec(f){ const c=ccInfo(f.cc||''), nat=f.nat||'(sem natureza)', d=natDest(f.nat);
   if(c.tipo==='soc') return 'Lançado no centro de custo de sócios e aportes ('+(f.cc||'')+') · natureza '+nat;
-  if(c.tipo==='ign') return 'Lançado num centro de custo que não conta: '+(f.cc||'')+' · natureza '+nat;
+  if(c.tipo==='ign') return 'Lançado num centro de custo não operacional: '+(f.cc||'')+' · natureza '+nat;
   if(d==='receita') return nat+' — conta como receita';
   if(d==='socios') return nat+' — dinheiro de sócio ou investidor (aporte)';
   return nat+' — não é receita'; }
@@ -5028,8 +5030,8 @@ function opMotivoPag(p){ const k=cls(p), cat=p.categoria||'(sem categoria)';
   if(k.t==='obra'&&k.i==='venda') return 'Custo de venda';
   if(k.t==='esc'&&k.i==='conta') return 'Escritório'; if(k.t==='pos'&&k.i==='conta') return 'Pós-obra';
   if(k.i==='soc') return (k.t==='soc'?'Lançado no centro de custo de sócios e aportes':'Aporte, distribuição de lucros ou cota capital')+' · '+cat;
-  if(k.t==='ign') return 'Lançado num centro de custo que não conta: '+(p.cc||'');
-  return 'Categoria marcada como "não conta" ('+(ROT_TIPO[k.t]||k.t).toLowerCase()+') · '+cat; }
+  if(k.t==='ign') return 'Lançado num centro de custo não operacional: '+(p.cc||'');
+  return 'Categoria marcada como não operacional ('+(ROT_TIPO[k.t]||k.t).toLowerCase()+') · '+cat; }
 const OPV_DESC={'Custo de obra':'Materiais, mão de obra, taxas, projetos e serviços lançados nas obras.',
   'Compra de terreno':'Compra do lote, comissão de lote, ITBI, escritura e registro.',
   'Custo de venda':'Comissão de venda das casas, DARF RET e ganho de capital.',
@@ -5087,10 +5089,10 @@ function opVer(){
   <div class="opv-res"><b>Resultado operacional</b> = entradas operacionais − saídas operacionais. Mostra se, no período, o negócio gerou ou consumiu caixa. Não é o lucro das obras: uma obra pode ter gasto este mês e só receber nos próximos.</div>
   <div class="opv-g">
     <div class="opv-b"><h4>Como o portal decide · recebimentos</h4><ol>
-      <li>Olha o <b>centro de custo</b>, que é a obra ou setor onde o recebimento foi lançado no Mais Controle. Se for o de sócios e aportes, ou um marcado <b>"não conta"</b>, vai para o não operacional.<br>${cfgIrBt('cc','','Ver os centros de custo')}</li>
+      <li>Olha o <b>centro de custo</b>, que é a obra ou setor onde o recebimento foi lançado no Mais Controle. Se o centro de custo estiver marcado como <b>não operacional</b> (sócios ou outros), o recebimento vai para o não operacional.<br>${cfgIrBt('cc','','Ver os centros de custo')}</li>
       <li>Se passou, olha a <b>natureza</b>, que é o tipo do recebimento no Mais Controle. Venda, Prestação de Serviços e Execução de Obras vão para o operacional; Aporte, Empréstimo, Estorno, Reembolso e as demais, para o não operacional.<br>${cfgIrBt('nat','','Ver as naturezas')}</li></ol></div>
     <div class="opv-b"><h4>Como o portal decide · pagamentos</h4><ol>
-      <li>Olha o <b>centro de custo</b>: obra, escritório, pós-obra, sócios ou "não conta". Os de sócios e os "não conta" vão para o não operacional.<br>${cfgIrBt('cc','','Ver os centros de custo')}</li>
+      <li>Olha o <b>centro de custo</b>: obra, escritório e pós-obra são operacionais; os marcados como não operacionais (sócios ou outros) levam o gasto para o não operacional.<br>${cfgIrBt('cc','','Ver os centros de custo')}</li>
       <li>Depois olha a <b>categoria</b>, que é o tipo do gasto (Materiais, Mão de obra, Aquisição de terreno…). Ela diz em que item o gasto entra. Distribuição de lucros, aportes, devoluções, distratos, adiantamentos, despesas pessoais e pagamento duplicado vão para o não operacional.<br>${cfgIrBt('cat','','Ver as categorias')}</li></ol></div></div>
   <div class="lc-s" style="margin:4px 0 2px">Nas tabelas abaixo: <b>clique numa linha</b> para ver os lançamentos dela; <b>clique em "Ajustar"</b> para abrir as Configurações já no item daquela linha.${CFG_PODE?'':' Seu login só vê as configurações; quem altera é GFINANCEIRO ou ADM.'}</div>`;
   let d=document.getElementById('lanc-dlg');
@@ -5099,8 +5101,8 @@ function opVer(){
   <div class="lc-tw">${intro}
   ${tab('Entradas operacionais','Dinheiro que entrou pela atividade da empresa: venda de casas e prestação de serviços de construção.',eo,true,'g')}
   ${tab('Saídas operacionais','O que a empresa gastou para construir, vender e funcionar.',so,false,'ro')}
-  ${tab('Entradas não operacionais','Dinheiro que entrou, mas não é venda nem serviço: aportes, empréstimos, estornos, reembolsos e recebimentos em centro de custo que não conta.',en,true,'n')}
-  ${tab('Saídas não operacionais','Dinheiro que saiu, mas não é custo do negócio: distribuição de lucro, aportes, devoluções, despesas pessoais e gastos em centro de custo que não conta.',sn,false,'n')}</div>
+  ${tab('Entradas não operacionais','Dinheiro que entrou, mas não é venda nem serviço: aportes, empréstimos, estornos, reembolsos e recebimentos em centro de custo não operacional.',en,true,'n')}
+  ${tab('Saídas não operacionais','Dinheiro que saiu, mas não é custo do negócio: distribuição de lucro, aportes, devoluções, despesas pessoais e gastos em centro de custo não operacional.',sn,false,'n')}</div>
   <div class="lc-pe">Quer mudar o lado de alguma coisa? ${cfgIrBt('nat','','Natureza dos recebimentos')} · ${cfgIrBt('cat','','Categorias dos pagamentos')} · ${cfgIrBt('cc','','Centros de custo')}. A mudança vale para todas as telas da Análise de Dados.</div>`;
   if(!d.open) d.showModal(); }
 let DASH_MODO=(()=>{ try{ return JSON.parse(localStorage.getItem('ad_dash_modo')||'{}'); }catch(e){ return {}; } })();
@@ -5241,11 +5243,11 @@ function dashNovo(P){
       ${linha(op?'Entradas operacionais':'Entradas não operacionais',fe,ce,'g')}${linha(op?'Saídas operacionais':'Saídas não operacionais',fs,cs,'r')}
       <tr class="tot"><td>${op?'Resultado operacional':'Saldo não operacional'}</td>${res}</tr></tbody></table>`;
     const ch=dashChart(op?'op':'nop',m12,{titulo:op?'Operacional':'Não operacional',
-      lanc:i=>({titulo:(op?'Operacional':'Não operacional')+' · '+fmtM(m12[i]),sub:op?'Entradas: recebimentos de receita · Saídas: obra, terreno, venda, escritório e pós-obra':'Aportes, distribuições, devoluções e o que não conta',
+      lanc:i=>({titulo:(op?'Operacional':'Não operacional')+' · '+fmtM(m12[i]),sub:op?'Entradas: recebimentos de receita · Saídas: obra, terreno, venda, escritório e pós-obra':'Aportes, distribuições, devoluções e o que está marcado como não operacional',
         pag:p=>p.mes===m12[i]&&pagOp(p)===op, rec:f=>f.mes===m12[i]&&/^\d{4}-\d{2}$/.test(f.mes||'')&&recOp(f)===op}),
       bars:[{n:'Entradas',cor:VERDE,v:m12.map(m=>dS(fe,[m]))},{n:'Saídas',cor:'#c0392b',v:m12.map(m=>-dS(fs,[m]))}],
       lines:[{n:op?'Resultado':'Saldo',cor:op?cv('--text','#223'):'#d4a017',v:m12.map(m=>dS(fe,[m])-dS(fs,[m])),w:3}].concat(op?[]:[{n:'Média móvel 12 meses do saldo',cor:cv('--text','#223'),dash:'6 4',w:2.4,v:m12.map(m=>{ const ul=[...Array(12)].map((_,i)=>mAdd(m,-i)); return (dS(fe,ul)-dS(fs,ul))/12; })}]),
-      nota:op?'Entradas: recebimentos com natureza Receita. Saídas: obra, terreno, venda, escritório e pós-obra.':'Entradas: aportes, empréstimos, estornos. Saídas: distribuições, devoluções, distratos e o que é marcado "não conta".'});
+      nota:op?'Entradas: recebimentos com natureza Receita. Saídas: obra, terreno, venda, escritório e pós-obra.':'Entradas: aportes, empréstimos, estornos. Saídas: distribuições, devoluções, distratos e o que é marcado "não operacional".'});
     const mm=(dS(fe,m12)-dS(fs,m12))/12, refM=Math.max(1,(dS(fe,m12)+dS(fs,m12))/24), pctM=Math.abs(mm)/refM*100;
     const medTxt=op?'':`<div class="dv-s" style="margin:-4px 0 6px" data-tip="opSn:12">Média do saldo nos 12 meses: <b style="color:${pctM<=15?'var(--verde)':'#c0392b'}">${fmtBRL(mm)}/mês</b> · ${pctM<=15?'✓ perto de zero':'⚠ longe de zero'} (${fmtN(pctM,0)}% da média de entradas + saídas). A longo prazo deve tender a zero.</div>`;
     return dcard(op?'#2a9d5c':'#b08d1a',op?'⚙':'🏦',op?'Operacional':'Não operacional',op?'o que a empresa faz':'aportes, distribuições e o resto',`<button type="button" class="dc-bt" onclick="opVer()" title="O que entra como operacional e como não operacional">🔎 Ver o que entra</button>`,'<div class="dt-w">'+tab+'</div>'+medTxt+ch+`<div class="dv-s">Resultado de caixa do período (pago e recebido no mês), não lucro das obras.</div>`); };
@@ -5303,19 +5305,19 @@ function tipConteudo(ch){
   if(k.startsWith('op')){ const tipo=k.slice(2);
     if(tipo==='Eo'||tipo==='En'){ const op=tipo==='Eo'; const g={}; let t=0; FATS_TODOS.forEach(f=>{ if(!set.has(f.mes)||recOp(f)!==op) return; t+=f.valor||0; const n=(f.nat||'(sem natureza)')+(op?'':' · '+(ROT_TIPO[ccInfo(f.cc||'').tipo]||'')); const x=g[n]||(g[n]={v:0}); x.v+=f.valor||0; });
       return `<h4>Entradas ${op?'operacionais':'não operacionais'}</h4><div class="tv">${fmtBRL(t)}</div><div class="tp">${tipPeriodoTxt(ml)}</div>
-        <div>${op?'Recebimentos com natureza marcada como <b>Receita</b> (Configurações › 4), fora dos CCs de sócios e dos marcados como "não conta".':'Todo o resto que entrou: aportes de capital e de investidor, empréstimos, estornos, reembolsos e recebimentos em CCs que não contam.'}</div>
+        <div>${op?'Recebimentos com natureza marcada como <b>Receita</b> (Configurações › 4), fora dos CCs marcados como não operacionais.':'Todo o resto que entrou: aportes de capital e de investidor, empréstimos, estornos, reembolsos e recebimentos em CCs não operacionais.'}</div>
         <div class="tr">Por natureza</div><table>${tipTop(g,8).map(([n,x])=>linha(n,x.v)).join('')}</table>`; }
     if(tipo==='Res'){ const eo=somaRec(true,ml), so=somaPag('saiOp',ml); return `<h4>Resultado operacional</h4><div class="tv">${fmtBRL(eo-so)}</div><div class="tp">${tipPeriodoTxt(ml)}</div><table>${linha('Entradas operacionais',eo)}${linha('− Saídas operacionais',so)}</table><div class="fora" style="margin-top:6px">Aportes e distribuições ficam de fora.</div>`; }
     k=tipo==='So'?'saiOp':'saiNop'; }
   if((k==='esc'||k==='pos')&&per!=='mes'){ ml=ml.filter(m=>m>=INI_FIXOS&&(per!=='mano'||m<MES_HOJE)); set.clear(); ml.forEach(m=>set.add(m)); }
   const item=k, pr0=predItem(item), pr=IMO?(p=>pr0(p)&&imoOkP(p.cc)):pr0; const cats={}, ccs={}; let t=0, n=0;
   (window._pagFull||[]).forEach(p=>{ if(!set.has(p.mes)||!pr(p)) return; t+=p.valor||0; n++; const kc=cls(p);
-    const c=item==='saiNop'?(p.categoria||'—')+' · '+(kc.i==='soc'?'sócios':kc.t==='ign'?'CC não conta':'não conta'):(p.categoria||'—');
+    const c=item==='saiNop'?(p.categoria||'—')+' · '+(kc.i==='soc'?'sócios':kc.t==='ign'?'CC não operacional':'não operacional'):(p.categoria||'—');
     (cats[c]=cats[c]||{v:0}).v+=p.valor||0; (ccs[p.cc]=ccs[p.cc]||{v:0}).v+=p.valor||0; });
   const media=per==='med'?t/12:per==='m12'?null:per==='mano'?null:null;
   const tit=item==='saiOp'?'Saídas operacionais':item==='saiNop'?'Saídas não operacionais':ROT_ITEM[item];
   const regra={obra:'Pagamentos em CCs do tipo <b>Obra</b>, nas categorias marcadas como <b>Custo de obra</b>.',ter:'Pagamentos em CCs do tipo <b>Obra</b>, nas categorias marcadas como <b>Terreno</b> (aquisição, comissão de lote, ITBI, escritura, registro).',tot:'Custo de obra + terreno, nos CCs do tipo Obra.',venda:'Pagamentos em CCs do tipo Obra nas categorias marcadas como <b>Custo de venda</b> (comissão de venda, DARF RET, ganho de capital).',esc:'Pagamentos em CCs do tipo <b>Escritório</b>, nas categorias que contam para o escritório.',pos:'Pagamentos em CCs do tipo <b>Pós-obra</b>.',saiOp:'Custo de obra, terreno, custo de venda, escritório e pós-obra.',saiNop:'Aportes e distribuições, categorias marcadas como "não conta" e CCs que não contam.'}[item]||'';
-  const fora={obra:'Fica de fora: terreno, custo de venda, aportes/distribuições e categorias "não conta" (devoluções, distratos, adiantamentos, despesas pessoais).',ter:'Fica de fora: tudo que não está marcado como Terreno.',esc:'Fica de fora: financiamento da sala, cota capital, adiantamentos e despesas pessoais.',pos:'Pós-obra dos sócios (JC/JV) não entra.'}[item]||'';
+  const fora={obra:'Fica de fora: terreno, custo de venda, aportes/distribuições e categorias não operacionais (devoluções, distratos, adiantamentos, despesas pessoais).',ter:'Fica de fora: tudo que não está marcado como Terreno.',esc:'Fica de fora: financiamento da sala, cota capital, adiantamentos e despesas pessoais.',pos:'Pós-obra dos sócios (JC/JV) não entra.'}[item]||'';
   const ePer=per==='med'?' · 12 meses ÷ 12':per==='m12'?` · média dos meses desde ${fmtM(INI_FIXOS)}`:per==='mano'?` · média dos meses já fechados desde ${fmtM(INI_FIXOS)}`:'';
   const nCC=Object.keys(ccs).length;
   return `<h4>${tit}${imoTxt}</h4><div class="tv">${fmtBRL(per==='med'?t/12:(per==='m12'||per==='mano')&&ml.length?t/ml.length:t)}</div><div class="tp">${tipPeriodoTxt(ml)} · ${n} pagamentos · ${nCC} centros de custo${ePer}</div>
@@ -5374,7 +5376,7 @@ let CFG_FONTE_ED=null, CFG_DUP_ED=null, CFG_BOX_NOVO=null;
 function cfgFonteSujo(){ const b=document.getElementById('cfg-salvar-fonte'); if(b) b.disabled=!CFG_PODE||((CFG_FONTE_ED||FONTE)===FONTE&&(CFG_DUP_ED||BOX_DUP)===BOX_DUP); }
 function boxResumo(X){ const r={pag:0,nP:0,rec:0,nR:0,dup:0,nD:0,it:{}}; const add=(k,v)=>{ r.it[k]=(r.it[k]||0)+v; };
   X.pag.forEach(p=>{ r.pag+=p.valor||0; r.nP++; if(p.dup){ r.dup+=p.valor||0; r.nD++; } const k=cls(p);
-    add(k.i==='soc'?'Sócios (aportes/distribuições)':k.t==='obra'?(k.i==='obra'?'Custo de obra':k.i==='ter'?'Compra de terreno':k.i==='venda'?'Custo de venda':'Não conta'):k.t==='esc'&&k.i==='conta'?'Escritório':k.t==='pos'&&k.i==='conta'?'Pós-obra':'Não conta',p.valor||0); });
+    add(k.i==='soc'?'Não operacional · sócios':k.t==='obra'?(k.i==='obra'?'Custo de obra':k.i==='ter'?'Compra de terreno':k.i==='venda'?'Custo de venda':'Não operacional · outros'):k.t==='esc'&&k.i==='conta'?'Escritório':k.t==='pos'&&k.i==='conta'?'Pós-obra':'Não operacional · outros',p.valor||0); });
   X.rec.forEach(f=>{ r.rec+=f.valor||0; r.nR++; });
   r.recOp=X.rec.filter(f=>recOp(f)).reduce((a,f)=>a+(f.valor||0),0); return r; }
 function cfgFonteHtml(){
@@ -5382,7 +5384,7 @@ function cfgFonteHtml(){
   const dt=x=>x?x.split('-').reverse().join('/'):'?';
   let st='';
   if(tem){ const r=boxResumo({pag:BOX_DUP==='tira'?BOX_X.pag.filter(p=>!p.dup):BOX_X.pag,rec:BOX_X.rec}), rD=boxResumo({pag:BOX_X.pag.filter(p=>p.dup),rec:[]}), per=(BOX&&BOX.periodo)||[];
-    const ord=['Custo de obra','Compra de terreno','Custo de venda','Escritório','Pós-obra','Não conta','Sócios (aportes/distribuições)'];
+    const ord=['Custo de obra','Compra de terreno','Custo de venda','Escritório','Pós-obra','Não operacional · outros','Não operacional · sócios'];
     st=`<div class="cfg-aviso ok">Box importado${BOX&&BOX.importado_em?' em '+new Date(BOX.importado_em).toLocaleString('pt-BR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})+(BOX.importado_por?' por '+esc(BOX.importado_por):''):''}: <b>${r.nP}</b> pagamentos (${fmt0(r.pag)}) e <b>${r.nR}</b> recebimentos (${fmt0(r.rec)}), de ${dt(per[0])} a ${dt(per[1])}${BOX_DUP==='tira'&&rD.nP?` (sem os ${rD.nP} que também estão no MC)`:''}.</div>
     <div class="cfg-tw" style="max-height:none"><table><thead><tr><th class="left">O que o Box acrescenta (pelas regras desta aba)</th><th>Valor</th></tr></thead><tbody>
     ${ord.filter(k=>r.it[k]).map(k=>`<tr><td>${k}</td><td class="nr">${fmt0(r.it[k])}</td></tr>`).join('')}
@@ -5447,7 +5449,7 @@ function renderConfig(){
     </tbody></table></div>${cfgRodape('clientes')}</div>
 
   <div class="cfg-sec" id="cfg-sec-cc"><h3>2 · Centros de custo e obras</h3>
-    <p class="desc">Para cada centro de custo: o <b>tipo</b> (obra, escritório, pós-obra, sócios ou não conta), o <b>dono</b> (vem do cliente do ERP; sem cliente, vem da cota da empresa no Notion) e se é <b>condomínio ou casa de rua</b> (vem do setor no Notion, do nome do CC ou do tipo da obra no ERP). Os avisos mostram o que vale conferir.</p>
+    <p class="desc">Para cada centro de custo: o <b>tipo</b> (obra, escritório e pós-obra são operacionais; sócios e outros são não operacionais), o <b>dono</b> (vem do cliente do ERP; sem cliente, vem da cota da empresa no Notion) e se é <b>condomínio ou casa de rua</b> (vem do setor no Notion, do nome do CC ou do tipo da obra no ERP). Os avisos mostram o que vale conferir.</p>
     <div class="cfg-bar"><input type="search" id="cfg-q-cc" placeholder="Buscar centro de custo…" oninput="cfgFiltrar('cc')">
       <select id="cfg-f-cc" onchange="cfgFiltrar('cc')"><option value="">Todos os tipos</option>${Object.entries(ROT_TIPO).map(([k,t])=>`<option value="${k}">${t}</option>`).join('')}</select>
       <select id="cfg-a-cc" onchange="cfgFiltrar('cc')"><option value="">Com e sem aviso</option><option value="1">Só com aviso</option><option value="m">Só os alterados</option></select><span class="cnt" id="cfg-c-cc"></span></div>
@@ -5460,33 +5462,39 @@ function renderConfig(){
       const att=(campo,auto)=>`${CFG_PODE?'':'disabled'} onchange="cfgSet('ccs','${jq(n)}','${campo}',this.value,'${auto}');this.classList.toggle('mud',this.value!=='${auto}')"`;
       return `<tr data-q="${esc(n)}" data-t="${inf.tipo}" data-a="${fl.length?1:0}" data-m="${(ov.tipo||ov.dono||ov.imovel)?1:0}"><td>${esc(o.nome)}<div>${fl.map(f=>`<span class="cfg-flag">${esc(f)}</span>`).join('')}</div></td>
         <td>${esc(oe&&oe.cliente||'—')}${oe&&oe.tipo?`<div class="cfg-auto">${esc(oe.tipo)}</div>`:''}</td><td class="nr">${cota==null?'—':Math.round(cota*100)+'%'}</td><td class="nr">${o.p12?fmt0(o.p12):'—'}</td>
-        <td>${cfgSel(Object.entries(ROT_TIPO),inf.tipo,ta,att('tipo',ta)+(inf.tipo!==ta?' class="mud"':''))}</td>
+        <td>${cfgSel([['obra','Obra (operacional)'],['esc','Escritório (operacional)'],['pos','Pós-obra (operacional)'],['soc',ROT_TIPO.soc],['ign',ROT_TIPO.ign]],inf.tipo,ta,att('tipo',ta)+(inf.tipo!==ta?' class="mud"':''))}</td>
         <td>${cfgSel(Object.entries(ROT_DONO),inf.dono,da.v,att('dono',da.v)+(inf.dono!==da.v?' class="mud"':''))}</td>
         <td>${cfgSel(Object.entries(ROT_IMO),inf.imovel,ia,att('imovel',ia)+(inf.imovel!==ia?' class="mud"':''))}</td></tr>`; }).join('')}
     </tbody></table></div>${cfgRodape('ccs')}</div>
 
   <div class="cfg-sec" id="cfg-sec-cat"><h3>3 · Categorias: em que item cada uma conta</h3>
-    <p class="desc">A mesma categoria pode ir para lugares diferentes conforme o <b>centro de custo onde foi lançada</b>. Cada coluna responde: "se este pagamento estiver numa obra / no escritório / no pós-obra, em qual card ele entra?". Exemplo: ITBI lançado numa obra vira <b>Terreno</b>; o mesmo ITBI lançado no escritório conta como <b>Escritório</b>. "Não conta" tira a categoria de todos os cards e do Fluxo/Desempenho. Marcar <b>Sócios</b> tira de todos os gastos e lucros e leva só para o fluxo mês a mês.</p>
+    <p class="desc">A <b>categoria</b> é o tipo do gasto no Mais Controle (Materiais, ITBI, Salário…). Aqui você define <b>em que item cada tipo de gasto entra</b>.</p>
+    <div class="cfg-como"><b>Como ler cada linha</b><ul>
+      <li>O mesmo gasto pode entrar em lugares diferentes conforme <b>onde foi lançado</b> (o centro de custo). Por isso há uma coluna para cada lugar: <b>obra</b>, <b>escritório</b> e <b>pós-obra</b>.</li>
+      <li><b>Operacional</b>: é custo do negócio. Entra nos custos (Fluxo de Caixa, Desempenho, ROI) e no card Operacional. Numa obra, você ainda escolhe se é custo de obra, terreno ou custo de venda.</li>
+      <li><b>Não operacional</b>: não é custo do negócio (devolução de sinal, distrato, despesa pessoal…). Sai dos custos e aparece só no card Não operacional.</li>
+      <li><b>Aporte ou distribuição de sócio?</b> Marcado, vale por cima das três colunas: o gasto sai de todos os custos e vai para a coluna Sócios do Fluxo de Caixa.</li></ul>
+      <span class="ex">Exemplo: ITBI lançado numa obra entra como <b>Terreno</b> daquela obra; o mesmo ITBI lançado no escritório entra como <b>custo do escritório</b>.</span></div>
     <div class="cfg-bar"><input type="search" id="cfg-q-cat" placeholder="Buscar categoria ou plano…" oninput="cfgFiltrar('cat')"><span class="cnt" id="cfg-c-cat"></span></div>
-    <div class="cfg-tw"><table><thead><tr><th class="left">Categoria</th><th>Lanç.</th><th>Pago 12m</th><th class="left" title="Quando esta categoria é lançada num centro de custo de OBRA">Lançada numa obra vira…</th><th class="left" title="Quando esta categoria é lançada num centro de custo do ESCRITÓRIO">Lançada no escritório vira…</th><th class="left" title="Quando esta categoria é lançada no centro de custo de PÓS-OBRA">Lançada no pós-obra vira…</th><th title="Marque se é aporte ou distribuição de sócios">É de sócios?</th></tr></thead><tbody id="cfg-t-cat">
+    <div class="cfg-tw"><table><thead><tr><th class="left">Categoria</th><th>Lanç.</th><th>Pago 12m</th><th class="left" title="Quando esta categoria é lançada num centro de custo de OBRA">Se lançada numa obra, entra como…</th><th class="left" title="Quando esta categoria é lançada num centro de custo do ESCRITÓRIO">Se lançada no escritório, entra como…</th><th class="left" title="Quando esta categoria é lançada no centro de custo de PÓS-OBRA">Se lançada no pós-obra, entra como…</th><th title="Marque se é aporte ou distribuição de lucro de sócio: vale por cima das três colunas">Aporte ou distribuição de sócio?</th></tr></thead><tbody id="cfg-t-cat">
     ${(()=>{ const L=Object.values(cats).map(c=>{ c.plano=Object.entries(c.planos).sort((a,b)=>b[1]-a[1])[0][0]; return c; }).sort((a,b)=>a.plano.localeCompare(b.plano)||b.p12-a.p12);
       let ult='', h=''; L.forEach(c=>{ if(c.plano!==ult){ ult=c.plano; h+=`<tr class="plano" data-q="${esc(nzC(c.plano))}" data-pl="1"><td colspan="7">${esc(c.plano)}</td></tr>`; }
         const o=CFG.cats[c.n]||{}, ao=catAuto(c.nome,'obra'), ae=catAuto(c.nome,'esc'), ap='conta', as=catAuto(c.nome,'soc');
         const vo=o.obra||ao, ve=o.esc||ae, vp=o.pos||ap, vs=o.soc!==undefined?o.soc:as;
         const att=(campo,auto)=>`${CFG_PODE?'':'disabled'} onchange="cfgSet('cats','${jq(c.n)}','${campo}',this.value,'${auto}');this.classList.toggle('mud',this.value!=='${auto}')"`;
         h+=`<tr data-q="${esc(c.n+' '+nzC(c.plano))}"><td>${esc(c.nome)}</td><td class="nr">${c.nl}</td><td class="nr">${c.p12?fmt0(c.p12):'—'}</td>
-          <td>${cfgSel(Object.entries(ROT_OBRA),vo,ao,att('obra',ao)+(vo!==ao?' class="mud"':''))}</td>
-          <td>${cfgSel([['conta','Conta'],['nao','Não conta']],ve,ae,att('esc',ae)+(ve!==ae?' class="mud"':''))}</td>
-          <td>${cfgSel([['conta','Conta'],['nao','Não conta']],vp,ap,att('pos',ap)+(vp!==ap?' class="mud"':''))}</td>
-          <td style="text-align:center"><input type="checkbox" ${vs?'checked':''} ${CFG_PODE?'':'disabled'} onchange="cfgSetSoc('${jq(c.n)}',this.checked,${as})" title="Movimento dos sócios: não conta como gasto nem lucro"></td></tr>`; });
+          <td>${cfgSel([['obra','Custo de obra (operacional)'],['ter','Terreno (operacional)'],['venda','Custo de venda (operacional)'],['nao','Não operacional']],vo,ao,att('obra',ao)+(vo!==ao?' class="mud"':''))}</td>
+          <td>${cfgSel([['conta','Custo do escritório (operacional)'],['nao','Não operacional']],ve,ae,att('esc',ae)+(ve!==ae?' class="mud"':''))}</td>
+          <td>${cfgSel([['conta','Custo do pós-obra (operacional)'],['nao','Não operacional']],vp,ap,att('pos',ap)+(vp!==ap?' class="mud"':''))}</td>
+          <td style="text-align:center"><input type="checkbox" ${vs?'checked':''} ${CFG_PODE?'':'disabled'} onchange="cfgSetSoc('${jq(c.n)}',this.checked,${as})" title="Movimento dos sócios: não operacional, não entra como gasto nem lucro"></td></tr>`; });
       return h; })()}
     </tbody></table></div>${cfgRodape('cats')}</div>
 
   <div class="cfg-sec" id="cfg-sec-nat"><h3>4 · Recebimentos: natureza</h3>
-    <p class="desc">Só conta como receita de obra (Fluxo, Desempenho, ROI) o recebimento cuja natureza estiver como <b>Receita</b> e que caia num CC do tipo Obra. Aportes ficam como <b>Sócios</b>.</p>
+    <p class="desc"><b>Operacional (receita)</b>: entra como receita das obras (Fluxo, Desempenho, ROI) e no card Operacional, desde que o recebimento caia num CC do tipo Obra. <b>Não operacional · sócios</b>: aporte de sócio ou investidor; vai para a coluna Sócios do Fluxo de Caixa. <b>Não operacional · outros</b>: empréstimo, estorno, reembolso, aluguel…; aparece só no card Não operacional.</p>
     ${Object.keys(nats).length?`<div class="cfg-tw"><table><thead><tr><th class="left">Natureza no Mais Controle</th><th>Recebimentos</th><th>Valor</th><th class="left">Conta como</th></tr></thead><tbody id="cfg-t-nat">
     ${Object.values(nats).sort((a,b)=>b.v-a.v).map(x=>{ const a=CFG_NAT[x.n]||'nao', v=CFG.naturezas[x.n]||a;
-      return `<tr data-q="${esc(x.n)}"><td>${esc(x.nome)}</td><td class="nr">${x.q}</td><td class="nr">${fmt0(x.v)}</td><td>${cfgSel([['receita','Receita'],['socios','Sócios (aporte)'],['nao','Não conta']],v,a,`${CFG_PODE?'':'disabled'} class="${v!==a?'mud':''}" onchange="cfgSet('naturezas','${jq(x.n)}',null,this.value,'${a}');this.classList.toggle('mud',this.value!=='${a}')"`)}</td></tr>`; }).join('')}
+      return `<tr data-q="${esc(x.n)}"><td>${esc(x.nome)}</td><td class="nr">${x.q}</td><td class="nr">${fmt0(x.v)}</td><td>${cfgSel(Object.entries(ROT_REC),v,a,`${CFG_PODE?'':'disabled'} class="${v!==a?'mud':''}" onchange="cfgSet('naturezas','${jq(x.n)}',null,this.value,'${a}');this.classList.toggle('mud',this.value!=='${a}')"`)}</td></tr>`; }).join('')}
     </tbody></table></div>${cfgRodape('naturezas')}`:`<div class="cfg-aviso">A natureza dos recebimentos ainda não veio nos dados. Ela chega na próxima rodada do robô da Análise de Dados; até lá, todo recebimento em CC de obra conta como receita e o CC de aportes conta como sócios.</div>`}
   </div>
   ${cfgSecMetas()}`;
