@@ -1001,13 +1001,67 @@ def lancamentos_vinculados(tela: Tela, oc_id: str) -> int:
     """Quantos lançamentos a OC tem (janela "$ Lançamento › Lançamentos vinculados"). Só olha, não muda nada."""
     tela.abrir_oc(oc_id)
     tela.clicar_botao("Lançamento", exato=False)
-    if not tela.esperar_texto("Lançamentos vinculados", 20):
-        raise RuntimeError("cliquei em $ Lançamento e a janela Lançamentos vinculados não abriu")
+    if not tela.esperar_texto("Lançamentos vinculados", 12):
+        o_que = foto_da_tela(tela, "lancamento-" + str(oc_id)[:8])
+        raise RuntimeError("cliquei em $ Lançamento e a janela Lançamentos vinculados não abriu (%s)" % o_que)
     tela.page.wait_for_timeout(1200)
     n = tela.page.evaluate(_JS_LANCAMENTOS)
     if n < 0:
         raise RuntimeError("não achei a janela Lançamentos vinculados")
     return n
+
+
+def foto_da_tela(tela: Tela, nome: str) -> str:
+    """17/11: guarda a foto da aba do robô em _central/logs/ocs-tela-<nome>.png e devolve o que está escrito nas
+    janelas abertas (ou o endereço), para entender uma tela que o robô não conhece. Só olha."""
+    txt = ""
+    try:
+        tela.page.screenshot(path=str(AO_VIVO.parent / ("ocs-tela-%s.png" % nome)), full_page=False)
+    except Exception:       # noqa: BLE001
+        pass
+    try:
+        txt = tela.page.evaluate(r"""() => {
+          const v = e => e.offsetWidth || e.offsetHeight;
+          const jan = [...document.querySelectorAll('.modal, [role=dialog], .swal2-popup, .dropdown-menu')].filter(v)
+              .map(e => e.innerText.replace(/\s+/g, ' ').trim()).filter(Boolean);
+          return (jan.length ? 'janela: ' + jan.join(' | ') : 'sem janela; endereço ' + location.hash).slice(0, 300);
+        }""")
+    except Exception:       # noqa: BLE001
+        pass
+    return txt or "não consegui ler a tela"
+
+
+def ver_lancamento(numero: str) -> int:
+    """OCS_VER_LANC=<nº da OC>: abre a OC, clica em $ Lançamento e guarda a foto e o texto do que o MC mostrou;
+    depois abre a setinha ao lado e faz o mesmo. Não grava nada (fecha com Esc e recarrega)."""
+    sb = Supa.do_ambiente()
+    r = sb.pedir("GET", TABELA + "?select=oc_id&numero=eq.%s" % int(numero)) or []
+    if not r:
+        log("FALHOU: a OC %s não está na conferência" % numero)
+        return 1
+    from venda.mc.porteiro import AbaPorteiro
+    aba = AbaPorteiro.abrir()
+    try:
+        tela = Tela(aba)
+        tela.abrir_oc(r[0]["oc_id"])
+        log("OC %s aberta: %s" % (numero, foto_da_tela(tela, "oc-%s" % numero)))
+        tela.clicar_botao("Lançamento", exato=False)
+        tela.page.wait_for_timeout(4000)
+        log("depois de clicar em $ Lançamento: %s" % foto_da_tela(tela, "lanc-%s" % numero))
+        log("escritas no MC até aqui: %s" % (tela.gravou(0)[1]))
+        tela.page.keyboard.press("Escape")
+        tela.page.reload(wait_until="domcontentloaded")
+        tela.abrir_oc(r[0]["oc_id"])
+        seta = tela.page.locator("button.dropdown-toggle, .btn-group button:has(.caret)")
+        if seta.count():
+            seta.first.click()
+            tela.page.wait_for_timeout(1500)
+            log("setinha ao lado do $ Lançamento: %s" % foto_da_tela(tela, "seta-%s" % numero))
+        tela.page.keyboard.press("Escape")
+    finally:
+        aba.fechar()
+    log("OK: fotos em _central\\logs\\ocs-tela-*.png")
+    return 0
 
 
 _JS_LANCAMENTOS = r"""() => {
@@ -1390,6 +1444,8 @@ def executar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
 def main() -> int:
     if DESCOBRIR:
         return descobrir()
+    if os.environ.get("OCS_VER_LANC", "").strip():
+        return ver_lancamento(os.environ["OCS_VER_LANC"].strip())
     try:
         AO_VIVO.parent.mkdir(parents=True, exist_ok=True)
         AO_VIVO.write_text("", encoding="utf-8")
