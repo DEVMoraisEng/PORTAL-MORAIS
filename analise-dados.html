@@ -196,7 +196,12 @@ html[data-tema="escuro"] .pill.bom{color:#5fd68f}html[data-tema="escuro"] .pill.
 .dc .kpi-card,.dc .roi-card{background:var(--bg2);border-color:var(--border2);box-shadow:none}
 .dc .kpi-row.r4{grid-template-columns:repeat(2,minmax(0,1fr))}
 .dc .roi-grid{grid-template-columns:repeat(auto-fit,minmax(170px,1fr))}
-.dc .exp-table-wrap{margin-bottom:0}
+.dc .exp-table-wrap{margin-bottom:0;overflow:visible;border:0}
+.dc .exp-table-wrap table{font-size:12px;min-width:100%}
+.dc .exp-table-wrap th{white-space:normal;line-height:1.15;padding:8px 8px!important;position:sticky;top:0;z-index:2;font-size:10.5px}
+.dc .exp-table-wrap td{padding:6px 8px!important;white-space:nowrap}
+.dg.c2.tb{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
+@media (max-width:1100px){.dg.c2.tb{grid-template-columns:minmax(0,1fr)}}
 .dc .roi-val{font-size:clamp(20px,1.7vw,28px)}
 .dc-scroll{max-height:560px;overflow:auto;border-radius:8px}
 .dc-leg{display:flex;gap:16px;align-items:center;margin:-4px 0 8px;flex-wrap:wrap;font-size:12px;font-weight:600;color:var(--text3)}
@@ -1052,7 +1057,7 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
       <div class="dc" style="--ac:#2a9d5c"><div class="dc-h"><div class="dc-i">📈</div><div class="dc-t">Lucro líquido por proprietário</div></div>
         <div class="kpi-row r3" id="kpi-fluxo-lucro"></div></div>
     </div>
-    <div class="dg c2">
+    <div class="dg c2 tb">
       <div class="dc" style="--ac:#c0392b"><div class="dc-h"><div class="dc-i">📉</div><div class="dc-t">Exposição de caixa</div><div class="dc-st">ao longo do tempo</div></div>
         <div class="dc-leg"><span><i style="background:#c0392b"></i>Capital exposto (empresa investindo)</span><span><i style="background:#2a9d5c"></i>Retorno positivo (lucro)</span></div>
         <div class="chart-wrap"><canvas id="ch-fluxo-exp" height="420"></canvas></div></div>
@@ -1161,19 +1166,21 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
     </div>
 
     <!-- 17/11/26: cards lado a lado no estilo da Visão Geral -->
-    <div class="dg c1">
-      <div class="dc" style="--ac:#2a9d5c"><div class="dc-h"><div class="dc-i">💰</div><div class="dc-t">Resultado financeiro</div>
-          <div class="dc-dir">Indicadores:
+    <div class="dg c2">
+      <div class="dc" style="--ac:#2a9d5c"><div class="dc-h"><div class="dc-i">💰</div><div class="dc-t">Resultado financeiro</div><div class="dc-st">lucro e capital aplicado</div></div>
+        <div class="roi-grid" id="roi-res-lucros"></div>
+        <div class="roi-grid" id="roi-res-exp"></div></div>
+      <div class="dc" style="--ac:#b08d1a"><div class="dc-h"><div class="dc-i">📊</div><div class="dc-t">Indicadores de retorno</div>
+          <div class="dc-dir">Mostrar:
             <select id="sel-indicadores-st" onchange="buildSetor()">
               <option value="basico">Básicos (ROI, TIR, MTIR)</option>
               <option value="avancado">Avançados (Margem, Múltiplo, Payback)</option>
               <option value="todos">Todos os indicadores</option>
             </select></div></div>
-        <div class="roi-grid" id="roi-res-lucros"></div>
-        <div class="roi-grid" id="roi-res-exp"></div>
-        <div class="roi-grid" id="roi-res2"></div></div>
+        <div class="roi-grid" id="roi-res2"></div>
+        <div style="font-size:11.5px;color:var(--text3)">Só obras da Morais. Passe o mouse em cada indicador para ver a conta.</div></div>
     </div>
-    <div class="dg c2" id="setor-morais-only">
+    <div class="dg c2 tb" id="setor-morais-only">
       <div class="dc" style="--ac:#c0392b"><div class="dc-h"><div class="dc-i">📉</div><div class="dc-t">Exposição de caixa</div><div class="dc-st">ao longo do tempo</div></div>
         <div class="dc-leg"><span><i style="background:#c0392b"></i>Empresa exposta (capital investido)</span><span><i style="background:#2a9d5c"></i>Retorno positivo (lucro)</span></div>
         <div class="chart-wrap"><canvas id="ch-exp" height="420"></canvas></div></div>
@@ -3409,7 +3416,12 @@ function calcTIR(fluxos,chute=0.02){
     if(Math.abs(nr-r)<1e-9){r=nr;break;}
     r=nr;
   }
-  return(r<-0.99||r>100)?null:r;
+  const vpl=x=>fluxos.reduce((s,f,t)=>s+f/Math.pow(1+x,t),0);
+  if(isFinite(r)&&r>-0.99&&r<100&&Math.abs(vpl(r))<1e-4*Math.max(1,...fluxos.map(Math.abs))) return r;
+  /* 17/11/26: Newton não convergiu (fluxo com várias trocas de sinal) — bissecção entre -99% e 100% a.m. */
+  let lo=-0.99, hi=1, flo=vpl(lo), fhi=vpl(hi); if(!isFinite(flo)||flo*fhi>0) return null;
+  for(let k=0;k<300;k++){ const m=(lo+hi)/2, fm=vpl(m); if(Math.abs(fm)<1e-6||hi-lo<1e-10) return m; if(flo*fm<0){ hi=m; } else { lo=m; flo=fm; } }
+  return (lo+hi)/2;
 }
 // MTIR
 function calcMTIR(fluxos,rFin,rRein){
@@ -4414,7 +4426,9 @@ function abrirAlerta(tipo){
 //   433  = IPCA mensal acumulado (% a.m.)
 //   195  = Poupança mensal (% a.m.)
 const BENCHMARKS = {
-  cdi:  { codigo: 4391, nome: 'CDI',      tipo: 'diario'  },
+  /* 17/11/26: a série 4391 é o CDI ACUMULADO NO MÊS (% a.m.), mas era lida como taxa diária × 21 (dava ~16,6% "a.m.").
+     Agora usa a 4389 (CDI anualizado base 252, % a.a.) convertida para % a.m., como a SELIC. */
+  cdi:  { codigo: 4389, nome: 'CDI',      tipo: 'anual'   },
   selic:{ codigo: 432,  nome: 'SELIC',    tipo: 'anual'   },
   ipca: { codigo: 433,  nome: 'IPCA',     tipo: 'mensal'  },
   poup: { codigo: 195,  nome: 'Poupança', tipo: 'mensal'  },
