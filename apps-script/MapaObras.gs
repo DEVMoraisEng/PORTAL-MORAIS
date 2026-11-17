@@ -1498,7 +1498,7 @@ function moOrcEnviarMC_(sess, p) {
     return { ok: true, envio: envio };
   } finally { lock.releaseLock(); }
 }
-/* Quem desbloqueia: Propriedade ORC_DESBLOQUEIO_LOGIN (o LOGIN exato) ou, sem ela, o único login do LOGINS cujo
+/* Quem desbloqueia: Propriedade ORC_DESBLOQUEIO_LOGIN (o LOGIN ou o nome da PESSOA, exatos) ou, sem ela, o único login do LOGINS cujo
    LOGIN ou PESSOA tem "Paula". Achou mais de um → pede a Propriedade (não chuta). */
 function moOrcLoginPaula_() {
   var fixo = String(prop_("ORC_DESBLOQUEIO_LOGIN") || "").trim().toLowerCase();
@@ -1506,7 +1506,7 @@ function moOrcLoginPaula_() {
   for (var i = 0; i < rows.length; i++) {
     var pr = rows[i].properties, lg = titulo_(pr["LOGIN"]);
     var pa = ((pr["PESSOA"] && pr["PESSOA"].people) || [])[0], nome = pa ? (pa.name || "") : "";
-    if (fixo ? lg.toLowerCase() === fixo : /paula/i.test(lg + " " + nome))
+    if (fixo ? (lg.toLowerCase() === fixo || nome.toLowerCase() === fixo) : /paula/i.test(lg + " " + nome))
       achados.push({ login: lg, nome: nome || lg, senha: String(texto_(pr["SENHA"])) });
   }
   if (!achados.length) return { erro: "SEM_LOGIN_PAULA" };
