@@ -163,6 +163,9 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
     <label class="f" for="obs">Dados que não estão na prancha (opcional)
       <textarea id="obs" placeholder="Ex.: área do lote na matrícula 360,00 m²; uso do solo exige 15% permeável; lote em zona de aeródromo; proprietária é PJ."></textarea>
     </label>
+    <label class="f" for="ant">Correções que a prefeitura já pediu neste processo (opcional)
+      <textarea id="ant" placeholder="Cole aqui o parecer anterior. O analista confere se cada item foi atendido — a prefeitura já devolveu prancha com erro que tinha sido corrigido antes."></textarea>
+    </label>
     <div class="tit"><span class="cond">2 · Projeto</span></div>
     <div class="solta" id="drop" tabindex="0" role="button" aria-label="Escolher o PDF do projeto">
       <b id="dropText">Solte o PDF do projeto aqui</b>
@@ -172,11 +175,11 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
     <img id="thumb" alt="Miniatura da primeira prancha">
     <div class="tit"><span class="cond">3 · Profundidade</span></div>
     <div class="seg" id="depth" role="group" aria-label="Profundidade da leitura">
-      <button type="button" data-g="3x2" aria-pressed="false">Rápida</button>
-      <button type="button" data-g="4x3" aria-pressed="true">Padrão</button>
-      <button type="button" data-g="6x4" aria-pressed="false">Profunda</button>
+      <button type="button" data-g="100" aria-pressed="false">Rápida</button>
+      <button type="button" data-g="150" aria-pressed="true">Padrão</button>
+      <button type="button" data-g="200" aria-pressed="false">Profunda</button>
     </div>
-    <p class="dica" id="depthHint">Padrão: cada prancha é lida em 12 recortes ampliados, além da visão geral.</p>
+    <p class="dica" id="depthHint">Padrão: prancha lida a 150 dpi. Uma A1 vira cerca de 36 recortes; uma A3, 9.</p>
     <button class="btn" id="run" disabled>Analisar projeto</button>
     <button class="btn sec hide" id="stop">Parar</button>
     <div class="barra" aria-hidden="true"><i id="prog"></i></div>
@@ -215,10 +218,13 @@ if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.clo
 const REGRAS = {
 GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código de Obras), LC 324/2019 (calçadas)", grupos:[
  ["Carimbo e notas",[
-  ["G-CAR-1",3,"Notas 1 e 2 do carimbo com a legislação atual. Nota 1: 'O PROJETO ATENDE AO PLANO DIRETOR E AO CÓDIGO DE OBRAS E EDIFICAÇÕES DE GOIÂNIA, LEI COMPLEMENTAR N° 349/2022 E LEI COMPLEMENTAR 364/2023, E SEUS REGULAMENTOS'. Nota 2: 'O PROJETO ATENDE ÀS REGRAS PREVISTAS NAS NORMAS TÉCNICAS DE ACESSIBILIDADE: ABNT 9050/2020; LEI Nº 10.098/2000, DECRETO FEDERAL N° 5.296/2024, LEI N° 13.146/2015, LEI COMPLEMENTAR N° 324/2019; E DECRETO FEDERAL Nº 9.451, DE 26/07/2018'. Qualquer citação à LC 171/2008 ou texto diferente é erro."],
+  ["G-CAR-1",3,"Notas 1 e 2 do carimbo com a legislação atual. Nota 1 cita o Plano Diretor e o Código de Obras e Edificações de Goiânia, LEI COMPLEMENTAR N° 349/2022 e LEI COMPLEMENTAR 364/2023, e seus regulamentos. Nota 2 cita ABNT 9050/2020, LEI Nº 10.098/2000, DECRETO FEDERAL N° 5.296 (o modelo da prefeitura escreve 5.296/2024; o decreto é de 2004 — as duas formas valem, marque 'conferir' só se faltar o decreto), LEI N° 13.146/2015, LEI COMPLEMENTAR N° 324/2019 e DECRETO FEDERAL Nº 9.451, DE 26/07/2018. Qualquer citação à LC 171/2008 ou falta de uma dessas normas é erro."],
   ["G-CAR-2",3,"Tipo de habitação no carimbo confere com o projeto desenhado: unifamiliar, 'HABITAÇÃO GEMINADA 02 UNIDADES' ou 'HABITAÇÃO SERIADA - 03 UNIDADES' (contar as casas em planta)."],
   ["G-CAR-3",2,"Área do lote e área total construída iguais no carimbo, no quadro de áreas e no memorial."],
   ["G-CAR-4",3,"Carimbo segue o modelo do projeto simplificado: informa a área permeável (grama) e, se houver concregrama, a área de 'COBERTURA VEGETAL NÃO PERMEÁVEL' em campo próprio, sem repetir áreas permeáveis e impermeáveis."],
+  ["G-CAR-6",2,"Nome do autor do projeto e do responsável técnico no carimbo, com CREA/CAU, iguais aos da ART/RRT; proprietário com CPF/CNPJ."],
+  ["G-CAR-7",2,"Carimbo traz a inscrição do imóvel (ITU/IPTU), o número do uso do solo, a descrição dos pavimentos, a folha (01/01) e data atual (não anterior ao último parecer)."],
+  ["G-TXT-1",2,"Textos da prancha sem erro de grafia ou de digitação (títulos, notas, legendas, cotas repetidas). Liste cada erro encontrado."],
   ["G-CAR-5",2,"Endereço do carimbo (rua, quadra, lote, setor) é o do lote desenhado e é o mesmo em todas as peças."],
  ]],
  ["Índice paisagístico e permeabilidade",[
@@ -254,6 +260,7 @@ GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código d
   ["G-QUA-0",3,"Quadro de áreas no modelo do projeto simplificado, nesta ordem: ÁREA DO TERRENO, ÁREA CONSTRUÍDA, ÁREA PERMEÁVEL (só grama), NÚMERO DE VAGAS DE ESTACIONAMENTO. Em geminada/seriada entram também a área construída e a fração ideal de cada unidade. O valor de ÁREA PERMEÁVEL é a soma das áreas de grama cotadas em planta."],
   ["G-REC-0",3,"Memorial de cálculo da caixa de recarga no modelo do projeto simplificado, linha a linha: ÁREA DO TERRENO; ÍNDICE PAISAGÍSTICO (COBERTURA VEGETAL PERMEÁVEL) = soma da grama em planta; ÁREA IMPERMEABILIZADA = terreno − grama; VOLUME NECESSÁRIO = impermeabilizada ÷ 200; DIMENSÕES: ÁREA DA BASE, ALTURA, VOLUME UNITÁRIO (= base x altura), Nº DE CAIXAS, VOLUME TOTAL (= unitário x nº de caixas, ≥ necessário). Conferir cada linha com a planta e com o carimbo (I.P. e I.C.C.A.P.)."],
   ["G-QUA-1",3,"Quadro de áreas especifica a fração ideal de cada unidade, com o valor real de cada uma (não repetir valor igual se as frações diferem em planta) e mínimo de 90 m² por fração."],
+  ["G-QUA-3",2,"Área construída total igual à soma das unidades e dentro da ocupação permitida do lote; área de cada unidade igual na locação, na cobertura e no quadro."],
   ["G-QUA-2",2,"Vagas de garagem informadas no quadro; vaga descrita como coberta ou descoberta de acordo com o desenho."],
   ["G-COR-1",3,"Linha natural do terreno (L.N.T.) traçada em todos os cortes."],
   ["G-COR-2",2,"Toda estrutura que aparece no corte ou destacada em planta está identificada. Estrutura de cobertura de qualquer tipo (pergolado, laje, telha) entra na área construída; se não for cobertura, sai do corte e das plantas."],
@@ -274,7 +281,7 @@ SC: { nome:"Senador Canedo", lei:"Lei 123/90 (Código de Edificações), Lei 137
   ["C-CAR-3",2,"Título do carimbo 'ARQUITETURA - APROVAÇÃO'; numeração da prancha '01/01' ou 'ÚNICA'."],
   ["C-CAR-4",3,"Endereço, setor, quadra, lote e área do terreno no carimbo iguais aos da certidão de inteiro teor."],
   ["C-CAR-5",2,"Tipologia escrita corretamente ('HABITAÇÃO SERIADA', 'HABITAÇÃO GEMINADA'), sem erro de grafia."],
-  ["C-CAR-6",2,"Projeto sem assinaturas nesta fase (a prefeitura pede as assinaturas só depois do selo) e com a data atualizada."],
+  ["C-CAR-6",3,"Projeto sem assinaturas nesta fase (a prefeitura pede as assinaturas só depois do selo), com a data atualizada, e sendo a ÚLTIMA versão revisada: nenhum erro já corrigido em parecer anterior pode voltar."],
  ]],
  ["Planta de situação",[
   ["C-SIT-1",3,"Norte representado."],
@@ -308,7 +315,9 @@ SC: { nome:"Senador Canedo", lei:"Lei 123/90 (Código de Edificações), Lei 137
   ["C-COR-3",2,"Cortes com alturas totais cotadas, tipo de telhado e inclinação, e tipo de fechamento (laje ou forro)."],
   ["C-COR-4",2,"Hachura de terra nos cortes, sem hachura acima do piso."],
   ["C-COR-5",3,"Ambiente coberto ou descoberto igual no corte, na planta baixa e na planta de cobertura (ex.: varanda gourmet)."],
-  ["C-FAC-1",2,"Duas fachadas: frontal e lateral, representadas sem o muro de fechamento."],
+  ["C-FAC-1",2,"Duas fachadas: frontal e lateral, representadas sem o muro de fechamento, com as linhas de cada casa corretas e compatíveis com a planta."],
+  ["C-FAC-2",2,"Muro com no máximo 2,50 m de altura na fachada frontal."],
+  ["C-TXT-1",2,"Textos da prancha sem erro de grafia ou de digitação (títulos, carimbo, legendas). Liste cada erro encontrado."],
  ]],
  ["Caixa de recarga",[
   ["C-REC-1",2,"Caixa de recarga locada em planta com medidas; detalhe mostra a parte gradeada 60 x 60."],
@@ -328,7 +337,7 @@ SC: { nome:"Senador Canedo", lei:"Lei 123/90 (Código de Edificações), Lei 137
 
 /* ============================ ESTADO ============================ */
 const $ = id => document.getElementById(id);
-const S = { file:null, grid:"4x3", pref:null, ctl:null, filtro:"todos", laudo:null };
+const S = { file:null, grid:"150", pref:null, ctl:null, filtro:"todos", laudo:null };
 const escH = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const log = t => { const l=$("log"); l.textContent += "\n" + t; l.scrollTop = l.scrollHeight; };
 const prog = p => { $("prog").style.width = Math.round(p*100) + "%"; };
@@ -394,25 +403,30 @@ function recorteVazio(ctx,x,y,w,h){
   for (let i=0;i<d.length;i+=4) if (d[i]+d[i+1]+d[i+2] < 690) esc++;
   return esc < 6;
 }
-async function renderPagina(pdf, n, cols, rows){
+/* 17/11 (revisão): a IA reduz cada imagem para ~1024 x 768 antes de ler. Recorte
+   maior que isso perde resolução e a cota pequena some. Por isso a prancha é
+   renderizada num DPI fixo (o tamanho real da folha manda) e cortada em recortes
+   de no máximo 1024 x 768 — uma A1 a 150 dpi dá ~36 recortes; uma A3, 9. */
+const REC_L = 1024, REC_A = 768, REC_SOBRA = .07, REC_MAX = 48;
+async function renderPagina(pdf, n, dpi){
   const page = await pdf.getPage(n);
   const v1 = page.getViewport({scale:1});
-  const alvo = Math.min(cols*1250, 9000);
-  const scale = alvo / Math.max(v1.width, v1.height);
+  let scale = dpi/72;
+  const grade = s => [Math.ceil(v1.width*s/(REC_L/(1+2*REC_SOBRA))), Math.ceil(v1.height*s/(REC_A/(1+2*REC_SOBRA)))];
+  while (Math.max(v1.width,v1.height)*scale > 9000 || grade(scale)[0]*grade(scale)[1] > REC_MAX) scale *= .93;
+  const [C, L] = grade(scale);
   const vp = page.getViewport({scale});
   const cv = document.createElement("canvas"); cv.width=Math.round(vp.width); cv.height=Math.round(vp.height);
   const ctx = cv.getContext("2d",{willReadFrequently:true});
   ctx.fillStyle="#fff"; ctx.fillRect(0,0,cv.width,cv.height);
   await page.render({canvasContext:ctx, viewport:vp}).promise;
-  const paisagem = cv.width >= cv.height;
-  const C = paisagem?cols:rows, L = paisagem?rows:cols;
   const imgs = [];
   // visão geral
-  const g = document.createElement("canvas"); const k = 1280/Math.max(cv.width,cv.height);
+  const g = document.createElement("canvas"); const k = Math.min(1, 1280/Math.max(cv.width,cv.height));
   g.width=Math.round(cv.width*k); g.height=Math.round(cv.height*k);
   g.getContext("2d").drawImage(cv,0,0,g.width,g.height);
-  imgs.push({rot:`P${n} visão geral da prancha inteira`, blob:await blobDe(g,.8), geral:true});
-  const tw = cv.width/C, th = cv.height/L, ov = .07;
+  imgs.push({rot:`P${n} visão geral da prancha inteira (${C} colunas x ${L} linhas de recortes)`, blob:await blobDe(g,.8), geral:true});
+  const tw = cv.width/C, th = cv.height/L, ov = REC_SOBRA;
   for (let l=0;l<L;l++) for (let c=0;c<C;c++){
     const x=Math.max(0,Math.round(c*tw-tw*ov)), y=Math.max(0,Math.round(l*th-th*ov));
     const w=Math.min(cv.width-x,Math.round(tw*(1+2*ov))), h=Math.min(cv.height-y,Math.round(th*(1+2*ov)));
@@ -421,17 +435,18 @@ async function renderPagina(pdf, n, cols, rows){
     t.getContext("2d").drawImage(cv,x,y,w,h,0,0,w,h);
     imgs.push({rot:`P${n} recorte linha ${l+1}/${L}, coluna ${c+1}/${C}`, blob:await blobDe(t)});
   }
+  const dpiReal = Math.round(scale*72);
   const tc = await page.getTextContent();
   const texto = tc.items.map(i=>i.str).join(" ").replace(/\s+/g," ").trim();
   cv.width = cv.height = 0;
-  return {imgs, texto};
+  return {imgs, texto, dpiReal, grade:[C,L]};
 }
 
 /* ============================ PROMPTS ============================ */
 function ctxProjeto(p){
   const R = REGRAS[p];
   return `Você é analista de aprovação de projetos da prefeitura de ${R.nome} (GO), rigoroso, conferindo um projeto arquitetônico residencial da construtora Morais Engenharia ANTES do protocolo. Legislação: ${R.lei}.
-Tipologia informada: ${$("tipo").value}. Informações extras do projetista: ${$("obs").value.trim() || "nenhuma"}.
+Tipologia informada: ${$("tipo").value}. Data de hoje: ${new Date().toLocaleDateString("pt-BR")}. Informações extras do projetista: ${$("obs").value.trim() || "nenhuma"}.
 
 CHECKLIST (cada regra saiu de correções reais já devolvidas pela prefeitura):
 ${todasRegras(p).map(r=>`${r.id}: ${r.txt}`).join("\n")}`;
@@ -451,8 +466,28 @@ Responda SOMENTE com JSON:
 }
 function promptLaudo(p, leituras, texto){
   const nums = p==="GYN"
-  ? `{"area_lote":null,"area_construida":null,"permeavel_grama":null,"concregrama":null,"permeavel_no_carimbo":null,"permeavel_no_quadro":null,"permeavel_soma_planta":null,"volume_caixa_necessario_memorial":null,"volume_caixa_utilizado":null,"n_caixas":null,"rebaixos_m":[],"fracoes_m2":[],"faixa_grama_acesso_m":null,"faixa_rolagem_m":null,"indice_paisagistico_memorial":null,"area_impermeabilizada_memorial":null,"area_base_caixa":null,"altura_caixa":null,"volume_unitario_caixa":null,"recuo_frontal_m":null,"altura_na_divisa_m":null,"nivel_calcada_lote":null,"nivel_calcada_sarjeta":null,"largura_calcada_m":null}`
-  : `{"area_lote":null,"area_construida":null,"permeavel_m2":null,"permeavel_no_quadro":null,"permeavel_exigido_pct":null,"volume_caixa_total":null,"n_caixas":null,"volume_por_caixa":null,"faixa_servico_m":null,"faixa_livre_m":null,"vaga_larg_m":null,"vaga_comp_m":null,"menor_dim_dormitorio_m":null,"soma_cotas_frente_m":null,"frente_terreno_m":null,"ambientes":[{"nome":"","tipo":"sala|dormitorio|escritorio|cozinha|banheiro|outro","area_piso":null,"area_aberturas":null}]}`;
+  ? `{"area_lote":null,"area_construida":null,"parcelas_grama_m2":[],"parcelas_concregrama_m2":[],"permeavel_no_carimbo":null,"concregrama_no_carimbo":null,"permeavel_no_quadro":null,"indice_paisagistico_memorial":null,"area_impermeabilizada_memorial":null,"volume_caixa_necessario_memorial":null,"area_base_caixa":null,"altura_caixa":null,"volume_unitario_caixa":null,"n_caixas":null,"volume_caixa_utilizado":null,"caixas_locadas_em_planta":null,"rebaixos_m":[],"fracoes_m2":[],"faixa_grama_acesso_m":null,"faixa_rolagem_m":null,"recuo_frontal_m":null,"altura_na_divisa_m":null,"nivel_calcada_lote":null,"nivel_calcada_sarjeta":null,"largura_calcada_m":null,"unidades_desenhadas":null,"unidades_no_carimbo":null}`
+  : `{"area_lote":null,"area_lote_no_carimbo":null,"area_construida":null,"parcelas_permeavel_m2":[],"permeavel_no_quadro":null,"permeavel_exigido_pct":null,"volume_caixa_total":null,"n_caixas":null,"volume_por_caixa":null,"altura_caixa_detalhe":null,"altura_caixa_memorial":null,"faixa_servico_m":null,"faixa_livre_m":null,"vaga_larg_m":null,"vaga_comp_m":null,"menor_dim_dormitorio_m":null,"soma_cotas_frente_m":null,"frente_terreno_m":null,"altura_muro_frontal_m":null,"espessura_parede_divisa_cm":null,"ambientes":[{"nome":"","tipo":"sala|dormitorio|escritorio|cozinha|banheiro|outro","area_piso":null,"area_aberturas":null}]}`;
+  const defs = p==="GYN"
+  ? `- parcelas_grama_m2: CADA área de grama cotada na planta de locação, uma por uma, de todas as casas (ex.: [10.27,3.46,1.73,10.27,...]). NÃO use o total do quadro nem do carimbo aqui.
+- parcelas_concregrama_m2: cada área de concregrama cotada em planta, uma por uma.
+- permeavel_no_carimbo / concregrama_no_carimbo / permeavel_no_quadro: o valor escrito em cada peça.
+- indice_paisagistico_memorial, area_impermeabilizada_memorial, volume_caixa_necessario_memorial, area_base_caixa, altura_caixa, volume_unitario_caixa, n_caixas, volume_caixa_utilizado (= volume total): as linhas do memorial, como escritas.
+- caixas_locadas_em_planta: quantas caixas de recarga aparecem desenhadas na locação.
+- rebaixos_m: a cota de cada rebaixo de meio-fio, na ordem. fracoes_m2: a fração de cada casa.
+- faixa_grama_acesso_m: largura da faixa de grama ENTRE as duas faixas de roda. faixa_rolagem_m: largura da MENOR faixa de roda.
+- recuo_frontal_m: menor distância cotada do alinhamento à edificação. altura_na_divisa_m: altura final cotada no corte.
+- nivel_calcada_lote / nivel_calcada_sarjeta: níveis cotados na calçada (null se não houver cota de nível NA CALÇADA).
+- unidades_desenhadas: número de casas desenhadas. unidades_no_carimbo: número de unidades escrito no carimbo.`
+  : `- parcelas_permeavel_m2: CADA área permeável cotada na implantação, uma por uma, de todas as casas. NÃO use o total do quadro.
+- permeavel_no_quadro: valor do quadro de áreas. permeavel_exigido_pct: percentual mínimo do uso do solo, se informado.
+- area_lote: área do terreno na situação/quadro. area_lote_no_carimbo: a que está no carimbo.
+- volume_por_caixa: volume de UMA caixa de recarga. altura_caixa_detalhe / altura_caixa_memorial: a altura em cada peça.
+- menor_dim_dormitorio_m: a menor cota interna entre todos os dormitórios (inclui Quarto 01 de todas as casas).
+- soma_cotas_frente_m: soma das cotas internas ao longo da frente. frente_terreno_m: a cota total da frente do terreno.
+- altura_muro_frontal_m: altura do muro na fachada frontal. espessura_parede_divisa_cm: espessura cotada da parede na divisa.
+- ambientes: para cada compartimento com área e esquadrias legíveis, área do piso e soma das áreas das aberturas (largura x altura do quadro de aberturas).`;
+  const ant = $("ant").value.trim();
   return `${ctxProjeto(p)}
 
 LEITURA DOS RECORTES DA PRANCHA (feita imagem a imagem):
@@ -467,13 +502,16 @@ TAREFA: emita o laudo. Julgue TODAS as regras do checklist, uma a uma, cruzando 
 - "conferir": não foi possível ler ou a peça não apareceu. Diga o que olhar.
 - "na": a regra não se aplica a este projeto.
 Depois liste em "extras" qualquer outro erro que um analista apontaria (grafia, cota faltando, incoerência entre peças) mesmo fora do checklist.
-Em "numeros" preencha só o que foi lido na prancha, em número com ponto decimal; mantenha null no que não foi lido.
+Em "numeros" preencha só o que foi LIDO na prancha, em número com ponto decimal; mantenha null (ou lista vazia) no que não foi lido. Nunca calcule nem copie de outra peça: a página refaz as contas. Significado de cada campo:
+${defs}
+${ant ? `\nCORREÇÕES JÁ PEDIDAS PELA PREFEITURA NESTE PROCESSO (texto colado pelo projetista):\n${ant.slice(0,12000)}\nPara CADA item desse parecer que trate do projeto, diga em "anteriores" se a prancha atual atende. Item de documento (certidão, ART, declaração) vai como "conferir".` : ""}
 
 Responda SOMENTE com JSON:
 {"resumo":"2 a 3 frases: o projeto passa? o que mais pesa?",
  "tipologia":"detectada no projeto",
  "itens":[{"regra":"ID","status":"corrigir|ok|conferir|na","onde":"peça/local","evidencia":"o que foi visto, com valores","correcao":"o que fazer (vazio se ok)"}],
  "extras":[{"titulo":"","onde":"","evidencia":"","correcao":""}],
+ "anteriores":[{"pedido":"item do parecer anterior","status":"atendido|pendente|conferir","evidencia":"o que a prancha atual mostra"}],
  "numeros":${nums}}`;
 }
 
@@ -483,7 +521,17 @@ function contas(p, n){
   const add=(nome, lido, regra, ok, id)=>L.push({nome,lido,regra,ok,id});
   const lote=numBR(n.area_lote);
   if (p==="GYN"){
-    const g=numBR(n.permeavel_grama), c=numBR(n.concregrama)||0;
+    const soma = a => { const v=(a||[]).map(numBR).filter(x=>x!=null); return v.length ? Math.round(v.reduce((s,x)=>s+x,0)*100)/100 : null; };
+    const pg0=soma(n.parcelas_grama_m2), pc0=soma(n.parcelas_concregrama_m2);
+    const g = pg0!=null ? pg0 : numBR(n.permeavel_grama), c = (pc0!=null ? pc0 : numBR(n.concregrama))||0;
+    if (pg0!=null) add("Grama cotada em planta", `${(n.parcelas_grama_m2||[]).map(numBR).filter(x=>x!=null).map(x=>fmt(x)).join(" + ")} = ${fmt(pg0)} m²`, "soma das parcelas", null, "G-PER-2");
+    if (pc0!=null) add("Concregrama cotado em planta", `${(n.parcelas_concregrama_m2||[]).map(numBR).filter(x=>x!=null).map(x=>fmt(x)).join(" + ")} = ${fmt(pc0)} m²`, "soma das parcelas", null, "G-PER-4");
+    const ccar=numBR(n.concregrama_no_carimbo);
+    if (c>0) add("Concregrama no carimbo", ccar==null?"não informado":`${fmt(ccar)} m²`, `cobertura vegetal não permeável = ${fmt(c)} m²`, ccar!=null&&Math.abs(ccar-c)<=0.011, "G-CAR-4");
+    const ud=numBR(n.unidades_desenhadas), uc=numBR(n.unidades_no_carimbo);
+    if (ud!=null&&uc!=null) add("Unidades: desenho × carimbo", `${fmt(ud,0)} desenhadas · ${fmt(uc,0)} no carimbo`, "valores iguais", ud===uc, "G-CAR-2");
+    const cl=numBR(n.caixas_locadas_em_planta), ncx=numBR(n.n_caixas);
+    if (cl!=null&&ncx!=null) add("Caixas de recarga: planta × memorial", `${fmt(cl,0)} em planta · ${fmt(ncx,0)} no memorial`, "valores iguais", cl===ncx, "G-REC-3");
     if (lote&&g!=null){
       const pg=g/lote*100, pc=Math.min(c/lote*100,5), tot=pg+pc;
       add("Índice paisagístico", `${fmt(g)} m² grama${c?` + ${fmt(c)} m² concregrama (conta ${fmt(pc,1)}%)`:""} = ${fmt(tot,1)}% de ${fmt(lote)} m²`, `mínimo 15% = ${fmt(lote*.15)} m²`, tot>=15-1e-9, "G-PER-1");
@@ -493,7 +541,7 @@ function contas(p, n){
       if (vm!=null) add("Volume necessário no memorial", `${fmt(vm)} m³`, `${fmt(imp)} ÷ 200 = ${fmt(vn)} m³`, Math.abs(vm-vn)<=0.011, "G-REC-1");
       add("Volume da caixa de recarga", vu==null?"não lido":`${fmt(vu)} m³`, `mínimo ${fmt(vn)} m³`, vu==null?null:vu>=vn-0.005, "G-REC-1");
     }
-    const sp=numBR(n.permeavel_soma_planta), pc2=numBR(n.permeavel_no_carimbo), pq=numBR(n.permeavel_no_quadro);
+    const sp=pg0!=null?pg0:numBR(n.permeavel_soma_planta), pc2=numBR(n.permeavel_no_carimbo), pq=numBR(n.permeavel_no_quadro);
     const vs=[["planta",sp],["carimbo",pc2],["quadro",pq]].filter(x=>x[1]!=null);
     if (vs.length>=2) add("Área permeável entre peças", vs.map(x=>`${x[0]} ${fmt(x[1])}`).join(" · "), "valores iguais", vs.every(x=>Math.abs(x[1]-vs[0][1])<=0.011), "G-PER-2");
     (n.rebaixos_m||[]).map(numBR).filter(x=>x!=null).forEach((r,i)=>add(`Rebaixo de meio-fio ${i+1}`, `${fmt(r)} m`, "entre 3,00 e 3,50 m, sem abas", r>=3-1e-9&&r<=3.5+1e-9, "G-CAL-2"));
@@ -514,7 +562,15 @@ function contas(p, n){
     const nl=numBR(n.nivel_calcada_lote), ns=numBR(n.nivel_calcada_sarjeta), lc=numBR(n.largura_calcada_m);
     if (nl!=null&&ns!=null&&lc){ const i=Math.abs(nl-ns)/lc*100; add("Inclinação transversal da calçada", `(${fmt(nl)} − ${fmt(ns)}) ÷ ${fmt(lc)} = ${fmt(i,1)}%`, "máximo 3%", i<=3+1e-9, "G-CAL-3"); }
   } else {
-    const pm=numBR(n.permeavel_m2), ex=numBR(n.permeavel_exigido_pct)||15;
+    const somaSC = a => { const v=(a||[]).map(numBR).filter(x=>x!=null); return v.length ? Math.round(v.reduce((s,x)=>s+x,0)*100)/100 : null; };
+    const pp0=somaSC(n.parcelas_permeavel_m2);
+    const pm = pp0!=null ? pp0 : numBR(n.permeavel_m2), ex=numBR(n.permeavel_exigido_pct)||15;
+    const alc=numBR(n.area_lote_no_carimbo);
+    if (lote&&alc!=null) add("Área do terreno: situação × carimbo", `${fmt(lote)} · ${fmt(alc)} m²`, "valores iguais", Math.abs(lote-alc)<=0.011, "C-CAR-4");
+    const hd=numBR(n.altura_caixa_detalhe), hm=numBR(n.altura_caixa_memorial);
+    if (hd!=null&&hm!=null) add("Altura da caixa: detalhe × memorial", `${fmt(hd)} · ${fmt(hm)} m`, "valores iguais", Math.abs(hd-hm)<=0.011, "C-REC-2");
+    const mu=numBR(n.altura_muro_frontal_m); if (mu!=null) add("Muro na fachada frontal", `${fmt(mu)} m`, "máximo 2,50 m", mu<=2.5+1e-9, "C-FAC-2");
+    const epd=numBR(n.espessura_parede_divisa_cm); if (epd!=null) add("Parede na divisa", `${fmt(epd,0)} cm`, "21 cm", epd>=21-1e-9, "C-PB-4");
     if (lote&&pm!=null) add("Área permeável", `${fmt(pm)} m² = ${fmt(pm/lote*100,1)}% de ${fmt(lote)} m²`, `mínimo ${fmt(ex,0)}% = ${fmt(lote*ex/100)} m²`, pm/lote*100>=ex-1e-9, "C-IMP-1");
     const pq=numBR(n.permeavel_no_quadro); if (pm!=null&&pq!=null) add("Permeável: implantação × quadro", `${fmt(pm)} · ${fmt(pq)}`, "valores iguais", Math.abs(pm-pq)<=0.011, "C-IMP-1");
     const vc=numBR(n.volume_por_caixa); if (vc!=null) add("Volume por caixa de recarga", `${fmt(vc)} m³`, "mínimo 1,00 m³ por caixa", vc>=1-1e-9, "C-REC-2");
@@ -551,15 +607,15 @@ const MSG = {
   PARADO: "Análise interrompida."
 };
 const b64De = blob => new Promise((ok,er)=>{ const r=new FileReader(); r.onload=()=>ok(String(r.result).split(",")[1]); r.onerror=er; r.readAsDataURL(blob); });
-async function ia(action, prompt, blobs){
+async function ia(action, prompt, blobs, tempo){
   if (S.ctl && S.ctl.signal.aborted){ const e=new Error(MSG.PARADO); e.codigo="PARADO"; throw e; }
   const imagens = blobs ? await Promise.all(blobs.map(b64De)) : [];
   let j;
-  try{ j = await chamar({action, prompt, imagens}, 175000); }
+  try{ j = await chamar({action, prompt, imagens}, tempo||175000); }
   catch(e){ const x=new Error("Sem resposta do Apps Script ("+(e&&e.message||"rede")+")."); x.codigo="SEM_RESPOSTA"; throw x; }
   if (!j || !j.ok){
     const cod = String((j&&j.erro)||"ERRO").split(":")[0];
-    if (cod==="SESSAO_INVALIDA"||cod==="NAO_AUTORIZADO"){ irParaLogin(); }
+    if (cod==="SESSAO_INVALIDA"||cod==="NAO_AUTORIZADO"){ sair(); }
     const e=new Error(MSG[cod] || ("Erro do servidor: "+((j&&j.erro)||"sem detalhe"))); e.codigo=cod; throw e;
   }
   return j.json;
@@ -568,7 +624,7 @@ const FATAIS = ["PARADO","SEM_PERMISSAO","SEM_CHAVE_OPENAI","LIMITE_ATINGIDO","C
 
 /* ============================ EXECUÇÃO ============================ */
 async function analisar(){
-  const [cols,rows]=S.grid.split("x").map(Number);
+  const dpi=Number(S.grid)||150;
   S.ctl=new AbortController(); const signal=S.ctl.signal;
   $("run").disabled=true; $("stop").classList.remove("hide"); $("log").textContent="Abrindo o PDF…"; prog(.02);
   try{
@@ -579,7 +635,8 @@ async function analisar(){
     for (let i=1;i<=np;i++){
       if (signal.aborted) throw Object.assign(new Error(MSG.PARADO),{codigo:"PARADO"});
       log(`Renderizando prancha ${i} de ${np}…`);
-      const r = await renderPagina(pdf,i,cols,rows);
+      const r = await renderPagina(pdf,i,dpi);
+      log(`Prancha ${i}: ${r.grade[0]} x ${r.grade[1]} recortes a ${r.dpiReal} dpi${r.dpiReal<dpi?" (folha grande: resolução reduzida)":""}.`);
       imgs=imgs.concat(r.imgs); texto += `\n[P${i}] ${r.texto}`;
       if (i===1){ const t=$("thumb"); t.src=URL.createObjectURL(r.imgs[0].blob); t.style.display="block"; }
       prog(.02+.13*i/np);
@@ -614,7 +671,7 @@ async function analisar(){
     log(`Regras aplicadas: ${REGRAS[p].nome} (${todasRegras(p).length} itens).`);
 
     log(`${imgs.length} imagens para ler${temTexto?" · camada de texto encontrada":" · PDF sem texto, leitura só por imagem"}.`);
-    const POR_LOTE = 4;
+    const POR_LOTE = 6;
     const lotes=[]; for (let i=0;i<imgs.length;i+=POR_LOTE) lotes.push(imgs.slice(i,i+POR_LOTE));
     const leituras=new Array(lotes.length); let feitos=0, prox=0, falhas=0;
     const trabalhador = async () => {
@@ -631,7 +688,7 @@ async function analisar(){
     await Promise.all([trabalhador(), trabalhador()]);
     if (falhas===lotes.length) throw new Error("Nenhuma leitura da prancha deu certo. Rode de novo.");
     log("Cruzando as peças e emitindo o laudo…"); prog(.8);
-    const laudo = await ia("analistaLaudo", promptLaudo(p,leituras,texto));
+    const laudo = await ia("analistaLaudo", promptLaudo(p,leituras,texto), null, 340000);   // o laudo pensa mais: até 5 min 40 s (o Apps Script corta em 6 min)
     prog(1); log(`Laudo pronto${falhas?` (${falhas} leitura(s) falharam: itens afetados ficam como "conferir")`:""}.`);
     S.laudo={p, laudo:laudo||{}, arquivo:S.file.name, quando:new Date(), falhas, aviso};
     S.filtro="todos"; mostrarLaudo();
@@ -671,6 +728,10 @@ function mostrarLaudo(){
     <div class="card"><b>${n("na")}</b><span>Não se aplica</span></div></div>
   <div class="bloco"><h3>Parecer</h3>
     <p class="resumo">${escH(laudo.resumo||"")} ${laudo.tipologia?`<br><span class="e">Tipologia lida: ${escH(laudo.tipologia)}</span>`:""}</p></div>`;
+  const ants=(laudo.anteriores||[]).filter(a=>a&&a.pedido);
+  if (ants.length){ const rs={atendido:["ok","Atendido"],pendente:["corrigir","Pendente"],conferir:["conferir","Conferir"]};
+    h+=`<div class="bloco"><h3>Correções já pedidas pela prefeitura <em>${ants.filter(a=>a.status==="pendente").length} pendente(s) de ${ants.length}</em></h3>` +
+      ants.map(a=>{ const r=rs[a.status]||rs.conferir; return `<div class="item"><div><span class="pill ${r[0]}">${r[1]}</span></div><div><p class="q">${escH(a.pedido)}</p>${a.evidencia?`<p class="e">${escH(a.evidencia)}</p>`:""}</div></div>`; }).join("") + `</div>`; }
   if (cs.length) h+=`<div class="bloco"><h3>Conta do analista <em>calculada pela página com os valores lidos</em></h3><div class="rolar"><table>
     <tr><th>Verificação</th><th>Lido na prancha</th><th>Exigido</th><th>Resultado</th></tr>` +
     cs.map(c=>`<tr><td>${escH(c.nome)}</td><td class="n">${escH(c.lido)}</td><td class="n">${escH(c.regra)}</td><td>${c.ok==null?'<span class="pill na">base</span>':c.ok?'<span class="pill ok">OK</span>':'<span class="pill corrigir">Corrigir</span>'}</td></tr>`).join("") + `</table></div></div>`;
@@ -685,6 +746,7 @@ function mostrarLaudo(){
   $("copy").onclick=async e=>{
     const t=`LAUDO PRÉVIO · ${REGRAS[p].nome.toUpperCase()} · ${arquivo} · ${quando.toLocaleString("pt-BR")}\n${laudo.resumo||""}\n\n` +
       ["corrigir","conferir"].map(s=>`${rot[s].toUpperCase()}\n`+its.filter(i=>i.st===s).map(i=>`- [${i.id}] ${i.txt}\n  ${[i.onde,i.ev].filter(Boolean).join(" · ")}\n  → ${i.co||"verificar"}`).join("\n")).join("\n\n") +
+      (ants.length?`\n\nCORREÇÕES ANTERIORES\n`+ants.map(a=>`- [${String(a.status||"conferir").toUpperCase()}] ${a.pedido}${a.evidencia?` — ${a.evidencia}`:""}`).join("\n"):"") +
       (cs.length?`\n\nCONTAS\n`+cs.map(c=>`- ${c.nome}: ${c.lido} | ${c.regra} | ${c.ok==null?"base":c.ok?"OK":"CORRIGIR"}`).join("\n"):"");
     try{ await navigator.clipboard.writeText(t); e.target.textContent="Copiado"; }catch(_){ e.target.textContent="Não foi possível copiar"; }
   };
@@ -706,7 +768,9 @@ $("drop").addEventListener("drop",e=>escolher(e.dataTransfer.files[0]));
 $("prefs").onclick=e=>{ const b=e.target.closest(".pref"); if (!b) return; $("auto").checked=false; marcarPref(b.dataset.p); };
 $("depth").onclick=e=>{ const g=e.target.dataset&&e.target.dataset.g; if (!g) return; S.grid=g;
   [...$("depth").children].forEach(b=>b.setAttribute("aria-pressed", b.dataset.g===g));
-  const [c,r]=g.split("x"); $("depthHint").textContent=`${e.target.textContent}: cada prancha é lida em ${c*r} recortes ampliados, além da visão geral.${g==="6x4"?" Mais lenta e gasta mais crédito da OpenAI.":""}`; };
+  $("depthHint").textContent = g==="100" ? "Rápida: 100 dpi. Lê títulos, quadros e cotas grandes; cota pequena pode ficar ilegível."
+    : g==="200" ? "Profunda: 200 dpi. Para prancha carregada ou escaneada. Mais lenta e gasta mais crédito da OpenAI."
+    : "Padrão: prancha lida a 150 dpi. Uma A1 vira cerca de 36 recortes; uma A3, 9."; };
 $("run").onclick=analisar;
 $("stop").onclick=()=>{ if (S.ctl) S.ctl.abort(); log("Parando depois das leituras em andamento…"); };
 telaRegras();
