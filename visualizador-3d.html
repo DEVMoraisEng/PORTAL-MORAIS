@@ -501,7 +501,7 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   window.abrirPranchas = function () {
     const box = document.getElementById("pr-itens"); let h = "", ult = "";
     PR.lista.forEach((p, i) => { if (p.disc !== ult) { ult = p.disc; h += `<div class="pr-g">${NOME_DISC[p.disc] || p.disc}</div>`; }
-      h += `<button class="pr-i ${i === PR.atual ? "on" : ""}" onclick="mostrarPrancha(${i})"><b>${(p.numero || "").replace(/</g, "&lt;")}</b><span>${(p.nome || p.arquivo).replace(/</g, "&lt;")}</span></button>`; });
+      h += `<button class="pr-i ${i === PR.atual ? "on" : ""}" onclick="mostrarPrancha(${i})"><b>${(p.numero || "").replace(/</g, "&lt;")}</b><span>${(p.nome || p.arquivo).replace(/</g, "&lt;")}${p.paginas > 1 ? ` <i style="opacity:.6;font-style:normal">· ${p.paginas} pág.</i>` : ""}</span></button>`; });
     box.innerHTML = h || `<div class="pr-vazio" style="color:var(--text3)">Nenhuma prancha publicada.</div>`;
     document.getElementById("pr-ov").classList.add("on");
     if (PR.atual < 0 && PR.lista.length) mostrarPrancha(0);
@@ -511,7 +511,7 @@ window.MODELO3D_ENDPOINT = async function (obraId) {
   window.mostrarPrancha = async function (i) {
     const p = PR.lista[i]; if (!p || !PR.r) return; PR.atual = i;
     document.querySelectorAll(".pr-i").forEach((b, k) => b.classList.toggle("on", k === i));
-    document.getElementById("pr-nome").textContent = (p.numero ? p.numero + " — " : "") + (p.nome || p.arquivo);
+    document.getElementById("pr-nome").textContent = (p.numero ? p.numero + " — " : "") + (p.nome || p.arquivo) + (p.paginas > 1 ? " (" + p.paginas + " páginas)" : "");
     const corpo = document.getElementById("pr-corpo");
     let url = PR.urls[p.arquivo];
     if (!url) {
