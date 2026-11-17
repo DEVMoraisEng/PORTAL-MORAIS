@@ -1146,6 +1146,26 @@ button.cfg-ir.bt:hover{background:rgba(41,87,120,.1)}
       </select>
       <span id="sit-cont" class="cfg-auto"></span>
     </div>
+    <!-- 17/11/26 (pedido do Morais): filtro de período — ano, mês ou intervalo variável, pela data de término ou de início da obra no Notion -->
+    <div class="controles" style="margin-top:-6px">
+      <span class="sel-lbl" title="Escolhe as obras pela data de término (ou de início) no Notion">Período:</span>
+      <select id="sel-per-st" onchange="perMudou()">
+        <option value="">Todo o período</option>
+        <option value="ano">Ano</option>
+        <option value="mes">Mês</option>
+        <option value="int">Intervalo (de / até)</option>
+        <option value="u12">Últimos 12 meses</option>
+        <option value="u24">Últimos 24 meses</option>
+      </select>
+      <select id="sel-per-ano" onchange="setorFiltrou()" style="display:none"></select>
+      <input type="month" id="per-mes" onchange="setorFiltrou()" style="display:none">
+      <span id="per-int" style="display:none;align-items:center;gap:6px"><input type="month" id="per-de" onchange="setorFiltrou()"><span class="cfg-auto">até</span><input type="month" id="per-ate" onchange="setorFiltrou()"></span>
+      <select id="sel-per-ref" onchange="setorFiltrou()" style="display:none" title="Qual data do Notion decide se a obra está no período">
+        <option value="fim">pela data de término</option>
+        <option value="ini">pela data de início</option>
+      </select>
+      <span id="per-cont" class="cfg-auto"></span>
+    </div>
     <details class="av-box" id="av-sit" style="display:none"><summary></summary><div class="av-l"></div></details>
   </div></div>
 
@@ -4687,7 +4707,8 @@ function docsSetorFiltrados(semSelecao){
   const {ok,info}=obrasSituacao(); window._SIT=info;
   const cid=document.getElementById('sel-cid-st')?.value||'', st=document.getElementById('sel-set-st')?.value||'';
   const prop=document.getElementById('sel-prop-st')?.value||'', imo=document.getElementById('sel-imo-st')?.value||'';
-  const base=d=>(!cid||d.cidade===cid)&&(!st||d.setor===st)&&(!imo||imoOk(d.endereco,imo))&&(prop!=='morais'||ehObraMorais(d.endereco))&&(prop!=='invest'||!ehObraMorais(d.endereco));
+  const pi=perIntervalo();
+  const base=d=>(!cid||d.cidade===cid)&&(!st||d.setor===st)&&(!imo||imoOk(d.endereco,imo))&&(prop!=='morais'||ehObraMorais(d.endereco))&&(prop!=='invest'||!ehObraMorais(d.endereco))&&perOk(d,pi);
   // avisos: obras da barra de filtros (entrando ou não) com datas faltando no Notion
   const vist=new Set(), avs=[];
   docs.forEach(d=>{ const e=normS(d.endereco||''); const i=info[e]; if(!i||vist.has(e)||!base(d)) return; vist.add(e); if(i.av.length) avs.push({d,i}); });
@@ -4697,8 +4718,32 @@ function docsSetorFiltrados(semSelecao){
     box.querySelector('.av-l').innerHTML=avs.sort((a,b)=>String(a.d.endereco).localeCompare(b.d.endereco)).map(({d,i})=>`<div><b>${esc(d.endereco)}</b> <span class="cfg-auto">${i.mor?'Morais':'Investidor'} · ${i.entra?'entra na análise':'fora da análise'}</span> — ${esc(i.av.join('; '))}</div>`).join(''); }
   let a=docs.filter(d=>ok.has(normS(d.endereco))&&base(d));
   const cont=document.getElementById('sit-cont'); if(cont){ const u=new Set(a.map(d=>normS(d.endereco))); const nm=[...u].filter(e=>info[e]&&info[e].mor).length; cont.textContent=`${u.size} obras na análise (${nm} Morais, ${u.size-nm} investidores)`; }
+  const pc=document.getElementById('per-cont'); if(pc){ let tx=''; if(pi){ const a=pi.de.startsWith('0000')?null:pi.de, b=pi.ate.startsWith('9999')?null:pi.ate;
+    tx=(pi.ref==='ini'?'Início':'Término')+' da obra no Notion '+(a&&b?(a===b?'em '+fmtM(a):'de '+fmtM(a)+' a '+fmtM(b)):a?'a partir de '+fmtM(a):'até '+fmtM(b))+'. Obra sem essa data fica de fora.'; } pc.textContent=tx; }
   if(!semSelecao){ const sel=getEnderecosSelecionados(); if(sel) a=a.filter(d=>sel.includes(d.endereco)); }
   return a;
+}
+/* 17/11/26: período do Desempenho — devolve {de,ate,ref} em 'AAAA-MM' ou null quando é "Todo o período" */
+function perIntervalo(){
+  const t=document.getElementById('sel-per-st')?.value||''; if(!t) return null;
+  const ref=document.getElementById('sel-per-ref')?.value||'fim';
+  if(t==='ano'){ const a=document.getElementById('sel-per-ano')?.value; return a?{de:a+'-01',ate:a+'-12',ref}:null; }
+  if(t==='mes'){ const m=document.getElementById('per-mes')?.value; return m?{de:m,ate:m,ref}:null; }
+  if(t==='int'){ const de=document.getElementById('per-de')?.value||'', ate=document.getElementById('per-ate')?.value||''; return (de||ate)?{de:de||'0000-01',ate:ate||'9999-12',ref}:null; }
+  if(t==='u12'||t==='u24') return {de:mAdd(MES_HOJE,-(+t.slice(1))+1),ate:MES_HOJE,ref};
+  return null;
+}
+function perOk(d,pi){ if(!pi) return true; const m=mesD(pi.ref==='ini'?d.data_inicio_obra:d.data_termino_obra); return !!m&&m>=pi.de&&m<=pi.ate; }
+function perMudou(){
+  const t=document.getElementById('sel-per-st')?.value||'', mostra=(id,v)=>{ const el=document.getElementById(id); if(el) el.style.display=v?(id==='per-int'?'inline-flex':''):'none'; };
+  const anoSel=document.getElementById('sel-per-ano');
+  if(anoSel&&!anoSel.options.length){ const anos=new Set(); docs.forEach(d=>[d.data_termino_obra,d.data_inicio_obra].forEach(x=>{ if(x&&/^\d{4}/.test(x)) anos.add(x.slice(0,4)); }));
+    const ls=[...anos].sort().reverse(); anoSel.innerHTML=ls.map(a=>`<option value="${a}">${a}</option>`).join(''); if(ls.includes(MES_HOJE.slice(0,4))) anoSel.value=MES_HOJE.slice(0,4); }
+  const pm=document.getElementById('per-mes'); if(pm&&!pm.value) pm.value=MES_HOJE;
+  const pa=document.getElementById('per-ate'); if(pa&&!pa.value) pa.value=MES_HOJE;
+  const pd=document.getElementById('per-de'); if(pd&&!pd.value) pd.value=mAdd(MES_HOJE,-11);
+  mostra('sel-per-ano',t==='ano'); mostra('per-mes',t==='mes'); mostra('per-int',t==='int'); mostra('sel-per-ref',!!t);
+  setorFiltrou();
 }
 function setorFiltrou(){ initObrasSetor(); if(paginaAtual==='tempo') buildTempoCusto(); else if(SETOR_SUB==='rent') buildRentab(); else buildSetor(); }
 const mDif=(a,b)=>{ const [ay,am]=a.split('-').map(Number),[by,bm]=b.split('-').map(Number); return (by-ay)*12+(bm-am); };
