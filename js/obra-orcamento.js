@@ -54,11 +54,11 @@
   }
   async function carregarCatalogo(forcar) {
     if (CAT && !forcar) return CAT;
-    if (!forcar) { try { const c = JSON.parse(sessionStorage.getItem("orc_catalogo") || "null"); if (c && c.itens && Date.now() - c.ts < 30 * 60e3) { CAT = c.itens; CAT_LIDO = c.lido_em; indexar(); return CAT; } } catch (e) {} }
+    if (!forcar) { try { const c = JSON.parse(sessionStorage.getItem("orc_catalogo_v2") || "null"); if (c && c.itens && Date.now() - c.ts < 30 * 60e3) { CAT = c.itens; CAT_LIDO = c.lido_em; indexar(); return CAT; } } catch (e) {} }
     let r; try { r = await g.chamar({ action: "orcCatalogo", forcar: !!forcar }, 60000, true); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     if (!r || !r.ok) { CAT_ERRO = (r && r.erro) || "erro"; return null; }
     CAT = r.itens || []; CAT_LIDO = r.lido_em || null; CAT_ERRO = ""; indexar();
-    try { sessionStorage.setItem("orc_catalogo", JSON.stringify({ ts: Date.now(), itens: CAT, lido_em: CAT_LIDO })); } catch (e) {}
+    try { sessionStorage.setItem("orc_catalogo_v2", JSON.stringify({ ts: Date.now(), itens: CAT, lido_em: CAT_LIDO })); } catch (e) {}
     return CAT;
   }
   function indexar() {
@@ -141,7 +141,8 @@
     const arrimoRevit = (revit && revit.linhas || []).some(r => r.arrimo);
     const usados = new Set(), L = [], alertas = [];
     let seq = 0;
-    const nova = (it, extra) => Object.assign({ id: "l" + (++seq), etapa: paiDe(it.idx), idx: it.idx, cod: it.cod, cat: it.cat, nome: it.nome, un: it.un, q: 0, origem: "", aviso: "" }, extra);
+    const nova = (it, extra) => Object.assign({ id: "l" + (++seq), etapa: paiDe(it.idx), idx: it.idx, orig: it.idx, cod: it.cod, cat: it.cat, nome: it.nome, un: it.un, q: 0, origem: "", aviso: "",
+      qref: it.q_ref ? Math.round(it.q_ref / (M.casas_ref || 2) * (nC || 1) * 100) / 100 : null }, extra);
     M.itens.forEach(it0 => {
       let it = it0;
       if (it.so_cidade === "CANEDO" && !canedo) return;
@@ -160,7 +161,7 @@
           if (rows.length) {
             rows.forEach(x => usados.add(x));
             const base = rows.reduce((s, x) => s + x.q, 0), m = mult[r.disc] || 1, fa = r.fator || 1;
-            Object.assign(ln, { q: arred(base * m * fa, r.arred), revit: { base: base, disc: r.disc, fator: fa, arred: r.arred }, refs: refsDe(rows),
+            Object.assign(ln, { q: arred(base * m * fa, r.arred), revit: { base: base, disc: r.disc, fator: fa, arred: r.arred }, refs: refsDe(rows), unRevit: rows[0].un,
               origem: "Revit " + r.disc + ": " + numBr(base) + (m !== 1 ? " × " + m : "") + (fa !== 1 ? " × " + fa : "") });
           } else {
             const p = r.padrao || { t: "fixo", q: 0 };
@@ -206,13 +207,88 @@
       const et = etapaDaSecao(x.secao);
       const m = mult[x.disc] || 1;
       L.push({ id: "l" + (++seq), etapa: et, idx: "", cod: c ? c[1] : "", cat: c ? c[0] : "", nome: c ? c[2] : x.nome, un: c ? c[3] : x.un,
-        q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" }, refs: refsDe([x]),
+        q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" }, refs: refsDe([x]), unRevit: x.un,
         origem: "Revit " + x.disc + " (" + x.tabela + "): " + numBr(x.q) + (m !== 1 ? " × " + m : ""), extra: true,
         aviso: c ? "veio do Revit e não está no modelo — conferir" : "veio do Revit e não achei no catálogo do MC: escolha o código" });
     });
     if (!temRevit) alertas.push(revit && revit.erro ? "Quantitativos do Revit: " + revit.erro + " — as linhas do Revit saíram pela proporção do REF." : "Sem quantitativos do Revit — as linhas do Revit saíram pela proporção do REF.");
-    return { linhas: L, mult: mult, alertas: alertas };
+    /* a soma passa a apontar para as LINHAS (o índice pode mudar na mão depois) */
+    L.forEach(ln => { if (ln.soma) { ln.somaIds = L.filter(x => ln.soma.indexOf(x.orig) >= 0).map(x => x.id); delete ln.soma; } });
+    renumerar(L, false);
+    const R = revit && revit.linhas || [];
+    const info = { temRevit: temRevit, arrimoRevit: arrimoRevit, discs: Object.keys(discsRevit),
+      inexistentes: R.filter(x => /INEXISTENTE|VERIFICAR/.test(NN(x.nome))).map(x => x.disc + " · " + x.tabela + ": " + x.nome + " (" + numBr(x.q) + ")"),
+      hidCaixa: R.filter(x => x.disc === "HID" && /CAIXA D.?AGUA/.test(NN(x.nome))).reduce((t, x) => t + x.q, 0),
+      p5: f.p5 == null ? null : f.p5, p7: f.p7 == null ? null : f.p7, arrimoForm: f.arrimoSim == null ? null : f.arrimoSim, nC: nC };
+    return { linhas: L, mult: mult, alertas: alertas, info: info };
   }
+  /* ---------------- índices (17/11: editáveis e reorganizáveis) ----------------
+     Índice "8.10" = etapa 8, item 10. Mudar o índice de uma linha leva ela para a etapa e a posição do novo índice;
+     "Renumerar" deixa os itens de cada etapa em sequência (1, 2, 3…) na ordem em que estão. */
+  function cmpIdx(a, b) {
+    const A = String(a || "").split("."), B = String(b || "").split(".");
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+      if (A[i] == null) return -1; if (B[i] == null) return 1;
+      const x = parseFloat(A[i]), y = parseFloat(B[i]);
+      if (isNaN(x) || isNaN(y)) { const c = String(A[i]).localeCompare(String(B[i]), "pt-BR", { numeric: true }); if (c) return c; }
+      else if (x !== y) return x - y;
+    }
+    return 0;
+  }
+  const chaveOrdem = l => l.idx || ((l.etapa && l.etapa !== "_revit" ? l.etapa : "9999") + ".9999");
+  function ordenar(L) { const pos = new Map(L.map((l, i) => [l, i])); L.sort((a, b) => cmpIdx(chaveOrdem(a), chaveOrdem(b)) || pos.get(a) - pos.get(b)); return L; }
+  /* todos=false: só as etapas com índice repetido ou linha sem índice; todos=true (ou raiz informada): numera tudo */
+  function renumerar(L, todos, raiz) {
+    const porPai = {}, ordem = [];
+    L.forEach(l => { const p = l.idx ? paiDe(l.idx) : (l.etapa || "_revit"); if (!porPai[p]) { porPai[p] = []; ordem.push(p); } porPai[p].push(l); });
+    ordem.forEach(p => {
+      if (p === "_revit" || !p) return;
+      if (raiz != null && String(p).split(".")[0] !== String(raiz)) return;
+      const ls = porPai[p], vistos = new Set();
+      let precisa = !!todos || raiz != null;
+      ls.forEach(l => { if (!l.idx) precisa = true; else { const a = vistos.size; vistos.add(l.idx); if (vistos.size === a) precisa = true; } });
+      if (!precisa) return;
+      ls.forEach((l, i) => { l.idx = p + "." + (i + 1); l.etapa = p; });
+    });
+  }
+
+  /* ---------------- CONFERÊNCIA DOS QUANTITATIVOS (17/11, pedido do dono) ----------------
+     Procura o que parece erro antes de o orçamento ir para o MC — não muda nada, só aponta. */
+  const unN = u => { const t = NN(u).replace(/[²2]/g, "2").replace(/\s/g, ""); if (/^M2$/.test(t)) return "M2"; if (/^(M|ML)$/.test(t)) return "M"; if (/^(UN|UND|PC|PECA|UNID)$/.test(t)) return "UN"; return t; };
+  function conferir(s, o) {
+    const C = [], add = (nivel, txt, id) => C.push({ nivel: nivel, txt: txt, id: id || null });
+    const I = s.info || {}, nC = s.nCasas || Number(o && o.n_casas) || 1, L = s.linhas;
+    L.forEach(l => {
+      const nm = (l.idx ? l.idx + " · " : "") + l.nome;
+      if (l.revit && l.qref && l.q) { const r = l.q / l.qref; if (r > 2 || r < 0.5) add("alto", `${nm}: ${numBr(l.q)} ${l.un} — o REF (proporcional a ${nC} casas) daria ~${numBr(l.qref)} (${r > 1 ? "+" : ""}${Math.round((r - 1) * 100)}%)`, l.id); }
+      if (l.revit && l.unRevit && l.un && unN(l.unRevit) !== unN(l.un)) add("medio", `${nm}: o Revit mede em ${l.unRevit} e o item do MC é em ${l.un}`, l.id);
+      if (!l.cod) add("medio", `${nm}: sem código do MC`, l.id);
+      else if (l.semCat) add("medio", `${nm}: o código ${l.cod} não está no catálogo do MC (Própria/Condomínio)`, l.id);
+      else if (l.inativo) add("medio", `${nm}: o código ${l.cod} está INATIVO no MC`, l.id);
+      else if (CAT_MAP && !l.custo && l.q) add("baixo", `${nm}: custo zero no catálogo do MC`, l.id);
+      if (!l.idx) add("baixo", `${l.nome}: sem índice — escolha a etapa`, l.id);
+    });
+    const porCod = {}; L.forEach(l => { if (l.cod && l.nome.indexOf(" — CASA ") < 0) (porCod[l.cod] = porCod[l.cod] || []).push(l); });
+    Object.keys(porCod).forEach(c => { if (porCod[c].length > 1) add("medio", `O código ${c} aparece ${porCod[c].length} vezes (${porCod[c].map(l => l.idx).join(", ")}) — conferir se não está em dobro`, porCod[c][0].id); });
+    (I.inexistentes || []).forEach(x => add("alto", `Revit com item a verificar: ${x}`));
+    const aReal = (Number(o && o.area_averbada) || 0) + (Number(o && o.area_habite) || 0);
+    const soma = origs => L.filter(l => origs.indexOf(l.orig) >= 0).reduce((t, l) => t + (Number(l.q) || 0), 0);
+    if (aReal) {
+      const piso = soma(["8.1", "8.2"]); if (piso) { const r = piso / aReal; if (r < 0.7 || r > 1.3) add("alto", `Pisos (8.1 + 8.2) = ${numBr(piso)} m² para ${numBr(aReal)} m² de área construída real (${Math.round(r * 100)}%) — conferir`); }
+      const laje = soma(["4.9", "4.10"]); if (laje) { const r = laje / aReal; if (r < 0.6 || r > 1.4) add("medio", `Lajes (4.9 + 4.10) = ${numBr(laje)} m² para ${numBr(aReal)} m² de área construída (${Math.round(r * 100)}%)`); }
+    }
+    if (I.p5 != null || I.p7 != null) { const t = (Number(I.p5) || 0) + (Number(I.p7) || 0); if (t !== nC) add("alto", `Padrões de energia: ${I.p5 || 0} de 5 m + ${I.p7 || 0} de 7 m = ${t}, mas a obra tem ${nC} casas (formulário de obra)`); }
+    const mH = Number((s.mult || {}).HID) || 1;
+    if (I.hidCaixa && nC > 1) {
+      if (I.hidCaixa >= nC && mH > 1) add("alto", `O HID do Revit já tem ${I.hidCaixa} caixas d'água (parece ter as ${nC} casas) e o multiplicador está × ${mH} — ficaria em dobro`);
+      if (I.hidCaixa === 1 && mH === 1) add("alto", `O HID do Revit tem 1 caixa d'água (1 casa) e o multiplicador está × 1 — as outras ${nC - 1} casas ficam de fora`);
+    }
+    if (I.arrimoForm === false && I.arrimoRevit) add("alto", "O formulário diz que NÃO tem arrimo, mas o Revit tem tabelas do arrimo");
+    if (I.arrimoForm === true && I.temRevit && !I.arrimoRevit) add("alto", "O formulário diz que tem arrimo, mas o Revit não tem as tabelas do arrimo — as linhas do arrimo ficaram sem quantidade");
+    const ord = { alto: 0, medio: 1, baixo: 2 };
+    return C.sort((a, b) => ord[a.nivel] - ord[b.nivel]);
+  }
+
   /* de onde veio cada linha do Revit: disciplina, tabela, nome (chave) e se é do arrimo — o visualizador 3D usa para marcar */
   function refsDe(rows) { const v = {}; rows.forEach(x => { v[x.disc + "|" + x.tabela + "|" + x.k + "|" + (x.arrimo ? 1 : 0)] = 1; }); return Object.keys(v); }
   function qtdSimples(r, nC) {
@@ -255,9 +331,9 @@
       for (let n = 1; n <= nC; n++) {
         if (c.tipo === "vb") k.linhas.push({ casa: n, item: c.item, un: "VB", q: 1, preco: c.preco });
         else c.itens.forEach(([idx, nome, tp]) => {
-          const l = s.linhas.find(x => x.idx === idx); if (!l || !/m/i.test(l.un || "")) return;
+          const l = s.linhas.find(x => (x.orig || x.idx) === idx); if (!l || !/m/i.test(l.un || "")) return;
           const q = Math.round((Number(l.q) || 0) / nC * 100) / 100; if (!q) return;
-          k.linhas.push({ casa: n, item: nome, un: "m²", q: q, preco: c.precos[tp], tipo: tp, de: idx });
+          k.linhas.push({ casa: n, item: nome, un: "m²", q: q, preco: c.precos[tp], tipo: tp, de: l.idx || idx });
         });
       }
       out.push(k);
@@ -265,25 +341,29 @@
     return out;
   }
   const totalContrato = k => k.linhas.reduce((t, l) => t + (Number(l.q) || 0) * (Number(l.preco) || 0), 0);
-  function contratosHtml(s) {
-    if (!s.contratos) s.contratos = gerarContratos(s);
-    const nomeEt = idx => { const e = MODELO && MODELO.etapas.find(x => x.idx === idx); return e ? e.idx + " · " + e.nome : idx; };
-    let h = `<div class="ct-top"><div><b>Contratos de empreiteiros</b><span>um contrato por empreiteiro, uma etapa por casa — como a medição do Mais Controle. Quantidades da cerâmica saem da planilha acima (dividida pelas casas); preços editáveis.</span></div>
-      <button class="bt ghost" onclick="OrcObra.refazerContratos()" title="Monta os contratos de novo pela planilha atual e pelos preços padrão">↻ Refazer pelos números do orçamento</button></div><div class="cts">`;
-    s.contratos.forEach((k, ki) => {
-      const tot = totalContrato(k), casas = [...new Set(k.linhas.map(l => l.casa))];
-      h += `<div class="ct"><div class="ct-h"><span class="ct-n">${escH(k.id)}</span><div class="ct-t"><b>${escH(k.nome)}</b><span>modelo ${escH(k.modelo)} · vínculo: etapa ${escH(nomeEt(k.etapa))}</span></div><b class="ct-v">${moeda(tot)}</b></div>
-        <table class="ct-tb"><colgroup><col><col style="width:38px"><col style="width:70px"><col style="width:78px"><col style="width:96px"></colgroup>
+  function contratoHtml(s, ki) {
+    const k = s.contratos[ki]; if (!k) return "";
+    const tot = totalContrato(k), casas = [...new Set(k.linhas.map(l => l.casa))];
+    const ligadas = s.linhas.filter(l => String(l.etapa || l.idx || "").split(".")[0] === String(k.etapa));
+    const orcado = ligadas.reduce((t, l) => t + (l.q || 0) * (l.custo || 0), 0);
+    let h = `<div class="ct-cab"><div class="ct-h"><span class="ct-n">${escH(k.id)}</span><div class="ct-t"><b>${escH(k.nome)}</b>
+        <span>modelo do MC: ${escH(k.modelo)} · uma etapa por casa · vínculo com a etapa ${escH(nomeEtapa(s, k.etapa))} do orçamento</span></div>
+        <div class="ct-tt"><b>${moeda(tot)}</b><span>total do contrato</span></div></div>
+      <div class="ct-cmp"><span>Etapa ${escH(k.etapa)} no orçamento (material + mão de obra): <b>${moeda(orcado)}</b> em ${ligadas.length} linhas</span>
+        <span class="sp"></span><button class="bt ghost" onclick="OrcObra.refazerContratos('${escH(k.id)}')" title="Monta este contrato de novo pela planilha atual e pelo preço padrão">↻ Refazer pelos números do orçamento</button></div></div>
+      <div class="ct"><table class="ct-tb"><colgroup><col><col style="width:44px"><col style="width:92px"><col style="width:100px"><col style="width:120px"></colgroup>
         <thead><tr><th>Item</th><th>Un</th><th class="n">Qtd</th><th class="n">Preço un.</th><th class="n">Total</th></tr></thead><tbody>${casas.map(c => {
           const ls = k.linhas.map((l, i) => [l, i]).filter(([l]) => l.casa === c), sub = ls.reduce((t, [l]) => t + (l.q || 0) * (l.preco || 0), 0);
-          return `<tr class="cs"><td colspan="4"><b>CASA ${c}</b></td><td class="n"><b>${moeda(sub)}</b></td></tr>` + ls.map(([l, i]) => `<tr><td>${escH(l.item)}${l.de ? `<small class="mu"> · linha ${escH(l.de)}</small>` : ""}</td><td class="mu">${escH(l.un)}</td>
+          return `<tr class="cs"><td colspan="4"><b>CASA ${c}</b> <small class="mu">etapa ${c} do contrato</small></td><td class="n"><b>${moeda(sub)}</b></td></tr>` + ls.map(([l, i]) => `<tr><td>${escH(l.item)}${l.de ? `<small class="mu"> · linha ${escH(l.de)} do orçamento</small>` : ""}</td><td class="mu">${escH(l.un)}</td>
             <td class="n"><input type="number" step="any" min="0" value="${escH(l.q)}" onchange="OrcObra.ctEditar(${ki},${i},'q',this.value)"></td>
             <td class="n"><input type="number" step="any" min="0" value="${escH(l.preco)}" onchange="OrcObra.ctEditar(${ki},${i},'preco',this.value)"></td>
             <td class="n">${moeda((l.q || 0) * (l.preco || 0))}</td></tr>`).join("");
-        }).join("") || `<tr><td colspan="5" class="mu">Sem linhas — a planilha não tem os itens desta etapa.</td></tr>`}</tbody></table></div>`;
-    });
-    return h + `</div>`;
+        }).join("") || `<tr><td colspan="5" class="mu">Sem linhas — a planilha não tem os itens desta etapa.</td></tr>`}</tbody>
+        <tfoot><tr><td colspan="4"><b>TOTAL DO CONTRATO</b></td><td class="n"><b>${moeda(tot)}</b></td></tr></tfoot></table></div>
+      <div class="ajuda" style="margin-top:8px">${k.id === "412" ? "Cerâmica: m² de cada piso/revestimento da planilha dividido pelas casas; R$ 19,50 o comum e R$ 31,67 o retificado (padrão — editável)." : "Valor por casa (VB), editável."} Vai salvo junto com a planilha da obra.</div>`;
+    return h;
   }
+  function nomeEtapa(s, idx) { const n = (s.nomesEtapa || {})[idx]; if (n) return idx + " · " + n; const e = MODELO && MODELO.etapas.find(x => x.idx === idx); return e ? e.idx + " · " + e.nome : idx; }
 
   /* ---------------- estado / ações ---------------- */
   function precificar(s) {
@@ -311,7 +391,7 @@
       s.podeSalvar = !p || p.podeSalvar !== false;
       if (p && p.ok && p.previa && p.previa.dados && Array.isArray(p.previa.dados.linhas)) {
         const d = p.previa.dados;
-        Object.assign(s, { linhas: d.linhas, mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
+        Object.assign(s, { linhas: d.linhas, mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, info: d.info || null, nomesEtapa: d.nomes_etapa || {}, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
           salvoEm: p.previa.salvo_em, revitEm: d.revit_em || "", sujo: false, carregando: false, msg: "", origemTxt: "salva" });
         precificar(s); g.OrcObra.repintar(); return s;
       }
@@ -320,7 +400,7 @@
     s.msg = "Lendo os quantitativos do Revit…"; g.OrcObra.repintar();
     let rv; try { rv = await carregarRevit(o.id); } catch (e) { rv = { erro: String(e.message || e) }; }
     const gx = gerar(o, ctx, rv && !rv.erro ? rv : { erro: rv && rv.erro });
-    Object.assign(s, { linhas: gx.linhas, mult: gx.mult, alertas: gx.alertas, revitEm: rv && rv.em || "", sujo: true, carregando: false, msg: "", origemTxt: "gerada", nCasas: Number(o.n_casas) || 1 });
+    Object.assign(s, { linhas: gx.linhas, mult: gx.mult, alertas: gx.alertas, info: gx.info, nomesEtapa: {}, revitEm: rv && rv.em || "", sujo: true, carregando: false, msg: "", origemTxt: "gerada", nCasas: Number(o.n_casas) || 1 });
     s.contratos = gerarContratos(s);
     precificar(s); g.OrcObra.repintar(); return s;
   }
@@ -329,7 +409,7 @@
     s.salvando = true; g.OrcObra.repintar();
     const dados = { modelo: MODELO && MODELO.versao, linhas: s.linhas.map(l => { const c = Object.assign({}, l); delete c.semCat; delete c.inativo; return c; }),
       mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", total: total(s), gerado_em: new Date().toISOString(),
-      n_casas: s.nCasas || null, contratos: s.contratos || null };
+      n_casas: s.nCasas || null, contratos: s.contratos || null, info: s.info || null, nomes_etapa: s.nomesEtapa || {} };
     let r; try { r = await g.chamar({ action: "orcPreviaSalvar", obra_id: o.id, obra: o.titulo || "", versao: s.versao == null ? null : s.versao, dados: dados }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     s.salvando = false;
     if (r && r.ok) { Object.assign(s, { versao: r.versao, salvoPor: r.salvo_por, salvoEm: r.salvo_em, sujo: false }); g.toast && g.toast("Orçamento salvo ✓"); }
@@ -351,7 +431,7 @@
   function grupos(s, todos) {
     const et = MODELO ? MODELO.etapas : [];
     const raiz = idx => String(idx || "").split(".")[0];
-    const nomeEt = idx => { const e = et.find(x => x.idx === idx); return e ? e.nome : (idx === "_revit" ? "Do Revit, sem lugar no modelo" : "Outros"); };
+    const nomeEt = idx => { const n = (s.nomesEtapa || {})[idx]; if (n) return n; const e = et.find(x => x.idx === idx); return e ? e.nome : (idx === "_revit" ? "Do Revit, sem lugar no modelo" : "Etapa nova — clique ✎ para dar nome"); };
     const G = {}, ordem = [];
     s.linhas.forEach(l => {
       if (!todos) {
@@ -375,39 +455,51 @@
       return h + `<div class="orc-vazio"><span class="load"></span> ${escH(s && s.msg || "Preparando a planilha do orçamento…")}</div>`;
     }
     if (s.erro) return h + `<div class="orc-vazio">⚠ ${escH(s.erro)}</div>`;
-    const tot = total(s), av = avisos(s), nRevit = s.linhas.filter(l => l.revit).length;
+    if (!s.contratos) s.contratos = gerarContratos(s);
+    const tot = total(s), CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length, sub = s.sub || "orc";
+    /* 17/11: guias — o orçamento da obra, a conferência e um contrato por guia */
+    h += `<div class="orc-guias">
+      <button class="og-g ${sub === "orc" ? "on" : ""}" onclick="OrcObra.guia('orc')"><b>Orçamento da obra</b><span>${moeda(tot)} · ${s.linhas.length} linhas</span></button>
+      <button class="og-g ${sub === "conf" ? "on" : ""} ${nAlto ? "rd" : ""}" onclick="OrcObra.guia('conf')"><b>Conferência ${CF.length ? "⚠ " + CF.length : "✓"}</b><span>${nAlto ? nAlto + " possíveis erros" : CF.length ? "pontos para olhar" : "nada estranho"}</span></button>
+      ${s.contratos.map((k, ki) => `<button class="og-g ct ${sub === "ct" + ki ? "on" : ""}" onclick="OrcObra.guia('ct${ki}')"><b>Contrato ${escH(k.id)} · ${escH(k.nome.split(" — ")[0])}</b><span>${moeda(totalContrato(k))}</span></button>`).join("")}
+    </div>`;
     h += `<div class="orc-kpis">
       <div class="kp"><b>${moeda(tot)}</b><span>total previsto</span></div>
-      <div class="kp"><b>${s.linhas.length}</b><span>linhas</span></div>
-      <div class="kp"><b>${nRevit}</b><span>do Revit</span></div>
-      <div class="kp ${av.length ? "rd" : ""}"><b>${av.length}</b><span>para conferir</span></div>
       <div class="kp st"><span>${s.salvoEm ? "Salva por <b>" + escH(s.salvoPor || "") + "</b> em " + escH(new Date(s.salvoEm).toLocaleString("pt-BR")) + (s.versao ? " · versão " + s.versao : "") : "Ainda não salva"}${s.sujo ? ` <i class="sujo">• alterações não salvas</i>` : ""}</span>
         <span>${CAT_LIDO ? "Catálogo do MC lido em " + escH(new Date(CAT_LIDO).toLocaleString("pt-BR")) : CAT_ERRO ? "⚠ catálogo do MC indisponível (" + escH(CAT_ERRO) + ") — sem custos" : ""}${s.revitEm ? " · Revit publicado em " + escH(new Date(s.revitEm).toLocaleString("pt-BR")) : ""}</span></div>
+      <button class="bt ghost" onclick="OrcObra.regerar()" title="Monta a planilha de novo pelo modelo, pelos quantitativos do Revit e pelos dados da obra (descarta as edições não salvas)">↻ Gerar de novo</button>
+      <button class="bt ghost" onclick="OrcObra.baixar()" title="Baixa a planilha em CSV (abre no Excel)">⬇ Baixar planilha</button>
+      <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button>
     </div>`;
+    if (sub === "conf") return h + conferenciaHtml(s, CF);
+    if (/^ct\d+$/.test(sub)) return h + contratoHtml(s, Number(sub.slice(2)));
+    const marca = {}; CF.forEach(x => { if (x.id) (marca[x.id] = marca[x.id] || []).push(x); });
     h += `<div class="orc-bar">
       <input class="busca" placeholder="Buscar na planilha (nome ou código)…" value="${escH(s.filtro || "")}" oninput="OrcObra.filtrar(this.value)">
       <label class="sw ${s.soAvisos ? "on" : ""}"><input type="checkbox" ${s.soAvisos ? "checked" : ""} onchange="OrcObra.soAvisos(this.checked)" style="display:none">⚠ só o que conferir</label>
       <span class="mults" title="Multiplicador das quantidades do Revit por disciplina (o HID costuma ser modelado com 1 casa)">${Object.keys(s.mult || {}).map(d => `${d} × <input type="number" min="0" step="1" value="${escH(s.mult[d])}" onchange="OrcObra.mult('${d}',this.value)">`).join("")}</span>
       <span class="sp"></span>
+      <button class="bt ghost" onclick="OrcObra.renumerar()" title="Deixa os itens de todas as etapas em sequência (1, 2, 3…) na ordem em que estão">1·2·3 Renumerar tudo</button>
       <button class="bt az" onclick="OrcObra.acrescentar(null)" title="Acrescenta uma linha buscando a composição ou o insumo no catálogo do Mais Controle (bases Própria e Condomínio)">+ Nova linha</button>
-      <button class="bt ghost" onclick="OrcObra.regerar()" title="Monta a planilha de novo pelo modelo, pelos quantitativos do Revit e pelos dados da obra (descarta as edições não salvas)">↻ Gerar de novo</button>
-      <button class="bt ghost" onclick="OrcObra.baixar()" title="Baixa a planilha em CSV (abre no Excel)">⬇ Baixar planilha</button>
-      <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button>
     </div>`;
     const alx = (s.alertas || []).concat(s.aviso ? [s.aviso] : []);
     if (alx.length) h += `<div class="orc-av">${alx.map(escH).join("<br>")}</div>`;
-    h += `<div class="orc-tab"><table><colgroup><col style="width:64px"><col style="width:132px"><col><col style="width:54px"><col style="width:104px"><col style="width:104px"><col style="width:116px"><col style="width:58px"></colgroup>
-      <thead><tr><th>Índice</th><th>Código</th><th>Descrição · de onde veio</th><th>Un</th><th class="n">Qtd</th><th class="n">Custo un.</th><th class="n">Total</th><th></th></tr></thead>`;
+    h += `<div class="orc-tab"><table><colgroup><col style="width:84px"><col style="width:132px"><col><col style="width:54px"><col style="width:104px"><col style="width:104px"><col style="width:116px"><col style="width:58px"></colgroup>
+      <thead><tr><th title="Mude o índice para mover a linha de lugar ou de etapa">Índice ✎</th><th>Código</th><th>Descrição · de onde veio</th><th>Un</th><th class="n">Qtd</th><th class="n">Custo un.</th><th class="n">Total</th><th></th></tr></thead>`;
     grupos(s).forEach(gp => {
-      const fechado = s.aberto[gp.k] === false, st = gp.linhas.reduce((t, l) => t + (l.q || 0) * (l.custo || 0), 0), na = gp.linhas.filter(l => l.aviso || l.semCat || !l.cod).length;
-      h += `<tbody class="g"><tr class="gh" onclick="OrcObra.alternar('${gp.k}')"><td colspan="6"><span class="car">${fechado ? "▸" : "▾"}</span> <b>${escH(gp.k === "_revit" ? "" : gp.k + " · ")}${escH(gp.nome)}</b> <span class="cnt">${gp.linhas.length} ${gp.linhas.length === 1 ? "linha" : "linhas"}${na ? ` · <i>⚠ ${na}</i>` : ""}</span></td><td class="n"><b>${moeda(st)}</b></td><td></td></tr></tbody>`;
+      const fechado = s.aberto[gp.k] === false, st = gp.linhas.reduce((t, l) => t + (l.q || 0) * (l.custo || 0), 0), na = gp.linhas.filter(l => l.aviso || l.semCat || !l.cod || marca[l.id]).length;
+      const novaEt = gp.k !== "_revit" && !(MODELO && MODELO.etapas.some(x => x.idx === gp.k));
+      h += `<tbody class="g"><tr class="gh"><td colspan="6" onclick="OrcObra.alternar('${gp.k}')"><span class="car">${fechado ? "▸" : "▾"}</span> <b>${escH(gp.k === "_revit" ? "" : gp.k + " · ")}${escH(gp.nome)}</b> <span class="cnt">${gp.linhas.length} ${gp.linhas.length === 1 ? "linha" : "linhas"}${na ? ` · <i>⚠ ${na}</i>` : ""}</span>
+        ${gp.k !== "_revit" ? `<button class="gh-b" title="Renumerar os itens desta etapa" onclick="event.stopPropagation();OrcObra.renumerar('${gp.k}')">1·2·3</button>` : ""}${novaEt || (s.nomesEtapa || {})[gp.k] ? `<button class="gh-b" title="Dar nome a esta etapa" onclick="event.stopPropagation();OrcObra.nomeEtapa('${gp.k}')">✎ nome</button>` : ""}</td>
+        <td class="n"><b>${moeda(st)}</b></td><td></td></tr></tbody>`;
       if (fechado) return;
       h += `<tbody>` + gp.linhas.map(l => {
         const av = [l.aviso, l.semCat ? "código não está no catálogo do MC" : "", l.inativo ? "código INATIVO no MC" : "", !l.cod ? "sem código do MC" : ""].filter(Boolean);
-        return `<tr class="${av.length ? "av" : ""} ${l.editado ? "ed" : ""}" data-id="${l.id}">
-          <td class="mu">${escH(l.idx)}</td>
+        const cf = (marca[l.id] || []).filter(x => x.txt.indexOf("sem código") < 0 && x.txt.indexOf("catálogo do MC") < 0 && x.txt.indexOf("INATIVO") < 0);
+        return `<tr class="${av.length || cf.length ? "av" : ""} ${cf.some(x => x.nivel === "alto") ? "erro" : ""} ${l.editado ? "ed" : ""}" data-id="${l.id}">
+          <td><input class="ix" value="${escH(l.idx)}" placeholder="${escH(l.etapa && l.etapa !== "_revit" ? l.etapa + ".?" : "?")}" onchange="OrcObra.indice('${l.id}',this.value)" title="Índice — ex.: 8.12 leva a linha para a etapa 8, item 12"></td>
           <td><button class="cod" onclick="OrcObra.trocar('${l.id}')" title="Trocar a composição/insumo">${l.cod ? escH(l.cod) : "escolher…"}</button></td>
-          <td><div class="nm">${escH(l.nome)}</div><div class="og">${escH(l.origem || "")}${av.length ? ` <span class="w">⚠ ${escH(av.join(" · "))}</span>` : ""}</div></td>
+          <td><div class="nm">${escH(l.nome)}</div><div class="og">${escH(l.origem || "")}${av.length ? ` <span class="w">⚠ ${escH(av.join(" · "))}</span>` : ""}${cf.length ? ` <span class="w cf">🔎 ${escH(cf.map(x => x.txt.replace(/^[^:]*: /, "")).join(" · "))}</span>` : ""}</div></td>
           <td class="mu">${escH(l.un)}</td>
           <td class="n"><input type="number" step="any" min="0" value="${escH(l.q)}" onchange="OrcObra.qtd('${l.id}',this.value)"></td>
           <td class="n mu">${l.custo ? moeda(l.custo) : "—"}</td>
@@ -416,8 +508,17 @@
       }).join("") + `<tr class="add"><td></td><td colspan="7"><button onclick="OrcObra.acrescentar('${gp.k}')">+ acrescentar item nesta etapa</button></td></tr></tbody>`;
     });
     h += `<tfoot><tr><td colspan="6"><b>TOTAL PREVISTO</b></td><td class="n"><b>${moeda(tot)}</b></td><td></td></tr></tfoot></table></div>`;
-    h += contratosHtml(s);
-    h += `<div class="ajuda" style="margin:8px 0 0">O modelo é o orçamento REF 127 (casa de rua). Quantidades do Revit seguem o que foi publicado no 3D; o resto sai das regras por casa/lote, do formulário de obra e dos dados da obra. O custo é o do catálogo do Mais Controle. Enviar ao MC fica para a próxima etapa.</div>`;
+    h += `<div class="ajuda" style="margin:8px 0 0">Modelo: orçamento REF 127 (casa de rua). Quantidades do Revit seguem o que foi publicado no 3D; o resto sai das regras por casa/lote, do formulário de obra e dos dados da obra. Custo: catálogo do Mais Controle. Para criar uma etapa nova, ponha na linha um índice com outro número de etapa (ex.: 19.1).</div>`;
+    return h;
+  }
+  function conferenciaHtml(s, CF) {
+    const rot = { alto: "Possível erro", medio: "Conferir", baixo: "Detalhe" };
+    let h = `<div class="cf-top"><b>Conferência dos quantitativos</b><span>Compara com o REF proporcional ao nº de casas, com a área construída, com o formulário de obra e com o próprio Revit. Não muda nada — só aponta. Clique para ir à linha.</span></div>`;
+    if (!CF.length) return h + `<div class="ok-msg" style="padding:12px 0">✓ Nada estranho nos quantitativos.</div>`;
+    ["alto", "medio", "baixo"].forEach(n => {
+      const l = CF.filter(x => x.nivel === n); if (!l.length) return;
+      h += `<div class="cf-g ${n}"><div class="cf-h">${rot[n]} <span class="cnt">${l.length}</span></div>${l.map(x => `<button class="cf-i" ${x.id ? `onclick="OrcObra.irLinha('${x.id}')"` : "disabled"}><span>${escH(x.txt)}</span>${x.id ? "<i>ir à linha →</i>" : ""}</button>`).join("")}</div>`;
+    });
     return h;
   }
 
@@ -453,10 +554,11 @@
       const l = s.linhas.find(x => x.id === BUSCA.linha);
       if (l) Object.assign(l, { cod: c[1], cat: c[0], nome: c[2] + (l.nome.indexOf(" — CASA ") > 0 ? l.nome.slice(l.nome.indexOf(" — CASA ")) : ""), un: c[3], custo: Number(c[4]) || 0, editado: true, aviso: "", semCat: false, inativo: !c[7], origem: (l.origem || "") + " · trocado na mão" });
     } else {
-      const sel = document.getElementById("ob-et"), k = (sel && sel.value) || BUSCA.etapa || "_revit", n = s.linhas.filter(x => String(x.etapa).split(".")[0] === k).length;
-      const pos = s.linhas.map((x, i) => String(x.etapa).split(".")[0] === k || (k === "_revit" && x.etapa === "_revit") ? i : -1).filter(i => i >= 0).pop();
-      const nova = { id: "m" + Date.now(), etapa: k, idx: k === "_revit" ? "" : k + "." + (n + 1) + "*", cod: c[1], cat: c[0], nome: c[2], un: c[3], q: 1, custo: Number(c[4]) || 0, origem: "acrescentado na mão", manual: true, editado: true, inativo: !c[7] };
-      s.linhas.splice(pos == null ? s.linhas.length : pos + 1, 0, nova);
+      const sel = document.getElementById("ob-et"), k = (sel && sel.value) || BUSCA.etapa || "_revit";
+      /* índice novo: o próximo número dentro da etapa (8 → 8.12) */
+      const nums = s.linhas.filter(x => x.idx && paiDe(x.idx) === k).map(x => parseFloat(String(x.idx).split(".").pop()) || 0);
+      const nova = { id: "m" + Date.now(), etapa: k, idx: k === "_revit" ? "" : k + "." + ((nums.length ? Math.max.apply(null, nums) : 0) + 1), cod: c[1], cat: c[0], nome: c[2], un: c[3], q: 1, custo: Number(c[4]) || 0, origem: "acrescentado na mão", manual: true, editado: true, inativo: !c[7] };
+      s.linhas.push(nova); ordenar(s.linhas);
     }
     s.sujo = true; fecharBusca(); g.OrcObra.repintar();
   }
@@ -464,9 +566,50 @@
 
   /* API para a obras.html */
   function atual() { const o = g.OBRA_OBJ && g.OBRA_OBJ(); return o ? { o: o, s: ST[sT(o.id)] } : {}; }
+  /* 17/11: o 3D mostra a planilha da obra mesmo antes de salvar — o rascunho fica neste navegador */
+  function guardarRascunho(s) {
+    if (!s || !s.linhas || !s.linhas.length) return;
+    try { localStorage.setItem("orc_rascunho_" + s.id, JSON.stringify({ em: Date.now(), salvoEm: s.salvoEm || null, sujo: !!s.sujo,
+      linhas: s.linhas.map(l => ({ idx: l.idx, etapa: l.etapa, cod: l.cod, nome: l.nome, un: l.un, q: l.q, custo: l.custo, refs: l.refs })), nomesEtapa: s.nomesEtapa || {} })); } catch (e) {}
+  }
+  function recalcSomas(L) { L.forEach(x => { if (x.somaIds && !x.editado) x.q = Math.round(L.filter(y => x.somaIds.indexOf(y.id) >= 0).reduce((t, y) => t + (Number(y.q) || 0), 0) * 100) / 100; }); }
+  /* Visualizador 3D: a planilha da obra para virar tabela — rascunho deste navegador, a salva, ou gerada agora */
+  async function paraVisualizador(obraId, j, previa) {
+    const id = sT(obraId);
+    let r = null; try { r = JSON.parse(localStorage.getItem("orc_rascunho_" + id) || "null"); } catch (e) {}
+    const salvoEm = previa && previa.salvo_em ? Date.parse(previa.salvo_em) : 0;
+    if (r && r.linhas && r.linhas.length && (!salvoEm || r.em > salvoEm) && (r.sujo || !salvoEm)) return { linhas: r.linhas, nomes: r.nomesEtapa, rotulo: "rascunho deste navegador, não salvo" };
+    if (previa && previa.dados && Array.isArray(previa.dados.linhas)) return { linhas: previa.dados.linhas, nomes: previa.dados.nomes_etapa, rotulo: "salvo em " + new Date(previa.salvo_em).toLocaleDateString("pt-BR") };
+    try {
+      await carregarModelo(); await carregarCatalogo();
+      const d = await g.lerEstatico("obras.json", "orc_vis_obras");
+      const o = (d && d.obras || []).find(x => sT(x.id) === id);
+      if (!o) return null;
+      const gx = gerar(o, { form: {} }, { linhas: lerTabelas(j), areas: lerAreas(j) });
+      const tmp = { linhas: gx.linhas }; precificar(tmp);
+      return { linhas: tmp.linhas, rotulo: "gerado agora pelo modelo — abra a obra para conferir e salvar" };
+    } catch (e) { return null; }
+  }
   g.OrcObra = {
     html: html, abrir: abrir, gerar: gerar, _st: ST, linhasRevit: j => lerTabelas(j), refKey: x => x.disc + "|" + x.tabela + "|" + x.k + "|" + (x.arrimo ? 1 : 0),
-    repintar: () => { if (typeof g.repintarOrcamento === "function") g.repintarOrcamento(); },
+    repintar: () => { if (typeof g.repintarOrcamento === "function") g.repintarOrcamento(); const a = atual(); if (a.s && !a.s.carregando) guardarRascunho(a.s); },
+    paraVisualizador: paraVisualizador, etapasModelo: () => MODELO ? MODELO.etapas : null,
+    guia: v => { const a = atual(); if (!a.s) return; a.s.sub = v; g.OrcObra.repintar(); },
+    indice: (id, v) => { const a = atual(); if (!a.s) return; const l = a.s.linhas.find(x => x.id === id); if (!l) return;
+      v = String(v || "").trim().replace(/,/g, ".").replace(/\.+$/, "");
+      if (!/^\d+(\.\d+)+$/.test(v)) { g.toast && g.toast("Índice inválido — use etapa.item, ex.: 8.12"); g.OrcObra.repintar(); return; }
+      if (a.s.linhas.some(x => x !== l && x.idx === v)) {     /* índice já usado: a nova entra ali e as de baixo descem uma posição */
+        const pai = paiDe(v), n = parseFloat(v.split(".").pop());
+        a.s.linhas.filter(x => x !== l && x.idx && paiDe(x.idx) === pai && parseFloat(x.idx.split(".").pop()) >= n)
+          .forEach(x => { x.idx = pai + "." + (parseFloat(x.idx.split(".").pop()) + 1); });
+      }
+      l.idx = v; l.etapa = paiDe(v); l.editado = true; a.s.sujo = true; ordenar(a.s.linhas); g.OrcObra.repintar(); },
+    renumerar: k => { const a = atual(); if (!a.s) return; ordenar(a.s.linhas); renumerar(a.s.linhas, k == null, k == null ? null : k); a.s.sujo = true; g.OrcObra.repintar(); },
+    nomeEtapa: k => { const a = atual(); if (!a.s) return; const atualN = (a.s.nomesEtapa || {})[k] || ""; const n = prompt("Nome da etapa " + k + ":", atualN); if (n == null) return;
+      a.s.nomesEtapa = a.s.nomesEtapa || {}; if (n.trim()) a.s.nomesEtapa[k] = n.trim(); else delete a.s.nomesEtapa[k]; a.s.sujo = true; g.OrcObra.repintar(); },
+    irLinha: id => { const a = atual(); if (!a.s) return; const l = a.s.linhas.find(x => x.id === id); a.s.sub = "orc"; a.s.filtro = ""; a.s.soAvisos = false;
+      if (l) a.s.aberto[String(l.etapa || l.idx).split(".")[0]] = true; g.OrcObra.repintar();
+      setTimeout(() => { const tr = document.querySelector('.orc-tab tr[data-id="' + id + '"]'); if (tr) { tr.scrollIntoView({ behavior: "smooth", block: "center" }); tr.classList.add("pisca"); setTimeout(() => tr.classList.remove("pisca"), 2200); } }, 50); },
     resumo: o => { const s = ST[sT(o.id)]; return s && s.linhas.length ? { total: total(s), linhas: s.linhas.length, avisos: avisos(s).length, salvo: !!s.salvoEm, sujo: !!s.sujo } : null; },
     totalContrato: totalContrato,
     salvar: () => { const a = atual(); return a.o ? salvar(a.o) : null; },
@@ -476,16 +619,17 @@
     soAvisos: v => { const a = atual(); if (!a.s) return; a.s.soAvisos = !!v; g.OrcObra.repintar(); },
     alternar: k => { const a = atual(); if (!a.s) return; a.s.aberto[k] = a.s.aberto[k] === false; g.OrcObra.repintar(); },
     qtd: (id, v) => { const a = atual(); if (!a.s) return; const l = a.s.linhas.find(x => x.id === id); if (!l) return; l.q = Math.max(0, Number(String(v).replace(",", ".")) || 0); l.editado = true; a.s.sujo = true;
-      a.s.linhas.forEach(x => { if (x.soma && x.soma.indexOf(l.idx) >= 0 && !x.editado) x.q = Math.round(a.s.linhas.filter(y => x.soma.indexOf(y.idx) >= 0).reduce((t, y) => t + (Number(y.q) || 0), 0) * 100) / 100; });
+      recalcSomas(a.s.linhas);
       g.OrcObra.repintar(); },
     mult: (d, v) => { const a = atual(); if (!a.s) return; const m = Math.max(0, Number(v) || 0); a.s.mult[d] = m; a.s.sujo = true;
       a.s.linhas.forEach(l => { if (l.revit && l.revit.disc === d && !l.editado) { l.q = arred(l.revit.base * m * (l.revit.fator || 1), l.revit.arred); l.origem = "Revit " + d + ": " + numBr(l.revit.base) + (m !== 1 ? " × " + m : "") + ((l.revit.fator || 1) !== 1 ? " × " + l.revit.fator : ""); } });
       g.OrcObra.repintar(); },
-    apagar: id => { const a = atual(); if (!a.s) return; a.s.linhas = a.s.linhas.filter(x => x.id !== id); a.s.sujo = true; g.OrcObra.repintar(); },
+    apagar: id => { const a = atual(); if (!a.s) return; a.s.linhas = a.s.linhas.filter(x => x.id !== id); recalcSomas(a.s.linhas); a.s.sujo = true; g.OrcObra.repintar(); },
     trocar: id => { const a = atual(); if (!a.s) return; const l = a.s.linhas.find(x => x.id === id); abrirBusca({ linha: id, q: l ? (l.cod ? "" : l.nome.split(" ").slice(0, 3).join(" ")) : "" }); },
     acrescentar: k => abrirBusca({ etapa: k }),
     buscar: buscar, escolher: escolher, fecharBusca: fecharBusca, chave: chave,
     ctEditar: (ki, i, campo, v) => { const a = atual(); if (!a.s || !a.s.contratos) return; const l = a.s.contratos[ki].linhas[i]; if (!l) return; l[campo] = Math.max(0, Number(String(v).replace(",", ".")) || 0); a.s.sujo = true; g.OrcObra.repintar(); },
-    refazerContratos: () => { const a = atual(); if (!a.s) return; a.s.contratos = gerarContratos(a.s); a.s.sujo = true; g.OrcObra.repintar(); }
+    refazerContratos: id => { const a = atual(); if (!a.s) return; const novos = gerarContratos(a.s);
+      a.s.contratos = id ? (a.s.contratos || novos).map(k => k.id === id ? (novos.find(n => n.id === id) || k) : k) : novos; a.s.sujo = true; g.OrcObra.repintar(); }
   };
 })(window);

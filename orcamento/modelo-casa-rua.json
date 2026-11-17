@@ -1,5 +1,5 @@
 {
- "versao": "2026-11-16",
+ "versao": "2026-11-17",
  "origem": "REF 127 do Mais Controle — PR 06 QD 07 LT 27 (Goiânia, 2 casas)",
  "casas_ref": 2,
  "multiplicadores": {
@@ -3924,20 +3924,6 @@
    }
   },
   {
-   "idx": "17.6.1",
-   "cod": "846",
-   "cat": "I",
-   "nome": "NUMERO OFICIAL (Senador Canedo)",
-   "un": "Casa",
-   "q_ref": 0,
-   "regra": {
-    "t": "casa",
-    "f": 1,
-    "conferir": "só em Senador Canedo"
-   },
-   "so_cidade": "CANEDO"
-  },
-  {
    "idx": "17.7",
    "cod": "911",
    "cat": "I",
@@ -3985,6 +3971,20 @@
     "q": 1,
     "conferir": "só obra de pessoa jurídica (RET)"
    }
+  },
+  {
+   "idx": "17.11",
+   "cod": "846",
+   "cat": "I",
+   "nome": "NUMERO OFICIAL (Senador Canedo)",
+   "un": "Casa",
+   "q_ref": 0,
+   "regra": {
+    "t": "casa",
+    "f": 1,
+    "conferir": "só em Senador Canedo"
+   },
+   "so_cidade": "CANEDO"
   },
   {
    "idx": "18.1",

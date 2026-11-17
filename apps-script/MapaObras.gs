@@ -79,7 +79,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-11-16 mo14";   // mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
+var MO_VERSAO = "2026-11-17 mo15";   // mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -1394,15 +1394,16 @@ function moVistNuvemApagar_(sess, p) {
 function moPodeOrc_(sess) { return !!sess && (ehAdm_(sess) || temAcesso_(sess, "OBRAS") || temAcesso_(sess, "DOCUMENTOS")); }
 function moOrcCatalogo_(sess, p) {
   if (!moPodeOrc_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
-  var cache = CacheService.getScriptCache(), k = "mo_orc_cat_v1";
+  var cache = CacheService.getScriptCache(), k = "mo_orc_cat_v2";
   var partes = cache.get(k + "_n");
   if (partes && !p.forcar) {
     var txt = "", ok = true;
     for (var i = 0; i < Number(partes); i++) { var c = cache.get(k + "_" + i); if (c == null) { ok = false; break; } txt += c; }
     if (ok) { try { return JSON.parse(txt); } catch (e) {} }
   }
-  var ins = moSupa_("get", "mc_insumos?select=codigo,nome,unidade,custo,base,tipo,ativo&fora_do_mc=is.false&order=codigo.asc&limit=5000") || [];
-  var comp = moSupa_("get", "mc_composicoes?select=codigo,nome,unidade,custo,base,tipo,ativo&fora_do_mc=is.false&order=codigo.asc&limit=5000") || [];
+  /* mo15 (17/11): o Supabase devolve no máximo 1.000 linhas por pedido — os insumos passam disso (1.520), então lê
+     em páginas. Era por isso que códigos como 928 (ART Senador Canedo) apareciam "fora do catálogo". */
+  var ins = moOrcPaginas_("mc_insumos"), comp = moOrcPaginas_("mc_composicoes");
   var rod = (moSupa_("get", "mc_catalogo_rodadas?select=rodou_em,ok&order=rodou_em.desc&limit=1") || [])[0] || null;
   /* lista compacta: [cat, código, nome, unidade, custo, base, tipo, ativo] */
   var L = [];
@@ -1416,6 +1417,14 @@ function moOrcCatalogo_(sess, p) {
     cache.putAll(obj, 1800);
   } catch (e) {}
   return r;
+}
+function moOrcPaginas_(tab) {
+  var out = [], pg = 1000;
+  for (var off = 0; off < 20000; off += pg) {
+    var l = moSupa_("get", tab + "?select=codigo,nome,unidade,custo,base,tipo,ativo&fora_do_mc=is.false&order=codigo.asc&limit=" + pg + "&offset=" + off) || [];
+    out = out.concat(l); if (l.length < pg) break;
+  }
+  return out;
 }
 function moOrcId_(v) { var s = String(v || "").replace(/-/g, "").toLowerCase(); return /^[0-9a-f]{32}$/.test(s) ? s : ""; }
 function moOrcPreviaLer_(sess, p) {

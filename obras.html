@@ -153,10 +153,16 @@ tbody tr:hover td{background:#e9f6ef;cursor:pointer} tbody tr:hover td.stick{bac
 .overlay.o2{z-index:50}
 .painel.on,.overlay.on{display:flex}
 .ph{background:linear-gradient(120deg,var(--azul-esc),var(--azul));color:#fff;padding:18px 22px;position:relative}
-.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1.05;letter-spacing:.5px;padding-right:44px}
+.ph .end{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;line-height:1.05;letter-spacing:.5px;padding-right:130px}
 .ph .loc{color:var(--teal);font-size:12px;font-weight:700;margin-top:4px}
 .pfechar{position:absolute;top:16px;right:18px;background:rgba(255,255,255,.16);border:0;color:#fff;width:32px;height:32px;border-radius:8px;font-size:18px;cursor:pointer}
 .pbody{padding:0 0 30px;overflow:auto;flex:1}
+/* 17/11 — tela cheia e voltar para a aba anterior (janela da obra) */
+.pacao{position:absolute;top:16px;right:58px;background:rgba(255,255,255,.16);border:0;color:#fff;width:32px;height:32px;border-radius:8px;font-size:17px;cursor:pointer;line-height:1}
+.pacao:hover,.pfechar:hover{background:rgba(255,255,255,.28)}
+.pacao.p-volta{right:98px}
+.painel.cheia{width:100vw!important}
+.painel.cheia .ph{padding-left:28px}
 .chips{display:flex;flex-wrap:wrap;gap:7px;padding:14px 22px 0}
 .chip{font-size:11.5px;font-weight:600;padding:5px 10px;border-radius:20px;background:#e7f0f3;color:var(--azul)}
 .chip.alerta{background:#FFF3E0;color:#B45309;border:1px solid #FCD9A8}
@@ -396,6 +402,33 @@ html[data-tema="escuro"] .ct-v{color:var(--text)}
 .ct-tb .mu{color:var(--text4)}
 .ct-tb input{width:100%;padding:3px 5px;font-size:12px;text-align:right;border:1px solid transparent;background:var(--sup2);border-radius:6px}
 .ct-tb input:hover{border-color:var(--border)}
+/* 17/11 — guias do orçamento (orçamento da obra · conferência · um contrato por guia) */
+.orc-guias{display:flex;gap:8px;flex-wrap:wrap;margin:4px 0 12px}
+.og-g{display:flex;flex-direction:column;align-items:flex-start;gap:1px;background:var(--sup);border:1px solid var(--border2);border-bottom:3px solid transparent;border-radius:10px;padding:8px 14px;font:inherit;cursor:pointer;color:var(--text);text-align:left}
+.og-g b{font-size:12.5px}.og-g span{font-size:11px;color:var(--text4);font-weight:600}
+.og-g:hover{border-color:var(--azul)}
+.og-g.on{border-color:var(--azul);border-bottom-color:var(--verde);box-shadow:0 0 0 1px var(--azul) inset}
+.og-g.rd b{color:var(--verm)}
+.og-g.ct b::before{content:"📄 "}
+.orc-kpis .bt{align-self:center}
+.orc-tab input.ix{width:100%;padding:3px 5px;font-size:11.5px;border:1px dashed transparent;background:none;border-radius:6px;color:var(--text3);font-weight:600}
+.orc-tab input.ix:hover,.orc-tab input.ix:focus{border-color:var(--azul);background:var(--sup2)}
+.orc-tab .gh-b{margin-left:8px;background:var(--sup);border:1px solid var(--border2);border-radius:6px;font:inherit;font-size:10.5px;font-weight:700;color:var(--azul);padding:1px 7px;cursor:pointer}
+.orc-tab tr.erro td:first-child{box-shadow:3px 0 0 var(--verm) inset}
+.orc-tab .og .w.cf{color:var(--verm)}
+.orc-tab tr.pisca td{animation:orcPisca 1s ease 2}
+@keyframes orcPisca{50%{background:rgba(41,87,120,.18)}}
+.ct-cab{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:10px}
+.ct-tt{display:flex;flex-direction:column;align-items:flex-end}.ct-tt b{font:800 22px 'Barlow Condensed';color:var(--azul-esc)}.ct-tt span{font-size:10px;font-weight:700;text-transform:uppercase;color:var(--text4)}
+html[data-tema="escuro"] .ct-tt b{color:var(--text)}
+.ct-cmp{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px;color:var(--text3);padding-top:8px;border-top:1px dashed var(--border2)}
+.ct-tb tfoot td{background:var(--bg3);padding:8px 6px;font-size:13px}
+.cf-top{display:flex;flex-direction:column;gap:2px;margin-bottom:10px}.cf-top b{font-family:'Barlow Condensed';font-size:18px;font-weight:800;text-transform:uppercase;color:var(--azul)}.cf-top span{font-size:11.5px;color:var(--text4)}
+.cf-g{margin-bottom:12px}.cf-h{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3);margin-bottom:6px}
+.cf-i{display:flex;width:100%;gap:10px;align-items:baseline;text-align:left;background:var(--sup);border:1px solid var(--border2);border-left:4px solid #F0A04B;border-radius:8px;padding:8px 12px;margin-bottom:5px;font:inherit;font-size:12.5px;color:var(--text);cursor:pointer}
+.cf-i span{flex:1}.cf-i i{font-style:normal;font-size:11px;font-weight:700;color:var(--azul);white-space:nowrap}
+.cf-i:disabled{cursor:default}
+.cf-g.alto .cf-i{border-left-color:var(--verm)}.cf-g.baixo .cf-i{border-left-color:var(--border)}
 .ob-et{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;color:var(--text3)}.ob-et select{flex:1}
 @media(max-width:1100px){ .cts{grid-template-columns:1fr} }
 /* modo escuro */
@@ -579,7 +612,9 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 <div class="overlay" id="ov1" onclick="fecharObra()"></div>
 <div class="painel" id="p1">
   <div class="ph"><div class="end" id="p1-end"></div><div class="loc" id="p1-loc"></div>
-    <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharObra()">✕</button></div>
+    <button class="pfechar" title="Fechar (Esc)" aria-label="Fechar" onclick="fecharObra()">✕</button>
+    <button class="pacao" id="p1-cheia" title="Abrir em tela cheia / voltar ao tamanho normal" onclick="alternarTelaCheia()">⤢</button>
+    <button class="pacao p-volta" id="p1-volta" title="Voltar para a aba anterior" onclick="voltarAbaObra()" style="display:none">←</button></div>
   <div class="pbody" id="p1-corpo"></div>
 </div>
 
@@ -633,7 +668,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 
 <script src="app.js?v=46"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="js/obra-orcamento.js?v=2"></script>
+<script src="js/obra-orcamento.js?v=3"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -1350,7 +1385,7 @@ function campoHtml(o,c,i){
 function abrirObra(id){
   if(!id||!obraDe(id)) return;
   if(obraDe(id).pendente){ toast("Esta obra ainda está sendo criada."); return; }
-  OBRA=id; MODO="lista"; pintarObraPainel();
+  OBRA=id; MODO="lista"; HIST_OB=[]; aplicarTelaCheia(); pintarObraPainel();
   document.getElementById("ov1").classList.add("on"); document.getElementById("p1").classList.add("on");
   document.getElementById("p1-corpo").scrollTop=0;
   carregarContas();
@@ -1369,6 +1404,7 @@ async function carregarLayout3d(id,forcar){
   let r=!forcar&&_LAY3D[id];
   if(!r){ try{ r=await chamar({action:"modelo3dInfo",pageId:id},30000,true); }catch(e){ r=null; } if(r&&r.ok) _LAY3D[id]=r; }
   if(OBRA!==id) return;
+  if(r&&r.ok&&r.link&&!_AREAS_PUX[id]){ _AREAS_PUX[id]=1; puxarAreasDoLayout(id,r.link); }
   const b=document.getElementById("m3d-lay"); if(!b) return;
   if(!r||!r.ok){ b.innerHTML=`<span class="ajuda">Mesmo layout: não consegui ler agora${r&&r.erro?" ("+esc(String(r.erro))+")":""}.</span>`; return; }
   /* o Notion devolve o id com ou sem traços: compara sem eles (era isso que voltava a "nenhuma" depois de gravar) */
@@ -1385,11 +1421,23 @@ async function carregarLayout3d(id,forcar){
   const sel=document.getElementById("m3d-sel");
   if(sel&&typeof comboMontar==="function"){ sel.dataset.combo="1"; comboMontar(sel); if(sel._cb) sel._cb.inp.placeholder="Digite o nome da obra…"; }
 }
+/* 17/11 (dono): obra com o MESMO LAYOUT de outra puxa também as áreas construídas (averbada e pós habite-se) —
+   só preenche o que está vazio; a área do lote não vem (cada lote tem a sua). */
+function gravarCampoObra(id,k,valor){ const i=CAMPOS.findIndex(c=>c[1]===k); if(i<0) return Promise.resolve();
+  return gravarObra(i,{value:String(valor),classList:{add(){},remove(){}}},id); }
+const _AREAS_PUX={};
+async function puxarAreasDoLayout(id,baseId){
+  const o=obraDe(id), b=obraDe(baseId); if(!o||!b) return 0;
+  const ks=["area_averbada","area_habite"].filter(k=>(o[k]==null||o[k]==="")&&b[k]!=null&&b[k]!=="");
+  for(const k of ks) await gravarCampoObra(id,k,b[k]);
+  if(ks.length) toast("Áreas puxadas de "+(b.titulo||"obra do mesmo layout")+": "+ks.map(k=>k==="area_averbada"?"averbada "+b[k]+" m²":"pós habite-se "+b[k]+" m²").join(" · "));
+  return ks.length;
+}
 async function gravarLayout3d(id,base){
   const sel=document.getElementById("m3d-sel"); if(sel) sel.disabled=true;
   if(sel&&sel._cb) sel._cb.inp.disabled=true;
   let r; try{ r=await chamar({action:"modelo3dLayout",pageId:id,base:base||""},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
-  if(r&&r.ok){ _LAY3D[id]=r; toast(base?"Vínculo de layout gravado.":"Vínculo de layout removido."); }
+  if(r&&r.ok){ _LAY3D[id]=r; toast(base?"Vínculo de layout gravado.":"Vínculo de layout removido."); if(base) puxarAreasDoLayout(id,base); }
   else toast("Não gravou o vínculo: "+((r&&r.erro)||"erro"));
   carregarLayout3d(id,!(r&&r.ok));
 }
@@ -1409,7 +1457,15 @@ async function gravarLayout3d(id,base){
    as do obras.json (REGRAS-TRAVADAS), aqui só se mostra. */
 const OB_ABAS=[["resumo","Resumo"],["dados","Dados"],["atividades","Atividades"],["docs","Documentos"],["vendas","Vendas"],["lig","Ligações"],["orc","3D e Orçamento"]];
 let ABA_OB=(function(){ try{ const v=sessionStorage.getItem("obras_aba_painel"); return OB_ABAS.some(x=>x[0]===v)?v:"resumo"; }catch(e){ return "resumo"; } })();
-function irAbaObra(a){ ABA_OB=a; try{ sessionStorage.setItem("obras_aba_painel",a); }catch(e){} pintarObraPainel(); document.getElementById("p1-corpo").scrollTop=0; }
+let HIST_OB=[];
+function irAbaObra(a,voltando){ if(!voltando&&a!==ABA_OB){ HIST_OB.push(ABA_OB); if(HIST_OB.length>20) HIST_OB.shift(); }
+  ABA_OB=a; try{ sessionStorage.setItem("obras_aba_painel",a); }catch(e){} pintarObraPainel(); document.getElementById("p1-corpo").scrollTop=0; }
+function voltarAbaObra(){ const a=HIST_OB.pop(); if(a) irAbaObra(a,true); }
+/* 17/11 (dono): abrir a janela da obra em tela cheia — fica lembrado neste navegador */
+let TELA_CHEIA=(function(){ try{ return localStorage.getItem("obras_tela_cheia")==="1"; }catch(e){ return false; } })();
+function alternarTelaCheia(){ TELA_CHEIA=!TELA_CHEIA; try{ localStorage.setItem("obras_tela_cheia",TELA_CHEIA?"1":"0"); }catch(e){} aplicarTelaCheia(); }
+function aplicarTelaCheia(){ const p=document.getElementById("p1"); if(!p) return; p.classList.toggle("cheia",TELA_CHEIA);
+  const b=document.getElementById("p1-cheia"); if(b){ b.textContent=TELA_CHEIA?"⤡":"⤢"; b.title=TELA_CHEIA?"Voltar ao tamanho normal":"Abrir em tela cheia"; } }
 
 /* ---- Documentos / Vendas / Ligações (arquivos publicados, lidos uma vez por página) ---- */
 const EXT={docs:null,vendas:null,lig:null,carregando:false,erro:""};
@@ -1893,6 +1949,7 @@ function pintarObraPainel(){
   h+=`<div class="ob-corpo">`+(ABA_OB==="dados"?abaDados(o):ABA_OB==="atividades"?abaAtividades(o):ABA_OB==="docs"?abaDocs(o):ABA_OB==="vendas"?abaVendas(o):
      ABA_OB==="lig"?abaLig(o):ABA_OB==="orc"?abaOrc(o):abaResumo(o))+`</div>`;
   document.getElementById("p1").classList.toggle("larga",ABA_OB==="orc");
+  const bv=document.getElementById("p1-volta"); if(bv) bv.style.display=HIST_OB.length?"":"none";
   document.getElementById("p1-corpo").innerHTML=h;
   aplicarCombos(document.getElementById("p1-corpo"));
   /* o orçamento espera o formulário de obra chegar (padrões, arrimo, esgoto); o preCarregarConteudos repinta quando ele vem */
