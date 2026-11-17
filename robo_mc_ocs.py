@@ -1036,8 +1036,27 @@ def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, st
         return "FEITO", "já estava \"%s\" — nada mudado" % ap["atual"]
     if not any(N(o) == "AGUARDANDO APROVACAO" for o in ap.get("opcoes") or []):
         raise RuntimeError("a lista Aprovação não tem \"Aguardando aprovação\" (tem: %s)" % ", ".join(ap.get("opcoes") or []))
+    # 17/11 (dono): só volta a que REALMENTE não tem lançamento — confere na própria OC ($ Lançamento › Lançamentos
+    # vinculados), não só na lista. Tem lançamento (ou não deu para ver): não mexe.
+    passo("OC %s (voltar): conferindo o lançamento na OC" % oc.get("numero"))
+    try:
+        n = lancamentos_vinculados(tela, oc["oc_id"])
+    finally:
+        try:
+            tela.page.keyboard.press("Escape")
+            tela.page.wait_for_timeout(500)
+            tela.page.reload(wait_until="domcontentloaded")
+            tela.page.wait_for_timeout(1500)
+        except Exception:       # noqa: BLE001
+            pass
+    if n:
+        return "PULADA", "tem %d lançamento(s) vinculado(s) no MC — continua Aprovado" % n
+    tela.abrir_oc(oc["oc_id"])
+    ap = tela.campo("Aprovação", "aprov")
+    if not ap or N(ap["atual"]) not in ("APROVADO", "APROVADA"):
+        return "FEITO", "já estava \"%s\" — nada mudado" % (ap or {}).get("atual")
     if not aplicar:
-        return "SIMULADO", "faria: Aprovação \"%s\" → \"Aguardando aprovação\" (sem lançamento; falta a chave OCS_APLICAR.txt)" % ap["atual"]
+        return "SIMULADO", "faria: Aprovação \"%s\" → \"Aguardando aprovação\" (conferido: nenhum lançamento vinculado; falta a chave OCS_APLICAR.txt)" % ap["atual"]
     marca = len(tela.escritas)
     passo("OC %s (voltar): escolhendo \"Aguardando aprovação\"" % oc.get("numero"))
     tela.escolher("aprov", ap, "Aguardando aprovação")
@@ -1052,7 +1071,7 @@ def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, st
     tela.abrir_oc(oc["oc_id"])
     ap2 = tela.campo("Aprovação", "aprov")
     if _sim(ap2, "Aguardando aprovação"):
-        return "FEITO", "Aprovação → Aguardando aprovação (conferido na OC) · %s" % rotas
+        return "FEITO", "Aprovação → Aguardando aprovação (conferido na OC; nenhum lançamento vinculado) · %s" % rotas
     raise RuntimeError("salvei, mas a OC voltou com Aprovação \"%s\" (%s)" % ((ap2 or {}).get("atual"), rotas if not ok else "gravação ok"))
 
 
@@ -1482,8 +1501,10 @@ def main() -> int:
     finally:
         passo("fechando a aba do robô")
         aba.fechar()
-    resumo = "%d nova(s) · %d voltada(s) p/ aguardando · %d feita(s) · %d simulada(s) · %d com erro" % (
-        len(novas), cont.get("voltou", 0), cont["FEITO"], cont["SIMULADO"], cont["ERRO"])
+    resumo = "%d nova(s) · %d voltada(s) p/ aguardando%s · %d feita(s) · %d simulada(s) · %d com erro" % (
+        len(novas), cont.get("voltou", 0),
+        " · %d com lançamento (não mexi)" % cont["PULADA"] if cont.get("PULADA") else "",
+        cont["FEITO"], cont["SIMULADO"], cont["ERRO"])
     if erro_leitura:
         log("FALHOU: leitura das OCs — %s (%s)" % (erro_leitura, resumo))
         return 1
