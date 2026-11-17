@@ -14,3 +14,7 @@ create table if not exists public.orc_previas (
   versao    integer not null default 1
 );
 alter table public.orc_previas enable row level security;
+
+-- 17/11/2026 (mo16): estado do "Enviar ao Mais Controle" — travado, quem pediu, situação do robô do servidor,
+-- cópia de segurança do orçamento que estava no MC e histórico de envios/desbloqueios (só a senha da Paula destrava).
+alter table public.orc_previas add column if not exists envio jsonb;

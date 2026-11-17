@@ -417,6 +417,31 @@ html[data-tema="escuro"] .ct-v{color:var(--text)}
 .og-g.rd b{color:var(--verm)}
 .og-g.ct b::before{content:"📄 "}
 .orc-kpis .bt{align-self:center}
+/* 17/11: Enviar ao Mais Controle — botão em destaque, faixa do envio travado e as janelas de confirmar/desbloquear */
+.bt.envmc{background:var(--verde-btn);color:#0c3f22;font-weight:800;box-shadow:0 3px 10px rgba(76,217,100,.35)}
+.bt.envmc:hover:not(:disabled){filter:brightness(1.05)}
+.bt.envmc:disabled{background:var(--bg3);color:var(--text4);box-shadow:none;cursor:not-allowed}
+.orc-envio{border:2px solid var(--azul);background:rgba(41,87,120,.07);border-radius:12px;padding:10px 14px;margin:0 0 12px;display:flex;flex-direction:column;gap:6px;font-size:12.5px}
+.orc-envio.ok{border-color:var(--verde);background:rgba(42,157,92,.08)}
+.orc-envio.erro{border-color:#B45309;background:rgba(240,165,0,.09)}
+.orc-envio.livre{flex-direction:row;align-items:center;gap:8px;border-style:dashed;border-color:var(--border2);background:var(--sup);color:var(--text3)}
+.orc-envio .oe-t{display:flex;flex-wrap:wrap;align-items:center;gap:6px;color:var(--text)}
+.orc-envio .oe-sit{margin-left:auto;background:var(--sup);border:1px solid var(--border2);border-radius:20px;padding:3px 10px;font-weight:700;font-size:11.5px}
+.orc-envio .oe-m{color:var(--text3)}.orc-envio .oe-m.rd{color:#B45309;font-weight:700}
+.orc-envio .oe-b{display:flex;gap:8px;flex-wrap:wrap}
+.orc-mod{position:fixed;inset:0;background:rgba(10,20,30,.55);z-index:2000;display:flex;align-items:center;justify-content:center;padding:16px}
+.orc-mod .om-c{background:var(--bg2);color:var(--text);border-radius:14px;box-shadow:0 20px 60px rgba(0,0,0,.35);width:min(560px,100%);max-height:90vh;overflow:auto;padding:20px 22px;display:flex;flex-direction:column;gap:10px;border-top:5px solid var(--verde-btn)}
+.orc-mod h3{margin:0;font:800 20px 'Barlow Condensed';letter-spacing:.3px}
+.orc-mod p{margin:0;font-size:13px;line-height:1.45;color:var(--text2,var(--text))}
+.orc-mod .om-l{display:grid;grid-template-columns:120px 1fr;gap:10px;font-size:13px;border-bottom:1px solid var(--border2);padding-bottom:6px}
+.orc-mod .om-l span{color:var(--text4);font-weight:700;font-size:11px;text-transform:uppercase;padding-top:2px}
+.orc-mod .om-av{background:rgba(240,165,0,.12);border:1px solid #f0a500;border-radius:8px;padding:8px 10px;font-size:12.5px}
+.orc-mod .om-tr{background:var(--bg3);border-radius:8px;padding:8px 10px}
+.orc-mod input[type=password]{font:inherit;font-size:15px;padding:10px 12px;border-radius:8px;border:1.5px solid var(--border2);background:var(--sup);color:var(--text)}
+.orc-mod .om-er{color:#b42318;font-size:12.5px;font-weight:700;min-height:16px}
+.orc-mod .om-b{display:flex;justify-content:flex-end;gap:8px;margin-top:4px}
+html[data-tema="escuro"] .orc-envio .oe-m.rd,html[data-tema="escuro"] .orc-envio.erro{color:#f3c27a}
+html[data-tema="escuro"] .orc-mod .om-er{color:#f3a29a}
 .orc-tab input.ix{width:100%;padding:3px 5px;font-size:11.5px;border:1px dashed transparent;background:none;border-radius:6px;color:var(--text3);font-weight:600}
 .orc-tab input.ix:hover,.orc-tab input.ix:focus{border-color:var(--azul);background:var(--sup2)}
 .orc-tab .gh-b{margin-left:8px;background:var(--sup);border:1px solid var(--border2);border-radius:6px;font:inherit;font-size:10.5px;font-weight:700;color:var(--azul);padding:1px 7px;cursor:pointer}
@@ -674,7 +699,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 
 <script src="app.js?v=46"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="js/obra-orcamento.js?v=3"></script>
+<script src="js/obra-orcamento.js?v=4"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
