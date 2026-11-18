@@ -122,7 +122,10 @@ function vigiaMarca_(base, status, guardado) {
 }
 
 function vigiaUma_(col, pg, opc) {
-  var doc = assDoc_(opc || {}), envId = "", sitAntes = "", marca = null;
+  var doc = assDoc_(opc || {}), envId = "", sitAntes = "", marca = null, igual = false;
+  /* 18/11/2026 (troca de fiadores): o envelope de termos é acompanhado junto, no mesmo intervalo (sem ele, nenhuma chamada) */
+  var mt = null;
+  if (!doc.pre) { try { mt = trocaVigiaMarca_(pg); } catch (e) { mt = null; } }
   try { var cols = assColunas_(pg, doc); envId = assTexto_(pg, cols.ENVELOPE); sitAntes = assTexto_(pg, cols.SITUACAO).toUpperCase(); }
   catch (e) { envId = ""; }
   if (envId) {
@@ -131,13 +134,21 @@ function vigiaUma_(col, pg, opc) {
     var g = cs_("get", base), visto = g && g.ok ? String(g.status || "") : "";
     if (visto && guardado.split("|")[0] === visto) {
       marca = vigiaMarca_(base, visto, guardado);
-      if (marca && marca === guardado) return false;
+      igual = !!marca && marca === guardado;
+      if (igual && (!mt || mt.igual)) return false;
     } else if (visto) marca = vigiaMarca_(base, visto, "");
   }
   var r = assinaturaEstado_(col, { pageId: pg.id, doc: opc && opc.doc });
   if (envId && marca && r && r.ok) {
     if (r.situacao === "ENVIADO") assProps_().setProperty(VIGIA_STATUS + envId, marca);
     else assApagarProp_(VIGIA_STATUS + envId);   /* final (assinado/cancelado...) ou limpo: não guarda lixo */
+  }
+  if (mt && mt.marca && r && r.ok && r.termos) {
+    if (r.termos.situacao === "ENVIADO") assProps_().setProperty(VIGIA_STATUS + mt.envId, mt.marca);
+    else assApagarProp_(VIGIA_STATUS + mt.envId);
+  }
+  if (mt && r && r.ok && r.termos && mt.sitAntes === "ENVIADO" && VIGIA_AVISA.indexOf(r.termos.situacao) >= 0) {
+    try { vigiaAvisar_(pg, { termos: true }, r.termos.situacao); } catch (e) { ctrErro_("vigia aviso termos " + String(pg.id).slice(0, 8), e); }
   }
   if (r && r.ok && sitAntes === "ENVIADO" && VIGIA_AVISA.indexOf(r.situacao) >= 0) {
     try { vigiaAvisar_(pg, doc, r.situacao); } catch (e) { ctrErro_("vigia aviso " + String(pg.id).slice(0, 8), e); }
@@ -161,7 +172,7 @@ function vigiaAvisar_(pg, doc, situacao) {
   if (MailApp.getRemainingDailyQuota() < 1) { ctrLog_("vigia " + id8 + " " + situacao + " sem cota de e-mail hoje"); return; }
   var unidade = "";
   for (var n in pg.properties) if (pg.properties[n].type === "title") unidade = ctrTxt_(ctrValor_(pg.properties[n])).trim();
-  var oque = doc.pre ? "Termo de reserva" : "Contrato", sit = situacao.toLowerCase();
+  var oque = doc.pre ? "Termo de reserva" : doc.termos ? "Envelope dos termos de confissão" : "Contrato", sit = situacao.toLowerCase();
   MailApp.sendEmail({
     to: dest.join(","),
     subject: "[Portal de Vendas] " + oque + " " + sit + " na Clicksign — " + (unidade || "unidade sem nome"),

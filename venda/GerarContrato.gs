@@ -804,6 +804,8 @@ function contratoEstado_(col, p) {
     try { var cf = cfdEstado_(pgE); if (cf) r.confissao = cf; } catch (e) { ctrErro_("contratoEstado confissao", e); }
     try { r.condicoes = condEspEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado condicoes", e); }
     try { r.fluxo = fluxoEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado fluxo", e); }
+    /* 18/11/2026 (troca de fiadores): "Já assinado" (Propriedade ASS_HIST_) e o envelope de termos — sem chamar a Clicksign */
+    try { var tf = trocaEstadoTela_(pgE, p.pageId, info.base); if (tf) r.troca = tf; } catch (e) { ctrErro_("contratoEstado troca", e); }
     /* 31/10/2026 (dono): o quadro "Link para completar" só aparece quando falta algo obrigatório que o cliente/corretor
        completa — as mesmas faltas do gerador (ctrDadosAtuais_), só dos compradores, cônjuges e fiadores. Com o
        contrato final gerado não falta nada (não relê os cadastros). */

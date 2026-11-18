@@ -41,7 +41,8 @@ function tratar_(p) {
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "assinaturaTrocarEmail" /* 03/11 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "confirmarReservaPaga" /* 08/11 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
                  "recebimentoConfirmar" /* entrega 14 */, "recebimentoRemover", "recebimentoValor", "recebimentoLerContratoFin", "recebimentoMC" /* 05/11 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
-                 "excluirArquivoEspaco" /* 05/11: Excluir um anexo do dossiê */].indexOf(p.action) >= 0;
+                 "excluirArquivoEspaco" /* 05/11: Excluir um anexo do dossiê */,
+                 "trocarFiadoresPrevia", "trocarFiadoresGerar", "trocarFiadoresEnviar" /* 18/11: troca de fiadores (o TESTES não) */].indexOf(p.action) >= 0;
     if (grava && String(sess.t || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
     if (p.action !== "ping" && !REGEX_PAGE_ID.test(String(p.pageId || ""))) return { ok: false, erro: "PAGINA_INVALIDA" };
     var col = colunas_();
@@ -121,6 +122,10 @@ function executar_(col, sess, p) {
       case "corrigirConferencia": return corrigirConferencia_(col, sess, p);
       /* 01/11: bloco Fiadores (e cônjuge do comprador) na aba Contrato — Conferencia.gs + FiadoresVenda.js */
       case "salvarFiadores": return salvarFiadores_(col, sess, p);
+      /* 18/11/2026: troca de fiadores com os termos num envelope próprio (TrocaFiadores.gs) */
+      case "trocarFiadoresPrevia": return trocarFiadoresPrevia_(col, sess, p);
+      case "trocarFiadoresGerar": return trocarFiadoresGerar_(col, sess, p);
+      case "trocarFiadoresEnviar": return trocarFiadoresEnviar_(col, sess, p);
       case "conjugeEhFiador2": return conjugeEhFiador2_(col, sess, p);
       case "financeiroEstado": return financeiroEstado_(col, p);   /* 31/10: aba Financeiro (FinanceiroVenda.gs), só leitura */
       /* 31/10: antecipação de parcelas (AntecipacaoVenda.gs): estado, pedir o retrato ao robô e PDF para o cliente */

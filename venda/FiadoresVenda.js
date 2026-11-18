@@ -69,15 +69,19 @@ var FiadoresVenda = (function () {
      → { mostrar, precisa (fiadores), titulo, fiadores: [{n, campos}], conjuge: {campos} | null, faltas, aviso, botaoConjuge } */
   /* opts.soEmail (01/11/2026, revisão final I1): contrato FINAL já gerado — o bloco só abre pelas faltas recebidas (as de
      e-mail do envio), sem a regra dos 36x, e mostra só as caixas de e-mail de quem falta (fiador n inteiro: ele e o cônjuge). */
+  /* opts.troca (18/11/2026, dono): modo "Trocar fiadores" com o envelope aberto — os dois fiadores inteiros, sempre, sem o
+     bloco do cônjuge do comprador (o contrato já foi enviado; só os termos de confissão são refeitos). */
   function camposFiadores(linha, faltas, prazo, opts) {
     linha = linha || {};
-    var soEmail = !!(opts && opts.soEmail);
+    var troca = !!(opts && opts.troca);
+    var soEmail = !troca && !!(opts && opts.soEmail);
     var fl = (faltas || []).map(txt);
     var deFiador = fl.filter(function (f) { return /^(Fiador [12]\b|C[ôo]njuge do fiador [12])/i.test(f); });
     var deConjuge = fl.filter(function (f) { return /^C[ôo]njuge do comprador/i.test(f); });
     /* 36x/48x: os dois fiadores são obrigatórios (8.1 do termo); sem nome e CPF dos dois, o bloco abre */
     var incompletos = [1, 2].some(function (n) { return !valorDe(linha, "FIADOR " + n) || !valorDe(linha, "CPF FIADOR " + n); });
-    var precisa = deFiador.length > 0 || (!soEmail && Number(prazo) > 24 && incompletos);
+    var precisa = troca || deFiador.length > 0 || (!soEmail && Number(prazo) > 24 && incompletos);
+    if (troca) deConjuge = [];
     var colRegime = !temColuna(linha, "REGIME") && temColuna(linha, "REGIME DE BENS") ? "REGIME DE BENS" : "REGIME";
     function filtro(l) { return soEmail ? l.filter(function (x) { return x[2] === "email"; }) : l; }
     var quais = soEmail ? [1, 2].filter(function (n) { return deFiador.some(function (f) { return new RegExp("^(Fiador " + n + "\\b|C[ôo]njuge do fiador " + n + "\\b)", "i").test(f); }); }) : [1, 2];
@@ -88,6 +92,7 @@ var FiadoresVenda = (function () {
       faltas: deFiador.concat(deConjuge), aviso: "", botaoConjuge: false
     };
     out.mostrar = out.precisa || !!out.conjuge;
+    if (troca) out.troca = true;
     out.titulo = out.precisa && out.conjuge ? "Fiadores e cônjuge" : out.precisa ? "Fiadores" : out.conjuge ? "Cônjuge do comprador" : "";
     if (precisa && !soEmail) {
       /* #74: casado, o OUTRO fiador tem de ser o cônjuge (o CPF do cônjuge do fiador = CPF do outro fiador) */
