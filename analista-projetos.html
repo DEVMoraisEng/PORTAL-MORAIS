@@ -126,6 +126,9 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
 .regra code{font-family:ui-monospace,Consolas,monospace;font-size:10.5px;color:var(--text4)}
 .resumo{padding:12px 14px;margin:0;border-top:1px solid var(--border2)}
 .rodape{font-size:11px;color:var(--text4);text-align:right}
+.seg.modo{margin-bottom:6px;grid-template-columns:repeat(2,1fr)}
+.selo.EXE{background:var(--azul)}
+.seg.modo button{min-height:44px}
 </style>
 </head>
 <body>
@@ -144,6 +147,12 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
 
 <main>
   <section class="painel" aria-label="Comando">
+    <div class="seg modo" id="modo" role="group" aria-label="Tipo de projeto">
+      <button type="button" data-m="apr" aria-pressed="true">Projeto de aprovação</button>
+      <button type="button" data-m="exe" aria-pressed="false">Projeto executivo</button>
+    </div>
+    <p class="dica" id="modoDica">Aprovação: confere a prancha contra as exigências da prefeitura (Goiânia ou Senador Canedo).</p>
+    <div id="secPref">
     <div class="tit"><span class="cond">1 · Prefeitura</span></div>
     <div class="prefs" id="prefs" role="group" aria-label="Prefeitura que vai analisar">
       <button type="button" class="pref" data-p="GYN" aria-pressed="false"><b>Goiânia</b><span>Alvará Fácil · projeto simplificado</span></button>
@@ -166,6 +175,7 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
     <label class="f" for="ant">Correções que a prefeitura já pediu neste processo (opcional)
       <textarea id="ant" placeholder="Cole aqui o parecer anterior. O analista confere se cada item foi atendido — a prefeitura já devolveu prancha com erro que tinha sido corrigido antes."></textarea>
     </label>
+    </div>
     <div class="tit"><span class="cond">2 · Projeto</span></div>
     <div class="solta" id="drop" tabindex="0" role="button" aria-label="Escolher o PDF do projeto">
       <b id="dropText">Solte o PDF do projeto aqui</b>
@@ -331,13 +341,41 @@ SC: { nome:"Senador Canedo", lei:"Lei 123/90 (Código de Edificações), Lei 137
  "Cartão CNPJ e contrato social da empresa requerente",
  "Contrato de compra e venda ou anuência do proprietário da escritura, se o requerente não for o titular",
  "Documentos pessoais do proprietário e do representante legal",
-]}
+]},
+/* PROJETO EXECUTIVO (18/11/26): conferência geral do que vai para a obra, sem prefeitura. */
+EXE: { nome:"Projeto executivo", lei:"conferência interna da Morais, sem prefeitura", grupos:[
+ ["Geral",[
+  ["E-GER-1",3,"Todos os cômodos cotados na planta baixa: largura e comprimento internos de cada ambiente, espessura das paredes e cotas totais fechando com a soma das parciais."],
+  ["E-GER-2",3,"Dimensões do lote cotadas em todas as plantas (planta baixa, cobertura, implantação), iguais entre si e à escritura informada."],
+  ["E-GER-3",2,"Em geminada/seriada: frações cotadas (testada e área de cada uma) e linha de divisa das frações desenhada."],
+  ["E-GER-4",3,"Áreas compatibilizadas entre as peças: área de cada ambiente, área construída e área do lote iguais na planta, no quadro de áreas e no carimbo."],
+  ["E-GER-5",2,"Carimbo preenchido corretamente: endereço, quadra, lote, proprietário, responsável técnico, conteúdo da prancha, escala, numeração da folha e data atual."],
+  ["E-GER-6",2,"Nome da rua escrito na planta baixa, em frente ao lote."],
+  ["E-GER-7",2,"Altura do muro informada (texto na planta ou cota no corte/fachada), em todos os trechos de muro."],
+  ["E-GER-8",2,"Cota de nível em todos os ambientes, na calçada e nas áreas externas, iguais na planta e nos cortes."],
+  ["E-GER-9",2,"Textos da prancha sem erro de grafia ou de digitação. Liste cada erro encontrado."],
+ ]],
+ ["Fossa e sumidouro",[
+  ["E-FOS-1",3,"Fossa séptica e sumidouro locados em planta e COTADOS: dimensões de cada um (diâmetro ou lados) e distâncias até as divisas e até a edificação. Conferir em cada casa."],
+  ["E-FOS-2",2,"Fossa e sumidouro identificados por texto (FOSSA SÉPTICA, SUMIDOURO) e, quando houver, caixa de gordura e caixas de inspeção indicadas."],
+ ]],
+ ["Banheiros",[
+  ["E-BAN-1",3,"Bancada de cada banheiro cotada: comprimento, profundidade e posição em relação à parede."],
+  ["E-BAN-2",3,"Bacia sanitária de cada banheiro cotada: distância do eixo da bacia até a parede lateral (ou até a bancada/box)."],
+  ["E-BAN-3",3,"Box de cada banheiro cotado: largura e profundidade."],
+  ["E-BAN-4",2,"Nenhum banheiro (banho social, suíte, lavabo, banho de serviço) ficou sem as cotas de bancada, bacia e box; liste os que faltam, por casa."],
+ ]],
+ ["Áreas cobertas pós habite-se",[
+  ["E-POS-1",3,"Toda área coberta prevista para depois do habite-se (garagem coberta, varanda/gourmet coberto, área de serviço coberta) está DETALHADA: identificada como pós habite-se, com dimensões cotadas e área em m²."],
+  ["E-POS-2",2,"A cobertura pós habite-se mostra o tipo de cobertura/estrutura (telha, laje, pergolado, madeiramento), pilares ou apoios e altura, e aparece igual na planta baixa, na cobertura e no corte."],
+ ]],
+], docs:[]}
 };
 
 
 /* ============================ ESTADO ============================ */
 const $ = id => document.getElementById(id);
-const S = { file:null, grid:"150", pref:null, ctl:null, filtro:"todos", laudo:null };
+const S = { file:null, grid:"150", modo:"apr", pref:null, ctl:null, filtro:"todos", laudo:null };
 const escH = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const log = t => { const l=$("log"); l.textContent += "\n" + t; l.scrollTop = l.scrollHeight; };
 const prog = p => { $("prog").style.width = Math.round(p*100) + "%"; };
@@ -368,8 +406,17 @@ function detectarPorTexto(texto, nome){
 }
 
 /* ============================ TELA INICIAL ============================ */
+function setModo(m){
+  S.modo = m==="exe" ? "exe" : "apr";
+  [...$("modo").children].forEach(b => b.setAttribute("aria-pressed", b.dataset.m===S.modo));
+  $("secPref").classList.toggle("hide", S.modo==="exe");
+  $("modoDica").textContent = S.modo==="exe"
+    ? "Executivo: conferência geral, sem prefeitura — cômodos cotados, fossa e sumidouro, banheiros (bancada, bacia e box) e áreas cobertas pós habite-se."
+    : "Aprovação: confere a prancha contra as exigências da prefeitura (Goiânia ou Senador Canedo).";
+  S.laudo=null; telaRegras();
+}
 function telaRegras(){
-  const p = S.pref;
+  const p = S.modo==="exe" ? "EXE" : S.pref;
   if (!p){
     $("out").innerHTML = `<div class="bloco"><h3>Como funciona</h3>
       <p class="resumo">Solte o PDF do projeto. O analista identifica se a prancha é de <b>Goiânia</b> ou de <b>Senador Canedo</b> pelo carimbo, lê cada desenho em recortes ampliados e julga, item por item, o que a prefeitura devolveria em correção.<br><br>
@@ -386,6 +433,7 @@ function telaRegras(){
   $("out").innerHTML = h;
 }
 function blocoDocs(p){
+  if (!REGRAS[p].docs.length) return "";
   return `<div class="bloco"><h3>Documentos do processo · ${escH(REGRAS[p].nome)} <em>não dá para conferir no PDF</em></h3><div class="docs">` +
     REGRAS[p].docs.map((d,i)=>`<label for="doc${i}"><input type="checkbox" id="doc${i}"> <span>${escH(d)}</span></label>`).join("") + `</div></div>`;
 }
@@ -445,6 +493,11 @@ async function renderPagina(pdf, n, dpi){
 /* ============================ PROMPTS ============================ */
 function ctxProjeto(p){
   const R = REGRAS[p];
+  if (p==="EXE") return `Você é o coordenador de projetos da construtora Morais Engenharia, rigoroso, conferindo um PROJETO EXECUTIVO arquitetônico residencial antes de ele ir para a obra. Não é análise de prefeitura: é conferência interna de detalhamento.
+Tipologia informada: ${$("tipo").value}. Data de hoje: ${new Date().toLocaleDateString("pt-BR")}. Informações extras do projetista: ${$("obs").value.trim() || "nenhuma"}.
+
+CHECKLIST DO EXECUTIVO:
+${todasRegras(p).map(r=>`${r.id}: ${r.txt}`).join("\n")}`;
   return `Você é analista de aprovação de projetos da prefeitura de ${R.nome} (GO), rigoroso, conferindo um projeto arquitetônico residencial da construtora Morais Engenharia ANTES do protocolo. Legislação: ${R.lei}.
 Tipologia informada: ${$("tipo").value}. Data de hoje: ${new Date().toLocaleDateString("pt-BR")}. Informações extras do projetista: ${$("obs").value.trim() || "nenhuma"}.
 
@@ -465,10 +518,11 @@ Responda SOMENTE com JSON:
  "textos":["notas, títulos e legendas relevantes transcritos literalmente"]}`;
 }
 function promptLaudo(p, leituras, texto){
-  const nums = p==="GYN"
+  const nums = p==="EXE" ? `{"area_lote":null,"banheiros_total":null,"banheiros_com_bancada_cotada":null,"banheiros_com_bacia_cotada":null,"banheiros_com_box_cotado":null,"fossas_desenhadas":null,"fossas_cotadas":null,"sumidouros_desenhados":null,"sumidouros_cotados":null}` : p==="GYN"
   ? `{"area_lote":null,"area_construida":null,"parcelas_grama_m2":[],"parcelas_concregrama_m2":[],"permeavel_no_carimbo":null,"concregrama_no_carimbo":null,"permeavel_no_quadro":null,"indice_paisagistico_memorial":null,"area_impermeabilizada_memorial":null,"volume_caixa_necessario_memorial":null,"area_base_caixa":null,"altura_caixa":null,"volume_unitario_caixa":null,"n_caixas":null,"volume_caixa_utilizado":null,"caixas_locadas_em_planta":null,"rebaixos_m":[],"fracoes_m2":[],"faixa_grama_acesso_m":null,"faixa_rolagem_m":null,"recuo_frontal_m":null,"altura_na_divisa_m":null,"nivel_calcada_lote":null,"nivel_calcada_sarjeta":null,"largura_calcada_m":null,"unidades_desenhadas":null,"unidades_no_carimbo":null}`
   : `{"area_lote":null,"area_lote_no_carimbo":null,"area_construida":null,"parcelas_permeavel_m2":[],"permeavel_no_quadro":null,"permeavel_exigido_pct":null,"volume_caixa_total":null,"n_caixas":null,"volume_por_caixa":null,"altura_caixa_detalhe":null,"altura_caixa_memorial":null,"faixa_servico_m":null,"faixa_livre_m":null,"vaga_larg_m":null,"vaga_comp_m":null,"menor_dim_dormitorio_m":null,"soma_cotas_frente_m":null,"frente_terreno_m":null,"altura_muro_frontal_m":null,"espessura_parede_divisa_cm":null,"ambientes":[{"nome":"","tipo":"sala|dormitorio|escritorio|cozinha|banheiro|outro","area_piso":null,"area_aberturas":null}]}`;
-  const defs = p==="GYN"
+  const defs = p==="EXE" ? `- banheiros_total: quantos banheiros/lavabos aparecem na planta, somando todas as casas. banheiros_com_*: em quantos deles a cota daquele item aparece.
+- fossas_desenhadas / sumidouros_desenhados: quantos aparecem em planta. *_cotados: quantos têm dimensão E distância às divisas cotadas.` : p==="GYN"
   ? `- parcelas_grama_m2: CADA área de grama cotada na planta de locação, uma por uma, de todas as casas (ex.: [10.27,3.46,1.73,10.27,...]). NÃO use o total do quadro nem do carimbo aqui.
 - parcelas_concregrama_m2: cada área de concregrama cotada em planta, uma por uma.
 - permeavel_no_carimbo / concregrama_no_carimbo / permeavel_no_quadro: o valor escrito em cada peça.
@@ -487,7 +541,7 @@ function promptLaudo(p, leituras, texto){
 - soma_cotas_frente_m: soma das cotas internas ao longo da frente. frente_terreno_m: a cota total da frente do terreno.
 - altura_muro_frontal_m: altura do muro na fachada frontal. espessura_parede_divisa_cm: espessura cotada da parede na divisa.
 - ambientes: para cada compartimento com área e esquadrias legíveis, área do piso e soma das áreas das aberturas (largura x altura do quadro de aberturas).`;
-  const ant = $("ant").value.trim();
+  const ant = p==="EXE" ? "" : $("ant").value.trim();
   return `${ctxProjeto(p)}
 
 LEITURA DOS RECORTES DA PRANCHA (feita imagem a imagem):
@@ -497,7 +551,7 @@ TEXTO EXTRAÍDO DO PDF (camada de texto; pode estar fora de ordem ou vazio se o 
 ${texto.slice(0,60000) || "(sem camada de texto)"}
 
 TAREFA: emita o laudo. Julgue TODAS as regras do checklist, uma a uma, cruzando as informações entre as peças (planta × quadro × carimbo × memorial × cortes). Critério:
-- "corrigir": há evidência de que a prefeitura devolveria. Diga exatamente o que mudar e onde.
+- "corrigir": há evidência de erro ou de falta (na aprovação: a prefeitura devolveria). Diga exatamente o que mudar e onde.
 - "ok": há evidência de que atende.
 - "conferir": não foi possível ler ou a peça não apareceu. Diga o que olhar.
 - "na": a regra não se aplica a este projeto.
@@ -519,6 +573,15 @@ Responda SOMENTE com JSON:
 function contas(p, n){
   const L=[]; if (!n) return L;
   const add=(nome, lido, regra, ok, id)=>L.push({nome,lido,regra,ok,id});
+  if (p==="EXE"){
+    const par=(nome,tem,tot,id)=>{ const a=numBR(tem), b=numBR(tot); if (a!=null && b!=null && b>0) add(nome, `${a} de ${b}`, "todos", a>=b, id); };
+    par("Banheiros com bancada cotada", n.banheiros_com_bancada_cotada, n.banheiros_total, "E-BAN-1");
+    par("Banheiros com bacia cotada", n.banheiros_com_bacia_cotada, n.banheiros_total, "E-BAN-2");
+    par("Banheiros com box cotado", n.banheiros_com_box_cotado, n.banheiros_total, "E-BAN-3");
+    par("Fossas cotadas", n.fossas_cotadas, n.fossas_desenhadas, "E-FOS-1");
+    par("Sumidouros cotados", n.sumidouros_cotados, n.sumidouros_desenhados, "E-FOS-1");
+    return L;
+  }
   const lote=numBR(n.area_lote);
   if (p==="GYN"){
     const soma = a => { const v=(a||[]).map(numBR).filter(x=>x!=null); return v.length ? Math.round(v.reduce((s,x)=>s+x,0)*100)/100 : null; };
@@ -645,8 +708,9 @@ async function analisar(){
 
     /* ---- qual prefeitura? ---- */
     const det = detectarPorTexto(texto, S.file.name);
-    let p = S.pref, aviso = "";
-    if ($("auto").checked || !p){
+    let p = S.modo==="exe" ? "EXE" : S.pref, aviso = "";
+    if (p==="EXE"){ /* executivo: sem prefeitura */ }
+    else if ($("auto").checked || !p){
       let achou = det.p;
       if (!achou){
         log("Carimbo sem texto legível: pedindo à IA para ler o município…");
@@ -667,7 +731,7 @@ async function analisar(){
     } else if (det.p && det.p!==p){
       aviso = `Atenção: você escolheu ${REGRAS[p].nome}, mas o texto da prancha parece de ${REGRAS[det.p].nome}. A análise seguiu a sua escolha.`;
     }
-    marcarPref(p);
+    if (p!=="EXE") marcarPref(p);
     log(`Regras aplicadas: ${REGRAS[p].nome} (${todasRegras(p).length} itens).`);
 
     log(`${imgs.length} imagens para ler${temTexto?" · camada de texto encontrada":" · PDF sem texto, leitura só por imagem"}.`);
@@ -722,7 +786,7 @@ function mostrarLaudo(){
   let h=`<div class="selo ${p}"><div><b>${escH(REGRAS[p].nome)}</b><span>${escH(REGRAS[p].lei)}</span></div><em>${escH(arquivo)}<br>${quando.toLocaleString("pt-BR")}</em></div>`;
   if (aviso) h+=`<div class="aviso">${escH(aviso)}</div>`;
   h+=`<div class="cards">
-    <div class="card div"><b>${n("corrigir")}</b><span>Corrigir antes de enviar</span></div>
+    <div class="card div"><b>${n("corrigir")}</b><span>${p==="EXE"?"Corrigir antes de liberar":"Corrigir antes de enviar"}</span></div>
     <div class="card at"><b>${n("conferir")}</b><span>Conferir à mão</span></div>
     <div class="card ok"><b>${n("ok")}</b><span>Atende</span></div>
     <div class="card"><b>${n("na")}</b><span>Não se aplica</span></div></div>
@@ -744,7 +808,7 @@ function mostrarLaudo(){
   $("out").innerHTML=h;
   $("chips").onclick=e=>{ const f=e.target.dataset&&e.target.dataset.f; if (f){ S.filtro=f; mostrarLaudo(); } };
   $("copy").onclick=async e=>{
-    const t=`LAUDO PRÉVIO · ${REGRAS[p].nome.toUpperCase()} · ${arquivo} · ${quando.toLocaleString("pt-BR")}\n${laudo.resumo||""}\n\n` +
+    const t=`${p==="EXE"?"CONFERÊNCIA":"LAUDO PRÉVIO"} · ${REGRAS[p].nome.toUpperCase()} · ${arquivo} · ${quando.toLocaleString("pt-BR")}\n${laudo.resumo||""}\n\n` +
       ["corrigir","conferir"].map(s=>`${rot[s].toUpperCase()}\n`+its.filter(i=>i.st===s).map(i=>`- [${i.id}] ${i.txt}\n  ${[i.onde,i.ev].filter(Boolean).join(" · ")}\n  → ${i.co||"verificar"}`).join("\n")).join("\n\n") +
       (ants.length?`\n\nCORREÇÕES ANTERIORES\n`+ants.map(a=>`- [${String(a.status||"conferir").toUpperCase()}] ${a.pedido}${a.evidencia?` — ${a.evidencia}`:""}`).join("\n"):"") +
       (cs.length?`\n\nCONTAS\n`+cs.map(c=>`- ${c.nome}: ${c.lido} | ${c.regra} | ${c.ok==null?"base":c.ok?"OK":"CORRIGIR"}`).join("\n"):"");
@@ -771,6 +835,7 @@ $("depth").onclick=e=>{ const g=e.target.dataset&&e.target.dataset.g; if (!g) re
   $("depthHint").textContent = g==="100" ? "Rápida: 100 dpi. Lê títulos, quadros e cotas grandes; cota pequena pode ficar ilegível."
     : g==="200" ? "Profunda: 200 dpi. Para prancha carregada ou escaneada. Mais lenta e gasta mais crédito da OpenAI."
     : "Padrão: prancha lida a 150 dpi. Uma A1 vira cerca de 36 recortes; uma A3, 9."; };
+$("modo").onclick=e=>{ const m=e.target.dataset&&e.target.dataset.m; if (m && m!==S.modo) setModo(m); };
 $("run").onclick=analisar;
 $("stop").onclick=()=>{ if (S.ctl) S.ctl.abort(); log("Parando depois das leituras em andamento…"); };
 telaRegras();
