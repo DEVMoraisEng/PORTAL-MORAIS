@@ -247,7 +247,7 @@ GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código d
   ["G-CAR-2",3,"Tipo de habitação no carimbo confere com o projeto desenhado: unifamiliar, 'HABITAÇÃO GEMINADA 02 UNIDADES' ou 'HABITAÇÃO SERIADA - 03 UNIDADES' (contar as casas em planta)."],
   ["G-CAR-3",2,"Área do lote e área total construída iguais no carimbo, no quadro de áreas e no memorial."],
   ["G-CAR-4",3,"Carimbo segue o modelo do projeto simplificado: informa a área permeável (grama) e, se houver concregrama, a área de 'COBERTURA VEGETAL NÃO PERMEÁVEL' em campo próprio, sem repetir áreas permeáveis e impermeáveis."],
-  ["G-CAR-6",2,"Nome do autor do projeto e do responsável técnico no carimbo, com CREA/CAU, iguais aos da ART/RRT; proprietário com CPF/CNPJ."],
+  ["G-CAR-6",2,"Carimbo traz o nome do autor do projeto e do responsável técnico, cada um com CREA/CAU, e o proprietário com CPF/CNPJ. A ART/RRT não vem na prancha: não deixe como 'conferir' por falta dela; julgue só se os campos do carimbo estão preenchidos."],
   ["G-CAR-7",2,"Carimbo traz a inscrição do imóvel (ITU/IPTU), o número do uso do solo, a descrição dos pavimentos, a folha (01/01) e data atual (não anterior ao último parecer)."],
   ["G-TXT-1",2,"Textos da prancha sem erro de grafia ou de digitação (títulos, notas, legendas, cotas repetidas). Liste cada erro encontrado."],
   ["G-CAR-5",2,"Endereço do carimbo (rua, quadra, lote, setor) é o do lote desenhado e é o mesmo em todas as peças."],
@@ -257,7 +257,7 @@ GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código d
   ["G-PER-2",3,"A soma das áreas permeáveis cotadas em planta (cada canteiro) é igual ao valor do carimbo, do quadro de áreas e do memorial."],
   ["G-PER-3",3,"Nomenclatura correta em planta e memorial: grama = 'COBERTURA VEGETAL PERMEÁVEL'; concregrama = 'COBERTURA VEGETAL NÃO PERMEÁVEL'. Nunca 'cobertura vegetal impermeável' nem concregrama rotulado como área permeável."],
   ["G-PER-4",3,"Concregrama (cobertura vegetal não permeável) aparece SOMENTE no carimbo, com o valor exato da planta (ex.: 6 x 3,46 = 20,76 m²). O quadro de áreas e o memorial da caixa de recarga trazem só a área permeável em grama, sem linha de concregrama e sem repetir áreas permeáveis/impermeáveis."],
-  ["G-ACE-1",3,"Acesso de veículos em faixas: faixa central de grama com no máximo 1,00 m; faixas de rolagem com no mínimo 0,50 m cada; conjunto de 2,40 m; as rodas não podem passar sobre a grama."],
+  ["G-ACE-1",3,"Acesso de veículos em faixas: faixa central de grama com no máximo 1,00 m; faixas de rolagem (concregrama ou piso) com no mínimo 0,50 m cada; conjunto de 2,40 m; as rodas não podem passar sobre a grama. As larguras são as cotas pequenas em sequência no pé do acesso (ex.: 60 · 60 · 60 = rolagem · grama · rolagem, em centímetros)."],
  ]],
  ["Caixa de recarga",[
   ["G-REC-1",3,"Memorial de cálculo: área impermeabilizada = área do lote − cobertura vegetal permeável (só grama; concregrama não desconta). Volume necessário = área impermeabilizada ÷ 200. Volume utilizado ≥ necessário."],
@@ -265,28 +265,28 @@ GYN: { nome:"Goiânia", lei:"LC 349/2022 (Plano Diretor), LC 364/2023 (Código d
   ["G-REC-3",2,"Caixas de recarga locadas em planta, em quantidade e dimensões compatíveis com o memorial."],
  ]],
  ["Planta de locação, recuos e afastamentos",[
-  ["G-LOC-1",3,"Recuo frontal de 5,00 m cotado (2,00 m para vielas e APM). Nenhum pilar ou elemento sobre o recuo frontal a menos de 1,50 m das divisas laterais (art. 69 do Código de Obras)."],
+  ["G-LOC-1",3,"Recuo frontal COTADO com no mínimo 5,00 m (2,00 m para vielas e APM). Vale qualquer cota entre o alinhamento da frente e a edificação, mesmo maior que 5,00 (ex.: 6,49 m); ela costuma ficar na vertical, na lateral da planta de locação, e pode vir somada de parciais. Só é erro se não houver cota nenhuma ou se ela for menor que o mínimo. Nenhum pilar ou elemento sobre o recuo frontal a menos de 1,50 m das divisas laterais (art. 69 do Código de Obras)."],
   ["G-LOC-2",2,"Afastamentos laterais e de fundo cotados, inclusive o menor recuo de parede sem abertura."],
-  ["G-LOC-3",3,"Todos os segmentos do perímetro da área construída informam 'COM ABERTURA' ou 'SEM ABERTURA', inclusive a parede encostada na divisa de fundo, em todas as casas."],
+  ["G-LOC-3",3,"Todos os segmentos do perímetro da área construída informam se têm abertura: 'COM ABERTURA'/'SEM ABERTURA' ou 'POSSUI ABERTURA'/'NÃO POSSUI ABERTURA' (as duas formas valem), inclusive a parede encostada na divisa de fundo, em todas as casas."],
   ["G-LOC-4",2,"Aberturas paralelas à divisa a no mínimo 1,50 m; perpendiculares no pavimento superior a 0,75 m; beirais a 0,60 m da divisa; beiral sobre recuo obrigatório com no máximo 1,50 m; saliências com no máximo 0,60 m; abas verticais sobre o recuo com afastamento lateral mínimo de 1,50 m."],
   ["G-LOC-5",1,"Edificação na divisa ou a menos de 2 m dela: altura até a última laje útil de no máximo 7,50 m, cotada."],
   ["G-LOC-6",2,"Projeção da cobertura traçada na planta de locação."],
-  ["G-LOC-7",2,"Cotas das laterais, frente e fundo do lote iguais às da matrícula (ex.: lateral 30,50 m)."],
+  ["G-LOC-7",2,"Cotas da frente, do fundo e das laterais do lote presentes e iguais em todas as peças (locação, cobertura, situação) e coerentes com a área do terreno. A matrícula não vem na prancha: só compare com ela se o projetista informar as medidas nas informações extras; sem isso, não deixe como 'conferir'."],
   ["G-LOC-8",1,"Planta de cobertura com calha onde a água cairia sobre o vizinho ou a divisa."],
  ]],
  ["Calçada",[
-  ["G-CAL-1",3,"Calçada traz o texto 'O PASSEIO ATENDE À LC 324/2019'. Sem sobras de instrução do modelo, como 'NOS REBAIXOS PARA PEDESTRES APENAS INFORMAR QUE ATENDE À LEI COMPLEMENTAR Nº 324 DE 2019'."],
+  ["G-CAL-1",3,"Calçada traz nota de que atende à LC 324/2019. Qualquer redação vale: 'O PASSEIO ATENDE À LC 324/2019' ou 'CALÇADA SERÁ EXECUTADA CONFORME LEI COMPLEMENTAR Nº 324 DE 28 DE NOVEMBRO DE 2019'. Só é erro se não houver nota nenhuma, se citar outra lei, ou se sobrar instrução do modelo, como 'NOS REBAIXOS PARA PEDESTRES APENAS INFORMAR QUE ATENDE À LEI COMPLEMENTAR Nº 324 DE 2019'."],
   ["G-CAL-2",3,"Cada rebaixo de meio-fio para veículos cotado entre 3,00 m e 3,50 m, e a cota não inclui as abas laterais. Conferir o rebaixo de cada casa."],
   ["G-CAL-3",3,"Níveis da calçada cotados no limite do lote e na sarjeta; inclinação transversal de no máximo 3%."],
   ["G-CAL-4",1,"Nome do logradouro confrontante escrito na calçada/rua."],
  ]],
  ["Situação, quadro de áreas e cortes",[
   ["G-SIT-1",2,"Planta de situação representa a quadra inteira."],
-  ["G-QUA-0",3,"Quadro de áreas no modelo do projeto simplificado, nesta ordem: ÁREA DO TERRENO, ÁREA CONSTRUÍDA, ÁREA PERMEÁVEL (só grama), NÚMERO DE VAGAS DE ESTACIONAMENTO. Em geminada/seriada entram também a área construída e a fração ideal de cada unidade. O valor de ÁREA PERMEÁVEL é a soma das áreas de grama cotadas em planta."],
+  ["G-QUA-0",3,"Quadro de áreas traz ÁREA DO TERRENO, ÁREA CONSTRUÍDA, ÁREA PERMEÁVEL (só grama) e NÚMERO DE VAGAS DE ESTACIONAMENTO; em geminada/seriada, também a área construída e a fração de cada unidade, que podem vir intercaladas casa a casa (ÁREA CONSTRUÍDA CASA 1, FRAÇÃO CASA 1, ...). A ORDEM das linhas não é erro: só aponte linha FALTANDO."],
   ["G-REC-0",3,"Memorial de cálculo da caixa de recarga no modelo do projeto simplificado, linha a linha: ÁREA DO TERRENO; ÍNDICE PAISAGÍSTICO (COBERTURA VEGETAL PERMEÁVEL) = soma da grama em planta; ÁREA IMPERMEABILIZADA = terreno − grama; VOLUME NECESSÁRIO = impermeabilizada ÷ 200; DIMENSÕES: ÁREA DA BASE, ALTURA, VOLUME UNITÁRIO (= base x altura), Nº DE CAIXAS, VOLUME TOTAL (= unitário x nº de caixas, ≥ necessário). Conferir cada linha com a planta e com o carimbo (I.P. e I.C.C.A.P.)."],
   ["G-QUA-1",3,"Quadro de áreas especifica a fração ideal de cada unidade, com o valor real de cada uma (não repetir valor igual se as frações diferem em planta) e mínimo de 90 m² por fração."],
   ["G-QUA-3",2,"Área construída total igual à soma das unidades e dentro da ocupação permitida do lote; área de cada unidade igual na locação, na cobertura e no quadro."],
-  ["G-QUA-2",2,"Vagas de garagem informadas no quadro; vaga descrita como coberta ou descoberta de acordo com o desenho."],
+  ["G-QUA-2",2,"Número de vagas de estacionamento informado no quadro (ex.: 3 UND). O quadro NÃO precisa dizer se a vaga é coberta ou descoberta. Só é erro se faltar o número de vagas, se ele for diferente das vagas desenhadas, ou se a planta rotular como descoberta uma vaga desenhada sob cobertura (e vice-versa)."],
   ["G-COR-1",3,"Linha natural do terreno (L.N.T.) traçada em todos os cortes."],
   ["G-COR-2",2,"Toda estrutura que aparece no corte ou destacada em planta está identificada. Estrutura de cobertura de qualquer tipo (pergolado, laje, telha) entra na área construída; se não for cobertura, sai do corte e das plantas."],
   ["G-MOD-1",2,"Conjunto conforme o modelo simplificado: plantas simplificadas de todos os pavimentos, cortes esquemáticos, planta de cobertura, planta de situação, notas, carimbo, quadro de áreas e memorial da caixa de recarga."],
@@ -524,7 +524,7 @@ function promptRecortes(p, lote){
 
 TAREFA: as imagens são partes da prancha do projeto, nesta ordem:
 ${lote.map((x,i)=>`Imagem ${i+1}: ${x.rot}`).join("\n")}
-Leia cada imagem com atenção de analista: textos, cotas, níveis, quadros, carimbo, hachuras, símbolos. Registre tudo o que serve para julgar o checklist. Transcreva números exatamente como estão. Não invente: se não dá para ler, diga que está ilegível.
+Leia cada imagem com atenção de analista: textos, cotas, níveis, quadros, carimbo, hachuras, símbolos. Procure de propósito e registre em "valores": a cota do recuo frontal (do alinhamento da frente até a edificação), cada afastamento lateral e de fundo, cada rebaixo de meio-fio, as cotas pequenas em sequência no acesso de veículos (larguras das faixas), cada área de grama e de concregrama, e cada texto de abertura (POSSUI/NÃO POSSUI ABERTURA) com a parede a que se refere. Registre tudo o que serve para julgar o checklist. Transcreva números exatamente como estão. Não invente: se não dá para ler, diga que está ilegível.
 
 Responda SOMENTE com JSON:
 {"pecas":["peças gráficas vistas, ex.: planta de locação, corte AA, carimbo"],
@@ -545,7 +545,7 @@ function promptLaudo(p, leituras, texto){
 - caixas_locadas_em_planta: quantas caixas de recarga aparecem desenhadas na locação.
 - rebaixos_m: a cota de cada rebaixo de meio-fio, na ordem. fracoes_m2: a fração de cada casa.
 - faixa_grama_acesso_m: largura da faixa de grama ENTRE as duas faixas de roda. faixa_rolagem_m: largura da MENOR faixa de roda.
-- recuo_frontal_m: menor distância cotada do alinhamento à edificação. altura_na_divisa_m: altura final cotada no corte.
+- recuo_frontal_m: distância cotada do alinhamento da frente (limite do lote com a calçada) até a edificação; é a cota vertical na lateral da frente da planta de locação (ex.: 6,49). Não confunda com cotas internas da casa (ex.: 5,99). altura_na_divisa_m: altura final cotada no corte.
 - nivel_calcada_lote / nivel_calcada_sarjeta: níveis cotados na calçada (null se não houver cota de nível NA CALÇADA).
 - unidades_desenhadas: número de casas desenhadas. unidades_no_carimbo: número de unidades escrito no carimbo.`
   : `- parcelas_permeavel_m2: CADA área permeável cotada na implantação, uma por uma, de todas as casas. NÃO use o total do quadro.
@@ -569,6 +569,8 @@ TAREFA: emita o laudo. Julgue TODAS as regras do checklist, uma a uma, cruzando 
 - "corrigir": há evidência de erro ou de falta (na aprovação: a prefeitura devolveria). Diga exatamente o que mudar e onde.
 - "ok": há evidência de que atende.
 - "conferir": não foi possível ler ou a peça não apareceu. Diga o que olhar.
+  Use "conferir" o mínimo possível. NÃO use "conferir" porque um documento de fora da prancha (ART/RRT, matrícula, uso do solo) não foi fornecido: julgue pelo que está na prancha. Se a regra pede uma cota e você leu uma cota que a atende em alguma peça, é "ok". Se varreu a peça certa e a informação não está lá, é "corrigir", não "conferir".
+  Redação diferente da do checklist com o mesmo sentido NÃO é erro; ordem diferente de linhas de quadro NÃO é erro.
 - "na": a regra não se aplica a este projeto.
 Depois liste em "extras" qualquer outro erro que um analista apontaria (grafia, cota faltando, incoerência entre peças) mesmo fora do checklist.
 Em "numeros" preencha só o que foi LIDO na prancha, em número com ponto decimal; mantenha null (ou lista vazia) no que não foi lido. Nunca calcule nem copie de outra peça: a página refaz as contas. Significado de cada campo:
@@ -631,7 +633,7 @@ function contas(p, n){
     const ipm=numBR(n.indice_paisagistico_memorial), aim=numBR(n.area_impermeabilizada_memorial);
     if (ipm!=null&&g!=null) add("Memorial: índice paisagístico", `${fmt(ipm)} m²`, `soma da grama em planta = ${fmt(g)} m²`, Math.abs(ipm-g)<=0.011, "G-REC-0");
     if (aim!=null&&lote&&g!=null) add("Memorial: área impermeabilizada", `${fmt(aim)} m²`, `${fmt(lote)} − ${fmt(g)} = ${fmt(lote-g)} m²`, Math.abs(aim-(lote-g))<=0.011, "G-REC-0");
-    if (pq!=null&&g!=null) add("Quadro: área permeável", `${fmt(pq)} m²`, `soma da grama em planta = ${fmt(g)} m²`, Math.abs(pq-g)<=0.011, "G-QUA-0");
+    if (pq!=null&&g!=null) add("Quadro: área permeável", `${fmt(pq)} m²`, `soma da grama em planta = ${fmt(g)} m²`, Math.abs(pq-g)<=0.011, "G-PER-2");
     const ab=numBR(n.area_base_caixa), ah=numBR(n.altura_caixa), vu1=numBR(n.volume_unitario_caixa), nc=numBR(n.n_caixas), vtot=numBR(n.volume_caixa_utilizado);
     if (ab!=null&&ah!=null&&vu1!=null) add("Memorial: volume unitário", `${fmt(vu1)} m³`, `${fmt(ab)} x ${fmt(ah)} = ${fmt(ab*ah)} m³`, Math.abs(vu1-ab*ah)<=0.011, "G-REC-0");
     if (vu1!=null&&nc&&vtot!=null) add("Memorial: volume total", `${fmt(vtot)} m³`, `${fmt(vu1)} x ${fmt(nc,0)} = ${fmt(vu1*nc)} m³`, Math.abs(vtot-vu1*nc)<=0.011, "G-REC-0");
