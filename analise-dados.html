@@ -4171,13 +4171,14 @@ async function buildSetor(){
   const gastos=meses.map(m=>pagMes[m]||0);
   const receitas=meses.map(m=>fatMes[m]||0);
   const fluxoLiq=meses.map((_,i)=>receitas[i]-gastos[i]);
-  /* 27/10: aportes e distribuições das obras selecionadas entram só na exposição */
+  /* 18/11/26 (dono): sócios (aporte/distribuição) são não operacionais — no Desempenho NÃO entram mais na exposição;
+     a exposição mede o capital que a obra exigiu. A coluna "Sócios" continua só para consulta. */
   const endsExp=temMorais?enderecosMorais:enderecosSel;
   const socios=meses.map(m=>{ let v=0; endsExp.forEach(e=>{ const o=OB_FIN[e]; if(o&&o.s[m]) v+=o.s[m]; }); return v; });
 
   // Exposição de caixa acumulada
   const expCaixa=[];let acc=0;
-  fluxoLiq.forEach((f,i)=>{acc+=f+socios[i];expCaixa.push(acc);});
+  fluxoLiq.forEach((f,i)=>{acc+=f;expCaixa.push(acc);});
   // Exposição positiva = dinheiro investido (negativo no fluxo)
   const expPos=expCaixa.map(v=>-v>0?-v:0);
 
@@ -4246,7 +4247,7 @@ async function buildSetor(){
     lt:`<h4>Lucro líquido total</h4>${_tl([['Lucro das obras da Morais',fmtBRL(temMorais?lucroLiq:0)],['Lucro nas obras de investidores',fmtBRL(temInvest?lucroInvest:0)],['Total',fmtBRL(lucroTotal),1]])}<div style="color:var(--text3)">${_nM} obra(s) da Morais e ${_nI} de investidores na seleção.</div>`,
     lm:`<h4>Lucro líquido (Morais)</h4>${_tl([['Recebido (venda e prestação de serviços)',fmtBRL(totalRecebido)],['Gasto (obra, terreno e custo de venda)','− '+fmtBRL(totalGasto)],['Lucro',fmtBRL(lucroLiq),1]])}${_baseM}`,
     li:`<h4>Lucro da Morais nas obras de investidores</h4>${_tl([['Aportado pelos investidores (valor do contrato)',fmtBRL(totalRecInvest)],['Custo das obras','− '+fmtBRL(totalGastoInvest)],['Lucro da Morais',fmtBRL(lucroInvest),1]])}<div style="color:var(--text3);margin-top:4px">${_nI} obra(s) de investidores. O investidor aporta o valor estipulado no contrato e a venda da casa vai direto para ele; o que sobra do aporte depois do custo da obra é o lucro da Morais. Entram Prestação de Serviços, Aporte de Investidor e as demais naturezas de receita lançadas na obra.</div>`,
-    ex:`<h4>Exposição máxima</h4><div>O maior volume de dinheiro da empresa aplicado nas obras ao mesmo tempo (recebido − pago + sócios, acumulado).</div>${_tl([['Pico',fmtBRL(expMaxima),1],['Mês do pico',_mMax]])}${_baseM}`,
+    ex:`<h4>Exposição máxima</h4><div>O maior volume de dinheiro que as obras exigiram ao mesmo tempo (recebido − pago, acumulado). Aportes e distribuições de sócios não entram: são não operacionais.</div>${_tl([['Pico',fmtBRL(expMaxima),1],['Mês do pico',_mMax]])}${_baseM}`,
     rb:`<h4>ROI bruto</h4><div>Quanto o lucro representa sobre tudo o que foi gasto.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Gasto total',fmtBRL(totalGasto)],['ROI bruto',roiBruto!=null?fmtN(roiBruto,2)+'%':'—',1]])}${_baseM}`,
     re:`<h4>ROI sobre a exposição máxima</h4><div>Lucro em relação ao maior volume de dinheiro que a empresa precisou ter aplicado.</div>${_tl([['Lucro',fmtBRL(lucroLiq)],['÷ Exposição máxima',fmtBRL(expMaxima)],['ROI',roiExpMax!=null?fmtN(roiExpMax,2)+'%':'—',1]])}${_baseM}`,
     tm:`<h4>TIR mensal</h4><div>A taxa de rendimento por mês do dinheiro aplicado: a taxa que faz o fluxo mês a mês (recebido − pago) valer zero hoje. Dá para comparar com o CDI/poupança.</div>${_tl([['TIR mensal',tirAm!=null?fmtN(tirAm*100,3)+'% a.m.':'—',1],[benchNome+' (referência)',taxaBenchAm.toFixed(2)+'% a.m.']])}${_baseM}`,
@@ -4320,8 +4321,8 @@ async function buildSetor(){
       <th class="left">Mês</th>
       <th>Valor Gasto</th>
       <th>Valor Recebido</th>
-      <th>Sócios (aportes − distribuições)</th>
-      <th>Exposição de Caixa</th>
+      <th${tipX('hs','<h4>Sócios (aportes − distribuições)</h4><div>Só para consulta. São não operacionais: não entram no gasto, no recebido, no lucro nem na exposição de caixa do Desempenho.</div>')}>Sócios (aportes − distribuições)</th>
+      <th${tipX('hx','<h4>Exposição de caixa</h4><div>Acumulado até o mês de: recebido − pago. Negativo = dinheiro que as obras exigiram. Sócios não entram.</div>')}>Exposição de Caixa</th>
     </tr></thead>
     <tbody>${rowsExp}</tbody>
     <tfoot><tr>
@@ -4890,7 +4891,7 @@ function rentObra(e,d){
   const lucro=rec-custo;
   const ini=d.data_inicio_obra?mesD(d.data_inicio_obra):null, fim=d.data_termino_obra?mesD(d.data_termino_obra):null;
   // exposição máxima (com aportes/distribuições, como na Análise)
-  let acc=0, expMax=0; for(let m=meses[0],i=0;m<=meses[meses.length-1];m=mAdd(m,1),i++){ acc+=fl[i]+(f.s[m]||0); if(-acc>expMax) expMax=-acc; }
+  let acc=0, expMax=0; for(let m=meses[0],i=0;m<=meses[meses.length-1];m=mAdd(m,1),i++){ acc+=fl[i]; if(-acc>expMax) expMax=-acc; }  /* 18/11/26: sem sócios (não operacional) */
   if(tir!=null&&(expMax<custo*0.1||(lucro>0)!==(tir>0))) tir=null;  // sem capital exposto de verdade ou sinal incoerente: TIR não informa
   const mor=ehObraMorais(d.endereco);
   /* 17/11/26 (pedido do Morais): ciclo de caixa pelas datas do Mais Controle.
