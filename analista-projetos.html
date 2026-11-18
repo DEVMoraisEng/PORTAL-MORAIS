@@ -129,6 +129,13 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
 .seg.modo{margin-bottom:6px;grid-template-columns:repeat(2,1fr)}
 .selo.EXE{background:var(--azul)}
 .seg.modo button{min-height:44px}
+.duv{border:1px solid var(--border);border-radius:10px;padding:10px 12px;margin-top:10px;font-size:13px}
+.duv b{display:block;margin-bottom:2px}
+.duv .ac{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+.duv .btn,.fb .btn{min-height:44px}
+.fb{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;align-items:center}
+.fb input{flex:1 1 180px;min-width:0;min-height:44px;box-sizing:border-box;font:inherit;font-size:16px;padding:9px 10px;border:1px solid var(--border);border-radius:8px;background:var(--bg2);color:var(--text)}
+.fb .ok{font-size:12px;font-weight:700;color:var(--verde)}
 </style>
 </head>
 <body>
@@ -194,6 +201,14 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
     <button class="btn sec hide" id="stop">Parar</button>
     <div class="barra" aria-hidden="true"><i id="prog"></i></div>
     <pre id="log" aria-live="polite">Aguardando o PDF.</pre>
+    <div class="duv" id="duv" aria-label="Dúvidas do analista">
+      <b>Dúvidas do analista</b>
+      <span id="duvTxt">Nenhuma guardada neste navegador.</span>
+      <div class="ac">
+        <button class="btn sec" id="duvCopy" type="button">Copiar para o Claude</button>
+        <button class="btn sec" id="duvClear" type="button">Limpar</button>
+      </div>
+    </div>
     <div class="rodape" id="rodape"></div>
   </section>
 
@@ -755,13 +770,42 @@ async function analisar(){
     const laudo = await ia("analistaLaudo", promptLaudo(p,leituras,texto), null, 340000);   // o laudo pensa mais: até 5 min 40 s (o Apps Script corta em 6 min)
     prog(1); log(`Laudo pronto${falhas?` (${falhas} leitura(s) falharam: itens afetados ficam como "conferir")`:""}.`);
     S.laudo={p, laudo:laudo||{}, arquivo:S.file.name, quando:new Date(), falhas, aviso};
-    S.filtro="todos"; mostrarLaudo();
+    S.filtro="todos"; duvRegistrarLaudo(); mostrarLaudo();
   }catch(e){
     const m = e && e.message || "Não foi possível concluir. Rode de novo.";
     log(m); if (!e || e.codigo!=="PARADO") $("out").insertAdjacentHTML("afterbegin", `<div class="bloqueio">${escH(m)}</div>`);
   }finally{
     $("run").disabled=!S.file; $("stop").classList.add("hide");
   }
+}
+
+/* ============================ DÚVIDAS DO ANALISTA (18/11/26) ============================
+   Tudo o que a IA deixou como "conferir" e tudo o que o projetista marcar como
+   "a IA errou" fica guardado NESTE navegador (localStorage). O botão "Copiar para
+   o Claude" monta o texto para colar no chat: é com ele que as regras e os
+   prompts desta página são melhorados. Nada disso vai para o servidor. */
+const DUV_CHAVE = "morais_analista_duvidas_v1", DUV_MAX = 400;
+function duvLer(){ try{ const a=JSON.parse(localStorage.getItem(DUV_CHAVE)||"[]"); return Array.isArray(a)?a:[]; }catch(_){ return []; } }
+function duvGravar(a){ try{ localStorage.setItem(DUV_CHAVE, JSON.stringify(a.slice(-DUV_MAX))); return true; }catch(_){ return false; } }
+function duvPainel(){
+  const a=duvLer(), d=a.filter(x=>x.tipo==="duvida").length, e=a.length-d;
+  $("duvTxt").textContent = a.length ? `${d} dúvida(s) e ${e} erro(s) marcado(s), guardados neste navegador.` : "Nenhuma guardada neste navegador.";
+  $("duvCopy").disabled = $("duvClear").disabled = !a.length;
+}
+function duvAdd(x){
+  const a=duvLer(), k=[x.tipo,x.arquivo,x.id].join("|"), i=a.findIndex(y=>[y.tipo,y.arquivo,y.id].join("|")===k);
+  if (i>=0) a[i]=x; else a.push(x);
+  const ok=duvGravar(a); duvPainel(); return ok;
+}
+function duvRegistrarLaudo(){
+  if (!S.laudo) return;
+  const {p, arquivo, quando}=S.laudo, {its}=itensDoLaudo();
+  its.filter(i=>i.st==="conferir").forEach(i=>duvAdd({tipo:"duvida", quando:quando.toISOString(), arquivo, modo:p, dpi:S.grid, id:i.id, regra:i.txt, onde:i.onde, ev:i.ev, nota:""}));
+}
+function duvTexto(){
+  const a=duvLer(), nome={GYN:"Goiânia",SC:"Senador Canedo",EXE:"Executivo"};
+  const bloco=(tipo,tit)=>{ const l=a.filter(x=>x.tipo===tipo); return l.length ? `\n${tit} (${l.length})\n`+l.map(x=>`- [${x.id}] ${nome[x.modo]||x.modo} · ${x.arquivo} · ${String(x.quando).slice(0,10)} · ${x.dpi} dpi${x.st?` · IA disse: ${x.st}`:""}\n  Regra: ${x.regra}\n  ${[x.onde&&("Onde: "+x.onde), x.ev&&("IA: "+x.ev)].filter(Boolean).join(" · ")||"IA não disse o motivo"}${x.nota?`\n  Projetista: ${x.nota}`:""}`).join("\n") : ""; };
+  return `DÚVIDAS E ERROS DO ANALISTA DE PROJETOS (para melhorar as regras e os prompts)` + bloco("erro","ERROS MARCADOS PELO PROJETISTA") + bloco("duvida","ITENS QUE A IA DEIXOU EM DÚVIDA (conferir)");
 }
 
 /* ============================ LAUDO ============================ */
@@ -803,9 +847,20 @@ function mostrarLaudo(){
       <span class="chips" id="chips">${["todos","corrigir","conferir","ok","na"].map(f=>`<button type="button" data-f="${f}" aria-pressed="${S.filtro===f}">${f==="todos"?"Todos":rot[f]}</button>`).join("")}</span>
       <em><button class="btn sec mini" id="copy" type="button">Copiar laudo</button></em></h3>` +
     (vis.map(i=>`<div class="item"><div><span class="pill ${i.st}">${rot[i.st]}</span><span class="id">${escH(i.id)}</span></div>
-      <div><p class="q">${escH(i.txt)}</p>${i.onde?`<p class="e">Onde: ${escH(i.onde)}</p>`:""}${i.ev?`<p class="e">${escH(i.ev)}</p>`:""}${i.co&&i.st!=="ok"?`<p class="c">${escH(i.co)}</p>`:""}</div></div>`).join("") || `<p class="resumo">Nenhum item neste filtro.</p>`) + `</div>`;
+      <div><p class="q">${escH(i.txt)}</p>${i.onde?`<p class="e">Onde: ${escH(i.onde)}</p>`:""}${i.ev?`<p class="e">${escH(i.ev)}</p>`:""}${i.co&&i.st!=="ok"?`<p class="c">${escH(i.co)}</p>`:""}<div class="fb" data-id="${escH(i.id)}"><button class="btn sec mini" type="button" data-fb="abrir">A IA errou aqui</button></div></div></div>`).join("") || `<p class="resumo">Nenhum item neste filtro.</p>`) + `</div>`;
   h+=`<div class="aviso">A leitura é feita por IA sobre recortes da prancha. Trate "OK" como triagem e confirme os itens de maior recorrência antes de protocolar.</div>` + blocoDocs(p);
   $("out").innerHTML=h;
+  $("out").onclick=e=>{
+    const b=e.target.closest("[data-fb]"); if (!b) return;
+    const cx=b.closest(".fb"), id=cx.dataset.id, it=its.find(x=>x.id===id); if (!it) return;
+    if (b.dataset.fb==="abrir"){
+      cx.innerHTML=`<input type="text" maxlength="300" aria-label="O que está errado" placeholder="O certo é… (ex.: está cotado, a IA não viu)"><button class="btn sec mini" type="button" data-fb="salvar">Guardar</button>`;
+      cx.querySelector("input").focus(); return;
+    }
+    const nota=cx.querySelector("input").value.trim();
+    const ok=duvAdd({tipo:"erro", quando:quando.toISOString(), arquivo, modo:p, dpi:S.grid, id:it.id, regra:it.txt, onde:it.onde, ev:it.ev, st:it.st, nota});
+    cx.innerHTML=`<span class="ok">${ok?"Guardado nas dúvidas do analista.":"Não foi possível guardar neste navegador."}</span>`;
+  };
   $("chips").onclick=e=>{ const f=e.target.dataset&&e.target.dataset.f; if (f){ S.filtro=f; mostrarLaudo(); } };
   $("copy").onclick=async e=>{
     const t=`${p==="EXE"?"CONFERÊNCIA":"LAUDO PRÉVIO"} · ${REGRAS[p].nome.toUpperCase()} · ${arquivo} · ${quando.toLocaleString("pt-BR")}\n${laudo.resumo||""}\n\n` +
@@ -836,6 +891,12 @@ $("depth").onclick=e=>{ const g=e.target.dataset&&e.target.dataset.g; if (!g) re
     : g==="200" ? "Profunda: 200 dpi. Para prancha carregada ou escaneada. Mais lenta e gasta mais crédito da OpenAI."
     : "Padrão: prancha lida a 150 dpi. Uma A1 vira cerca de 36 recortes; uma A3, 9."; };
 $("modo").onclick=e=>{ const m=e.target.dataset&&e.target.dataset.m; if (m && m!==S.modo) setModo(m); };
+$("duvCopy").onclick=async e=>{ try{ await navigator.clipboard.writeText(duvTexto()); e.target.textContent="Copiado — cole no chat do Claude"; }catch(_){ e.target.textContent="Não foi possível copiar"; } };
+$("duvClear").onclick=e=>{
+  if (e.target.dataset.certo!=="1"){ e.target.dataset.certo="1"; e.target.textContent="Clique de novo para apagar tudo"; return; }
+  duvGravar([]); e.target.dataset.certo=""; e.target.textContent="Limpar"; $("duvCopy").textContent="Copiar para o Claude"; duvPainel();
+};
+duvPainel();
 $("run").onclick=analisar;
 $("stop").onclick=()=>{ if (S.ctl) S.ctl.abort(); log("Parando depois das leituras em andamento…"); };
 telaRegras();
