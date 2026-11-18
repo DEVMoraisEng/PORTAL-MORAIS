@@ -496,7 +496,29 @@ html[data-tema="escuro"] .ent-eq b,html[data-tema="escuro"] .ent-bloco .v,html[d
 /* ranking de corretores/imobiliárias lado a lado, empilha no celular (mesma
    quebra que o portal já usa para os KPIs, ver .kpis acima) */
 .sim-2col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
-@media(max-width:900px){.sim-2col{grid-template-columns:1fr}}
+@media(max-width:900px){.sim-2col{grid-template-columns:1fr}
+  /* 18/11/2026 — CAUSA da página de 861 px no celular: item de grid tem min-width:auto, então o cartão do ranking
+     crescia até a largura da tabela de dentro e esticava a página inteira (o .tbl-wrap rolava, mas o cartão não
+     encolhia). Com min-width:0 a tabela rola dentro do próprio .tbl-wrap. */
+  .sim-2col>*{min-width:0}}
+/* 18/11/2026 — celular (Conferência de celular, CLAUDE.md): proposta aberta, janela do termo e o Sim/Não cabem na
+   tela, rolam na vertical, alvo de toque de 44 px e input com 16 px (o iPhone não dá zoom). Desktop não muda. */
+@media(max-width:600px){
+  .modal-ov{padding:8px}
+  .modal-cx{padding:16px 14px;max-height:calc(100dvh - 16px);overflow-wrap:anywhere}
+  .modal-cx .bt,.modal-cx button{min-height:44px}
+  .modal-cx input,.modal-cx select,.modal-cx textarea{font-size:16px}
+  .modal-cx input:not([type=checkbox]):not([type=radio]),.modal-cx select{min-height:44px}
+  #prop-pr-fundo{padding:8px!important}
+  #prop-pr-fundo>div{padding:14px!important;overflow-wrap:anywhere}
+  #prop-pr-fundo button,#prop-pr-fundo .bt{min-height:44px}
+  #prop-pr-fundo input,#prop-pr-fundo select{font-size:16px}
+  #prop-pr-fundo input:not([type=checkbox]):not([type=radio]),#prop-pr-fundo select{min-height:44px}
+  #prop-pr-fundo .vb-blocos .dz-pr-pag input,#prop-pr-fundo .vb-blocos .dz-pr-pag .bt{height:44px}
+  .sn-fundo{align-items:flex-start!important;overflow-y:auto;padding:8px!important}
+  .sn-fundo>[role=dialog]{margin:auto 0;max-height:calc(100dvh - 16px);overflow-y:auto}
+  .sn-fundo button{min-height:44px;flex:1}
+}
 /* linha de total nas mini-tabelas do modal (fluxo de pagamento), no mesmo
    azul do cabeçalho das tabelas grandes — para lembrar o e-mail enviado */
 .sim-tot td{background:var(--azul);color:#fff;font-weight:800;border-color:rgba(255,255,255,.22)!important}
@@ -5236,7 +5258,7 @@ async function propStatusInterno(id, nome){
 /* 28/10 (dono): pergunta com "Sim" e "Não" iguais, nenhum destacado (o confirm do navegador realça o OK). */
 function propSimNao(msg){
   return new Promise(res=>{
-    const f=document.createElement("div");
+    const f=document.createElement("div"); f.className="sn-fundo";   /* 18/11: classe só para o CSS de celular */
     f.style.cssText="position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:9500;display:flex;align-items:center;justify-content:center;padding:16px";
     const bt="min-width:96px;padding:9px 18px;border-radius:8px;border:1px solid var(--borda,#c9d3da);background:var(--card,#fff);color:var(--text,#1f2328);font:inherit;font-weight:600;cursor:pointer";
     f.innerHTML='<div role="dialog" aria-modal="true" style="background:var(--card,#fff);color:var(--text,#1f2328);border-radius:12px;max-width:420px;width:100%;padding:20px 22px;box-shadow:0 10px 30px rgba(0,0,0,.25)">'+
