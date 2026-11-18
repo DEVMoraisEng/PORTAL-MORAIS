@@ -491,20 +491,90 @@ def marcar_rodando(nome: str, fase: str | None) -> None:
         pass
 
 
-def na_vez(nome: str, funcao, espera_s: float = ESPERA_VEZ_S, dormir=time.sleep, relogio=time.monotonic) -> int:
+#: 18/11: o teste --esquema do robô do orçamento (17/11 16:31) ficou preso COM A VEZ até 18/11 10:17 — todos os outros
+#: robôs esperaram 50 min e falharam a noite inteira. Quem está com a vez tem prazo: passou, o robô é encerrado (ele e
+#: os processos filhos dele: Playwright, Chrome que ele abriu) e a vez fica livre. O Chrome central do porteiro NÃO é
+#: filho de robô nenhum — não é tocado.
+LIMITE_VEZ_S = int(os.environ.get("ROBO_LIMITE_VEZ_S") or 45 * 60)
+
+
+def _pid_vivo(pid) -> bool:
+    """Mesmo teste do escritorio_robos.py (Windows: OpenProcess; nunca os.kill no Windows)."""
+    try:
+        pid = int(pid)
+    except (TypeError, ValueError):
+        return False
+    if os.name == "nt":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)
+        if not h:
+            return False
+        try:
+            cod = ctypes.c_ulong()
+            return bool(k.GetExitCodeProcess(h, ctypes.byref(cod))) and cod.value == 259
+        finally:
+            k.CloseHandle(h)
+    try:
+        os.kill(pid, 0)
+        return True
+    except OSError:
+        return False
+
+
+def quem_esta_rodando(menos: str = "", vivo=_pid_vivo) -> list:
+    """Os robôs com marca em _central/rodando. 18/11: marca de processo que já morreu (ex.: janela fechada à força)
+    é apagada aqui — antes o log dizia "usando agora: orcamento" horas depois de o orçamento ter morrido."""
+    quem = []
+    try:
+        for x in RODANDO.glob("*.json"):
+            if x.stem == menos:
+                continue
+            try:
+                pid = json.loads(x.read_text(encoding="utf-8")).get("pid")
+            except Exception:
+                pid = None
+            if pid is not None and not vivo(pid):
+                try:
+                    x.unlink()
+                except Exception:
+                    pass
+                continue
+            quem.append(x.stem)
+    except Exception:
+        pass
+    return sorted(quem)
+
+
+def _encerrar_por_prazo(nome: str, limite_s: float) -> None:
+    """Chamado pelo relógio da vez: escreve o motivo, apaga a marca e encerra este processo E os filhos dele."""
+    try:
+        log("[vez] %s FALHOU: passou de %d min com a vez no Mais Controle — encerrei o robô e os processos dele para "
+            "liberar a vez aos outros" % (nome, limite_s // 60))
+        marcar_rodando(nome, None)
+    finally:
+        if os.name == "nt":
+            try:   # /T = este processo e tudo o que ele abriu (python do robô, node do Playwright, Chrome próprio)
+                subprocess.run(["taskkill", "/F", "/T", "/PID", str(os.getpid())], capture_output=True, timeout=60)
+            except Exception:
+                pass
+        os._exit(1)
+
+
+def na_vez(nome: str, funcao, espera_s: float = ESPERA_VEZ_S, dormir=time.sleep, relogio=time.monotonic,
+           limite_s: float | None = None, encerrar=_encerrar_por_prazo) -> int:
     """Roda `funcao` quando for a vez dele no Mais Controle (TRAVA_MC). Espera quem estiver lá; desiste depois de
-    `espera_s` com código 1 e uma linha clara no log (o relatório mostra o motivo)."""
+    `espera_s` com código 1 e uma linha clara no log (o relatório mostra o motivo). 18/11: com a vez, tem até
+    `limite_s` (LIMITE_VEZ_S); passou, `encerrar` derruba o robô e os filhos dele (a vez volta a ficar livre)."""
+    import threading
+    limite = LIMITE_VEZ_S if limite_s is None else limite_s
     CENTRAL.mkdir(parents=True, exist_ok=True)
     f = open(TRAVA_MC, "a+")
     ini, avisou = relogio(), False
     try:
         while not _travar(f):
             if not avisou:
-                quem = []
-                try:
-                    quem = sorted(x.stem for x in RODANDO.glob("*.json") if x.stem != nome)
-                except Exception:
-                    pass
+                quem = quem_esta_rodando(nome)
                 log("[vez] %s esperando a vez no Mais Controle (usando agora: %s)" % (nome, ", ".join(quem) or "outro robô"))
                 marcar_rodando(nome, "esperando a vez")
                 avisou = True
@@ -516,9 +586,15 @@ def na_vez(nome: str, funcao, espera_s: float = ESPERA_VEZ_S, dormir=time.sleep,
         if avisou:
             log("[vez] %s: chegou a vez (esperou %d min)" % (nome, (relogio() - ini) // 60))
         marcar_rodando(nome, "trabalhando")
+        relogio_vez = threading.Timer(limite, encerrar, args=(nome, limite)) if limite and limite > 0 else None
+        if relogio_vez:
+            relogio_vez.daemon = True
+            relogio_vez.start()
         try:
             return funcao()
         finally:
+            if relogio_vez:
+                relogio_vez.cancel()
             marcar_rodando(nome, None)
             _soltar(f)
     finally:
@@ -699,6 +775,36 @@ def publicar_arquivo(cfg: dict, caminho: str, mensagem: str) -> str:
                 pass
 
 
+def matar_arvore(pid: int) -> None:
+    """Encerra o processo e TODOS os filhos dele (no Windows, taskkill /T). Só os descendentes de `pid`: o Chrome
+    central do porteiro não é filho de robô e não é tocado."""
+    try:
+        if os.name == "nt":
+            subprocess.run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True, timeout=60)
+        else:
+            os.kill(pid, 9)
+    except Exception:
+        pass
+
+
+def rodar_com_prazo(argv: list, prazo_s: float, **kw) -> subprocess.CompletedProcess:
+    """subprocess.run com prazo DE VERDADE. 18/11: no Windows o run(timeout=) mata só o python do robô; se o node do
+    Playwright (filho dele) continua vivo segurando a saída, a espera pela saída nunca termina — foi o que prendeu a
+    vez a noite inteira. Aqui, passou do prazo, cai a árvore toda e a saída que já tinha saído é guardada."""
+    pr = subprocess.Popen(argv, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+                          encoding="utf-8", errors="replace", **kw)
+    try:
+        out, err = pr.communicate(timeout=prazo_s)
+        return subprocess.CompletedProcess(argv, pr.returncode, out, err)
+    except subprocess.TimeoutExpired:
+        matar_arvore(pr.pid)
+        try:
+            out, err = pr.communicate(timeout=30)
+        except subprocess.TimeoutExpired:
+            out, err = "", ""
+        raise subprocess.TimeoutExpired(argv, prazo_s, output=out, stderr=err) from None
+
+
 def robo_antigo(nome: str) -> int:
     if nome not in ROBOS:
         log("[robo] desconhecido: %s" % nome)
@@ -718,8 +824,7 @@ def robo_antigo(nome: str) -> int:
         script = item if isinstance(item, str) else item[0]       # 06/11: item = texto ou [script, argumento...]
         argv = [sys.executable] + ([item] if isinstance(item, str) else list(item))
         try:
-            r = subprocess.run(argv, cwd=RAIZ, env=env, capture_output=True, text=True,
-                               encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_ANTIGO_S)
+            r = rodar_com_prazo(argv, PRAZO_ROBO_ANTIGO_S, cwd=RAIZ, env=env)
             codigo, fim = r.returncode, ((r.stdout or "").strip().splitlines() or [""])[-1]
             if codigo:
                 fim = ((r.stderr or "").strip().splitlines() or [fim])[-1]

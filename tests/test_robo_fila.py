@@ -180,7 +180,7 @@ def test_robo_antigo_roda_os_scripts_do_workflow_em_ordem_e_guarda_a_saude(tmp_p
     class Res:
         returncode, stdout, stderr = 0, "ok\n", ""
 
-    monkeypatch.setattr(R.subprocess, "run", lambda argv, **k: rodou.append(argv[1]) or Res())
+    monkeypatch.setattr(R, "rodar_com_prazo", lambda argv, prazo, **k: rodou.append(argv[1]) or Res())
     assert R.robo_antigo("contas") == 0
     assert rodou == ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py"]
     assert json.loads((tmp_path / "saude.json").read_text(encoding="utf-8"))["robos"]["contas"]["codigo"] == 0
@@ -419,11 +419,11 @@ def test_boletos_na_fila_com_emitir_e_robo_antigo_aceita_texto_ou_lista(tmp_path
     class Res:
         returncode, stdout, stderr = 0, "ok\n", ""
 
-    def falso(argv, **k):
+    def falso(argv, prazo, **k):
         chamadas.append((argv[1:], k["env"]))
         return Res()
 
-    monkeypatch.setattr(R.subprocess, "run", falso)
+    monkeypatch.setattr(R, "rodar_com_prazo", falso)
     assert R.robo_antigo("boletos") == 0
     assert chamadas[0][0] == ["robo_mc_boletos.py", "--emitir"]
     assert "MC_SENHA" not in chamadas[0][1] and "MC_ROBO_SENHA" not in chamadas[0][1]
@@ -538,7 +538,7 @@ def test_antes_da_rodada_de_boletos_atende_os_pedidos_de_segurar_09_11(tmp_path,
 
     class Res:
         returncode, stdout, stderr = 0, "ok\n", ""
-    monkeypatch.setattr(R.subprocess, "run", lambda *a, **k: ordem.append("robo") or Res())
+    monkeypatch.setattr(R, "rodar_com_prazo", lambda *a, **k: ordem.append("robo") or Res())
     import boletos_portal as BP
     monkeypatch.setattr(BP, "publicar", lambda log: None)
     assert R.robo_antigo("boletos") == 0
@@ -551,7 +551,7 @@ def test_sem_conseguir_ler_os_pedidos_de_segurar_nao_emite_09_11(tmp_path, monke
     def cai():
         raise RuntimeError("Notion fora")
     monkeypatch.setattr(R, "atender_seguradas_pendentes", cai)
-    monkeypatch.setattr(R.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(AssertionError("não pode rodar o robô")))
+    monkeypatch.setattr(R, "rodar_com_prazo", lambda *a, **k: (_ for _ in ()).throw(AssertionError("não pode rodar o robô")))
     assert R.robo_antigo("boletos") == 1
 
 
@@ -578,3 +578,39 @@ def test_import_quebrado_nao_trava_a_fila_09_11(tmp_path, monkeypatch):
     monkeypatch.setitem(sys.modules, "boletos_portal", None)
     f = FilaDeMentira()
     assert f.atender(_pedido({"acao": "segurar", "parcela": "a" * 32, "quem": "ADM"})) == "ERRO"
+
+
+
+def test_quem_esta_com_a_vez_tem_prazo_e_marca_de_robo_morto_some_18_11(tmp_path, monkeypatch):
+    """18/11: o --esquema do orçamento segurou a vez a noite inteira. Com a vez há prazo; marca de pid morto some."""
+    import json as _j
+    monkeypatch.setattr(R, "CENTRAL", tmp_path)
+    monkeypatch.setattr(R, "TRAVA_MC", tmp_path / "vez.trava")
+    monkeypatch.setattr(R, "RODANDO", tmp_path / "rodando")
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+    (tmp_path / "rodando").mkdir()
+    (tmp_path / "rodando" / "orcamento.json").write_text(_j.dumps({"robo": "orcamento", "pid": 999999}), encoding="utf-8")
+    assert R.quem_esta_rodando("ocs", vivo=lambda pid: False) == []
+    assert not (tmp_path / "rodando" / "orcamento.json").exists()
+    import threading
+    encerrou = threading.Event()
+    lento = threading.Event()
+
+    def robo():
+        lento.wait(2)          # "preso" até o relógio da vez disparar
+        return 0
+    cod = R.na_vez("ocs", robo, limite_s=0.2, encerrar=lambda nome, lim: (encerrou.set(), lento.set()))
+    assert cod == 0 and encerrou.is_set()
+    encerrou.clear()
+    assert R.na_vez("ocs", lambda: 5, limite_s=5, encerrar=lambda n, l: encerrou.set()) == 5
+    assert not encerrou.is_set()                       # terminou no prazo: o relógio é desligado
+
+
+def test_rodar_com_prazo_derruba_e_guarda_a_saida_18_11():
+    import sys as _s
+    import pytest as _p
+    r = R.rodar_com_prazo([_s.executable, "-c", "print('oi')"], 30)
+    assert r.returncode == 0 and r.stdout.strip() == "oi"
+    with _p.raises(R.subprocess.TimeoutExpired) as e:
+        R.rodar_com_prazo([_s.executable, "-c", "import time,sys; print('comecei', flush=True); time.sleep(30)"], 1)
+    assert "comecei" in (e.value.output or "")
