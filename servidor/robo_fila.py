@@ -66,12 +66,18 @@ def agora_iso() -> str:
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
 
-def log(msg: str) -> None:
+def log(msg: str, tela: bool = True) -> None:
+    """18/11 (tarde): `tela=False` grava só no arquivo. Numa janela do PowerShell com texto selecionado o Windows
+    PAUSA quem escreve na tela — o print fica parado para sempre. Quem vai encerrar um processo não pode depender dele."""
     LOGS.mkdir(parents=True, exist_ok=True)
     linha = "%s %s" % (dt.datetime.now().strftime("%H:%M:%S"), msg)
     with open(LOGS / ("robos-portal-%s.log" % dt.date.today().isoformat()), "a", encoding="utf-8") as f:
         f.write(linha + "\n")
-    print(linha)
+    if tela:
+        try:
+            print(linha)
+        except Exception:
+            pass
 
 
 # ---------------------------------------------------------------- Notion
@@ -414,6 +420,45 @@ def carregar() -> list:
     return [Fila(f) for f in cfg.get("filas") or []]
 
 
+#: 18/11 (tarde): quem está com a trava da FILA anota aqui o pid e a hora. Uma rodada aberta à mão às 14:01 ficou com
+#: a trava até as 17h: as rodadas do Agendador saíam caladas com "outra execução ainda está rodando" e ninguém via.
+DONO_TRAVA = CENTRAL / "robos-portal-dono.json"
+FOLGA_TRAVA_S = 5 * 60            # além do prazo da rodada (LIMITE_RODADA_S), antes de derrubar quem não saiu
+AVISO_TRAVA_S = 10 * 60           # no máximo um aviso (e uma tentativa de encerrar) a cada 10 min
+
+
+def _anotar_dono() -> None:
+    try:
+        DONO_TRAVA.write_text(json.dumps({"pid": os.getpid(), "desde": time.time()}), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def _trava_presa(agora=time.time, vivo=None, matar=None) -> str | None:
+    """A trava da fila está com outro processo. Se ele passou do prazo da rodada (e da folga) e continua vivo, é uma
+    rodada que não conseguiu se encerrar: avisa no log e derruba SÓ ele e os filhos dele. Devolve o que fez (ou None)."""
+    try:
+        d = json.loads(DONO_TRAVA.read_text(encoding="utf-8"))
+        pid, desde = int(d["pid"]), float(d["desde"])
+    except Exception:
+        return None
+    try:
+        idade = agora() - desde
+        if pid == os.getpid() or idade <= LIMITE_RODADA_S + FOLGA_TRAVA_S or not (vivo or _pid_vivo)(pid):
+            return None
+        if agora() - float(d.get("avisado") or 0) < AVISO_TRAVA_S:
+            return None
+        d["avisado"] = agora()
+        DONO_TRAVA.write_text(json.dumps(d), encoding="utf-8")
+        msg = "[fila] FALHOU: a fila está presa há %d min pelo processo %d, que passou do prazo e não saiu — encerrei esse processo" % (
+            idade // 60, pid)
+        log(msg, tela=False)
+        (matar or matar_arvore)(pid)
+        return msg
+    except Exception:
+        return None
+
+
 def com_trava(funcao, trava=None):
     """Uma execução por vez (o Agendador chama a cada minuto; um lançamento pode durar mais).
 
@@ -430,8 +475,12 @@ def com_trava(funcao, trava=None):
         print("outra execução ainda está rodando — saindo")
         if trava != TRAVA:
             log("[%s] outra execução ainda está rodando — não abri outra" % pathlib.Path(trava).stem.replace("robo-", ""))
+        else:
+            _trava_presa()
         return 0
     try:
+        if trava == TRAVA:
+            _anotar_dono()
         return funcao()
     finally:
         try:
@@ -552,8 +601,11 @@ def quem_esta_rodando(menos: str = "", vivo=_pid_vivo) -> list:
 def _encerrar_por_prazo(nome: str, limite_s: float) -> None:
     """Chamado pelo relógio da vez: escreve o motivo, apaga a marca e encerra este processo E os filhos dele."""
     try:
+        # 18/11 (tarde): tela=False. Às 14:31 este aviso foi para o log, o print parou na janela do PowerShell (rodada
+        # aberta à mão, tela pausada) e o encerramento logo abaixo nunca aconteceu: a fila ficou 3 h presa.
         log("[vez] %s FALHOU: passou de %d min %s — encerrei o robô e os processos dele" % (
-            nome, limite_s // 60, "na rodada" if nome == "fila" else "com a vez no Mais Controle (a vez fica livre)"))
+            nome, limite_s // 60, "na rodada" if nome == "fila" else "com a vez no Mais Controle (a vez fica livre)"),
+            tela=False)
         marcar_rodando(nome, None)
     finally:
         if os.name == "nt":

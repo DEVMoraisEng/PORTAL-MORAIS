@@ -73,3 +73,9 @@ def test_porteiro_fora_por_2h_cancela(monkeypatch, tmp_path):
 
 def test_nada_falhou_nao_cria():
     assert RZ.criar_plano([T("contas")], {"contas": [{"inicio": "2026-11-04T06:24:00", "ok": True}]})[0] is None
+
+
+def test_catalogo_entra_e_boletos_ficam_de_fora():
+    """18/11: o catálogo do MC falhou às 07:42 e só rodaria de novo no dia seguinte. Boletos emitem cobrança: não."""
+    tarefas = [T("catalogo-mc", res=1, ultima="2026-11-04T06:47:00"), T("boletos", res=3, ultima="2026-11-04T10:00:00")]
+    assert [c for c, _ in RZ.falharam(tarefas, {}, REF)] == ["catalogo-mc"]

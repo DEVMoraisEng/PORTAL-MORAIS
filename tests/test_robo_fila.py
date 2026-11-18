@@ -614,3 +614,40 @@ def test_rodar_com_prazo_derruba_e_guarda_a_saida_18_11():
     with _p.raises(R.subprocess.TimeoutExpired) as e:
         R.rodar_com_prazo([_s.executable, "-c", "import time,sys; print('comecei', flush=True); time.sleep(30)"], 1)
     assert "comecei" in (e.value.output or "")
+
+
+# ---- 18/11 (tarde): rodada aberta à mão às 14:01 ficou com a trava da fila até as 17h
+def test_trava_presa_so_derruba_quem_passou_do_prazo_e_continua_vivo(monkeypatch, tmp_path):
+    monkeypatch.setattr(R, "DONO_TRAVA", tmp_path / "dono.json")
+    monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
+    mortos, agora = [], lambda: 100000.0
+    assert R._trava_presa(agora=agora, vivo=lambda p: True, matar=mortos.append) is None      # sem anotação
+    R.DONO_TRAVA.write_text(json.dumps({"pid": 4242, "desde": agora() - 10 * 60}), encoding="utf-8")
+    assert R._trava_presa(agora=agora, vivo=lambda p: True, matar=mortos.append) is None      # dentro do prazo
+    R.DONO_TRAVA.write_text(json.dumps({"pid": 4242, "desde": agora() - 40 * 60}), encoding="utf-8")
+    assert R._trava_presa(agora=agora, vivo=lambda p: False, matar=mortos.append) is None     # dono já morreu
+    assert mortos == []
+    msg = R._trava_presa(agora=agora, vivo=lambda p: True, matar=mortos.append)
+    assert mortos == [4242] and "presa há 40 min" in msg
+    assert R._trava_presa(agora=agora, vivo=lambda p: True, matar=mortos.append) is None      # não repete em 10 min
+    assert mortos == [4242]
+    assert "processo 4242" in next((tmp_path / "logs").glob("*.log")).read_text(encoding="utf-8")
+
+
+def test_log_sem_tela_nao_escreve_na_tela(monkeypatch, tmp_path, capsys):
+    monkeypatch.setattr(R, "LOGS", tmp_path)
+    R.log("aviso de encerramento", tela=False)
+    assert capsys.readouterr().out == ""
+    assert "aviso de encerramento" in next(tmp_path.glob("*.log")).read_text(encoding="utf-8")
+
+
+def test_encerrar_por_prazo_nao_depende_da_tela(monkeypatch, tmp_path):
+    """O print parado numa janela pausada impediu o encerramento das 14:31: o aviso tem de ir só para o arquivo."""
+    monkeypatch.setattr(R, "LOGS", tmp_path)
+    monkeypatch.setattr(R, "RODANDO", tmp_path / "rodando")
+    monkeypatch.setattr("builtins.print", lambda *a, **k: (_ for _ in ()).throw(AssertionError("escreveu na tela")))
+    monkeypatch.setattr(R.os, "name", "posix")
+    saiu = []
+    monkeypatch.setattr(R.os, "_exit", saiu.append)
+    R._encerrar_por_prazo("fila", 30 * 60)
+    assert saiu == [1]

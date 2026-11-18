@@ -7,7 +7,7 @@ fila e roda UM DE CADA VEZ, na ordem certa, sem um passar por cima do outro.
 Como funciona (sem prender a fila do portal: um passo por minuto, dentro do robo_fila.py):
   1. O botão do portal manda o pedido robo-rodar com a tarefa especial "MoraisEng - Reorganizar" (o Apps Script
      não muda). O robo_fila.py chama criar_plano(): olha as tarefas agendadas e as rodadas e monta a fila com quem
-     falhou nas últimas 26 h, na ordem ORDEM (contas → bases → medições → índices → retratos → anexos → medidores → documentos → OCs).
+     falhou nas últimas 26 h, na ordem ORDEM (contas → bases → medições → índices → retratos → anexos → medidores → documentos → OCs → catálogo).
      O plano fica em _central\\reorganizar.json.
   2. A cada minuto o robo_fila.py chama passo():
        - o robô da vez ainda está rodando → espera (no máx. PRAZO_MIN por robô);
@@ -30,7 +30,9 @@ import subprocess
 CENTRAL = pathlib.Path(os.environ.get("MC_CENTRAL") or r"C:\AUTOMAÇÕES MAIS CONTROLE\_central")
 PLANO = CENTRAL / "reorganizar.json"
 TAREFA_ESPECIAL = "MoraisEng - Reorganizar"
-ORDEM = ["contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos", "ocs"]
+# 18/11: o catálogo do MC entra no fim (só lê o MC). Os boletos ficam de FORA de propósito: emitem cobrança, e rodar
+# de novo fora do horário é decisão do dono.
+ORDEM = ["contas", "bases", "medicoes", "indices", "retratos", "anexos", "medidores", "documentos", "ocs", "catalogo-mc"]
 FORA = ("porteiro", "fila")
 OK_RES = (0, 267009, 267011)          # terminou bem, rodando agora, ainda não rodou
 JANELA_H = 26
