@@ -496,6 +496,9 @@ def marcar_rodando(nome: str, fase: str | None) -> None:
 #: os processos filhos dele: Playwright, Chrome que ele abriu) e a vez fica livre. O Chrome central do porteiro NÃO é
 #: filho de robô nenhum — não é tocado.
 LIMITE_VEZ_S = int(os.environ.get("ROBO_LIMITE_VEZ_S") or 45 * 60)
+#: 18/11: a rodada da fila (sem --robo) também tem prazo — cada pedido tem PRAZO_ROBO_S (10 min); 30 min cobre uns 2 a 3
+#: pedidos seguidos. Passou, a rodada é encerrada e a do minuto seguinte começa limpa.
+LIMITE_RODADA_S = int(os.environ.get("ROBO_LIMITE_RODADA_S") or 30 * 60)
 
 
 def _pid_vivo(pid) -> bool:
@@ -549,8 +552,8 @@ def quem_esta_rodando(menos: str = "", vivo=_pid_vivo) -> list:
 def _encerrar_por_prazo(nome: str, limite_s: float) -> None:
     """Chamado pelo relógio da vez: escreve o motivo, apaga a marca e encerra este processo E os filhos dele."""
     try:
-        log("[vez] %s FALHOU: passou de %d min com a vez no Mais Controle — encerrei o robô e os processos dele para "
-            "liberar a vez aos outros" % (nome, limite_s // 60))
+        log("[vez] %s FALHOU: passou de %d min %s — encerrei o robô e os processos dele" % (
+            nome, limite_s // 60, "na rodada" if nome == "fila" else "com a vez no Mais Controle (a vez fica livre)"))
         marcar_rodando(nome, None)
     finally:
         if os.name == "nt":
@@ -908,10 +911,19 @@ def main(argv=None) -> int:
         return com_trava(lambda: na_vez("indices", indices), TRAVA_INDICES)
     if a.robo:                          # sem a trava da fila (não usam a fila), mas um de cada vez no MC
         return na_vez(a.robo, lambda: robo_antigo(a.robo))
-    codigo = com_trava(rodada)
-    atualizar_codigo()
-    publicar_escritorio()
-    return codigo
+    # 18/11: a rodada da fila (a cada minuto) ficou parada das 11:37 às 12:57+ — sem pedido atendido, sem git pull e sem
+    # Escritório (a tarefa não abre outra enquanto esta não termina). A rodada inteira tem prazo: passou, cai com os filhos.
+    import threading
+    vigia = threading.Timer(LIMITE_RODADA_S, _encerrar_por_prazo, args=("fila", LIMITE_RODADA_S))
+    vigia.daemon = True
+    vigia.start()
+    try:
+        codigo = com_trava(rodada)
+        atualizar_codigo()
+        publicar_escritorio()
+        return codigo
+    finally:
+        vigia.cancel()
 
 
 def publicar_escritorio() -> None:
