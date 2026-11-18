@@ -222,7 +222,7 @@ def test_apos_gravar_so_depois_de_gravar_de_verdade():
 
 
 def _atender_lancar_aplicando(tmp_path, monkeypatch, codigos):
-    """Roda Fila.atender de um lançar --aplicar com subprocess.run trocado; codigos = código de cada chamada."""
+    """Roda Fila.atender de um lançar --aplicar com rodar_com_prazo trocado; codigos = código de cada chamada."""
     monkeypatch.setattr(R, "LOGS", tmp_path / "logs")
     chamadas, marcas = [], []
 
@@ -230,8 +230,8 @@ def _atender_lancar_aplicando(tmp_path, monkeypatch, codigos):
         def __init__(self, c):
             self.returncode, self.stdout, self.stderr = c, '{"situacao": "ok"}\n', ""
 
-    def falso(argv, **k):
-        chamadas.append((argv, k))
+    def falso(argv, prazo, **k):
+        chamadas.append((argv, dict(k, timeout=prazo)))
         c = codigos[min(len(chamadas) - 1, len(codigos) - 1)]
         if c == "excecao":
             raise OSError("quebrou")
@@ -239,7 +239,7 @@ def _atender_lancar_aplicando(tmp_path, monkeypatch, codigos):
             raise R.subprocess.TimeoutExpired(argv, 1)
         return Res(c)
 
-    monkeypatch.setattr(R.subprocess, "run", falso)
+    monkeypatch.setattr(R, "rodar_com_prazo", falso)
     f = fila([], nome="producao")
     f.pode_gravar, f.vars = True, {"DB_VENDAS_COND": "d" * 32}
     monkeypatch.setattr(f, "marcar", lambda pid, sit, res="": marcas.append(sit))
@@ -272,7 +272,7 @@ def test_atender_previa_nao_roda_o_retrato(tmp_path, monkeypatch):
     class Res:
         returncode, stdout, stderr = 0, "ok\n", ""
 
-    monkeypatch.setattr(R.subprocess, "run", lambda argv, **k: chamadas.append(argv) or Res())
+    monkeypatch.setattr(R, "rodar_com_prazo", lambda argv, prazo, **k: chamadas.append(argv) or Res())
     f = fila([], nome="producao")
     monkeypatch.setattr(f, "marcar", lambda *a, **k: None)
     assert f.atender(linha("PENDENTE")) == "FEITO"      # payload só com pageId: prévia
@@ -399,7 +399,7 @@ def test_atender_recebimento_usa_a_trava_dos_recebimentos(tmp_path, monkeypatch)
     class Res:
         returncode, stdout, stderr = 0, '{"situacao": "OK"}\n', ""
 
-    monkeypatch.setattr(R.subprocess, "run", lambda argv, **k: chamadas.append(argv) or Res())
+    monkeypatch.setattr(R, "rodar_com_prazo", lambda argv, prazo, **k: chamadas.append(argv) or Res())
     f = fila([], nome="teste")
     f.pode_gravar, f.pode_gravar_recebimento = False, True
     monkeypatch.setattr(f, "marcar", lambda *a, **k: None)
