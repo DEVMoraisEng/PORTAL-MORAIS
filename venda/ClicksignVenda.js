@@ -221,8 +221,12 @@ var ClicksignVenda = (function () {
   }
   /* 30/10: venda direta (isenção da comissão no Alterar fluxo) não tem corretor no contrato nem no envelope */
   function vendaDireta(dados) { return !!(dados.condominio && dados.condominio.livre && dados.condominio.livre.semComissao); }
+  /* 19/11/2026 (dono): na casa de rua o corretor assina sempre (o contrato já trava sem o e-mail dele,
+     ContratoVenda.faltasContrato) — não depende mais da Propriedade ASSINATURA_INCLUIR_CORRETOR, que
+     continua valendo só para o condomínio (opcional). */
   function sigCorretor(dados, config) {
-    if (!config.incluirCorretor || !dados.corretor || vendaDireta(dados)) return [];
+    if (!dados.corretor || vendaDireta(dados)) return [];
+    if (dados.condominio && !config.incluirCorretor) return [];
     return [sig("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor")];
   }
   /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos.
@@ -319,7 +323,7 @@ var ClicksignVenda = (function () {
     config = config || montarConfig({});
     if (!dados.vendedor) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
     if (!config.semTestemunhas && !testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
-    if (config.incluirCorretor && !dados.corretor && !vendaDireta(dados)) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
+    if ((config.incluirCorretor || !dados.condominio) && !dados.corretor && !vendaDireta(dados)) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
     var vistos = {}, porPessoa = [];
     signatarios(dados, config).forEach(function (s) {
       var f = [];

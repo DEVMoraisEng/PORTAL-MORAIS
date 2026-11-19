@@ -76,6 +76,7 @@ function executar_(col, sess, p) {
       case "contratoEstado": return contratoEstado_(col, p);
       case "escolherTestemunhas": return escolherTestemunhas_(col, sess, p);
       case "salvarCamposContrato": return salvarCamposContrato_(col, sess, p);
+      case "salvarComissaoRua": return salvarComissaoRua_(col, sess, p);   /* 19/11/2026: seletor Comissão paga por + e-mail do corretor */
       case "escolherContaRecebimento": return escolherContaRecebimento_(col, sess, p);
       case "gerarPreContrato": return gerarPreContrato_(col, sess, p);
       case "verPreContrato": return verPreContrato_(col, p);

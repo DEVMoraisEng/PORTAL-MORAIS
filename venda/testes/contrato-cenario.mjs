@@ -86,7 +86,8 @@ const LOTEAMENTO = {
   "MATRÍCULA DO LOTEAMENTO": rt("M-100"), "CARTÓRIO": rt("Cartório Teste"),
   "PRAZO POSSE (DIAS)": num(30), "PRAZO CHAVES (DIAS ÚTEIS)": rt("60"),
 };
-const CORRETOR = { NOME: tit("Corretor Teste"), CRECI: rt("CRECI 123"), "CPF/CNPJ": rt("000.000.003-53") };
+const CORRETOR = { NOME: tit("Corretor Teste"), CRECI: rt("CRECI 123"), "CPF/CNPJ": rt("000.000.003-53"),
+  "E-MAIL": { email: "corretor.teste@teste.example" } };
 
 const mescla = (base, mud) => {
   const r = Object.assign({}, base);

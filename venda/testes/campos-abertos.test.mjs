@@ -134,12 +134,14 @@ test("salvarCamposContrato: corretor sem cadastro — cria a linha em CORRETORES
   const c = cenario({ venda: { CORRETOR: sel("Corretor Novo Teste") }, esquemas: { "db-corr": { NOME: "title", CRECI: "rich_text", "CPF/CNPJ": "rich_text", "E-MAIL": "email" } } });
   const r0 = c.acao("gerarPreContrato");
   assert.deepEqual(r0.campos.grupos.map((g) => [g.grupo, g.criar]), [["corretor", true]]);
-  const r = chamar(c, { action: "salvarCamposContrato", campos: { corretor: { CRECI: "CRECI 999", "CPF/CNPJ": "00000000272" } } });
+  /* 19/11/2026: o corretor também assina o contrato fora do condomínio — o e-mail entra na mesma trava do CRECI/CPF */
+  const r = chamar(c, { action: "salvarCamposContrato", campos: { corretor: { CRECI: "CRECI 999", "CPF/CNPJ": "00000000272", "E-MAIL": "corretor.novo@teste.example" } } });
   assert.equal(r.ok, true, JSON.stringify(r));
   const e = c.n.escritas[0];
   assert.deepEqual([e.metodo, e.base], ["POST", "db-corr"]);
   assert.equal(e.props.NOME.title[0].text.content, "Corretor Novo Teste");
   assert.equal(e.props["CPF/CNPJ"].rich_text[0].text.content, "000.000.002-72");
+  assert.equal(e.props["E-MAIL"].email, "corretor.novo@teste.example");
   assert.equal(c.n.bases["db-corr"].length, 2);
 });
 

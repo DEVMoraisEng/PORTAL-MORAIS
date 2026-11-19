@@ -638,12 +638,16 @@
     return n || contaDigitada ? p : null;
   }
   /* ---- 05/11/2026 (dono): casa de rua — "Pagamento da comissão — <corretor>" na aba Contrato, sempre ----
-   * Quem paga é SEMPRE o comprador (texto fixo); a forma ({{COMISSAO_FORMA}}) sai do cadastro do corretor em
-   * CORRETORES – CONTRATO (chave PIX, banco, agência, conta, titular). Dá para preencher ali e salvar no cadastro
-   * (salvarCamposContrato com soSalvar). Nada aqui trava o contrato: a comissão é opcional na casa de rua. */
+   * A forma ({{COMISSAO_FORMA}}) sai do cadastro do corretor em CORRETORES – CONTRATO (chave PIX, banco, agência,
+   * conta, titular). Dá para preencher ali e salvar no cadastro (salvarCamposContrato com soSalvar).
+   * 19/11/2026 (dono): "Comissão paga por" volta a ser um seletor (Comprador/Vendedor, padrão Comprador) — grava
+   * direto na venda (ação salvarComissaoRua), não no cadastro do corretor. O corretor também assina o contrato;
+   * sem e-mail válido na coluna E-MAIL de CORRETORES – CONTRATO, o Gerar pré-contrato trava e abre "Faltam
+   * dados" com CRECI/CPF/CNPJ/E-MAIL — o e-mail não mora neste bloco, é o mesmo formulário de sempre. */
   function comissaoDoEstado(x) {
     if (!x || typeof x !== "object") return null;
-    return { pagaPor: "COMPRADOR", corretor: String(x.corretor || ""), temCadastro: !!x.temCadastro, duplicado: !!x.duplicado,
+    return { pagaPor: x.pagaPor === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR", corretor: String(x.corretor || ""),
+             temCadastro: !!x.temCadastro, duplicado: !!x.duplicado,
              forma: String(x.forma || ""), formaLegada: !!x.formaLegada,
              colunasFaltando: Array.isArray(x.colunasFaltando) ? x.colunasFaltando.map(String) : [],
              campos: (Array.isArray(x.campos) ? x.campos : []).map(function (c) {
@@ -654,9 +658,15 @@
     if (!cc) return "";
     u = u || {};
     var rasc = u.rascunho || {}, nome = cc.corretor;
+    var disRua = dis || (u.ocupadoContrato === "comissaoRua" ? " disabled" : "");
+    var pagaPor = "pagaPor" in rasc ? rasc.pagaPor : cc.pagaPor;
     var h = '<div class="dz-linha dz-grupo"><b>Pagamento da comissão' + (nome ? " — " + esc(nome) : "") + "</b></div>";
-    h += '<div class="dz-linha"><span class="dz-rot">Comissão paga por: <b>COMPRADOR</b></span></div>';
-    if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta da comissão.</div>';
+    h += '<div class="dz-linha"><label class="dz-rot">Comissão paga por</label><select data-com-pagapor' + disRua + ">" +
+      ["COMPRADOR", "VENDEDOR"].map(function (o) { return '<option value="' + o + '"' + (o === pagaPor ? " selected" : "") + ">" + o + "</option>"; }).join("") +
+      "</select></div>";
+    if (u.ocupadoContrato === "comissaoRua") h += '<div class="dz-linha"><b>salvando…</b></div>';
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-rua-salvar"' + disRua + ">Salvar</button></div>";
+    if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta e o e-mail dele.</div>';
     if (cc.duplicado) return h + '<div class="dz-aviso">O corretor tem cadastro duplicado em CORRETORES – CONTRATO — deixe uma linha só.</div>';
     h += '<div class="dz-linha"><span class="dz-rot">No contrato: ' + (cc.forma ? esc(cc.forma) : "<i>em branco (sem dados de pagamento)</i>") +
       (cc.formaLegada ? " <small>(da coluna antiga CONTRATO - COMISSÃO FORMA)</small>" : "") + "</span></div>";
@@ -683,6 +693,11 @@
       o[x.coluna] = v; n++;
     });
     return n ? { corretor: o } : null;
+  }
+  /* 19/11/2026: seletor "Comissão paga por" -> pedido do salvarComissaoRua (só quando mudou) */
+  function pedidoComissaoRua(pagaPor, cc) {
+    if (!pagaPor || pagaPor === (cc && cc.pagaPor)) return null;
+    return { pagaPor: pagaPor };
   }
   /* resposta FALTAM_DADOS -> { faltas (as que o formulário não cobre), campos (ou null: servidor antigo) } */
   function faltasDaResposta(r) {
@@ -1717,6 +1732,7 @@
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
                    rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2,
                    comissaoDoEstado: comissaoDoEstado, htmlComissaoCorretor: htmlComissaoCorretor, pedidoComissao: pedidoComissao,
+                   pedidoComissaoRua: pedidoComissaoRua,
 
                    htmlPerguntaReserva: htmlPerguntaReserva, htmlPreReserva: htmlPreReserva, htmlPreReservaRapida: htmlPreReservaRapida, sugestaoLimitePR: sugestaoLimitePR, mensagemPR: mensagemPR };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
@@ -2848,6 +2864,7 @@
       raiz.querySelectorAll("[data-campo]").forEach(function (x) { uiC.rascunho[x.getAttribute("data-campo")] = x.value; });
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
       raiz.querySelectorAll("[data-com-campo]").forEach(function (x) { uiC.rascunho["com|" + x.getAttribute("data-com-campo")] = x.value; });   /* 05/11/2026 */
+      var elPP = raiz.querySelector("[data-com-pagapor]"); if (elPP) uiC.rascunho.pagaPor = elPP.value;   /* 19/11/2026 */
       rascunhoFia(uiC.rascunho, caixasFia());   /* 01/11: bloco Fiadores — só o que foi mexido */
     }
     function caixasFia() {
@@ -3772,6 +3789,25 @@
           Object.keys(uiC.rascunho).forEach(function (k) { if (/^com\|/.test(k)) delete uiC.rascunho[k]; });
           await carregarContrato();   /* relê o bloco e o aviso de pré-contrato desatualizado */
           uiC.msg = "Dados de pagamento salvos no cadastro do corretor.";
+        } else uiC.msg = mensagemContrato(r);
+        pintar();
+        return;
+      }
+      if (acao === "c-com-rua-salvar") {
+        /* 19/11/2026: Comissão paga por (Comprador/Vendedor) — grava direto na venda */
+        guardarRascunho();
+        var elPPc = raiz.querySelector("[data-com-pagapor]");
+        var pedRua = pedidoComissaoRua(elPPc ? elPPc.value : "", estadoC && estadoC.comissaoCorretor);
+        if (!pedRua) { uiC.msg = "Nada mudou — escolha Comprador ou Vendedor antes de salvar."; pintar(); return; }
+        uiC.ocupadoContrato = "comissaoRua"; uiC.msg = ""; pintar();
+        seq = ++seqC;
+        r = await chamarVenda(Object.assign({ action: "salvarComissaoRua", pageId: pageId }, pedRua), 60000);
+        if (seq !== seqC || !vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) {
+          delete uiC.rascunho.pagaPor;
+          await carregarContrato();
+          uiC.msg = "Comissão paga por salva.";
         } else uiC.msg = mensagemContrato(r);
         pintar();
         return;

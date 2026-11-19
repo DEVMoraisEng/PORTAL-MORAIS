@@ -26,12 +26,12 @@ function fontes(extra = {}) {
       representanteCpf: "111.444.777-35", representanteRg: "7654321", representanteNacionalidade: "brasileiro", representanteEstadoCivil: "casado",
       banco: "BANCO TESTE", agencia: "0001", conta: "12345-6", pix: "" },
     loteamento: { denominacao: "LOTEAMENTO TESTE", municipioUf: "Cidade Teste/GO", matricula: "1", cartorio: "Cartório Teste" },
-    corretor: { nome: "CORRETOR TESTE", creci: "1", cpfCnpj: "111.444.777-35" },
+    corretor: { nome: "CORRETOR TESTE", creci: "1", cpfCnpj: "111.444.777-35", email: "corretor@teste.example" },
     hojeISO: "2026-11-05",
   };
   return Object.assign(base, extra);
 }
-const corretorCom = (x) => fontes({ corretor: Object.assign({ nome: "CORRETOR TESTE", creci: "1", cpfCnpj: "111.444.777-35" }, x) });
+const corretorCom = (x) => fontes({ corretor: Object.assign({ nome: "CORRETOR TESTE", creci: "1", cpfCnpj: "111.444.777-35", email: "corretor@teste.example" }, x) });
 
 /* ---- 4) quem paga: sempre o comprador na casa de rua ---- */
 test("casa de rua: comissão SEMPRE paga pelo COMPRADOR — coluna vazia, VENDEDOR ou lixo não mudam", () => {
@@ -138,7 +138,9 @@ test("bloco Pagamento da comissão: paga por COMPRADOR fixo, caixas com o valor 
     campos: [{ coluna: "CHAVE PIX", rotulo: "Chave PIX", valor: "x", existe: true }, { coluna: "TITULAR DA CONTA", rotulo: "Titular da conta", valor: "", existe: false }] });
   const h = D.htmlComissaoCorretor(cc, { rascunho: {} }, "");
   assert.match(h, /Pagamento da comissão — CORRETOR TESTE/);
-  assert.match(h, /Comissão paga por: <b>COMPRADOR<\/b>/);
+  /* 19/11/2026: "Comissão paga por" volta a ser um seletor (Comprador/Vendedor), não texto fixo */
+  assert.match(h, /<select data-com-pagapor><option value="COMPRADOR" selected>COMPRADOR<\/option><option value="VENDEDOR">VENDEDOR<\/option><\/select>/);
+  assert.match(h, /data-acao="c-com-rua-salvar"/);
   assert.match(h, /No contrato: PIX, chave x/);
   assert.match(h, /não tem a coluna TITULAR DA CONTA/);
   assert.match(h, /data-com-campo="CHAVE PIX" data-com-orig="x" value="x">/);

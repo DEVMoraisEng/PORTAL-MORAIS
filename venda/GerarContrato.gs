@@ -1356,9 +1356,13 @@ function ctrComissaoCorretorEstado_(pg) {
   if (!prop_("DB_CORRETORES")) return null;
   var v = ctrPorChave_(pg.properties), nome = ctrTxt_(ctrCampo_(v, "CORRETOR")).trim();
   var formaAntiga = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_FORMA));
-  if (!nome) return ContratoVenda.estadoComissaoCorretor("", null, null, formaAntiga);
+  /* 19/11/2026 (dono): pagaPor é da própria venda (seletor no Gerar pré-contrato); o e-mail do corretor
+     continua sendo a coluna E-MAIL do cadastro em CORRETORES – CONTRATO (CRECI/CPF/CNPJ/E-MAIL, "Faltam dados") */
+  var pagaPor = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_PAGA_POR));
+  if (!nome) return ContratoVenda.estadoComissaoCorretor("", null, null, formaAntiga, pagaPor);
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
-  if (lc && lc.duplicado) return { pagaPor: "COMPRADOR", corretor: nome, duplicado: true, campos: [], colunasFaltando: [], forma: "" };
+  if (lc && lc.duplicado) return { pagaPor: pagaPor === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR", corretor: nome, duplicado: true,
+                                   campos: [], colunasFaltando: [], forma: "" };
   var linha = null, colunas;
   if (lc) {
     linha = {};
@@ -1369,7 +1373,7 @@ function ctrComissaoCorretorEstado_(pg) {
     try { colunas = Object.keys(ctrTiposDaBase_(dbc).tipos); } catch (e) { colunas = null; }
     /* ctrTiposDaBase_ devolve as chaves já normalizadas — a comparação é pela mesma chave */
   }
-  return ContratoVenda.estadoComissaoCorretor(lc ? lc.titulo : nome, linha, colunas, formaAntiga);
+  return ContratoVenda.estadoComissaoCorretor(lc ? lc.titulo : nome, linha, colunas, formaAntiga, pagaPor);
 }
 /* "Salvar no cadastro do corretor" (p.soSalvar): grava só o grupo corretor, só as colunas de pagamento, na linha do corretor
  * da venda (cria a linha com o nome da venda se não existir). Não gera pré-contrato. Coluna que a base não tem:
@@ -1412,6 +1416,29 @@ function salvarPagamentoCorretor_(col, sess, p) {
   }
   ctrLog_(rot + " " + pid + " salvos " + Object.keys(V).length + (lc ? "" : " (com linha nova)"));
   var r = { ok: true, salvos: ["corretor"] };
+  try { r.comissaoCorretor = ctrComissaoCorretorEstado_(ctrLerPaginaVenda_(p.pageId)); } catch (e) { ctrErro_(rot + " estado", e); }
+  return r;
+}
+
+/* Ação "salvarComissaoRua" (19/11/2026, dono): o seletor "Comissão paga por" (Comprador/Vendedor) volta à tela
+ * de Gerar pré-contrato da casa de rua — grava direto na venda (CONTRATO - COMISSÃO PAGA POR). p = { pageId, pagaPor }.
+ * O e-mail do corretor NÃO passa por aqui: é a coluna E-MAIL do cadastro em CORRETORES – CONTRATO, editada pelo
+ * formulário "Faltam dados" (salvarCamposContrato) do mesmo jeito que CRECI e CPF/CNPJ já eram. */
+function salvarComissaoRua_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), rot = "salvarComissaoRua";
+  if (p.pagaPor !== "COMPRADOR" && p.pagaPor !== "VENDEDOR")
+    return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Comissão paga por: Comprador ou Vendedor"] };
+  var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+  if (info.base === "CONDOMINIO") return { ok: false, erro: "SO_CASA_DE_RUA" };
+  var real = null;
+  for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(ContratoVenda.COL.COMISSAO_PAGA_POR)) real = n;
+  if (!real) return { ok: false, erro: "COLUNA_FALTANDO: " + ContratoVenda.COL.COMISSAO_PAGA_POR };
+  var props = {};
+  props[real] = propNotion_("select", p.pagaPor);
+  try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); }
+  catch (e) { ctrErro_(rot + " " + pid + " gravar", e); return { ok: false, erro: "GRAVACAO_FALHOU", salvos: [] }; }
+  ctrLog_(rot + " " + pid + " pagaPor=" + p.pagaPor);
+  var r = { ok: true, salvos: ["pagaPor"] };
   try { r.comissaoCorretor = ctrComissaoCorretorEstado_(ctrLerPaginaVenda_(p.pageId)); } catch (e) { ctrErro_(rot + " estado", e); }
   return r;
 }
