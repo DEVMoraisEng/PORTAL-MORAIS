@@ -1039,10 +1039,78 @@ def aprovar(tela: Tela, linha: dict, aplicar: bool) -> tuple[str, str]:
                        % ((ap2 or {}).get("atual"), (st2 or {}).get("atual"), rotas if not ok else "gravação ok"))
 
 
-def lancamentos_vinculados(tela: Tela, oc_id: str) -> int:
-    """Quantos lançamentos a OC tem (janela "$ Lançamento › Lançamentos vinculados"). Só olha, não muda nada."""
+#: 19/11 (dono): na lista Compras › Ordem de Compra, o "$" da linha da OC abre os lançamentos dela. Acha a linha pelo
+#: Nº da OC (1ª coluna) e marca o "$" (última coluna) com data-robo-cifrao. Devolve se achou a linha e o "$".
+_JS_CIFRAO = r"""(numero) => {
+  const vis = e => !!(e && (e.offsetWidth || e.offsetHeight || e.getClientRects().length));
+  const linhas = [...document.querySelectorAll("tr")].filter(tr => vis(tr) && tr.cells && tr.cells.length > 3
+      && (tr.cells[0].innerText || "").trim() === String(numero));
+  if (!linhas.length) return {linha: false, cifrao: false};
+  const tr = linhas[0];
+  const cands = [...tr.querySelectorAll("a, button, i, span, [role=button]")].filter(e => vis(e) && (
+      (e.innerText || "").trim() === "$" || /dollar|usd|money/i.test(e.className || "")
+      || /lan[cç]amento/i.test(e.getAttribute("title") || "") || /lan[cç]amento/i.test(e.getAttribute("uib-tooltip") || "")));
+  if (!cands.length) return {linha: true, cifrao: false};
+  const el = cands[cands.length - 1];
+  const alvo = el.closest("a, button, [role=button]") || el;
+  alvo.setAttribute("data-robo-cifrao", "1");
+  return {linha: true, cifrao: true};
+}"""
+
+
+def _cifrao_da_lista(tela: Tela, numero) -> None:
+    """19/11 (dono): abre os lançamentos da OC pelo "$" da linha dela na lista Ordem de Compra (procura pelo Nº)."""
+    if not numero:
+        raise RuntimeError("sem o Nº da OC para procurar na lista")
+    tela.ir("#/purchase-order", "Ordem de Compra", 45)
+    busca = tela.page.locator("input[placeholder*='Busque'], input[placeholder*='busque']").first
+    busca.fill(str(numero))
+    busca.press("Enter")
+    achou = {}
+    for tentativa in (1, 2):
+        if tentativa == 2:
+            # a lista abre nos últimos meses (01/09 até hoje, por exemplo) — OC mais velha não aparece: põe o início
+            # do período em 01/01/2015 (1º campo de data da tela) e procura de novo. Só filtro da tela, nada é salvo.
+            ini = tela.page.locator("input:visible")
+            datas = [i for i in range(min(ini.count(), 40))
+                     if re.match(r"^\d\d/\d\d/\d{4}$", ini.nth(i).input_value() or "")]
+            if not datas:
+                break
+            campo = ini.nth(datas[0])
+            campo.click()
+            campo.press("Control+a")
+            campo.type("01012015", delay=40)
+            campo.press("Tab")
+            busca.fill(str(numero))
+            busca.press("Enter")
+        for _ in range(30):
+            tela.page.wait_for_timeout(500)
+            achou = tela.page.evaluate(_JS_CIFRAO, str(numero)) or {}
+            if achou.get("cifrao") or achou.get("linha"):
+                break
+        if achou.get("linha"):
+            break
+    if not achou.get("cifrao"):
+        o_que = foto_da_tela(tela, "lista-%s" % numero)
+        raise RuntimeError("na lista Ordem de Compra %s (%s)" % (
+            "achei a OC %s mas não o \"$\"" % numero if achou.get("linha") else "não achei a OC %s" % numero, o_que))
+    alvo = tela.page.locator('[data-robo-cifrao="1"]').first
+    try:
+        alvo.click(timeout=10000)
+    except Exception:       # noqa: BLE001 — ícone que o Playwright não acha "visível": clica pelo próprio elemento
+        alvo.evaluate("e => e.click()")
+
+
+def lancamentos_vinculados(tela: Tela, oc_id: str, numero=None) -> int:
+    """Quantos lançamentos a OC tem (janela "$ Lançamento › Lançamentos vinculados"). Só olha, não muda nada.
+    19/11: se a tela da OC não tiver o botão "$ Lançamento", usa o "$" da linha da OC na lista (precisa do Nº)."""
     tela.abrir_oc(oc_id)
-    tela.clicar_botao("Lançamento", exato=False)
+    try:
+        tela.clicar_botao("Lançamento", exato=False)
+    except RuntimeError:
+        if not numero:
+            raise
+        _cifrao_da_lista(tela, numero)
     # 17/11: OC SEM lançamento: o MC não mostra "Lançamentos vinculados" — pergunta "Deseja apropriar os insumos desta
     # ordem de compra para o novo lançamento? Sim / Não" (é o começo de um lançamento NOVO). O robô NÃO responde
     # (nem Sim nem Não): recarrega a página e conta 0.
@@ -1149,7 +1217,7 @@ def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, st
     # vinculados), não só na lista. Tem lançamento (ou não deu para ver): não mexe.
     passo("OC %s (voltar): conferindo o lançamento na OC" % oc.get("numero"))
     try:
-        n = lancamentos_vinculados(tela, oc["oc_id"])
+        n = lancamentos_vinculados(tela, oc["oc_id"], oc.get("numero"))
     finally:
         try:
             tela.page.keyboard.press("Escape")
@@ -1188,7 +1256,7 @@ def _abrir_lancamento(tela: Tela, linha: dict, n: int | None = None):
     """OC › $ Lançamento › (1 lançamento vinculado) › Ir para lançamento → página com a janela Editar lançamento.
     `n` = quantos lançamentos a janela já mostrou (quem já contou não conta de novo)."""
     if n is None:
-        n = lancamentos_vinculados(tela, linha["oc_id"])
+        n = lancamentos_vinculados(tela, linha["oc_id"], linha.get("numero"))
     if n == 0:
         raise RuntimeError("a OC não tem lançamento vinculado no MC — o pagamento ainda não foi lançado")
     if n > 1:
@@ -1229,7 +1297,7 @@ def segunda_parcela(tela: Tela, oc: dict) -> str:
     Erro (tela que não abriu etc.) sobe — quem chama deixa para a próxima rodada."""
     passo("OC %s (antiga, 2ª parcela): conferindo o lançamento" % oc.get("numero"))
     try:
-        n = lancamentos_vinculados(tela, oc["oc_id"])
+        n = lancamentos_vinculados(tela, oc["oc_id"], oc.get("numero"))
         if n == 0:
             return "sem_lanc"
         if n > 1:
@@ -1641,7 +1709,7 @@ def main() -> int:
                     return None
                 conf["vistas"] += 1
                 try:
-                    n = lancamentos_vinculados(tela_c, oc["oc_id"])
+                    n = lancamentos_vinculados(tela_c, oc["oc_id"], oc.get("numero"))
                 except Exception as e:      # noqa: BLE001 — fica para a próxima rodada
                     log("   OC %s antiga: não consegui ver o lançamento (%s)" % (oc.get("numero"), str(e)[:120]))
                     return None
