@@ -1230,6 +1230,8 @@ var ContratoVenda = (function () {
          {{#SE_CASAL}}, porque o texto fica NO MEIO do parágrafo (aplicarBlocos_ só reconhece bloco
          quando o parágrafo inteiro é só a tag, como {{#SE_VENDEDOR_PJ}} em parágrafo próprio) */
       QUALIFICADOR_CASAL: d.comprador2 ? " independente do grau e número" : "",
+      /* 19/11/2026 (dono): rótulo do item 1 sem o "(ES)" quando é um comprador só */
+      COMPRADOR_ROTULO: d.comprador2 ? "COMPRADORES" : "COMPRADOR",
       VENDEDOR_NOME: txt(v.nome) || d.nomeProprietario,
       VENDEDOR_DOC: txt(v.cpfCnpj),
       VENDEDOR_ENDERECO: txt(v.endereco),
@@ -1266,7 +1268,10 @@ var ContratoVenda = (function () {
       AREA: areaTxt(im.area),
       /* 19/11/2026 (dono): confrontações no item 3.c) do modelo passam a trazer o endereço completo do imóvel
          (rua, quadra, lote, casa) na frente do texto de confrontações cadastrado */
-      CONFRONTACOES: (txt(im.endereco) ? txt(im.endereco) + " — " : "") + txt(im.confrontacoes),
+      /* 19/11/2026 (dono): na casa de rua o endereço completo (rua, QD, LT, bloco) vai para o item 3 a)
+         ({{ENDERECO_IMOVEL}}) e as confrontações voltam a ser só as confrontações; condomínio não muda */
+      CONFRONTACOES: d.condominio ? (txt(im.endereco) ? txt(im.endereco) + " — " : "") + txt(im.confrontacoes) : txt(im.confrontacoes),
+      ENDERECO_IMOVEL: txt(im.endereco),
       MATRICULA_INDIVIDUAL: im.matriculaIndividual,
       CRI: im.cri,
       VALOR_IMOVEL: moedaOuVazio(n.aquisicao),
@@ -1281,7 +1286,9 @@ var ContratoVenda = (function () {
       /* 19/11/2026 (dono): fora do condomínio, havendo forma de pagamento configurada (cadastro do corretor ou
          coluna antiga), o contrato sempre sai genérico ("PIX ou depósito bancário"), não importa qual das duas
          o corretor escolheu; sem nada configurado continua vazio (comissão é opcional na casa de rua) */
-      COMISSAO_FORMA: d.condominio ? formaPorExtenso(c.forma) : (c.forma ? "PIX ou depósito bancário" : ""),
+      /* 19/11/2026 (dono): na casa de rua a forma é sempre "PIX ou depósito bancário" (saía em branco quando o
+         cadastro do corretor não tinha Pix/conta) */
+      COMISSAO_FORMA: d.condominio ? formaPorExtenso(c.forma) : "PIX ou depósito bancário",
       COMISSAO_VENCIMENTO: c.vencimento,
       COMISSAO_RESPONSAVEL: pagaVend ? (txt(v.nome) || d.nomeProprietario) : nomes,
       CORRETOR_NOME: txt(k.nome),
@@ -1699,7 +1706,9 @@ var ContratoVenda = (function () {
   var PARAGRAFOS_SE_VAZIO = {
     COMISSAO_VENCIMENTO: {
       so: "^\\s*c\\)\\s*Vencimento:?\\s*\\{\\{COMISSAO_VENCIMENTO\\}\\}\\s*[.;]?\\s*$",
-      reletrar: [["^(\\s*)d\\)(\\s*Corretor:)", "$1c)$2"], ["^(\\s*)e\\)(\\s*Responsável pelo pagamento:)", "$1d)$2"]]
+      /* 19/11/2026: o "f) A corretagem não integra o preço" também sobe (saía d) e depois f)) */
+      reletrar: [["^(\\s*)d\\)(\\s*Corretor:)", "$1c)$2"], ["^(\\s*)e\\)(\\s*Responsável pelo pagamento:)", "$1d)$2"],
+        ["^(\\s*)f\\)(\\s*A corretagem)", "$1e)$2"]]
     },
     /* 19/11/2026 (dono): entrada vazia some do 6. (b) Entrada: ...) e a Parcela Intermediária / Meio de
        pagamento sobem uma letra */

@@ -62,7 +62,7 @@ test("formaComissaoCorretor: só PIX, só conta, os dois, nada; titular ou o nom
   assert.equal(C.formaComissaoCorretor({ banco: "Banco Inventado", conta: "2-2" }), "transferência para Banco Inventado, conta 2-2");
 });
 
-test("{{COMISSAO_FORMA}} na casa de rua: configurada (cadastro do corretor ou coluna antiga) sempre sai \"PIX ou depósito bancário\"; sem nada, vazio", () => {
+test("{{COMISSAO_FORMA}} na casa de rua: sempre \"PIX ou depósito bancário\", com ou sem cadastro (19/11/2026)", () => {
   const pix = C.marcadores(C.montarDadosContrato(corretorCom({ pix: "chave-teste" })));
   assert.equal(pix.COMISSAO_FORMA, "PIX ou depósito bancário");
   const conta = C.marcadores(C.montarDadosContrato(corretorCom({ banco: "Banco Inventado", agencia: "1", conta: "2", titular: "TITULAR TESTE" })));
@@ -73,9 +73,9 @@ test("{{COMISSAO_FORMA}} na casa de rua: configurada (cadastro do corretor ou co
   /* legado: corretor sem dados e a coluna antiga preenchida — também sai o texto fixo */
   const g = fontes(); g.venda.COMISSAO_FORMA = "TRANSFERÊNCIA";
   assert.equal(C.marcadores(C.montarDadosContrato(g)).COMISSAO_FORMA, "PIX ou depósito bancário");
-  /* nada: vazio, e não vira falta (a comissão é opcional na casa de rua) */
+  /* nada configurado: 19/11/2026 (dono) também sai o texto fixo, e não vira falta */
   const d = C.montarDadosContrato(fontes());
-  assert.equal(C.marcadores(d).COMISSAO_FORMA, "");
+  assert.equal(C.marcadores(d).COMISSAO_FORMA, "PIX ou depósito bancário");
   assert.deepEqual(C.faltasContrato(d), []);
   /* sem cadastro do corretor: a forma antiga vale (texto fixo) e a falta de sempre do cadastro continua */
   const h = fontes({ corretor: null }); h.venda.COMISSAO_FORMA = "PIX";

@@ -965,6 +965,9 @@ function ctrGerarPdf_(prep, pid, rot, grifar) {
   try {
     copia = prep.modelo.makeCopy(ctrTxt_(prep.titulo).trim() || ("documento " + pid), prep.pasta);
     var doc = DocumentApp.openById(copia.getId());
+    /* 19/11/2026 (dono): o modelo traz amarelo no texto fixo ("nº", "m²"); tira tudo ANTES de preencher, e o
+       pré-contrato grifa só o que o app preencheu (o final continua sem grifo nenhum) */
+    ctrSecoes_(doc).forEach(ctrSemGrifo_);
     /* 30/10: venda direta (desconto "isentar a comissão" no Alterar fluxo) só sai com o modelo que já tem o bloco
        {{#SEM_COMISSAO}} — sem ele o contrato sairia com o item 5 do corretor e a comissão na conta */
     if (prep.blocos && prep.blocos.SEM_COMISSAO && doc.getBody().getText().indexOf("{{#SEM_COMISSAO}}") < 0) {
