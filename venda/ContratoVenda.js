@@ -240,8 +240,10 @@ var ContratoVenda = (function () {
     return partes.join(", ou ") + (titular ? ", em nome de " + titular : "");
   }
   /* Bloco "Pagamento da comissão" da aba Contrato (casa de rua). linha = { COLUNA: valor } do cadastro do corretor ou null
-     (sem cadastro); colunas = nomes das colunas que a base tem (null = não se sabe). formaAntiga = CONTRATO - COMISSÃO FORMA. */
-  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga) {
+     (sem cadastro); colunas = nomes das colunas que a base tem (null = não se sabe). formaAntiga = CONTRATO - COMISSÃO FORMA.
+     19/11/2026 (dono): pagaPor e email voltam a sair da própria venda (CONTRATO - COMISSÃO PAGA POR, EMAIL CORRETOR) —
+     a tela de Gerar pré-contrato tem o seletor Comprador/Vendedor e o campo de e-mail do corretor. */
+  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga, pagaPorVenda, emailVenda) {
     var nome = txt(nomeCorretor), k = { nome: nome }, faltando = [];
     var campos = CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
       var v = linha ? txt(linha[c.coluna]) : "";
@@ -252,8 +254,9 @@ var ContratoVenda = (function () {
     });
     var forma = formaComissaoCorretor(k), legado = false;
     if (!forma && txt(formaAntiga)) { forma = formaPorExtenso(formaAntiga); legado = true; }
-    return { pagaPor: "COMPRADOR", corretor: nome, temCadastro: !!linha, campos: campos, colunasFaltando: faltando,
-             forma: forma, formaLegada: legado };
+    var pagaPor = up(pagaPorVenda) === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR", email = txt(emailVenda);
+    return { pagaPor: pagaPor, corretor: nome, temCadastro: !!linha, campos: campos, colunasFaltando: faltando,
+             forma: forma, formaLegada: legado, email: email, emailValido: !!nome && emailValido(email) };
   }
 
   /* ---- condomínio ---- */
@@ -828,9 +831,10 @@ var ContratoVenda = (function () {
     var cond = f.condominio ? montarCondominio(f.condominio) : null;
     /* condomínio (contrato do advogado, 21/10/2026): a comissão é paga pelo COMPRADOR, por fora do preço
        do imóvel (valor da operação = VALOR DE VENDA + comissão). Antes (07/10) era paga pela incorporadora. */
-    /* 05/11/2026 (dono): na CASA DE RUA também é SEMPRE o comprador — a coluna CONTRATO - COMISSÃO PAGA POR não manda mais
-       (saiu da tela). O ERP (venda/mc/regras.py) trata a coluna vazia como COMPRADOR; o condomínio no ERP segue VENDEDOR. */
-    var pagaPor = "COMPRADOR";
+    /* 19/11/2026 (dono): a casa de rua volta a ter o seletor "Comissão paga por" (Comprador/Vendedor) na tela
+       de Gerar pré-contrato — a coluna CONTRATO - COMISSÃO PAGA POR nunca saiu do cadastro, só da tela (05/11).
+       Padrão COMPRADOR quando vazia (ERP já trata assim). O condomínio continua sempre COMPRADOR. */
+    var pagaPor = cond ? "COMPRADOR" : (up(v[COL.COMISSAO_PAGA_POR]) === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR");
     var total = cond && cond.fluxo.valorVenda !== null ? cond.fluxo.valorVenda : num(v.VALOR_CONTRATO);
     var comissao = num(v.COMISSAO), naMao = num(v.VALOR_NA_MAO);
     var aquisicao, intermediacao;
@@ -1012,6 +1016,9 @@ var ContratoVenda = (function () {
       exige(!vazio(k.nome), "Corretor", "nome");
       exige(!vazio(k.creci), "Corretor", "CRECI");
       exige(!vazio(k.cpfCnpj), "Corretor", "CPF/CNPJ");
+      /* 19/11/2026 (dono): casa de rua — o corretor também assina o contrato; sem e-mail válido não há como
+         mandar o envelope para ele, então trava aqui (mesmo padrão das outras faltas) em vez de gerar sem ele. */
+      if (!d.condominio) exige(emailValido(k.email), "Corretor", "e-mail (para assinar o contrato)");
     }
     return faltas;
   }
@@ -1162,8 +1169,9 @@ var ContratoVenda = (function () {
     }
     exige(n.sinalValor !== null && n.sinalValor > 0, "Negociação", "sinal (valor)");
     exige(!vazio(n.sinalData), "Negociação", "sinal (data)");
-    exige(n.entradaValor !== null && n.entradaValor > 0, "Negociação", "entrada (valor)");
-    exige(!vazio(n.entradaVencimento), "Negociação", "entrada (vencimento)");
+    /* 19/11/2026 (dono): entrada deixou de ser exigida na casa de rua — vazia, sai em branco no contrato
+       ("R$ , vencendo em "); pedido para o parágrafo sumir quando vazio segue em aberto (falta o texto do
+       modelo no Google Docs para escrever a regra em PARAGRAFOS_SE_VAZIO). */
     if (n.intermediariaValor !== null && n.intermediariaValor > 0) {
       exige(!vazio(n.intermediariaVencimento), "Negociação", "intermediária (vencimento)");
     }
@@ -1692,7 +1700,7 @@ var ContratoVenda = (function () {
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
     comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
     CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
-    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
+    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso, emailValido: emailValido,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
