@@ -22,7 +22,8 @@ Os dois rodam juntos neste script (uma aba do porteiro só, um de cada vez no Ma
   1. lê as OCs no GraphQL de Compras do MC — o MESMO pedido que a tela Compras › Ordem de Compra faz (o robô copia
      a consulta e os filtros da própria tela, como o robô de medidores faz com as solicitações);
   2. guarda as OCs dos fornecedores acima (criadas a partir de OCS_A_PARTIR_DE e, da Rocha / VIDRO ALVES, também as
-     ANTIGAS ainda sem lançamento e sem aprovação — últimos OCS_ANTIGAS_MESES meses) na tabela oc_conferencia do
+     ANTIGAS ainda sem lançamento e sem aprovação — últimos OCS_ANTIGAS_MESES meses; da Serralheria do Fabio, TODAS
+     as antigas com a 2ª parcela do lançamento ainda NÃO paga — 19/11, sem limite de data) na tabela oc_conferencia do
      Supabase ORÇADO/REALIZADO — o Mapa de Obras lê dali pelo Apps Script (ações ocLista / ocResponder);
   3. para cada OC com SIM e ainda não feita, faz a mudança no MC PELA TELA (os mesmos campos e botões que uma
      pessoa usa), confere relendo a tela e grava o resultado na linha (FEITO / ERRO / SIMULADO).
@@ -71,6 +72,18 @@ ANTIGAS_MESES = int(os.environ.get("OCS_ANTIGAS_MESES") or 6)
 #: (as que têm lançamento ficam anotadas em _central\ocs-com-lancamento.json e não são abertas de novo).
 MAX_CONFERIR = int(os.environ.get("OCS_MAX_CONFERIR") or 30)
 COM_LANCAMENTO = CENTRAL / "ocs-com-lancamento.json"
+#: 19/11 (dono): da Serralheria do Fabio entram TODAS as OCs antigas (antes de OCS_A_PARTIR_DE, sem limite de data)
+#: em que a 2ª parcela do lançamento ainda NÃO foi paga. A lista do MC não diz se a parcela foi paga: o robô abre o
+#: lançamento na tela (só olha). O histórico inteiro do MC é lido 1 vez por dia (é lento) e as OCs antigas da
+#: Serralheria ficam em ocs-parcela-candidatas.json; o que o robô já viu fica em ocs-parcela-conferidas.json
+#: (paga = não abre mais; sem lançamento = confere de novo em 7 dias; sem 2ª parcela / vários lançamentos = 30 dias).
+PARCELA_DESDE = os.environ.get("OCS_PARCELA_DESDE", "2015-01-01").strip()
+HISTORICO_DIA = CENTRAL / "ocs-historico-dia.txt"
+PARCELA_CANDIDATAS = CENTRAL / "ocs-parcela-candidatas.json"
+PARCELA_CONFERIDAS = CENTRAL / "ocs-parcela-conferidas.json"
+MAX_PARCELAS = int(os.environ.get("OCS_MAX_PARCELAS") or 12)          # lançamentos abertos por rodada, no máximo
+PRAZO_PARCELAS_S = int(os.environ.get("OCS_PRAZO_PARCELAS_S") or 5 * 60)   # e no máximo este tempo por rodada
+REVER_DIAS = {"sem_lanc": 7, "sem2": 30, "varios": 30}                # "paga" não é revista
 #: 16/11 (dono, depois da 1ª descoberta): as OCs da Rocha / VIDRO ALVES já chegam "Aprovado" no MC. As que NÃO têm
 #: lançamento voltam para "Aguardando aprovação" (o pagamento fica esperando o SIM do engenheiro). No máximo isto por rodada.
 MAX_VOLTAR = int(os.environ.get("OCS_MAX_VOLTAR") or 40)
@@ -327,8 +340,9 @@ def antigas_desde(hoje: dt.date | None = None) -> str:
 
 def interessa(oc: dict, desde: str = A_PARTIR_DE, antigas: str | None = None) -> tuple[str, str, bool] | None:
     """(fornecedor da lista, ação, antiga?) se a OC pode entrar na conferência; None se não.
-    Nova = criada a partir de `desde`. Antiga = de `antigas` até `desde`, só de APROVAR (Rocha / VIDRO ALVES) e só se
-    não tiver lançamento (a lista dizendo que tem, fica fora; sem saber, quem chama confere na tela)."""
+    Nova = criada a partir de `desde`. Antiga de APROVAR (Rocha / VIDRO ALVES) = de `antigas` até `desde` e só se não
+    tiver lançamento (a lista dizendo que tem, fica fora; sem saber, quem chama confere na tela). Antiga de PARCELA
+    (Serralheria) = qualquer data (19/11); quem chama confere se a 2ª parcela ainda não foi paga."""
     if not oc.get("oc_id") or not re.match(r"^[0-9a-fA-F-]{36}$", oc["oc_id"]):
         return None
     f = acao_do_fornecedor(oc.get("fornecedor"))
@@ -336,17 +350,21 @@ def interessa(oc: dict, desde: str = A_PARTIR_DE, antigas: str | None = None) ->
         return None
     if not oc.get("criada_em") or oc["criada_em"] >= desde:
         return f[0], f[1], False
+    if f[1] == "PARCELA":           # 19/11 (dono): toda antiga da Serralheria — quem chama confere a 2ª parcela na tela
+        return None if oc.get("cancelada") else (f[0], f[1], True)
     if f[1] != "APROVAR" or oc["criada_em"] < (antigas or antigas_desde()) or oc.get("tem_lancamento") is True:
         return None
     return f[0], f[1], True
 
 
 def linhas_novas_e_atualizadas(ocs: list, existentes: dict, sem_lancamento=None,
-                               antigas: str | None = None) -> tuple[list, list]:
+                               antigas: str | None = None, parcela_aberta=None) -> tuple[list, list]:
     """(novas, atualizar). OC de APROVAR que já está APROVADA no MC só entra se NÃO tiver lançamento (16/11: o robô
     volta ela para "Aguardando aprovação" — ver para_voltar).
     OC antiga em que a lista não diz se há lançamento: `sem_lancamento(oc)` decide (True = entra; None = não deu para
-    saber agora, fica para a próxima rodada). A linha que já existe só recebe os campos do MC — nunca a resposta."""
+    saber agora, fica para a próxima rodada). OC antiga da Serralheria: `parcela_aberta(oc)` decide (True = a 2ª
+    parcela ainda não foi paga, entra; False / None = fica fora). A linha que já existe só recebe os campos do MC —
+    nunca a resposta."""
     novas, atual = [], []
     agora = dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
     for oc in ocs:
@@ -371,6 +389,9 @@ def linhas_novas_e_atualizadas(ocs: list, existentes: dict, sem_lancamento=None,
             if oc.get("tem_lancamento") is True:
                 continue
             if oc.get("tem_lancamento") is None and not (sem_lancamento and sem_lancamento(oc)):
+                continue
+        elif f[2] and f[1] == "PARCELA":
+            if not (parcela_aberta and parcela_aberta(oc)):
                 continue
         elif f[2] and oc.get("tem_lancamento") is None and not (sem_lancamento and sem_lancamento(oc)):
             continue
@@ -1154,9 +1175,11 @@ def voltar_para_aguardando(tela: Tela, oc: dict, aplicar: bool) -> tuple[str, st
     raise RuntimeError("salvei, mas a OC voltou com Aprovação \"%s\" (%s)" % ((ap2 or {}).get("atual"), rotas if not ok else "gravação ok"))
 
 
-def _abrir_lancamento(tela: Tela, linha: dict):
-    """OC › $ Lançamento › (1 lançamento vinculado) › Ir para lançamento → página com a janela Editar lançamento."""
-    n = lancamentos_vinculados(tela, linha["oc_id"])
+def _abrir_lancamento(tela: Tela, linha: dict, n: int | None = None):
+    """OC › $ Lançamento › (1 lançamento vinculado) › Ir para lançamento → página com a janela Editar lançamento.
+    `n` = quantos lançamentos a janela já mostrou (quem já contou não conta de novo)."""
+    if n is None:
+        n = lancamentos_vinculados(tela, linha["oc_id"])
     if n == 0:
         raise RuntimeError("a OC não tem lançamento vinculado no MC — o pagamento ainda não foi lançado")
     if n > 1:
@@ -1191,6 +1214,76 @@ def _fechar_extra(tela: Tela, t2: Tela) -> None:
             pass
 
 
+def segunda_parcela(tela: Tela, oc: dict) -> str:
+    """19/11: como está a 2ª parcela do lançamento da OC — "aberta" (não paga), "paga", "sem_lanc" (OC sem
+    lançamento), "sem2" (lançamento sem 2ª parcela) ou "varios" (mais de um lançamento). SÓ OLHA: não salva nada.
+    Erro (tela que não abriu etc.) sobe — quem chama deixa para a próxima rodada."""
+    passo("OC %s (serralheria antiga): conferindo a 2ª parcela" % oc.get("numero"))
+    try:
+        n = lancamentos_vinculados(tela, oc["oc_id"])
+        if n == 0:
+            return "sem_lanc"
+        if n > 1:
+            return "varios"
+        t2 = _abrir_lancamento(tela, oc, n)
+        try:
+            p2 = t2.page.evaluate(_JS_PARCELA, [2, "parc2"]) or {}
+        finally:
+            _fechar_extra(tela, t2)
+        if p2.get("vencimento") is None:
+            if p2.get("parcelas", 0) < 2:
+                return "sem2"
+            raise RuntimeError("não achei o vencimento da Parcela 2 na janela Editar lançamento")
+        return "paga" if p2.get("pago") else "aberta"
+    finally:
+        try:                        # sai da janela sem salvar (recarrega a aba do robô)
+            tela.page.keyboard.press("Escape")
+            tela.page.reload(wait_until="domcontentloaded")
+            tela.page.wait_for_timeout(1000)
+        except Exception:           # noqa: BLE001
+            pass
+
+
+def rever_parcela(registro: dict | None, hoje: dt.date) -> bool:
+    """19/11: a OC antiga da Serralheria precisa ser aberta de novo? (paga nunca; as outras depois de REVER_DIAS)"""
+    if not registro:
+        return True
+    dias = REVER_DIAS.get(registro.get("r"))
+    if dias is None:
+        return False
+    try:
+        return (hoje - dt.date.fromisoformat(registro.get("em") or "")).days >= dias
+    except ValueError:
+        return True
+
+
+def ler_json(caminho: pathlib.Path, padrao):
+    try:
+        return json.loads(caminho.read_text(encoding="utf-8"))
+    except Exception:       # noqa: BLE001 — sem o arquivo, começa de novo
+        return padrao
+
+
+def guardar_json(caminho: pathlib.Path, dado) -> None:
+    try:
+        caminho.write_text(json.dumps(dado, ensure_ascii=False), encoding="utf-8")
+    except Exception:       # noqa: BLE001
+        pass
+
+
+def candidatas_parcela(ocs: list, desde: str = A_PARTIR_DE) -> list:
+    """19/11: OCs antigas (antes de `desde`) da Serralheria, não canceladas — guardadas da leitura do histórico."""
+    return [o for o in ocs if (acao_do_fornecedor(o.get("fornecedor")) or ("", ""))[1] == "PARCELA"
+            and o.get("criada_em") and o["criada_em"] < desde and not o.get("cancelada")]
+
+
+def juntar_candidatas(ocs: list, candidatas: list) -> list:
+    """A lista da rodada + as antigas da Serralheria que ficaram fora da janela de leitura (mais novas primeiro)."""
+    ids = {o.get("oc_id") for o in ocs}
+    fora = [c for c in candidatas if c.get("oc_id") not in ids]
+    return ocs + sorted(fora, key=lambda o: (o.get("criada_em") or "", o.get("numero") or 0), reverse=True)
+
+
 def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None = None) -> tuple[str, str]:
     """ROBÔ 2: vencimento da 2ª parcela do lançamento da OC → próximo dia útil depois do SIM."""
     hoje = hoje or dt.date.today()
@@ -1207,8 +1300,8 @@ def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None =
         atual = p2["vencimento"]
         if mesma_data(atual, alvo):
             return "FEITO", "2ª parcela já estava com vencimento %s — nada mudado" % atual
-        if p2.get("pago"):
-            raise RuntimeError("a 2ª parcela já está PAGA (vencimento %s) — não mudo" % atual)
+        if p2.get("pago"):          # 19/11: paga = nada a fazer (sai do mapa); não mexe
+            return "FEITO", "a 2ª parcela já estava PAGA (vencimento %s) — nada mudado" % atual
         if p2.get("desabilitado"):
             raise RuntimeError("o vencimento da 2ª parcela está travado na tela (%s) — conferir no MC" % atual)
         if not aplicar:
@@ -1497,12 +1590,36 @@ def main() -> int:
     try:
         # 1-2. OCs novas → Supabase (o alerta do mapa)
         try:
-            passo("lendo as OCs do Mais Controle")
-            nos, est = ler_ocs(aba)
+            hoje = dt.date.today()
+            nos, est, historico = None, None, False
+            if (HISTORICO_DIA.read_text(encoding="utf-8").strip() if HISTORICO_DIA.exists() else "") != hoje.isoformat():
+                # 19/11: 1 vez por dia, o histórico inteiro (para achar as OCs antigas da Serralheria)
+                passo("lendo o histórico inteiro de OCs do Mais Controle (1 vez por dia)")
+                try:
+                    nos, est = ler_ocs(aba, desde=PARCELA_DESDE)
+                    historico = True
+                except Exception as e:      # noqa: BLE001 — lê só a janela de sempre; tenta o histórico na próxima
+                    log("   histórico de OCs: não consegui ler (%s) — fica para a próxima rodada" % str(e)[:150])
+            if nos is None:
+                passo("lendo as OCs do Mais Controle")
+                nos, est = ler_ocs(aba)
             passo("separando as OCs da conferência (%d lidas)" % len(nos))
             ocs = [oc_do_no(n) for n in nos]
             if nos and not any(o["fornecedor"] for o in ocs):
                 raise RuntimeError("as OCs vieram sem o fornecedor — rode com DESCOBRIR=1 e mande a saída")
+            if historico:
+                cand = candidatas_parcela(ocs)
+                guardar_json(PARCELA_CANDIDATAS, cand)
+                try:
+                    HISTORICO_DIA.write_text(hoje.isoformat(), encoding="utf-8")
+                except Exception:       # noqa: BLE001
+                    pass
+                log("   histórico de OCs lido desde %s: %d OC(s) · %d antiga(s) da Serralheria" % (
+                    PARCELA_DESDE, len(ocs), len(cand)))
+            else:
+                ocs = juntar_candidatas(ocs, ler_json(PARCELA_CANDIDATAS, []))
+            parc_vistas = ler_json(PARCELA_CONFERIDAS, {})
+            parc = {"vistas": 0, "aberta": 0, "paga": 0, "outras": 0, "parou": "", "ini": time.monotonic()}
             com_lanc = ler_com_lancamento()
             conf = {"vistas": 0, "sem": 0, "com": 0}
             tela_c = Tela(aba)
@@ -1524,8 +1641,36 @@ def main() -> int:
                     return False
                 conf["sem"] += 1
                 return True
-            novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento)
+            def parcela_aberta(oc):
+                """OC antiga da Serralheria: a 2ª parcela ainda não foi paga? Abre o lançamento (só olha), com limite
+                de quantidade e de tempo por rodada; o resultado fica anotado (ver REVER_DIAS)."""
+                reg = parc_vistas.get(oc["oc_id"])
+                if not rever_parcela(reg, hoje):
+                    return False
+                if parc["vistas"] >= MAX_PARCELAS:
+                    parc["parou"] = "limite de %d por rodada" % MAX_PARCELAS
+                    return None
+                if time.monotonic() - parc["ini"] > PRAZO_PARCELAS_S:
+                    parc["parou"] = "limite de %d min por rodada" % (PRAZO_PARCELAS_S // 60)
+                    return None
+                parc["vistas"] += 1
+                try:
+                    r = segunda_parcela(tela_c, oc)
+                except Exception as e:      # noqa: BLE001 — fica para a próxima rodada
+                    log("   OC %s (serralheria antiga): não consegui ver a 2ª parcela (%s)" % (oc.get("numero"), str(e)[:120]))
+                    return None
+                parc_vistas[oc["oc_id"]] = {"r": r, "em": hoje.isoformat(), "numero": oc.get("numero")}
+                guardar_json(PARCELA_CONFERIDAS, parc_vistas)
+                parc[r if r in ("aberta", "paga") else "outras"] += 1
+                return r == "aberta"
+            novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento, parcela_aberta=parcela_aberta)
             guardar_com_lancamento(com_lanc)
+            if parc["vistas"]:
+                log("   Serralheria antigas conferidas no lançamento: %d (2ª parcela em aberto: %d · paga: %d · sem "
+                    "lançamento/sem 2ª parcela/vários: %d)%s" % (parc["vistas"], parc["aberta"], parc["paga"],
+                                                                  parc["outras"],
+                                                                  " · %s, o resto fica para a próxima" % parc["parou"]
+                                                                  if parc["parou"] else ""))
             passo("conferindo os arquivos (NF) das OCs")
             ea = com_anexos(aba, novas + atual, existentes, tem_arquivo={o["oc_id"]: o.get("tem_arquivo") for o in ocs})
             passo("gravando %d linha(s) no Supabase" % len(novas + atual))
