@@ -13,8 +13,8 @@
  *                    em base64 + instrução) e devolve o JSON da leitura
  *   analistaLaudo    cruza as leituras (só texto) e devolve o JSON do laudo
  *   analistaVersao   diagnóstico: versão e se a chave está configurada
- * Acesso: "ANALISTA DE PROJETOS" na coluna ACESSOS do LOGINS (ADM, MASTER e
- * TESTES passam sempre). Não grava nada no Notion nem no Supabase.
+ * Acesso: desde 19/11/26 (a2) qualquer login do portal usa; antes pedia
+ * "ANALISTA DE PROJETOS" na coluna ACESSOS. Não grava nada no Notion nem no Supabase.
  *
  * COMO INSTALAR (projeto PORTAL-LEITURA):
  *   1) Arquivo novo "AnalistaProjetos" (script) com este conteúdo.
@@ -28,7 +28,7 @@
  *   Teste: no rodapé do painel da página aparece "Apps Script a1".
  *************************************************************************/
 
-var ANA_VERSAO = "a1";
+var ANA_VERSAO = "a2";   // a2 (19/11/26): liberado para todos os logins do portal
 var ANA_ACESSO = "ANALISTA DE PROJETOS";
 var ANA_MODELO_PADRAO = "gpt-6-luna";            // o mesmo padrão do venda/OpenAILeitor.js
 var ANA_URL = "https://api.openai.com/v1/responses";
@@ -39,10 +39,9 @@ var ANA_MAX_IMG_B64 = 2800000;                   // ~2 MB por imagem
 function anaRotear_(action, sess, p) {
   if (action === "analistaVersao") return { ok: true, versao: ANA_VERSAO, chave: !!prop_("OPENAI_API_KEY") };
   if (action !== "analistaLer" && action !== "analistaLaudo") return null;
-  if (!temAcesso_(sess, ANA_ACESSO)) {
-    console.log("BLOQUEADO por falta de acesso " + ANA_ACESSO + ": " + sess.u + " -> " + action);
-    return { ok: false, erro: "SEM_PERMISSAO" };
-  }
+  // 19/11/26 (a2): liberado para todos os logins do portal (pedido do Morais). Continua
+  // exigindo sessão válida (quem chega aqui já passou pelo login) e o limite por login.
+  if (!sess || !sess.u) return { ok: false, erro: "SEM_PERMISSAO" };
   var chave = prop_("OPENAI_API_KEY");
   if (!chave) return { ok: false, erro: "SEM_CHAVE_OPENAI" };
   if (!anaDentroDoLimite_(sess.u)) return { ok: false, erro: "LIMITE_ATINGIDO" };
