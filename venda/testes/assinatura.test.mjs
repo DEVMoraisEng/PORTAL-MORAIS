@@ -117,7 +117,7 @@ function cenario({ venda, vendedor, props, colunas, cs = {}, semProps = [], extr
   return { g, n, c, p, acao, txt, enviar: (tok) => acao("assinaturaEnviar", tok), estado: (tok) => acao("assinaturaEstado", tok) };
 }
 const csCalls = (c) => c.c.chamadas.map((x) => x.metodo + " " + x.caminho);
-const PESSOAIS = ["Fulano", "Beltrano", "Testemunha", "fulano@", "beltrano@", "t1.spe", "000.000.0", "Construtora"];
+const PESSOAIS = ["Fulano", "FULANO", "Beltrano", "Testemunha", "fulano@", "beltrano@", "t1.spe", "000.000.0", "Construtora"];
 
 test("sem CLICKSIGN_TOKEN: CLICKSIGN_SEM_TOKEN e nenhuma chamada (nem ao Notion, nem à Clicksign)", () => {
   const c = cenario({ semProps: ["CLICKSIGN_TOKEN"] });
@@ -156,10 +156,10 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   }
   const [env, doc, s1, s2, , , , q1, a1] = c.c.chamadas.map((x) => x.corpo);
   /* entrega 14: padrão "OBRA - COMPRADOR" (obra = endereço + CASA n) no envelope e no documento */
-  assert.equal(env.data.attributes.name, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste");
-  assert.equal(doc.data.attributes.filename, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf");
+  assert.equal(env.data.attributes.name, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - FULANO DE TESTE");
+  assert.equal(doc.data.attributes.filename, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - FULANO DE TESTE.pdf");
   assert.equal(doc.data.attributes.content_base64, "data:application/pdf;base64," + Buffer.from(PDF_GERADO).toString("base64"));
-  assert.deepEqual(s1.data.attributes, { name: "Fulano de Teste", email: "fulano@teste.example", has_documentation: true,
+  assert.deepEqual(s1.data.attributes, { name: "FULANO DE TESTE", email: "fulano@teste.example", has_documentation: true,
                                          documentation: "000.000.001-91", refusable: true });
   assert.equal(s2.data.attributes.email, "beltrano@teste.example");
   assert.deepEqual(q1.data.attributes, { action: "agree", role: "buyer" });
@@ -510,7 +510,7 @@ test("estado em andamento: quem já assinou (evento sign) com a data, nome masca
     Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend),
     Object.assign({ papel: "Corretor", nome: "Corretor T." }, pend)] });
   const semEmail = JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) });
-  assert.ok(!semEmail.includes("@") && !JSON.stringify(r).includes("Fulano de Teste"), "e-mail fora do campo email ou nome inteiro");
+  assert.ok(!semEmail.includes("@") && !JSON.stringify(r).includes("FULANO DE TESTE"), "e-mail fora do campo email ou nome inteiro");
   assert.equal(c.c.estado.baixados, 0);
   assert.deepEqual(c.n.pagina.properties["CONTRATO ASSINADO"].files, []);
 });
@@ -1183,11 +1183,11 @@ test("plano 23 A: documentosAssinados lista o envelope assinado; verDocumentoAss
   c.estado();
   const l = c.acao("documentosAssinados", tokenDe("TESTES"));
   assert.equal(l.ok, true, JSON.stringify(l));
-  assert.deepEqual(l.documentos, [{ id: "doc-1", nome: "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf", tipo: "contrato" }]);
+  assert.deepEqual(l.documentos, [{ id: "doc-1", nome: "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - FULANO DE TESTE.pdf", tipo: "contrato" }]);
   const v = chamarCom(c, "verDocumentoAssinado", { docId: "doc-1" }, tokenDe("TESTES"));
   assert.equal(v.ok, true, JSON.stringify(v).slice(0, 200));
   assert.equal(Buffer.from(v.base64, "base64").toString("utf8"), PDF_ASSINADO);
-  assert.equal(v.nome, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf");
+  assert.equal(v.nome, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - FULANO DE TESTE.pdf");
   assert.ok(!JSON.stringify(v).includes("https://") && !JSON.stringify(l).includes("https://"), "sem link na resposta");
   assert.deepEqual(chamarCom(c, "verDocumentoAssinado", { docId: "doc-9" }), { ok: false, erro: "DOCUMENTO_NAO_ENCONTRADO" });
   assert.ok(!c.g.logs.join("\n").includes("s3."), "log sem URL");

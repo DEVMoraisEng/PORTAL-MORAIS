@@ -32,7 +32,7 @@ test("comissão sem vencimento: não é falta; a linha 'c) Vencimento' sai e Cor
   const t = textoPre(c);
   assert.ok(!/Vencimento/.test(t), t);
   assert.ok(t.includes("\nc) Corretor: Corretor Teste, CRECI 123\n"), t);
-  assert.ok(t.includes("\nd) Responsável pelo pagamento: Fulano de Teste\n"), t);
+  assert.ok(t.includes("\nd) Responsável pelo pagamento: FULANO DE TESTE\n"), t);
   assert.ok(t.includes("\nb) Forma de Pagamento: PIX\n"), t);
 });
 
@@ -58,7 +58,7 @@ test("estado civil e profissão vazios: não são falta e a qualificação sai s
   const r = c.acao("gerarPreContrato");
   assert.equal(r.ok, true, JSON.stringify(r));
   const linha = textoPre(c).split("\n").find((l) => l.startsWith("Compradores do quadro:"));
-  assert.equal(linha, "Compradores do quadro: Fulano de Teste, brasileiro, RG nº 1234567 SSP/GO, CPF nº 000.000.001-91, " +
+  assert.equal(linha, "Compradores do quadro: FULANO DE TESTE, brasileiro, RG nº 1234567 SSP/GO, CPF nº 000.000.001-91, " +
                       "residente e domiciliado à Rua das Palmeiras, 10, Setor Teste");
 });
 

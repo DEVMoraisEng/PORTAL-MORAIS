@@ -194,7 +194,7 @@ test("gerar (casa de rua): {{COMISSAO_FORMA}} sai do cadastro do corretor e 'pag
   assert.equal(r.ok, true, JSON.stringify(r));
   const t = c.pdfTexto();
   assert.ok(t.includes("b) Forma de Pagamento: transferência para Banco Inventado, agência 0001, conta 99999-9, em nome de Titular Teste"), t);
-  assert.ok(t.includes("e) Responsável pelo pagamento: Fulano de Teste"), t);
+  assert.ok(t.includes("e) Responsável pelo pagamento: FULANO DE TESTE"), t);
   assert.ok(!t.includes("Comissão paga pelo vendedor"), t);
 });
 
