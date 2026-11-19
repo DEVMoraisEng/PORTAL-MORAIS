@@ -74,10 +74,11 @@ def test_aquisicao_sem_valor_na_mao_usa_total_menos_comissao():
 def test_parcelas_ordem_tipos_e_datas():
     d = R.dados_da_pagina(pagina())
     ps = R.parcelas(d)
-    assert [p["rotulo"] for p in ps] == ["Sinal", "Entrada", "FGTS", "Financiamento"]
+    # 19/11/2026 (dono): só sinal, entrada e intermediária = aquisição − sinal − entrada (FGTS e financiamento pagam ela)
+    assert [p["rotulo"] for p in ps] == ["Sinal", "Entrada", "Intermediária"]
     assert ps[0]["tipo"] == R.TIPO_SINAL and ps[0]["data"] == "2026-09-28"
-    assert ps[2]["tipo"] == R.TIPO_FGTS and ps[2]["data"] == "2026-10-31"
-    assert ps[3]["valor"] == 235000 and ps[3]["tipo"] == R.TIPO_FINANCIAMENTO
+    assert ps[2]["tipo"] == R.TIPO_INTERMEDIARIA and ps[2]["data"] == "2026-10-31"
+    assert round(sum(p["valor"] for p in ps), 2) == d["aquisicao"]
     assert R.faltas(d) == []
 
 
@@ -91,10 +92,21 @@ def test_intermediaria_vira_entrada_com_comentario():
     assert R.faltas(d) == []
 
 
-def test_soma_diferente_da_aquisicao_e_falta():
-    d = R.dados_da_pagina(pagina(**{"VALOR FINANCIADO": num(200000)}))
-    f = R.faltas(d)
-    assert any("diferença R$ 30000.00" in x for x in f)
+def test_intermediaria_e_o_saldo_mesmo_com_coluna_e_financiamento_diferentes():
+    # a coluna digitada (5.000) e o financiado (200.000) não mudam a parcela: o saldo fecha com a aquisição
+    d = R.dados_da_pagina(pagina(**{"VALOR FINANCIADO": num(200000), "CONTRATO - INTERMEDIÁRIA VALOR": num(5000),
+                                    "CONTRATO - INTERMEDIÁRIA VENCIMENTO": data("2026-12-10")}))
+    ps = R.parcelas(d)
+    inter = [p for p in ps if p["rotulo"] == "Intermediária"]
+    assert len(inter) == 1 and inter[0]["data"] == "2026-12-10"
+    assert inter[0]["valor"] == round(d["aquisicao"] - d["sinal"]["valor"] - (d["entrada"]["valor"] or 0), 2)
+    assert R.faltas(d) == []
+
+
+def test_sinal_e_entrada_cobrem_tudo_sem_intermediaria():
+    d = R.dados_da_pagina(pagina())
+    d["entrada"]["valor"] = d["aquisicao"] - d["sinal"]["valor"]
+    assert [p["rotulo"] for p in R.parcelas(d)] == ["Sinal", "Entrada"]
 
 
 def test_cpf_invalido_e_sem_data_sao_faltas():
@@ -112,7 +124,7 @@ def test_corpo_venda_formato_da_tela():
     tr = c["tradeReceivable"]
     assert tr["receivingCondition"] == {"id": R.CONDICAO_PARCELADO, "name": "Parcelado", "deferred": True}
     assert tr["defaultAccount"] == {"id": "conta-1"} and tr["nature"] == {"id": R.NATUREZA_VENDA, "name": "Venda"}
-    assert tr["value"] == 260000 and tr["numberOfInstallments"] == 4
+    assert tr["value"] == 260000 and tr["numberOfInstallments"] == 3   # 19/11: sinal, entrada e intermediária
     p = tr["installments"][0]
     assert p["plannedValue"] == 5000 and p["readjustmentDetail"] == {
         "type": {"id": R.TIPO_SINAL}, "table": None, "rawValue": 5000, "reference": 0}

@@ -271,10 +271,9 @@ def _mais_dias(data_iso: str, dias: int) -> str:
 def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[dict]:
     """[{tipo, rotulo, valor, data}] na ordem em que entram na venda.
 
-    Financiamento = VALOR FINANCIADO + VALOR DO SUBSÍDIO (os dois são pagos pela
-    Caixa na assinatura do contrato do banco). Sem data conhecida, financiamento
-    e FGTS vencem na data da venda + `dias_financiamento` (é previsão; o ERP
-    deixa editar a data quando o banco pagar)."""
+    Casa de rua (19/11/2026): Sinal, Entrada (se tiver) e Intermediária = aquisição − sinal − entrada
+    (FGTS/financiamento/subsídio pagam a intermediária). Sem data da intermediária, vence na data da
+    venda + `dias_financiamento` (previsão; o ERP deixa editar)."""
     if dados.get("parcelas_prontas") is not None:   # condomínio: montadas por condominio.parcelas()
         return dados["parcelas_prontas"]
     out = []
@@ -286,12 +285,22 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
 
     add(TIPO_SINAL, "Sinal", dados["sinal"]["valor"], dados["sinal"]["data"] or dv)
     add(TIPO_ENTRADA, "Entrada", dados["entrada"]["valor"], dados["entrada"]["data"])
-    add(TIPO_INTERMEDIARIA, "Intermediária", dados["intermediaria"]["valor"], dados["intermediaria"]["data"])
     prev = _mais_dias(dv, dias_financiamento) if dv and _RE_ISO.match(dv) else None
-    add(TIPO_FGTS, "FGTS", dados.get("fgts"), prev)
-    fin = (dados.get("financiado") or 0) + (dados.get("subsidio") or 0)
-    add(TIPO_FINANCIAMENTO, "Financiamento", fin or None, prev)
+    # 19/11/2026 (dono): a casa de rua sobe SÓ sinal, entrada (se tiver) e intermediária — e a intermediária é o
+    # saldo do contrato (aquisição − sinal − entrada), o mesmo número do contrato (ContratoVenda.saldoIntermediaria);
+    # FGTS, financiamento e subsídio são formas de pagar essa intermediária, não parcelas próprias. A data é a da
+    # coluna CONTRATO - INTERMEDIÁRIA VENCIMENTO; sem ela, a previsão (data da venda + dias_financiamento).
+    saldo = _saldo_intermediaria(dados)
+    add(TIPO_INTERMEDIARIA, "Intermediária", saldo, dados["intermediaria"]["data"] or prev)
     return out
+
+
+def _saldo_intermediaria(dados: dict):
+    aq = dados.get("aquisicao")
+    if aq is None:
+        return None
+    r = round(float(aq) - float(dados["sinal"]["valor"] or 0) - float(dados["entrada"]["valor"] or 0), 2)
+    return r if r > 0 else None
 
 
 def resumo_parcelas(ps: list[dict]) -> str:
