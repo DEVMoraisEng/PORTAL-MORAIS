@@ -9,7 +9,7 @@ import { CV, DIA, tokenDe, PAGE, OBRA, tit, sel, num, dat, rel, rt, PROPS, colun
 
 
 const ANTIGO = { files: [{ name: "antigo.pdf", type: "file", file: { url: "https://s3.falso/velho" } }] };
-const DADOS_PESSOAIS = ["Fulano", "Sicrana", "Beltrano", "Construtora", "000.000", "Investidor", "pix@teste", "12345-6"];
+const DADOS_PESSOAIS = ["Fulano", "FULANO", "Sicrana", "SICRANA", "Beltrano", "Construtora", "000.000", "Investidor", "pix@teste", "12345-6"];
 
 test("carimbo no nome do PDF: SHA-256 (8 hex) dos dados do contrato; muda quando comprador, vendedor ou valor mudam", () => {
   const carimbo = (mud) => { const r = cenario(mud).gerar(); assert.equal(r.ok, true, JSON.stringify(r)); return /\[#([0-9a-f]{8})\]\.pdf$/.exec(r.nome)[1]; };
@@ -43,7 +43,7 @@ test("sucesso: PDF em CONTRATO GERADO substitui o anterior, sem marcadores, cóp
   assert.equal(c.d.estado.copias.length, 1);
   assert.equal(c.d.estado.copias[0].pasta, "pasta-prov");
   /* 01/11 (plano 23 A): a cópia do Docs (e o título do PDF) leva o nome final, nunca "contrato-provisorio" */
-  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste");
+  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - FULANO DE TESTE");
   assert.deepEqual(c.d.estado.removidas, [c.d.estado.copias[0].id]);
   assert.deepEqual(c.d.estado.lixeira, []);
   assert.deepEqual(c.d.docs["modelo-obra"].salvo, MODELO_OBRA);
@@ -57,8 +57,8 @@ test("casal: os dois qualificados, separados por '; e '", () => {
   } });
   assert.equal(c.gerar().ok, true);
   const t = c.pdfTexto();
-  assert.ok(t.includes("Compradores: Fulano de Teste, brasileiro"), t);
-  assert.ok(t.includes("; e Sicrana de Teste, brasileira"), t);
+  assert.ok(t.includes("Compradores: FULANO DE TESTE, brasileiro"), t);
+  assert.ok(t.includes("; e SICRANA DE TESTE, brasileira"), t);
 });
 
 test("vendedor PF: parágrafo PJ some e nenhum marcador de bloco sobra", () => {

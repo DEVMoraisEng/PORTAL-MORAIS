@@ -858,12 +858,12 @@ var ContratoVenda = (function () {
     var dados = {
       modelo: escolherModelo(o.obraFinalizada, !!cond, v.TIPO_CASA),
       comprador1: {
-        nome: nomeComprador1(v.CLIENTES, c2.nome), cpf: txt(v.CPF),
+        nome: up(nomeComprador1(v.CLIENTES, c2.nome)), cpf: txt(v.CPF),
         nacionalidade: txt(c1.nacionalidade), estadoCivil: txt(c1.estadoCivil), profissao: txt(c1.profissao),
         documento: txt(c1.documento), endereco: txt(c1.endereco), email: txt(c1.email)
       },
       comprador2: temC2 ? {
-        nome: txt(c2.nome), cpf: txt(c2.cpf),
+        nome: up(txt(c2.nome)), cpf: txt(c2.cpf),
         nacionalidade: txt(c2.nacionalidade), estadoCivil: txt(c2.estadoCivil), profissao: txt(c2.profissao),
         documento: txt(c2.documento), endereco: txt(c2.endereco), email: txt(c2.email)
       } : null,

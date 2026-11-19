@@ -185,10 +185,10 @@ test("gerarContrato na linha do condomínio: modelo do condomínio, PDF em CONTR
   assert.equal(gets.length, 3);
   assert.match(r.nome, /^CONTRATO - CONDOMÍNIO RESERVA TESTE - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
   /* 01/11 (plano 23 A): cópia do Docs com o nome final (o título do PDF herda), não "contrato-provisorio" */
-  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - CONDOMÍNIO RESERVA TESTE CASA 13 - Compradora de Teste");
+  assert.equal(c.d.estado.copias[0].nome, "CONTRATO - CONDOMÍNIO RESERVA TESTE CASA 13 - COMPRADORA DE TESTE");
   const pars = c.d.estado.salvos[c.d.estado.copias[0].id].pars;
   assert.equal(pars[0], "CONTRATO — CONDOMÍNIO RESERVA TESTE — UNIDADE 13");
-  assert.ok(pars[1].includes("Compradora de Teste") && pars[1].includes("529.982.247-25"), pars[1]);
+  assert.ok(pars[1].includes("COMPRADORA DE TESTE") && pars[1].includes("529.982.247-25"), pars[1]);
   assert.equal(pars[2], "Valor: R$ 305.000,00; intermediação R$ 13.725,00");   // 21/10: comprador paga, 4,5% (24 pós-chaves)
   assert.ok(pars.some((l) => l.startsWith("6.1. Preço total: R$ 305.000,00")));
   /* quadro-resumo (21/10): e-mail e telefone do comprador e do corretor, % da comissão pela regra, meio de pagamento padrão */
@@ -297,9 +297,9 @@ test("termo: estado, falta a conta, salva a conta, gera o PDF com o carimbo na c
   const r = c.acao("gerarTermoPreReserva");
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.match(r.nome, /^TERMO DE RESERVA - CONDOMÍNIO RESERVA DOS IPÊS - CASA 13 - .* \[#[0-9a-f]{8}\]\.pdf$/);
-  assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - Compradora de Teste");
+  assert.equal(c.d.estado.copias.at(-1).nome, "TERMO DE RESERVA - CONDOMÍNIO RESERVA DOS IPÊS CASA 13 - COMPRADORA DE TESTE");
   const pars = c.d.estado.salvos[c.d.estado.copias[c.d.estado.copias.length - 1].id].pars;
-  assert.ok(pars[0].includes("Compradora de Teste") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone (62) 90000-0000"), pars[0]);
+  assert.ok(pars[0].includes("COMPRADORA DE TESTE") && pars[0].includes("CPF nº 529.982.247-25") && pars[0].includes("telefone (62) 90000-0000"), pars[0]);
   assert.equal(pars[1], "Casa 13 Tipo 02 até 31/10/2026 por R$ 3.000,00 (três mil reais) (3.000,00)");
   assert.equal(pars[2], "Devolução: PIX, chave 529.982.247-25, no banco 756 - SICOOB");
   assert.equal(c.n.pagina.properties["PRÉ-RESERVA - TERMO GERADO"].files[0].name, r.nome);
@@ -568,7 +568,7 @@ test("01/11: falha ao limpar o termo antigo não derruba o Conferi (só vai para
   assert.equal(r.ok, true, JSON.stringify(r));
   const log = c.g.logs.join("\n");
   assert.match(log, /limpeza do termo antigo falhou/);
-  assert.doesNotMatch(log, /Compradora de Teste|Fiador Um Teste|111\.444|529\.982|compradora@/);
+  assert.doesNotMatch(log, /Compradora de Teste|Fiador Um Teste|111\.444|529\.982|compradora@/i);
 });
 
 /* 01/11: "Conferi" com o envelope na mão dos signatários não troca contrato nem termos */
@@ -597,7 +597,7 @@ test("01/11: Conferi com envelope ENVIADO/RASCUNHO/ASSINADO ou envio pendente: r
 function d_zerar(c) { c.d.zerar(); c.g.chamadas.length = 0; c.n.patches.length = 0; }
 
 /* 01/11: erros do Conferi viram mensagem com o que fazer (investigação F) */
-const DADOS_NO_LOG = /Compradora de Teste|Fiador (Um|Dois) Teste|111\.444|246\.813|529\.982|compradora@|f1@teste/;
+const DADOS_NO_LOG = /Compradora de Teste|Fiador (Um|Dois) Teste|111\.444|246\.813|529\.982|compradora@|f1@teste/i;
 test("01/11: termo que lança exceção no Conferi: PRECONTRATO_REFAZER (não ERRO_INTERNO), nada trocado, console sem dado pessoal", () => {
   const c = cenarioCfd();
   assert.equal(c.acao("gerarPreContrato").ok, true);
@@ -1039,7 +1039,7 @@ test("30/10: memorial e projeto aprovado no mesmo envelope, assinados pelo compr
   assert.match(docs[1].filename, /^MEMORIAL DESCRITIVO - .+\.pdf$/);
   assert.match(docs[2].filename, /^PROJETO APROVADO - .+\.pdf$/);
   const memorial = Buffer.from(docs[1].content_base64.split(",")[1], "base64").toString("utf8");
-  assert.ok(memorial.includes("Compradora de Teste") && memorial.includes("529.982.247-25") && !memorial.includes("{{"), memorial);
+  assert.ok(memorial.includes("COMPRADORA DE TESTE") && memorial.includes("529.982.247-25") && !memorial.includes("{{"), memorial);
   assert.equal(Buffer.from(docs[2].content_base64.split(",")[1], "base64").toString("utf8"), "%PDF-1.7 projeto aprovado de teste");
   /* a cópia do memorial (com dado pessoal) foi apagada */
   assert.equal(c.d.estado.copias.length, 1);
@@ -1556,7 +1556,7 @@ test("unidade 22 (3): cada rubrica posicionada fica no registro; o que a Clicksi
   assert.ok((r.avisos || []).some((a) => /RUBRICA_DIVERGENTE/.test(a)), JSON.stringify(r.avisos));
   const log = c.g.logs.join("\n");
   assert.match(log, /rubrica initials doc-1: 3 posições pedidas → guardada kind=initials, 0 posição/);
-  assert.ok(!/compradora@|Compradora de Teste/.test(log), "registro sem dado pessoal");
+  assert.ok(!/compradora@|Compradora de Teste/i.test(log), "registro sem dado pessoal");
 });
 
 test("unidade 22 (3): aviso da tela (4.2.1 não achado = sem visto nos valores) chega ao envio e ao registro", () => {
@@ -1614,7 +1614,7 @@ test("prévia (assinaturaPrevia): as mesmas posições que o envio criaria, sem 
   assert.equal(pv.ok, true, JSON.stringify(pv));
   assert.equal(c.c.chamadas.length, 0, "nenhuma chamada à Clicksign");
   assert.equal(c.n.patches.length, patches, "nada gravado no Notion");
-  assert.ok(!/Compradora de Teste|@teste/.test(JSON.stringify(pv)), "sem nome nem e-mail");
+  assert.ok(!/Compradora de Teste|@teste/i.test(JSON.stringify(pv)), "sem nome nem e-mail");
   assert.ok(pv.marcas.every((m) => ["doc", "papel", "kind", "page", "position"].every((k) => k in m)));
   /* o envio de verdade cria exatamente estas marcas no contrato */
   const r = c.acao("assinaturaEnviar", rub(c, { linhas: LT }));
