@@ -232,7 +232,7 @@ td.n{font-variant-numeric:tabular-nums;white-space:nowrap}
  *
  * A chave da OpenAI NÃO fica aqui (repositório público): mora nas Propriedades
  * do Script do PORTAL-LEITURA — apps-script/AnalistaProjetos.gs.
- * Acesso: "ANALISTA DE PROJETOS" na coluna ACESSOS do LOGINS (ADM/MASTER/TESTES veem).
+ * Acesso: 19/11/26 liberado para todos os logins do portal (antes pedia "ANALISTA DE PROJETOS" na coluna ACESSOS).
  * ========================================================================== */
 const SESS = exigirSessao();
 const CHAVE_ACESSO = "ANALISTA DE PROJETOS";
@@ -902,9 +902,8 @@ duvPainel();
 $("run").onclick=analisar;
 $("stop").onclick=()=>{ if (S.ctl) S.ctl.abort(); log("Parando depois das leituras em andamento…"); };
 telaRegras();
-if (!podeAcessar(SESS, CHAVE_ACESSO)){
-  $("out").innerHTML = `<div class="bloqueio">${escH(MSG.SEM_PERMISSAO)}</div>`; $("drop").classList.add("hide");
-} else {
+/* 19/11/26: liberado para todos os logins do portal (pedido do Morais) — sem conferir a coluna ACESSOS. */
+{
   chamar({action:"analistaVersao"}, 30000).then(j=>{
     $("rodape").textContent = j&&j.ok ? `Apps Script ${j.versao}${j.chave?"":" · SEM CHAVE DA OPENAI"}` : "Apps Script sem o módulo AnalistaProjetos";
     if (!(j&&j.ok)) $("out").insertAdjacentHTML("afterbegin", `<div class="aviso">${escH(MSG.ACAO_DESCONHECIDA)}</div>`);
