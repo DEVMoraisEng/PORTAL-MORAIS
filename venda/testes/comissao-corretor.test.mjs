@@ -41,8 +41,8 @@ test("casa de rua: comissão SEMPRE paga pelo COMPRADOR — coluna vazia, VENDED
     assert.equal(d.comissao.pagaPor, "COMPRADOR", v);
     assert.equal(C.blocos(d).SE_COMISSAO_VENDEDOR, false, v);
     assert.equal(m.COMISSAO_RESPONSAVEL, "ANA TESTE", v);
-    assert.equal(m.VALOR_INTERMEDIACAO, "R$ 10.000,00", v);
-    assert.equal(m.VALOR_IMOVEL, "290.000,00", v);
+    assert.equal(m.VALOR_INTERMEDIACAO, "R$ 10.000,00 (dez mil reais)", v);
+    assert.equal(m.VALOR_IMOVEL, "290.000,00 (duzentos e noventa mil reais)", v);
     assert.ok(!C.faltasContrato(d).some((x) => /paga por/i.test(x)), v);
   }
 });

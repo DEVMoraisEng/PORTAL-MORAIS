@@ -38,7 +38,8 @@ test("sucesso: PDF em CONTRATO GERADO substitui o anterior, sem marcadores, cóp
   assert.ok(t.includes("PJ: Construtora Teste Ltda representada por Beltrano Representante"));
   assert.ok(t.includes("Valor: R$ 291.000,00 (duzentos e noventa e um mil reais)"));
   assert.ok(!t.includes("PF:") && !t.includes("Só casal") && !t.includes("Comissão paga pelo vendedor"));
-  assert.ok(t.includes("Não há intermediária.") && !t.includes("Intermediária "));
+  /* 19/11/2026: sem coluna de intermediária, o saldo (aquisição − sinal − entrada) entra como intermediária */
+  assert.ok(!t.includes("Não há intermediária.") && t.includes("Intermediária "), t);
   /* cópia criada na pasta provisória, exportada e apagada de vez */
   assert.equal(c.d.estado.copias.length, 1);
   assert.equal(c.d.estado.copias[0].pasta, "pasta-prov");
@@ -82,7 +83,8 @@ test("intermediária presente mantém o bloco; VENDEDOR na coluna PAGA POR não 
   } });
   assert.equal(c.gerar().ok, true);
   const t = c.pdfTexto();
-  assert.ok(t.includes("Intermediária 20.000,00 em 10/01/2027"), t);
+  /* 19/11/2026: o valor é o saldo (aquisição − sinal − entrada), com extenso; a data vem da coluna */
+  assert.ok(t.includes("Intermediária 261.000,00 (duzentos e sessenta e um mil reais) em 10/01/2027"), t);
   assert.ok(!t.includes("Não há intermediária."));
   assert.ok(!t.includes("Comissão paga pelo vendedor"), t);
   assert.ok(!t.includes("{{"));

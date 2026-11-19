@@ -48,3 +48,22 @@ test("vencimento vazio: d) Corretor → c), e) Responsável → d), f) A correta
   assert.deepEqual(plano.apagar, [2]);
   assert.deepEqual(plano.trocar.map((t) => t.texto), ["c) Corretor: X", "d) Responsável pelo pagamento: Y", "e) A corretagem não integra o preço do imóvel."]);
 });
+
+test("Cassimiro (19/11/2026): entrada zerada some, intermediária = 294.500 − 5.000 = 289.500 com extenso, valores com extenso", () => {
+  const f = fontes();
+  Object.assign(f.venda, { VALOR_CONTRATO: 310000, VALOR_NA_MAO: 294500, COMISSAO: 15500, SINAL_VALOR: 5000, ENTRADA_VALOR: 0,
+    INTERMEDIARIA_VALOR: 296000, INTERMEDIARIA_VENCIMENTO: "2026-12-21" });
+  const d = C.montarDadosContrato(f), m = C.marcadores(d);
+  assert.deepEqual(C.faltasContrato(d), []);
+  assert.equal(m.ENTRADA_VALOR, "");
+  assert.equal(m.INTERMEDIARIA_VALOR, "289.500,00 (duzentos e oitenta e nove mil e quinhentos reais)");
+  assert.equal(m.SINAL_VALOR, "5.000,00 (cinco mil reais)");
+  assert.equal(m.VALOR_IMOVEL, "294.500,00 (duzentos e noventa e quatro mil e quinhentos reais)");
+  assert.equal(m.VALOR_INTERMEDIACAO, "R$ 15.500,00 (quinze mil e quinhentos reais)");
+  assert.equal(m.VALOR_TOTAL, "R$ 310.000,00 (trezentos e dez mil reais)");
+  assert.ok(C.avisosContrato(d).some((x) => x.indexOf("296.000,00") >= 0 && x.indexOf("289.500,00") >= 0));
+  const entrada = "b) Entrada: R$ {{ENTRADA_VALOR}}, vencimento em {{ENTRADA_VENCIMENTO}}, ou na data de assinatura de contrato junto à instituição financeira, em caso de financiamento bancário, ocorrendo o vencimento na data que vier primeiro.";
+  const plano = C.planoParagrafosVazios(["a) Sinal/arras: x", entrada, "c) Parcela Intermediária: R$ y", "d) Meio de pagamento: PIX"], m);
+  assert.deepEqual(plano.apagar, [1]);
+  assert.deepEqual(plano.trocar.map((t) => t.texto), ["b) Parcela Intermediária: R$ y", "c) Meio de pagamento: PIX"]);
+});

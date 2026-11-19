@@ -900,7 +900,10 @@ var ContratoVenda = (function () {
         valorContrato: total, valorNaMao: naMao, aquisicao: aquisicao, intermediacao: intermediacao,
         sinalValor: num(v.SINAL_VALOR), sinalData: txt(v.SINAL_DATA),
         entradaValor: num(v.ENTRADA_VALOR), entradaVencimento: txt(v.ENTRADA_VENCIMENTO),
-        intermediariaValor: num(v.INTERMEDIARIA_VALOR), intermediariaVencimento: txt(v.INTERMEDIARIA_VENCIMENTO),
+        /* 19/11/2026 (dono): na casa de rua a intermediária é o saldo — valor de aquisição − sinal − entrada
+           (pode ser pago por financiamento, FGTS ou outra forma); a coluna digitada só vira aviso quando difere */
+        intermediariaValor: cond ? num(v.INTERMEDIARIA_VALOR) : saldoIntermediaria(aquisicao, num(v.SINAL_VALOR), num(v.ENTRADA_VALOR)),
+        intermediariaDigitada: num(v.INTERMEDIARIA_VALOR), intermediariaVencimento: txt(v.INTERMEDIARIA_VENCIMENTO),
         formaPagamento: txt(v.FORMA_PAGAMENTO)
       },
       comissao: {
@@ -1113,7 +1116,7 @@ var ContratoVenda = (function () {
      fiador com CPF repetido. Só nomes de campo — nenhum dado pessoal. [] fora do condomínio. */
   function avisosContrato(d) {
     var co = d && d.condominio;
-    if (!co) return avisoTipoCasa(d);
+    if (!co) return avisoTipoCasa(d).concat(avisoIntermediaria(d));
     var a = [], im = d.imovel;
     function branco(ok, item) { if (!ok) a.push("Em branco no contrato: " + item); }
     branco(!vazio(co.unidade), "unidade");
@@ -1135,6 +1138,14 @@ var ContratoVenda = (function () {
   }
 
   /* TIPO DE CASA diferente do "OBRA FINALIZADA?" da obra: não trava, só avisa (obra sem a marcação: nada) */
+  function avisoIntermediaria(d) {
+    var n = d && d.negociacao;
+    if (!n || n.intermediariaDigitada === null || n.intermediariaDigitada === undefined) return [];
+    var calc = n.intermediariaValor || 0;
+    if (Math.abs(n.intermediariaDigitada - calc) < 0.01) return [];
+    return ["Intermediária: a coluna tem R$ " + moedaBR(n.intermediariaDigitada) + ", mas o contrato usa o saldo (valor − sinal − entrada) = R$ " +
+      moedaBR(calc) + " — confira o fluxo antes de lançar no Mais Controle"];
+  }
   function avisoTipoCasa(d) {
     if (!d || !d.tipoCasa) return [];
     var f = d.obraFinalizadaDoc;
@@ -1175,7 +1186,10 @@ var ContratoVenda = (function () {
     /* 19/11/2026 (dono): entrada deixou de ser exigida na casa de rua — vazia, sai em branco no contrato
        ("R$ , vencendo em "); pedido para o parágrafo sumir quando vazio segue em aberto (falta o texto do
        modelo no Google Docs para escrever a regra em PARAGRAFOS_SE_VAZIO). */
-    if (n.intermediariaValor !== null && n.intermediariaValor > 0) {
+    /* 19/11/2026: a intermediária da casa de rua virou o saldo calculado; a data continua exigida só quando a
+       coluna foi digitada (sem ela, o pré-contrato mostra o vencimento em branco, grifado em vermelho) */
+    var intermDig = n.intermediariaDigitada !== undefined ? n.intermediariaDigitada : n.intermediariaValor;
+    if (intermDig !== null && intermDig > 0) {
       exige(!vazio(n.intermediariaVencimento), "Negociação", "intermediária (vencimento)");
     }
     exige(!vazio(n.formaPagamento), "Negociação", "forma de pagamento");
@@ -1186,6 +1200,13 @@ var ContratoVenda = (function () {
   }
 
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
+  /* 19/11/2026 (dono): "todos os valores de R$ têm que ter escrita por extenso" (casa de rua) */
+  function moedaComExtenso(n) { return n === null || n === undefined ? "" : moedaBR(n) + " (" + valorPorExtenso(n) + ")"; }
+  function saldoIntermediaria(aquisicao, sinal, entrada) {
+    if (aquisicao === null || aquisicao === undefined) return null;
+    var r = so2(aquisicao - (sinal || 0) - (entrada || 0));
+    return r > 0 ? r : null;
+  }
 
   function areaTxt(a) {
     if (a === null || a === undefined) return "";
@@ -1274,9 +1295,9 @@ var ContratoVenda = (function () {
       ENDERECO_IMOVEL: txt(im.endereco),
       MATRICULA_INDIVIDUAL: im.matriculaIndividual,
       CRI: im.cri,
-      VALOR_IMOVEL: moedaOuVazio(n.aquisicao),
-      VALOR_INTERMEDIACAO: interm,
-      VALOR_TOTAL: n.valorContrato === null ? "" : "R$ " + moedaBR(n.valorContrato),
+      VALOR_IMOVEL: d.condominio ? moedaOuVazio(n.aquisicao) : moedaComExtenso(n.aquisicao),
+      VALOR_INTERMEDIACAO: !d.condominio && typeof n.intermediacao === "number" ? "R$ " + moedaComExtenso(n.intermediacao) : interm,
+      VALOR_TOTAL: n.valorContrato === null ? "" : "R$ " + (d.condominio ? moedaBR(n.valorContrato) : moedaComExtenso(n.valorContrato)),
       /* 19/11/2026 (dono): "6.1. Valor total" (DO VALOR PAGO EXCLUSIVAMENTE PARA AQUISIÇÃO DO IMÓVEL) é só o valor
          da construtora, sem a comissão — fora da casa de rua (condomínio) segue valendo o valor do contrato inteiro */
       VALOR_TOTAL_NUM: moedaOuVazio(d.condominio ? n.valorContrato : n.aquisicao),
@@ -1293,11 +1314,12 @@ var ContratoVenda = (function () {
       COMISSAO_RESPONSAVEL: pagaVend ? (txt(v.nome) || d.nomeProprietario) : nomes,
       CORRETOR_NOME: txt(k.nome),
       CORRETOR_CRECI: txt(k.creci),
-      SINAL_VALOR: moedaOuVazio(n.sinalValor),
+      SINAL_VALOR: d.condominio ? moedaOuVazio(n.sinalValor) : moedaComExtenso(n.sinalValor),
       SINAL_DATA: dataBR(n.sinalData),
-      ENTRADA_VALOR: moedaOuVazio(n.entradaValor),
+      /* 19/11/2026 (dono): entrada zerada também some (o parágrafo "b) Entrada" sai pelo PARAGRAFOS_SE_VAZIO) */
+      ENTRADA_VALOR: d.condominio ? moedaOuVazio(n.entradaValor) : (n.entradaValor ? moedaComExtenso(n.entradaValor) : ""),
       ENTRADA_VENCIMENTO: dataBR(n.entradaVencimento),
-      INTERMEDIARIA_VALOR: moedaOuVazio(n.intermediariaValor),
+      INTERMEDIARIA_VALOR: d.condominio ? moedaOuVazio(n.intermediariaValor) : moedaComExtenso(n.intermediariaValor),
       INTERMEDIARIA_VENCIMENTO: dataBR(n.intermediariaVencimento),
       FORMA_PAGAMENTO: formaPorExtenso(n.formaPagamento),
       BANCO: txt(v.banco),
