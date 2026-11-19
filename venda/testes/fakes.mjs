@@ -378,6 +378,11 @@ export function driveFalso({ modelos = {}, avancado = true, falhaAbrir = null, c
       deleteText: (ini, fim) => { vivo(); faixa(p, ini, fim); p.texto = p.texto.slice(0, ini) + p.texto.slice(fim + 1); p.fundo.splice(ini, fim - ini + 1); return t; },
       setBackgroundColor: (ini, fim, cor) => { vivo(); faixa(p, ini, fim); p.fundo.fill(cor === undefined ? null : cor, ini, fim + 1); return t; },
       setBold: (ini, fim, b) => { vivo(); faixa(p, ini, fim); (p.negrito = p.negrito || []).push([ini, fim, b]); return t; },
+      /* negrito por caractere: o último setBold que cobre o offset (sem nenhum = false); p.negritoBase imita o modelo */
+      isBold: (off) => {
+        const hit = (p.negrito || []).filter(([a, b]) => off >= a && off <= b).pop();
+        return hit ? hit[2] : !!(p.negritoBase && p.negritoBase[off]);
+      },
     };
     return t;
   };
