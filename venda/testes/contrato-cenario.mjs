@@ -44,7 +44,7 @@ const MODELO_OBRA = [
   "Confrontações: {{CONFRONTACOES}}",
   "{{#SE_INTERMEDIARIA}}", "Intermediária {{INTERMEDIARIA_VALOR}} em {{INTERMEDIARIA_VENCIMENTO}}", "{{/SE_INTERMEDIARIA}}",
   "{{#SEM_INTERMEDIARIA}}", "Não há intermediária.", "{{/SEM_INTERMEDIARIA}}",
-  "Valor: {{VALOR_TOTAL}} ({{VALOR_TOTAL_EXTENSO}})",
+  "Valor: R$ {{VALOR_TOTAL_NUM}} ({{VALOR_TOTAL_EXTENSO}})",
   "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade da VENDEDORA",
   "{{CIDADE_DATA}}",
   "{{#SE_COMISSAO_VENDEDOR}}", "Comissão paga pelo vendedor {{COMISSAO_RESPONSAVEL}}", "{{/SE_COMISSAO_VENDEDOR}}",

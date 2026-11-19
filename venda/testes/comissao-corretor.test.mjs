@@ -62,25 +62,25 @@ test("formaComissaoCorretor: só PIX, só conta, os dois, nada; titular ou o nom
   assert.equal(C.formaComissaoCorretor({ banco: "Banco Inventado", conta: "2-2" }), "transferência para Banco Inventado, conta 2-2");
 });
 
-test("{{COMISSAO_FORMA}} na casa de rua: dados do corretor valem; sem eles, a coluna antiga (legado); sem nada, vazio", () => {
+test("{{COMISSAO_FORMA}} na casa de rua: configurada (cadastro do corretor ou coluna antiga) sempre sai \"PIX ou depósito bancário\"; sem nada, vazio", () => {
   const pix = C.marcadores(C.montarDadosContrato(corretorCom({ pix: "chave-teste" })));
-  assert.equal(pix.COMISSAO_FORMA, "PIX, chave chave-teste, em nome de CORRETOR TESTE");
+  assert.equal(pix.COMISSAO_FORMA, "PIX ou depósito bancário");
   const conta = C.marcadores(C.montarDadosContrato(corretorCom({ banco: "Banco Inventado", agencia: "1", conta: "2", titular: "TITULAR TESTE" })));
-  assert.equal(conta.COMISSAO_FORMA, "transferência para Banco Inventado, agência 1, conta 2, em nome de TITULAR TESTE");
-  /* o cadastro do corretor vale antes da coluna antiga */
+  assert.equal(conta.COMISSAO_FORMA, "PIX ou depósito bancário");
+  /* o cadastro do corretor vale antes da coluna antiga (mesmo texto fixo, mas a fonte do dado continua sendo o cadastro) */
   const f = corretorCom({ pix: "chave-teste" }); f.venda.COMISSAO_FORMA = "TRANSFERÊNCIA";
-  assert.equal(C.marcadores(C.montarDadosContrato(f)).COMISSAO_FORMA, "PIX, chave chave-teste, em nome de CORRETOR TESTE");
-  /* legado: corretor sem dados e a coluna antiga preenchida */
+  assert.equal(C.marcadores(C.montarDadosContrato(f)).COMISSAO_FORMA, "PIX ou depósito bancário");
+  /* legado: corretor sem dados e a coluna antiga preenchida — também sai o texto fixo */
   const g = fontes(); g.venda.COMISSAO_FORMA = "TRANSFERÊNCIA";
-  assert.equal(C.marcadores(C.montarDadosContrato(g)).COMISSAO_FORMA, "transferência");
+  assert.equal(C.marcadores(C.montarDadosContrato(g)).COMISSAO_FORMA, "PIX ou depósito bancário");
   /* nada: vazio, e não vira falta (a comissão é opcional na casa de rua) */
   const d = C.montarDadosContrato(fontes());
   assert.equal(C.marcadores(d).COMISSAO_FORMA, "");
   assert.deepEqual(C.faltasContrato(d), []);
-  /* sem cadastro do corretor: a forma antiga e a falta de sempre do cadastro */
+  /* sem cadastro do corretor: a forma antiga vale (texto fixo) e a falta de sempre do cadastro continua */
   const h = fontes({ corretor: null }); h.venda.COMISSAO_FORMA = "PIX";
   const dh = C.montarDadosContrato(h);
-  assert.equal(C.marcadores(dh).COMISSAO_FORMA, "PIX");
+  assert.equal(C.marcadores(dh).COMISSAO_FORMA, "PIX ou depósito bancário");
   assert.ok(C.faltasContrato(dh).includes("Corretor: cadastro em CORRETORES – CONTRATO"));
 });
 
@@ -141,7 +141,7 @@ test("bloco Pagamento da comissão: paga por COMPRADOR fixo, caixas com o valor 
   /* 19/11/2026: "Comissão paga por" volta a ser um seletor (Comprador/Vendedor), não texto fixo */
   assert.match(h, /<select data-com-pagapor><option value="COMPRADOR" selected>COMPRADOR<\/option><option value="VENDEDOR">VENDEDOR<\/option><\/select>/);
   assert.match(h, /data-acao="c-com-rua-salvar"/);
-  assert.match(h, /No contrato: PIX, chave x/);
+  assert.match(h, /Dados cadastrados: PIX, chave x/);
   assert.match(h, /não tem a coluna TITULAR DA CONTA/);
   assert.match(h, /data-com-campo="CHAVE PIX" data-com-orig="x" value="x">/);
   assert.match(h, /data-com-campo="TITULAR DA CONTA"[^>]* disabled>/);
@@ -185,7 +185,7 @@ test("contratoEstado (casa de rua): bloco com o corretor, os valores do cadastro
   assert.ok(!logs.includes("chave-teste"), "log vazou a chave");
 });
 
-test("gerar (casa de rua): {{COMISSAO_FORMA}} sai do cadastro do corretor e 'paga pelo vendedor' não aparece", () => {
+test("gerar (casa de rua): {{COMISSAO_FORMA}} sai \"PIX ou depósito bancário\" (texto fixo) e 'paga pelo vendedor' não aparece", () => {
   const modelo = [...MODELO_OBRA, "b) Forma de Pagamento: {{COMISSAO_FORMA}}", "e) Responsável pelo pagamento: {{COMISSAO_RESPONSAVEL}}"];
   const c = cenario({ drive: { modelos: { "modelo-obra": modelo, "modelo-pronto": ["MODELO PRONTO", ...modelo] } },
     venda: { "CONTRATO - COMISSÃO PAGA POR": sel("VENDEDOR") },
@@ -193,7 +193,7 @@ test("gerar (casa de rua): {{COMISSAO_FORMA}} sai do cadastro do corretor e 'pag
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
   const t = c.pdfTexto();
-  assert.ok(t.includes("b) Forma de Pagamento: transferência para Banco Inventado, agência 0001, conta 99999-9, em nome de Titular Teste"), t);
+  assert.ok(t.includes("b) Forma de Pagamento: PIX ou depósito bancário"), t);
   assert.ok(t.includes("e) Responsável pelo pagamento: FULANO DE TESTE"), t);
   assert.ok(!t.includes("Comissão paga pelo vendedor"), t);
 });

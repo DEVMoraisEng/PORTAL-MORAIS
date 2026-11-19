@@ -668,7 +668,9 @@
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-rua-salvar"' + disRua + ">Salvar</button></div>";
     if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta e o e-mail dele.</div>';
     if (cc.duplicado) return h + '<div class="dz-aviso">O corretor tem cadastro duplicado em CORRETORES – CONTRATO — deixe uma linha só.</div>';
-    h += '<div class="dz-linha"><span class="dz-rot">No contrato: ' + (cc.forma ? esc(cc.forma) : "<i>em branco (sem dados de pagamento)</i>") +
+    /* 19/11/2026 (dono): o contrato sempre imprime "PIX ou depósito bancário" (texto fixo); este rótulo mostra
+       só os dados cadastrados do corretor, de referência — não é mais literalmente "o que vai no contrato" */
+    h += '<div class="dz-linha"><span class="dz-rot">Dados cadastrados: ' + (cc.forma ? esc(cc.forma) : "<i>em branco (sem dados de pagamento)</i>") +
       (cc.formaLegada ? " <small>(da coluna antiga CONTRATO - COMISSÃO FORMA)</small>" : "") + "</span></div>";
     if (cc.colunasFaltando.length)
       h += '<div class="dz-aviso">A base CORRETORES – CONTRATO não tem a coluna ' + esc(cc.colunasFaltando.join(", ")) + " — avise o desenvolvedor.</div>";

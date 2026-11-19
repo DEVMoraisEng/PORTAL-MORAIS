@@ -33,7 +33,7 @@ test("comissão sem vencimento: não é falta; a linha 'c) Vencimento' sai e Cor
   assert.ok(!/Vencimento/.test(t), t);
   assert.ok(t.includes("\nc) Corretor: Corretor Teste, CRECI 123\n"), t);
   assert.ok(t.includes("\nd) Responsável pelo pagamento: FULANO DE TESTE\n"), t);
-  assert.ok(t.includes("\nb) Forma de Pagamento: PIX\n"), t);
+  assert.ok(t.includes("\nb) Forma de Pagamento: PIX ou depósito bancário\n"), t);
 });
 
 test("comissão COM vencimento (coluna antiga preenchida): a linha fica e as letras não mudam", () => {
@@ -42,6 +42,35 @@ test("comissão COM vencimento (coluna antiga preenchida): a linha fica e as let
   const t = textoPre(c);
   assert.ok(t.includes("c) Vencimento: na assinatura do financiamento"), t);
   assert.ok(t.includes("d) Corretor: Corretor Teste") && t.includes("e) Responsável pelo pagamento:"), t);
+});
+
+/* 19/11/2026 (dono): entrada vazia some do 6.b), Parcela Intermediária e Meio de pagamento sobem uma letra */
+const MODELO_ENTRADA = MODELO_OBRA.concat([
+  "6.1. Valor total: R$ {{VALOR_TOTAL_NUM}} ({{VALOR_TOTAL_EXTENSO}})",
+  "a) Sinal/arras: R$ {{SINAL_VALOR}}, pago em {{SINAL_DATA}}",
+  "b) Entrada: R$ {{ENTRADA_VALOR}}, vencimento em {{ENTRADA_VENCIMENTO}}, ou na data de assinatura de contrato junto à instituição financeira, em caso de financiamento bancário, ocorrendo o vencimento na data que vier primeiro.",
+  "c) Parcela Intermediária: não há.",
+  "d) Meio de pagamento: {{FORMA_PAGAMENTO}}",
+  "Fim do contrato.",
+]);
+test("entrada vazia: a linha 'b) Entrada' some e Parcela Intermediária/Meio de pagamento sobem uma letra", () => {
+  const c = cenario({ drive: { modelos: { "modelo-obra": MODELO_ENTRADA } },
+    venda: { "CONTRATO - ENTRADA VALOR": null, "CONTRATO - ENTRADA VENCIMENTO": null } });
+  const r = c.acao("gerarPreContrato");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const t = textoPre(c);
+  assert.ok(!/Entrada/.test(t), t);
+  assert.ok(t.includes("\nb) Parcela Intermediária: não há.\n"), t);
+  assert.ok(t.includes("\nc) Meio de pagamento: PIX\n"), t);
+});
+
+test("entrada preenchida: a linha 'b) Entrada' fica e as letras não mudam", () => {
+  const c = cenario({ drive: { modelos: { "modelo-obra": MODELO_ENTRADA } } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  const t = textoPre(c);
+  assert.ok(t.includes("b) Entrada: R$ 20.000,00, vencimento em 15/10/2026"), t);
+  assert.ok(t.includes("\nc) Parcela Intermediária: não há.\n"), t);
+  assert.ok(t.includes("\nd) Meio de pagamento: PIX\n"), t);
 });
 
 test("plano dos parágrafos vazios (puro): parágrafo com texto além do rótulo não sai; marcador preenchido não mexe", () => {
