@@ -348,7 +348,44 @@ def oc_do_no(no: dict) -> dict:
             "aprovacao_mc": aprov.upper() or None, "status_compra_mc": status.upper() or None,
             "cancelada": N(aprov) in CANCELADA or N(status) in CANCELADA, "tem_lancamento": tem_lanc,
             # 16/11: a lista já diz se a aba Arquivos tem algo (hasAnyFile) — só abre as pastas de quem tem
-            "tem_arquivo": no.get("hasAnyFile") if isinstance(no.get("hasAnyFile"), bool) else None}
+            "tem_arquivo": no.get("hasAnyFile") if isinstance(no.get("hasAnyFile"), bool) else None,
+            # 19/11: a coluna "Vínculos" da lista de OCs = a(s) solicitação(ões) da OC (id / nº), se a tela pediu
+            "solicitacoes": solicitacoes_do_no(no)}
+
+
+_CH_SOL = re.compile(r"request|solicita|requisition", re.I)
+
+
+def solicitacoes_do_no(no: dict) -> list:
+    """[(id, nº)] das solicitações citadas na OC (campos com request/solicita no nome, até 3 níveis)."""
+    out = []
+
+    def pegar(x, prof):
+        if prof > 3 or x is None:
+            return
+        if isinstance(x, list):
+            for it in x[:30]:
+                pegar(it, prof + 1)
+            return
+        if not isinstance(x, dict):
+            return
+        sid, num = x.get("id"), x.get("number") or x.get("code")
+        if sid or num:
+            par = (str(sid) if sid else None, int(num) if str(num or "").isdigit() else None)
+            if par not in out:
+                out.append(par)
+        for k, v in x.items():
+            if isinstance(v, (dict, list)) and _CH_SOL.search(k):
+                pegar(v, prof + 1)
+    for k, v in (no or {}).items():
+        if _CH_SOL.search(k):
+            if isinstance(v, (dict, list)):
+                pegar(v, 0)
+            elif isinstance(v, (int, str)) and str(v).isdigit() and "id" not in k.lower():
+                out.append((None, int(v)))
+            elif isinstance(v, str) and re.match(r"^[0-9a-f-]{36}$", v, re.I):
+                out.append((v, None))
+    return out
 
 
 def antigas_desde(hoje: dt.date | None = None) -> str:
@@ -984,11 +1021,24 @@ def linhas_solicitacoes(sols: list, existentes: dict, campo_data: str | None,
     return out, cont
 
 
-def data_da_solicitacao_por_oc(sols: list, campo_data: str | None) -> dict:
-    """{id da OC: (nº da solicitação, data)} — a solicitação mais antiga de cada OC."""
+def data_da_solicitacao_por_oc(sols: list, campo_data: str | None, ocs: list | None = None) -> dict:
+    """{id da OC: (nº da solicitação, data)} — a solicitação mais antiga de cada OC. Dois caminhos: a OC dentro do
+    item da solicitação (quando o MC devolve) ou a solicitação citada na própria OC (coluna Vínculos da lista)."""
     out = {}
     if not campo_data:
         return out
+    por_id, por_num = {}, {}
+    for sol in sols:
+        d = str(sol.get(campo_data) or "")[:10]
+        if re.match(r"^\d{4}-\d\d-\d\d$", d):
+            por_id[str(sol.get("id"))] = (sol.get("number"), d)
+            if sol.get("number") is not None:
+                por_num[int(sol["number"])] = (sol.get("number"), d)
+    for oc in ocs or []:
+        for sid, num in oc.get("solicitacoes") or []:
+            x = por_id.get(sid) or (por_num.get(num) if num is not None else None)
+            if x and (oc["oc_id"] not in out or x[1] < out[oc["oc_id"]][1]):
+                out[oc["oc_id"]] = x
     for sol in sols:
         d = str(sol.get(campo_data) or "")[:10]
         if not re.match(r"^\d{4}-\d\d-\d\d$", d):
@@ -2032,8 +2082,11 @@ def main() -> int:
                 passo("lendo as solicitações de compra (últimos %d meses)" % SOL_MESES)
                 try:
                     sols, sol_est = ler_solicitacoes(aba)
+                    chaves = sorted({k for n_ in nos[:200] if isinstance(n_, dict) for k in n_ if _CH_SOL.search(k)})
+                    log("   OCs com solicitação na lista (coluna Vínculos): %d · campos: %s" % (
+                        sum(1 for o in ocs if o.get("solicitacoes")), ", ".join(chaves) or "nenhum"))
                     if tem_col:
-                        sol_por_oc = data_da_solicitacao_por_oc(sols, sol_est["campo_data"])
+                        sol_por_oc = data_da_solicitacao_por_oc(sols, sol_est["campo_data"], ocs)
                     if tem_sol:
                         sol_linhas, sol_cont = linhas_solicitacoes(sols, sb.solicitacoes(), sol_est["campo_data"])
                 except Exception as e:      # noqa: BLE001
