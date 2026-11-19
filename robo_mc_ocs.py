@@ -1291,6 +1291,36 @@ def _fechar_extra(tela: Tela, t2: Tela) -> None:
             pass
 
 
+def _campo_mui(campo) -> bool:
+    """19/11: o vencimento da parcela é o seletor de data do MUI (input escondido, partes dia/mês/ano ao lado)?"""
+    try:
+        return campo.get_attribute("aria-hidden") == "true" or "MuiPickers" in (campo.get_attribute("class") or "")
+    except Exception:       # noqa: BLE001
+        return False
+
+
+def _digitar_data_mui(t2: Tela, campo, alvo: dt.date) -> None:
+    """Digita a data no seletor do MUI: clica na parte do dia e digita dd, mm e aaaa (cada parte pula sozinha para a
+    seguinte; se houver as 3 partes, clica em cada uma antes). Quem chama confere o valor no input escondido."""
+    raiz = campo.locator("xpath=ancestor::*[contains(@class,'MuiPickersInputBase-root') or "
+                         "contains(@class,'MuiInputBase-root')][1]")
+    partes = raiz.locator("[role=spinbutton]")
+    n = partes.count()
+    pedacos = [alvo.strftime("%d"), alvo.strftime("%m"), alvo.strftime("%Y")]
+    if n >= 3:
+        for i, txt in enumerate(pedacos):
+            partes.nth(i).click()
+            t2.page.wait_for_timeout(150)
+            t2.page.keyboard.type(txt, delay=80)
+            t2.page.wait_for_timeout(150)
+    else:
+        raiz.first.click()
+        t2.page.wait_for_timeout(200)
+        t2.page.keyboard.press("Home")
+        t2.page.keyboard.type("".join(pedacos), delay=80)
+    t2.page.wait_for_timeout(300)
+
+
 def segunda_parcela(tela: Tela, oc: dict) -> str:
     """19/11: como está a 2ª parcela do lançamento da OC — "aberta" (não paga), "paga", "sem_lanc" (OC sem
     lançamento), "sem2" (lançamento sem 2ª parcela) ou "varios" (mais de um lançamento). SÓ OLHA: não salva nada.
@@ -1389,6 +1419,10 @@ def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None =
         campo = t2.page.locator('[data-robo-oc="parc2"]').first
         if p2.get("tipo") == "date":            # <input type=date>: o valor é AAAA-MM-DD
             campo.fill(alvo.isoformat())
+        elif _campo_mui(campo):
+            # 19/11 (OC 8265): o vencimento é um seletor de data do MUI — o <input> é escondido (aria-hidden) e o
+            # que se digita são as partes dia / mês / ano ao lado dele
+            _digitar_data_mui(t2, campo, alvo)
         else:                                   # campo com máscara dd/mm/aaaa (o da tela nova)
             campo.click()
             campo.press("Control+a")
@@ -1397,7 +1431,7 @@ def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None =
             t2.page.wait_for_timeout(300)
             if not mesma_data(campo.input_value(), alvo):
                 campo.fill(br(alvo))
-        campo.press("Tab")
+        t2.page.keyboard.press("Tab")
         t2.page.wait_for_timeout(600)
         if not mesma_data(campo.input_value(), alvo):
             raise RuntimeError("digitei %s no vencimento, mas o campo ficou \"%s\" — NÃO salvei"
