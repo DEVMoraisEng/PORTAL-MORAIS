@@ -1192,6 +1192,16 @@ var ContratoVenda = (function () {
     return Math.floor(a) === a ? String(a) : moedaBR(a).replace(/\./g, "");
   }
 
+  /* 19/11/2026 (dono): corta o "Cartório de Registro de Imóveis de/da/do " digitado em letra comum
+     na frente do nome oficial em MAIÚSCULAS; só corta quando o prefixo tem minúscula e o resto é todo
+     maiúsculo — "CARTÓRIO DE REGISTRO DE IMÓVEIS DA 1ª CIRCUNSCRIÇÃO" (todo em caixa alta) fica inteiro. */
+  function cartorioSemPrefixo(valor) {
+    var t = txt(valor);
+    var m = /^\s*cart[óo]rio\s+de\s+registro\s+de\s+im[óo]veis\s+d[aeo]\s+/i.exec(t);
+    if (!m || !/[a-zà-ÿ]/.test(m[0])) return t;
+    var resto = t.slice(m[0].length).trim();
+    return resto && resto === resto.toUpperCase() ? resto : t;
+  }
   function marcadores(d) {
     var c1 = d.comprador1, c2 = d.comprador2, cjq = conjugeExtra(d), cjq2 = conjugeExtra2(d), v = d.vendedor || {}, l = d.loteamento || {};
     var im = d.imovel, n = d.negociacao, c = d.comissao, k = d.corretor || {};
@@ -1216,6 +1226,10 @@ var ContratoVenda = (function () {
       FIADOR2_NOME: fis[1] ? fis[1].nome : "",
       FIADOR2_CPF: fis[1] ? fis[1].cpf : "",
       COMPRADORES: compradores,
+      /* 19/11/2026 (dono): "independente do grau e número" só com casal — marcador em vez de bloco
+         {{#SE_CASAL}}, porque o texto fica NO MEIO do parágrafo (aplicarBlocos_ só reconhece bloco
+         quando o parágrafo inteiro é só a tag, como {{#SE_VENDEDOR_PJ}} em parágrafo próprio) */
+      QUALIFICADOR_CASAL: d.comprador2 ? " independente do grau e número" : "",
       VENDEDOR_NOME: txt(v.nome) || d.nomeProprietario,
       VENDEDOR_DOC: txt(v.cpfCnpj),
       VENDEDOR_ENDERECO: txt(v.endereco),
@@ -1242,7 +1256,11 @@ var ContratoVenda = (function () {
       HABITESE_NUMERO: im.habiteseNumero,
       HABITESE_DATA: dataBR(im.habiteseData),
       MATRICULA_LOTEAMENTO: txt(l.matricula),
-      CARTORIO_LOTEAMENTO: txt(l.cartorio),
+      /* 19/11/2026 (dono): o cadastro às vezes já traz "Cartório de Registro de Imóveis de ANTES do
+         nome oficial em maiúsculas (ex.: "Cartório de Registro de Imóveis de REGISTRO DE IMÓVEIS DA
+         1ª CIRCUNSCRIÇÃO DE GOIÂNIA") — duplica com o rótulo fixo do modelo; fica só a parte em
+         maiúsculas */
+      CARTORIO_LOTEAMENTO: cartorioSemPrefixo(l.cartorio),
       LOTE: im.lote,
       QUADRA: im.quadra,
       AREA: areaTxt(im.area),
@@ -1381,7 +1399,7 @@ var ContratoVenda = (function () {
       SE_INTERMEDIARIA: temInterm,
       SEM_INTERMEDIARIA: !temInterm,
       SE_COMISSAO_VENDEDOR: d.comissao.pagaPor === "VENDEDOR",
-      SE_CASAL: !!d.comprador2,
+      SE_CASAL: !!d.comprador2, /* mantido para bloco em parágrafo próprio; no meio da frase use {{QUALIFICADOR_CASAL}} */
       TEM_FIADORES: fis.length > 0,
       TEM_FIADOR1: fis.length > 0,
       TEM_FIADOR2: fis.length > 1
