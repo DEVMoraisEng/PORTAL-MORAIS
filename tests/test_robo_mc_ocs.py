@@ -278,3 +278,60 @@ def test_ideia_calhas_pelo_nome_fantasia_ou_pela_razao_social():
     assert ro.acao_do_fornecedor("Ideias e Soluções Comércio e Serviços em Calha e Rufos")[1] == "PARCELA"
     ideia = ro.oc_do_no(dict(FABIO, creationDate="2025-04-01", supplier={"name": "Ideia Calhas e Rufos"}))
     assert ro.interessa(ideia)[1:] == ("PARCELA", True)
+
+
+# ------------------------------------------------- 19/11: solicitações de Bancada / Janela / Calhas / Portão sem OC
+def _sol(i, itens, aprov="APPROVED", data="2026-11-01T10:00:00"):
+    return {"id": "sol-%d" % i, "number": 900 + i, "approvalStatus": aprov, "creationDate": data,
+            "work": {"name": "52 QD 81 LT 12"},
+            "costCenters": [{"items": [dict(id="it-%d-%d" % (i, k), status=st, originItem={"name": nome},
+                                            purchaseOrderItem=({"id": "poi", "purchaseOrder": {"id": oc}} if oc else None))
+                                       for k, (nome, st, oc) in enumerate(itens)]}]}
+
+
+def test_categoria_pelas_palavras_do_dono():
+    assert ro.categoria_do_item("BANCADA GRANITO 1,20") == "Bancada"
+    assert ro.categoria_do_item("Janela de correr 1,20x1,00") == "Janela"
+    assert ro.categoria_do_item("RUFO GALVANIZADO") == "Calhas e rufos"
+    assert ro.categoria_do_item("Calha moldada") == "Calhas e rufos"
+    assert ro.categoria_do_item("Portão basculante") == "Portão"
+    assert ro.categoria_do_item("Cimento CP II") is None
+
+
+def test_solicitacao_entra_com_um_item_da_lista_sem_oc():
+    so_cimento = _sol(1, [("Cimento", "OPEN", None)])
+    sem_oc = _sol(2, [("Cimento", "OPEN", "oc-1"), ("Bancada granito", "OPEN", None)])
+    com_oc = _sol(3, [("Janela 1,20", "OPEN", "oc-2")])
+    cancelada = _sol(4, [("Portão", "OPEN", None)], aprov="CANCELED")
+    item_cancelado = _sol(5, [("Rufo", "CANCELED", None)])
+    assert ro.solicitacao_pendente(so_cimento) is None
+    r = ro.solicitacao_pendente(sem_oc)
+    assert r["pendente"] is True and r["categorias"] == "Bancada" and r["itens"] == "Bancada granito"
+    assert ro.solicitacao_pendente(com_oc)["pendente"] is False
+    assert ro.solicitacao_pendente(cancelada) is None and ro.solicitacao_pendente(item_cancelado) is None
+
+
+def test_linhas_das_solicitacoes_e_quando_sai_da_aba():
+    agora = "2026-11-19T19:00:00+00:00"
+    pend, virou_oc, ja_tinha_oc = _sol(1, [("Bancada", "OPEN", None)]), _sol(2, [("Janela", "OPEN", "oc-9")]), \
+        _sol(3, [("Calha", "OPEN", "oc-8")])
+    linhas, cont = ro.linhas_solicitacoes([pend, virou_oc, ja_tinha_oc, _sol(4, [("Areia", "OPEN", None)])],
+                                          {"sol-2": {"pendente": True}}, "creationDate", agora)
+    por = {x["sol_id"]: x for x in linhas}
+    assert set(por) == {"sol-1", "sol-2", "sol-3"}
+    assert por["sol-1"]["pendente"] is True and por["sol-1"]["resolvida_em"] is None
+    assert por["sol-1"]["criada_em"] == "2026-11-01" and por["sol-1"]["numero"] == 901
+    assert por["sol-2"]["pendente"] is False and por["sol-2"]["resolvida_em"] == agora      # a OC foi criada agora
+    assert por["sol-3"]["resolvida_em"] == agora                                             # nunca aparece no mapa
+    assert cont == {"com_material": 3, "pendentes": 1, "resolvidas": 1}
+    linhas, _ = ro.linhas_solicitacoes([virou_oc], {"sol-2": {"pendente": False}}, "creationDate", agora)
+    assert "resolvida_em" not in linhas[0]                                                   # mantém a data de antes
+    json.dumps(linhas)
+
+
+def test_data_da_solicitacao_de_cada_oc_fica_com_a_mais_antiga():
+    a = _sol(1, [("Cimento", "OPEN", "oc-1")], data="2026-10-05T08:00:00")
+    b = _sol(2, [("Areia", "OPEN", "oc-1"), ("Brita", "OPEN", "oc-2")], data="2026-10-01")
+    m = ro.data_da_solicitacao_por_oc([a, b], "creationDate")
+    assert m == {"oc-1": (902, "2026-10-01"), "oc-2": (902, "2026-10-01")}
+    assert ro.data_da_solicitacao_por_oc([a], None) == {}

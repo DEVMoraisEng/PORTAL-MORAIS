@@ -32,6 +32,9 @@
  *                  orc_previas.envio; o robô do servidor (orcamento-mc) faz o resto e escreve o andamento ali
  *   orcEnvioDesbloquear (mo16/mo17) destrava o envio de um item — só com a SENHA DA PAULA (login dela no LOGINS; Propriedade
  *                  ORC_DESBLOQUEIO_LOGIN se precisar fixar qual login), 5 erros = bloqueia por um tempo
+ *   ocSolicitacoes (mo18, 19/11) SOLICITAÇÕES SEM OC — solicitações de compra com item de Bancada,
+ *                  Janela, Calhas/Rufos ou Portão que ainda não viraram OC (tabela oc_solicitacao,
+ *                  alimentada pelo robô ocs; supabase/oc_solicitacao.sql)
  *   ocResponder    (mo13) grava SERVIÇO FINALIZADO? = SIM / NÃO de uma OC; com SIM,
  *                  pede ao servidor para rodar o robô na hora (FILA DO ROBÔ, se a
  *                  Propriedade DB_FILA_ROBO existir neste projeto; senão ele roda no
@@ -83,7 +86,7 @@
  * fazer a conferência da conclusão, além do ADM).
  *************************************************************************/
 
-var MO_VERSAO = "2026-11-17 mo17";   // mo17: um envio por item (orçamento e cada contrato) · mo16: Enviar ao Mais Controle (trava o envio; só a senha da Paula desbloqueia) · mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
+var MO_VERSAO = "2026-11-19 mo18";   // mo18: conferência de OC com a data da solicitação + ocSolicitacoes (solicitações de Bancada / Janela / Calhas e rufos / Portão ainda sem OC) · mo17: um envio por item (orçamento e cada contrato) · mo16: Enviar ao Mais Controle (trava o envio; só a senha da Paula desbloqueia) · mo15: catálogo do orçamento lido em páginas (passava de 1.000 linhas) · mo14: orçamento da obra (catálogo do MC + prévia salva) · mo13: conferência de compras (OC) — ocLista / ocResponder ·   // mo12: vistoria na nuvem (quem criou edita de qualquer aparelho) · mo11: estagiários lançam a medição
 var MO_EVENTO = "obras_notion_update";            // TEM que bater com o types: do fetch_notion.yml
 var MO_JANELA_MS = 2 * 60 * 1000;                  // no máximo 1 build a cada 2 min
 var MO_CAMPOS = {
@@ -154,6 +157,7 @@ function moRotear_(action, sess, p) {
     case "vistNuvemApagar":  return moVistNuvemApagar_(sess, p || {});
     case "ocLista":          return moOcLista_(sess, p || {});
     case "ocResponder":      return moOcResponder_(sess, p || {});
+    case "ocSolicitacoes":   return moOcSolicitacoes_(sess, p || {});
     case "orcCatalogo":      return moOrcCatalogo_(sess, p || {});
     case "orcPreviaLer":     return moOrcPreviaLer_(sess, p || {});
     case "orcPreviaSalvar":  return moOrcPreviaSalvar_(sess, p || {});
@@ -999,11 +1003,14 @@ function moPodeOc_(sess) {
 }
 function moOcLista_(sess, p) {
   var desde = new Date(Date.now() - 30 * 864e5).toISOString();
+  var filtro = "&cancelada=is.false" +
+               "&or=(robo_situacao.is.null,robo_situacao.neq.FEITO,robo_em.gte." + encodeURIComponent(desde) + ")" +
+               "&order=criada_em.asc,numero.asc&limit=1000";
   var l;
   try {
-    l = moSupa_("get", "oc_conferencia?select=" + MO_OC_COLS + "&cancelada=is.false" +
-                "&or=(robo_situacao.is.null,robo_situacao.neq.FEITO,robo_em.gte." + encodeURIComponent(desde) + ")" +
-                "&order=criada_em.asc,numero.asc&limit=1000") || [];
+    /* mo18 (19/11): data da solicitação de cada OC — sem o SQL novo (colunas ainda não criadas) volta ao de antes */
+    try { l = moSupa_("get", "oc_conferencia?select=" + MO_OC_COLS + ",solicitacao_numero,solicitacao_em" + filtro) || []; }
+    catch (e1) { if (String(e1).indexOf("solicitacao_") < 0) throw e1; l = moSupa_("get", "oc_conferencia?select=" + MO_OC_COLS + filtro) || []; }
   } catch (e) {
     var t = String(e);
     if (t.indexOf("SUPABASE_404") === 0 || t.indexOf("oc_conferencia") >= 0)
@@ -1011,6 +1018,21 @@ function moOcLista_(sess, p) {
     throw e;
   }
   return { ok: true, itens: l, podeResponder: moPodeOc_(sess), agora: new Date().toISOString() };
+}
+/* mo18 (19/11, pedido do dono): solicitações de compra com item de Bancada / Janela / Calhas e rufos / Portão
+ * que ainda não viraram OC. Ficam na aba até a OC ser criada (o robô marca pendente = false). */
+function moOcSolicitacoes_(sess, p) {
+  var l;
+  try {
+    l = moSupa_("get", "oc_solicitacao?select=sol_id,numero,obra,criada_em,aprovacao_mc,categorias,itens,primeiro_visto,visto_em" +
+                "&pendente=is.true&order=criada_em.asc.nullslast,numero.asc&limit=1000") || [];
+  } catch (e) {
+    var t = String(e);
+    if (t.indexOf("SUPABASE_404") === 0 || t.indexOf("oc_solicitacao") >= 0)
+      return { ok: true, itens: [], aviso: "A tabela oc_solicitacao ainda não foi criada no Supabase (supabase/oc_solicitacao.sql)." };
+    throw e;
+  }
+  return { ok: true, itens: l, agora: new Date().toISOString() };
 }
 function moOcResponder_(sess, p) {
   if (!moPodeOc_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
