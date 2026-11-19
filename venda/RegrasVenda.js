@@ -551,14 +551,27 @@ var RegrasVenda = (function () {
       propor(CM.LOTEAMENTO_MATRICULA, mae.matricula, "texto");
       propor(CM.LOTEAMENTO_CARTORIO, mae.cartorio, "texto");
       if (mae.denominacao || mae.matricula || mae.cartorio) plano.loteamento = mae;
-      /* confrontações: só quando a certidão descreve ESTA unidade (identificada pelo ENDEREÇO/CASA da venda) */
+      /* confrontações: só GRAVA quando a certidão descreve ESTA unidade com confiança (identificada pelo
+         ENDEREÇO/CASA da venda, unidade_encontrada = SIM) — continua travado (dado de contrato, não arrisca
+         pegar a confrontação de outra unidade, ex.: empreendimento com blocos B1/B2/B3 repetindo "Casa 1/2/3").
+         19/11/2026 (dono, achado na Cassimiro Marques de Abreu B2 Casa 3): sem confiança, a IA muitas vezes já
+         leu o texto da unidade que achou (ex.: "Casa 03" sem o bloco) — antes isso era jogado fora e quem
+         conferia tinha que ler o PDF inteiro de novo. Agora o texto achado aparece na observação para copiar,
+         sem gravar sozinho. */
       var achou = chave(leitura.unidade_encontrada) === "SIM";
       var confU = limpar(leitura.unidade_confrontacoes);
+      var identU = limpar(leitura.unidade_identificacao);
       if (achou && confU) {
         if (confU.length > 1900) obs("as confrontações passam do tamanho do campo — conferir o fim do texto");
         propor(CM.CONFRONTACOES, confU, "texto");
+      } else if (confU) {
+        /* corta a citação para não tomar sozinha o espaço da observação (juntarObservacoes corta pelo início
+           quando passa de 1900 — uma citação enorme apagaria o histórico inteiro de uma vez) */
+        var citar = confU.length > 1200 ? confU.slice(0, 1200) + "…" : confU;
+        obs("a certidão não confirmou esta unidade" + (identU ? " (achei: " + identU + ")" : "") +
+          " — confrontações NÃO gravadas, só lidas: \"" + citar + "\" — confira se é desta casa e cole em " + CM.CONFRONTACOES);
       } else {
-        obs("a certidão não descreve esta unidade" + (limpar(leitura.unidade_identificacao) ? " (achei: " + limpar(leitura.unidade_identificacao) + ")" : "") +
+        obs("a certidão não descreve esta unidade" + (identU ? " (achei: " + identU + ")" : "") +
           " — confrontações não gravadas, conferir");
       }
       /* 05/11/2026 (dono): a área do lote vem SÓ da matrícula do imóvel — a certidão mãe não grava nem comenta área */

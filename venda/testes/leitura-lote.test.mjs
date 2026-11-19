@@ -112,6 +112,22 @@ test("certidão mãe: denominação, matrícula-mãe, cartório e as confrontaç
   assert.equal(R.planejarGravacao("IMOVEL_CERTIDAO_MAE", MATRICULA, {}, "2026-10-08").observacoes.length, 1, "matrícula individual no espaço da mãe não preenche");
 });
 
+/* 19/11/2026 (dono, achado na Cassimiro Marques de Abreu B2 Casa 3): a IA pode achar e ler a unidade sem
+   confirmar que é ESTA (ex.: empreendimento com blocos repetindo "Casa 1/2/3") — antes o texto lido era
+   jogado fora; agora aparece na observação para copiar, sem gravar sozinho. */
+test("certidão mãe sem confirmar a unidade, mas com texto lido: observação mostra o texto achado, não grava", () => {
+  const CI = R.COL_IMOVEL;
+  const achouTexto = R.planejarGravacao("IMOVEL_CERTIDAO_MAE",
+    Object.assign({}, MAE, { unidade_encontrada: "NAO" }), { [CI.CONFRONTACOES]: "antigas" }, "2026-10-08");
+  assert.ok(!(CI.CONFRONTACOES in achouTexto.props), "sem confirmar, não grava sozinho");
+  assert.ok(achouTexto.observacoes.some((o) => /não confirmou esta unidade/.test(o)), "mensagem nova, não a genérica");
+  assert.ok(achouTexto.observacoes.some((o) => o.includes(MAE.unidade_confrontacoes)), "o texto lido aparece para copiar");
+  assert.ok(achouTexto.observacoes.some((o) => o.includes("Casa 1, Quadra 01, Lote 26")), "a identificação achada aparece");
+  const citacaoGrande = R.planejarGravacao("IMOVEL_CERTIDAO_MAE",
+    Object.assign({}, MAE, { unidade_encontrada: "NAO", unidade_confrontacoes: "x".repeat(1500) }), {}, "2026-10-08");
+  assert.ok(citacaoGrande.observacoes.some((o) => o.length < 1500), "citação enorme é cortada, não some a observação inteira");
+});
+
 test("com certidão mãe anexada, a matrícula não troca as confrontações já gravadas", () => {
   const CI = R.COL_IMOVEL;
   const atuais = { [CI.CONFRONTACOES]: "da mãe", [R.COL_IMOVEL_OPC.ARQ_CERTIDAO_MAE]: [{ name: "m.pdf" }] };
