@@ -87,7 +87,8 @@ PRAZO_PARCELAS_S = int(os.environ.get("OCS_PRAZO_PARCELAS_S") or 5 * 60)   # e n
 REVER_DIAS = {"sem_lanc": 7, "sem2": 30, "varios": 30}                # "paga" não é revista
 #: 19/11 (dono): SOLICITAÇÕES de compra destes materiais que ainda NÃO viraram OC aparecem na aba "Solicitações sem
 #: OC" do Mapa de Obras, contando os dias corridos, até a OC ser criada. Entra a solicitação que tiver PELO MENOS UM
-#: item com uma destas palavras no nome (sem acento, maiúsculas, basta conter) → categoria mostrada no mapa.
+#: item cujo nome COMEÇA com uma destas palavras (19/11, dono: "tem que começar com as palavras chave"; sem acento,
+#: maiúsculas) → categoria mostrada no mapa.
 SOL_PALAVRAS = (("BANCADA", "Bancada"), ("JANELA", "Janela"), ("RUFO", "Calhas e rufos"), ("CALHA", "Calhas e rufos"),
                 ("PORTAO", "Portão"))
 SOL_MESES = int(os.environ.get("OCS_SOL_MESES") or 6)          # solicitações criadas nos últimos N meses
@@ -851,9 +852,10 @@ def solicitacao_aberta(sol: dict) -> bool:
 
 
 def categoria_do_item(nome) -> str | None:
-    n = N(nome)
+    """Categoria do item se o NOME COMEÇA com a palavra-chave (BANCADA…, JANELA…, RUFO…/CALHA…, PORTAO…)."""
+    n = N(nome).lstrip(" -.*0123456789")
     for chave, rot in SOL_PALAVRAS:
-        if chave in n:
+        if n.startswith(chave):
             return rot
     return None
 
@@ -997,6 +999,11 @@ def linhas_solicitacoes(sols: list, existentes: dict, campo_data: str | None,
     for sol in sols:
         r = solicitacao_pendente(sol)
         if not r:
+            # 19/11: estava na aba e não entra mais (cancelada, ou a regra mudou para "começa com") — sai da aba
+            antes = existentes.get(str(sol.get("id")))
+            if antes and antes.get("pendente"):
+                out.append({"sol_id": str(sol["id"]), "pendente": False, "resolvida_em": agora, "visto_em": agora})
+                cont["resolvidas"] += 1
             continue
         cont["com_material"] += 1
         cont["status"][r["status"] or "?"] = cont["status"].get(r["status"] or "?", 0) + 1

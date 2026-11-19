@@ -296,6 +296,11 @@ def test_categoria_pelas_palavras_do_dono():
     assert ro.categoria_do_item("Calha moldada") == "Calhas e rufos"
     assert ro.categoria_do_item("Portão basculante") == "Portão"
     assert ro.categoria_do_item("Cimento CP II") is None
+    # 19/11 (dono): tem que COMEÇAR com a palavra-chave
+    assert ro.categoria_do_item("Pingadeira para janela") is None
+    assert ro.categoria_do_item("Granito para bancada") is None
+    assert ro.categoria_do_item("Fechadura de portão") is None
+    assert ro.categoria_do_item("RUFOS EM CHAPA") == "Calhas e rufos"
 
 
 def test_solicitacao_entra_com_um_item_da_lista_sem_oc():
@@ -360,3 +365,12 @@ def test_data_da_solicitacao_pela_coluna_vinculos_da_oc():
     m = ro.data_da_solicitacao_por_oc([a], "creationDate", [oc, so_num])
     assert m[oc["oc_id"]] == (901, "2026-10-05") and m[so_num["oc_id"]] == (901, "2026-10-05")
     json.dumps(oc)
+
+
+def test_solicitacao_que_nao_entra_mais_sai_da_aba():
+    agora = "2026-11-19T20:30:00+00:00"
+    pingadeira = _sol(7, [("Pingadeira para janela", "OPEN", None)])
+    linhas, cont = ro.linhas_solicitacoes([pingadeira], {"sol-7": {"pendente": True}}, "creationDate", agora)
+    assert linhas == [{"sol_id": "sol-7", "pendente": False, "resolvida_em": agora, "visto_em": agora}]
+    assert cont["resolvidas"] == 1
+    assert ro.linhas_solicitacoes([pingadeira], {}, "creationDate", agora)[0] == []
