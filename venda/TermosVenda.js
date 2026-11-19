@@ -235,10 +235,30 @@ var TermosVenda = (function () {
       .map(function (x) { return { envelope: x.envelope, docId: x.docId, tipo: x.tipo, nome: x.nome, assinaram: x.assinaram }; });
   }
 
+  /* 19/11/2026 (dono, unidade 40): "Quem assinou" traz só quem assinou e faz parte da venda. Depois de uma troca, quem
+   * ficou pendente no envelope do contrato com o contrato já fechado só tinha os termos cancelados: é fiador que saiu
+   * (não aparece). Venda ASSINADA: junta quem assinou nos dois envelopes, uma linha por pessoa (pelo e-mail; sem e-mail,
+   * pelo nome e papel). Sem envelope de termos, a lista do contrato fica como está. */
+  function quemAssinou(listaContrato, listaTermos, situacao, contratoAssinado) {
+    var c = listaContrato || [];
+    if (!listaTermos) return c;
+    var assinado = txt(situacao).toUpperCase() === CS().SITUACOES.ASSINADO;
+    if (!assinado && !contratoAssinado) return c;
+    var fonte = c.filter(function (s) { return s && s.assinou; });
+    if (assinado) fonte = fonte.concat(listaTermos.filter(function (s) { return s && s.assinou; }));
+    var visto = {}, out = [];
+    fonte.forEach(function (s) {
+      var k = txt(s.email).toLowerCase() || (txt(s.nome) + "|" + txt(s.papel));
+      if (visto[k]) return;
+      visto[k] = true; out.push(s);
+    });
+    return out;
+  }
+
   var api = { COL: COL, TIPOS: TIPOS, situacaoCombinada: situacaoCombinada, situacaoDoEnvelope: situacaoDoEnvelope, paraColher: paraColher,
               filtrarTravasData: filtrarTravasData, filtrarTravasSinal: filtrarTravasData, RE_DATAS: RE_DATAS, signatariosTermos: signatariosTermos, pessoas: pessoas,
               fiadoresAlterados: fiadoresAlterados, conferirTroca: conferirTroca,
-              lerHist: lerHist, registrar: registrar, marcarColhido: marcarColhido, colhidos: colhidos, jaAssinado: jaAssinado, assinaturasDoDoc: assinaturasDoDoc, HIST_MAX_ENV: HIST_MAX_ENV };
+              lerHist: lerHist, registrar: registrar, marcarColhido: marcarColhido, colhidos: colhidos, jaAssinado: jaAssinado, quemAssinou: quemAssinou, assinaturasDoDoc: assinaturasDoDoc, HIST_MAX_ENV: HIST_MAX_ENV };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();

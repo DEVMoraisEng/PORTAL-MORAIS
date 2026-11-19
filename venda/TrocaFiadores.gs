@@ -196,7 +196,7 @@ function assEstadoContrato_(col, p) {
   if (ClicksignVenda.FINAIS.indexOf(sitC) >= 0) { assApagarPapeis_(C.id); assApagarProp_(ASS_REENVIO + C.id); }
   if (Tt && ClicksignVenda.FINAIS.indexOf(sitT) >= 0) { assApagarPapeis_(Tt.id); assApagarProp_(ASS_REENVIO + Tt.id); }
 
-  var resp = { ok: true, situacao: sit, envelope: true, signatarios: lista, temAssinado: !semArquivo };
+  var resp = { ok: true, situacao: sit, envelope: true, signatarios: TermosVenda.quemAssinou(lista, listaT, sit, comb.contratoAssinado), temAssinado: !semArquivo };
   if (comb.contratoAssinado) resp.contratoAssinado = true;
   if (Tt) resp.termos = { envelope: true, situacao: sitT, signatarios: listaT };
   var ja = TermosVenda.jaAssinado(h);

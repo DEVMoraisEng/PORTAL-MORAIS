@@ -215,3 +215,18 @@ test("registro ASS_HIST: quem assinou cada documento, sem e-mail nem CPF, e o bl
   for (let i = 0; i < 6; i++) h = T.registrar(h, "e" + i, "termos", [], {}, [], {}, ehTermo);
   assert.equal(h.envelopes.length, T.HIST_MAX_ENV);
 });
+
+test("quem assinou: só quem assinou e faz parte da venda (19/11, unidade 40)", () => {
+  const S = CS.SITUACOES;
+  const p = (nome, email, assinou) => ({ nome, email, papel: "Signatário", assinou, data: assinou ? "2026-11-14T10:00:00Z" : "" });
+  const C = [p("Ana T.", "ana@teste.invalid", true), p("Bia T.", "bia@teste.invalid", true), p("Fiadora Velha", "velha@teste.invalid", false)];
+  const T2 = [p("Ana T.", "ana@teste.invalid", true), p("Fiador Novo", "novo@teste.invalid", true)];
+  const nomes = (l) => l.map((s) => s.nome);
+  // venda assinada: fiadora que saiu some; fiador novo entra; quem assinou os dois aparece uma vez
+  assert.deepEqual(nomes(T.quemAssinou(C, T2, S.ASSINADO, false)), ["Ana T.", "Bia T.", "Fiador Novo"]);
+  // contrato assinado e termos em assinatura: some a pendente do contrato; os termos seguem no grupo próprio
+  assert.deepEqual(nomes(T.quemAssinou(C, T2, S.ENVIADO, true)), ["Ana T.", "Bia T."]);
+  // sem troca (sem envelope de termos) ou contrato ainda em assinatura: lista do contrato inteira, como antes
+  assert.equal(T.quemAssinou(C, null, S.ASSINADO, false), C);
+  assert.equal(T.quemAssinou(C, T2, S.ENVIADO, false), C);
+});
