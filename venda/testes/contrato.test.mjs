@@ -62,8 +62,9 @@ test("dados completos: nenhuma falta, modelo PRONTO, valores com comprador pagan
   assert.equal(m.VALOR_IMOVEL, "290.000,00");
   assert.equal(m.VALOR_INTERMEDIACAO, "R$ 10.000,00");
   assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
-  assert.equal(m.VALOR_TOTAL_NUM, "300.000,00");
-  assert.equal(m.VALOR_TOTAL_EXTENSO, "trezentos mil reais");
+  /* 19/11/2026 (dono): "6.1. Valor total" é só o valor de aquisição (construtora), sem a comissão */
+  assert.equal(m.VALOR_TOTAL_NUM, "290.000,00");
+  assert.equal(m.VALOR_TOTAL_EXTENSO, "duzentos e noventa mil reais");
   assert.equal(m.LOTE, "35");
   assert.equal(m.QUADRA, "01");
   assert.equal(m.CIDADE_DATA, "Goiânia, 29 de setembro de 2026");
@@ -71,7 +72,7 @@ test("dados completos: nenhuma falta, modelo PRONTO, valores com comprador pagan
   assert.equal(m.SINAL_DATA, "28/09/2026");
   const b = C.blocos(d);
   assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: false, SEM_INTERMEDIARIA: true, SE_COMISSAO_VENDEDOR: false,
-    TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
+    SE_CASAL: false, TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
   for (const [k, v] of Object.entries(m)) assert.equal(typeof v, "string", k);
 });
 
@@ -103,7 +104,7 @@ test("vendedor PF e intermediária; VENDEDOR na coluna PAGA POR é ignorado (05/
   assert.deepEqual(C.faltasContrato(d), []);
   const m = C.marcadores(d), b = C.blocos(d);
   assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: false, SE_VENDEDOR_PF: true, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: false,
-    TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
+    SE_CASAL: false, TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
   assert.equal(d.comissao.pagaPor, "COMPRADOR");
   assert.notEqual(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
   assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
@@ -169,6 +170,27 @@ test("rótulo do documento", () => {
 test("valor fora do limite lança erro", () => {
   assert.throws(() => C.valorPorExtenso(1000000000), /VALOR_FORA_DO_LIMITE/);
   assert.equal(C.valorPorExtenso(999999999), "novecentos e noventa e nove milhões novecentos e noventa e nove mil novecentos e noventa e nove reais");
+});
+
+/* 19/11/2026 (dono): entrada vazia some do 6.b) e Parcela Intermediária / Meio de pagamento sobem uma letra */
+test("planoParagrafosVazios: entrada vazia apaga o parágrafo b) e reletra c)->b) e d)->c)", () => {
+  const textos = [
+    "6. DO VALOR PAGO EXCLUSIVAMENTE PARA AQUISIÇÃO DO IMÓVEL E FORMA DE PAGAMENTO",
+    "6.1. Valor total: R$ {{VALOR_TOTAL_NUM}} ({{VALOR_TOTAL_EXTENSO}})",
+    "a) Sinal/arras: R$ {{SINAL_VALOR}}, pago em {{SINAL_DATA}}",
+    "b) Entrada: R$ {{ENTRADA_VALOR}}, vencimento em {{ENTRADA_VENCIMENTO}}, ou na data de assinatura de contrato junto à instituição financeira, em caso de financiamento bancário, ocorrendo o vencimento na data que vier primeiro.",
+    "c) Parcela Intermediária: não há.",
+    "d) Meio de pagamento: {{FORMA_PAGAMENTO}}",
+    "6.2. Caso a venda seja formalizada antes da conclusão da avaliação do imóvel…",
+  ];
+  const semEntrada = Object.assign({}, C.marcadores(C.montarDadosContrato(fontes())), { ENTRADA_VALOR: "" });
+  const plano = C.planoParagrafosVazios(textos, semEntrada);
+  assert.deepEqual(plano.apagar, [3]);
+  assert.deepEqual(plano.trocar.map((t) => t.texto),
+    ["c) Parcela Intermediária: não há.".replace("c)", "b)"), "d) Meio de pagamento: {{FORMA_PAGAMENTO}}".replace("d)", "c)")]);
+  /* com entrada preenchida, nada muda */
+  const comEntrada = C.marcadores(C.montarDadosContrato(fontes()));
+  assert.deepEqual(C.planoParagrafosVazios(textos, comEntrada), { apagar: [], trocar: [] });
 });
 
 test("construção exige prazo de conclusão; corretor exige CPF/CNPJ; condições opcionais", () => {

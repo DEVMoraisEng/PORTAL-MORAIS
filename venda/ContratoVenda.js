@@ -1246,16 +1246,24 @@ var ContratoVenda = (function () {
       LOTE: im.lote,
       QUADRA: im.quadra,
       AREA: areaTxt(im.area),
-      CONFRONTACOES: im.confrontacoes,
+      /* 19/11/2026 (dono): confrontações no item 3.c) do modelo passam a trazer o endereço completo do imóvel
+         (rua, quadra, lote, casa) na frente do texto de confrontações cadastrado */
+      CONFRONTACOES: (txt(im.endereco) ? txt(im.endereco) + " — " : "") + txt(im.confrontacoes),
       MATRICULA_INDIVIDUAL: im.matriculaIndividual,
       CRI: im.cri,
       VALOR_IMOVEL: moedaOuVazio(n.aquisicao),
       VALOR_INTERMEDIACAO: interm,
       VALOR_TOTAL: n.valorContrato === null ? "" : "R$ " + moedaBR(n.valorContrato),
-      VALOR_TOTAL_NUM: moedaOuVazio(n.valorContrato),
-      VALOR_TOTAL_EXTENSO: n.valorContrato === null ? "" : valorPorExtenso(n.valorContrato),
+      /* 19/11/2026 (dono): "6.1. Valor total" (DO VALOR PAGO EXCLUSIVAMENTE PARA AQUISIÇÃO DO IMÓVEL) é só o valor
+         da construtora, sem a comissão — fora da casa de rua (condomínio) segue valendo o valor do contrato inteiro */
+      VALOR_TOTAL_NUM: moedaOuVazio(d.condominio ? n.valorContrato : n.aquisicao),
+      VALOR_TOTAL_EXTENSO: (d.condominio ? n.valorContrato : n.aquisicao) === null ? "" : valorPorExtenso(d.condominio ? n.valorContrato : n.aquisicao),
       COMISSAO_VALOR: moedaOuVazio(c.valor),
-      COMISSAO_FORMA: formaPorExtenso(c.forma),
+      COMISSAO_VALOR_EXTENSO: c.valor === null || !c.valor ? "" : valorPorExtenso(c.valor),
+      /* 19/11/2026 (dono): fora do condomínio, havendo forma de pagamento configurada (cadastro do corretor ou
+         coluna antiga), o contrato sempre sai genérico ("PIX ou depósito bancário"), não importa qual das duas
+         o corretor escolheu; sem nada configurado continua vazio (comissão é opcional na casa de rua) */
+      COMISSAO_FORMA: d.condominio ? formaPorExtenso(c.forma) : (c.forma ? "PIX ou depósito bancário" : ""),
       COMISSAO_VENCIMENTO: c.vencimento,
       COMISSAO_RESPONSAVEL: pagaVend ? (txt(v.nome) || d.nomeProprietario) : nomes,
       CORRETOR_NOME: txt(k.nome),
@@ -1270,7 +1278,8 @@ var ContratoVenda = (function () {
       BANCO: txt(v.banco),
       AGENCIA: txt(v.agencia),
       OPERACAO: txt(v.operacao),
-      CONTA: txt(v.conta),
+      /* 19/11/2026 (dono): tira zero(s) à esquerda do número da conta mostrado no contrato */
+      CONTA: txt(v.conta).replace(/^0+(?=\d)/, ""),
       PIX: txt(v.pix),
       PRAZO_POSSE_DIAS: txt(l.prazoPosseDias),
       PRAZO_CHAVES_DIAS: txt(l.prazoChavesDias),
@@ -1372,6 +1381,7 @@ var ContratoVenda = (function () {
       SE_INTERMEDIARIA: temInterm,
       SEM_INTERMEDIARIA: !temInterm,
       SE_COMISSAO_VENDEDOR: d.comissao.pagaPor === "VENDEDOR",
+      SE_CASAL: !!d.comprador2,
       TEM_FIADORES: fis.length > 0,
       TEM_FIADOR1: fis.length > 0,
       TEM_FIADOR2: fis.length > 1
@@ -1672,6 +1682,12 @@ var ContratoVenda = (function () {
     COMISSAO_VENCIMENTO: {
       so: "^\\s*c\\)\\s*Vencimento:?\\s*\\{\\{COMISSAO_VENCIMENTO\\}\\}\\s*[.;]?\\s*$",
       reletrar: [["^(\\s*)d\\)(\\s*Corretor:)", "$1c)$2"], ["^(\\s*)e\\)(\\s*Responsável pelo pagamento:)", "$1d)$2"]]
+    },
+    /* 19/11/2026 (dono): entrada vazia some do 6. (b) Entrada: ...) e a Parcela Intermediária / Meio de
+       pagamento sobem uma letra */
+    ENTRADA_VALOR: {
+      so: "^\\s*b\\)\\s*Entrada:\\s*R\\$\\s*\\{\\{ENTRADA_VALOR\\}\\},\\s*vencimento\\s+em\\s+\\{\\{ENTRADA_VENCIMENTO\\}\\},\\s*ou\\s+na\\s+data\\s+de\\s+assinatura\\s+de\\s+contrato\\s+junto\\s+à\\s+instituição\\s+financeira,\\s+em\\s+caso\\s+de\\s+financiamento\\s+bancário,\\s+ocorrendo\\s+o\\s+vencimento\\s+na\\s+data\\s+que\\s+vier\\s+primeiro\\.?\\s*$",
+      reletrar: [["^(\\s*)c\\)(\\s*Parcela Intermediária:)", "$1b)$2"], ["^(\\s*)d\\)(\\s*Meio de pagamento:)", "$1c)$2"]]
     }
   };
   /* Plano sobre os textos dos parágrafos (na ordem do documento): { apagar: [índices], trocar: [{ i, texto }] }.
