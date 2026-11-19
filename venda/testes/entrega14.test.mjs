@@ -34,6 +34,10 @@ test("comissão sem vencimento: não é falta; a linha 'c) Vencimento' sai e Cor
   assert.ok(t.includes("\nc) Corretor: Corretor Teste, CRECI 123\n"), t);
   assert.ok(t.includes("\nd) Responsável pelo pagamento: FULANO DE TESTE\n"), t);
   assert.ok(t.includes("\nb) Forma de Pagamento: PIX ou depósito bancário\n"), t);
+  /* 19/11/2026: a letra nova fica com o negrito da antiga (sem negrito no modelo → sem negrito), não o do vizinho */
+  const s = c.d.estado.salvos[c.d.estado.copias[0].id];
+  const corretor = s.negritos.find((x) => x.texto.startsWith("c) Corretor"));
+  assert.ok(corretor && corretor.negrito.some(([a, b, n]) => a === 0 && b === 0 && n === false), JSON.stringify(s.negritos));
 });
 
 test("comissão COM vencimento (coluna antiga preenchida): a linha fica e as letras não mudam", () => {

@@ -636,6 +636,8 @@ function ctrParagrafosVazios_(body, marcadores) {
     if (!letra || letra === textos[t.i].charAt(pos)) return;
     var tx = pars[t.i].editAsText();
     tx.insertText(pos, letra);
+    /* 19/11/2026 (dono): a letra nova herdava o negrito do vizinho ("c)" em negrito no item 5); fica com o da letra antiga */
+    if (typeof tx.isBold === "function") tx.setBold(pos, pos, tx.isBold(pos + 1) === true);
     tx.deleteText(pos + 1, pos + 1);
   });
   plano.apagar.slice().sort(function (a, b) { return b - a; }).forEach(function (i) { ctrApagarParagrafo_(pars[i]); });
