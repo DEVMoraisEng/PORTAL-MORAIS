@@ -26,7 +26,7 @@ function fontes() {
 
 test("casa de rua: endereço completo no {{ENDERECO_IMOVEL}} e as confrontações sem o endereço na frente", () => {
   const m = C.marcadores(C.montarDadosContrato(fontes()));
-  assert.equal(m.ENDERECO_IMOVEL, "RUA TESTE QD 18 LT 08-11 B2");
+  assert.equal(m.ENDERECO_IMOVEL, "RUA TESTE QD 18 LT 08-11 B2, Senador Canedo/GO");
   assert.equal(m.CONFRONTACOES, "frente para a rua teste");
 });
 
@@ -66,4 +66,15 @@ test("Cassimiro (19/11/2026): entrada zerada some, intermediária = 294.500 − 
   const plano = C.planoParagrafosVazios(["a) Sinal/arras: x", entrada, "c) Parcela Intermediária: R$ y", "d) Meio de pagamento: PIX"], m);
   assert.deepEqual(plano.apagar, [1]);
   assert.deepEqual(plano.trocar.map((t) => t.texto), ["b) Parcela Intermediária: R$ y", "c) Meio de pagamento: PIX"]);
+});
+
+test("item 3 a): endereço + bairro (SETOR) + município, sem repetir o que o título já tem", () => {
+  const f = fontes();
+  f.venda.SETOR = "SETOR TESTE";
+  assert.equal(C.marcadores(C.montarDadosContrato(f)).ENDERECO_IMOVEL, "RUA TESTE QD 18 LT 08-11 B2, SETOR TESTE, Senador Canedo/GO");
+  const g = fontes();
+  g.venda.ENDERECO = "RUA TESTE QD 18 LT 08-11 B2 SETOR TESTE"; g.venda.SETOR = "Setor Teste";
+  assert.equal(C.marcadores(C.montarDadosContrato(g)).ENDERECO_IMOVEL, "RUA TESTE QD 18 LT 08-11 B2 SETOR TESTE, Senador Canedo/GO");
+  const h = fontes();
+  assert.equal(C.marcadores(C.montarDadosContrato(h)).ENDERECO_IMOVEL, "RUA TESTE QD 18 LT 08-11 B2, Senador Canedo/GO");
 });
