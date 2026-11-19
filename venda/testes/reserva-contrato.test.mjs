@@ -1,5 +1,4 @@
-/* 05/11/2026 (dono), casa de rua: gerar o contrato final reserva a casa — RESERVADA = SIM, DATA DA RESERVA e
- * CONTRATO - GERADO EM = agora; 48 h para todos assinarem (RegrasVenda.reservaContrato, bloco do contrato).
+/* Casa de rua: a reserva pelo contrato (05/11) foi removida pela REGRAS-TRAVADAS de 11/11 — gerar o contrato não reserva.
  * Só dados inventados — o repositório é público. */
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -32,67 +31,14 @@ function aprovar(cols) {
   return { c, r, patches: c.n.patches.slice(antes) };
 }
 
-test("aprovar o contrato da casa de rua grava RESERVADA = SIM, DATA DA RESERVA e CONTRATO - GERADO EM (data com hora)", () => {
-  const t0 = Date.now();
+test("REGRAS-TRAVADAS (11/11): aprovar o contrato da casa de rua NÃO grava RESERVADA, DATA DA RESERVA nem CONTRATO - GERADO EM", () => {
   const { c, r, patches } = aprovar(Object.assign(colunasVenda(), COLS_RESERVA));
   assert.equal(r.ok, true, JSON.stringify(r));
-  const p = patches.find((x) => x["CONTRATO - GERADO EM"]);
-  assert.ok(p, JSON.stringify(patches));
-  assert.deepEqual(p["RESERVADA "], { select: { name: "SIM" } }, "nome real da coluna, com o espaço sobrando");
-  const em = p["CONTRATO - GERADO EM"].date.start;
-  assert.match(em, /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/, "com hora");
-  assert.ok(Date.parse(em) >= t0 - 1000);
-  assert.equal(p["DATA DA RESERVA"].date.start, em);
-  /* o contrato continua anexado e o contratoEstado traz o prazo */
+  assert.ok(!patches.some((x) => x["CONTRATO - GERADO EM"] || x["RESERVADA "] || x["DATA DA RESERVA"]), JSON.stringify(patches));
   assert.equal(c.arquivos().length, 1);
-  const e = c.acao("contratoEstado");
-  assert.equal(e.reserva.estado, "RESERVADA");
-  assert.equal(Date.parse(e.reserva.ate) - Date.parse(em), 48 * H);
-  /* depois de assinado por todos: VENDIDA */
-  c.n.pagina.properties["ASSINATURA - SITUAÇÃO"] = { type: "rich_text", rich_text: [{ plain_text: "ASSINADO", text: { content: "ASSINADO" } }] };
-  assert.equal(c.acao("contratoEstado").reserva.estado, "VENDIDA");
-});
-
-test("sem as colunas da reserva a geração segue: contrato anexado, aviso no log, nenhum PATCH com coluna inexistente", () => {
-  const { c, r, patches } = aprovar(colunasVenda());
-  assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(c.arquivos().length, 1);
-  assert.ok(!patches.some((x) => x["CONTRATO - GERADO EM"] || x.RESERVADA || x["DATA DA RESERVA"]));
-  assert.ok(c.g.logs.some((l) => /reserva: coluna faltando ou de outro tipo: RESERVADA, DATA DA RESERVA, CONTRATO - GERADO EM/.test(l)), c.g.logs.join("\n"));
   assert.equal(c.acao("contratoEstado").reserva, undefined);
 });
 
-test("só a CONTRATO - GERADO EM faltando: grava as outras duas e avisa", () => {
-  const cols = Object.assign(colunasVenda(), COLS_RESERVA);
-  delete cols["CONTRATO - GERADO EM"];
-  const { r, patches, c } = aprovar(cols);
-  assert.equal(r.ok, true);
-  const p = patches.find((x) => x["RESERVADA "]);
-  assert.ok(p && p["DATA DA RESERVA"] && !p["CONTRATO - GERADO EM"]);
-  assert.ok(c.g.logs.some((l) => /coluna faltando ou de outro tipo: CONTRATO - GERADO EM$/.test(l)));
-});
-
-test("bloco do contrato: 'Reservada até dd/mm hh:mm — 48 h para assinar'; vencido avisa e aponta o Cancelar envelope", () => {
-  const est = D.estadoContrato({ ok: true, gerado: true, etapa: "FINAL", nome: "CONTRATO - X.pdf", url: "https://x",
-                                 reserva: { estado: "RESERVADA", geradoEm: G, ate: "2026-11-07T13:00:00.000Z" } });
-  assert.equal(est.reserva.ate, "2026-11-07T13:00:00.000Z");
-  const ok = D.htmlReservaContrato(est.reserva, T + H);
-  assert.match(ok, /Reservada até \d\d\/\d\d \d\d:\d\d — 48 h para assinar/);
-  const venc = D.htmlReservaContrato(est.reserva, T + 49 * H);
-  assert.ok(venc.includes(D.MSG_RESERVA_VENCIDA), venc);
-  assert.match(venc, /Cancelar envelope/);
-  assert.equal(D.MSG_RESERVA_VENCIDA, "Prazo de 48 h para assinar venceu — casa liberada no mapa");
-  assert.match(D.htmlReservaContrato({ estado: "VENDIDA", ate: "2026-11-07T13:00:00.000Z" }, T + 99 * H), /casa vendida/);
-  assert.equal(D.htmlReservaContrato(null), "");
-  /* entra no bloco FINAL e no só leitura (envelope aberto) */
-  assert.match(D.htmlContrato(est, { ocupadoContrato: null, testes: false }), /dz-reserva/);
-  assert.match(D.htmlContratoLeitura(est, {}), /dz-reserva/);
-  /* resposta sem prazo válido não vira bloco */
-  assert.equal(D.estadoContrato({ gerado: true, reserva: { estado: "RESERVADA", ate: "<b>" } }).reserva, undefined);
-});
-
-/* REGRA TRAVADA (Morais, 11/11/2026): na planilha de casas de rua o contrato gerado NÃO reserva mais a casa.
-   Se este teste falhar, alguém mexeu na regra — ver REGRAS-TRAVADAS.md, não ajuste o teste. */
 test("vendas.html: régua do contrato 48 h removida — tem cliente = vendida", () => {
   const html = readFileSync(new URL("../../vendas.html", import.meta.url), "utf8");
   assert.doesNotMatch(html, /reservaContratoDe|RESERVA_CONTRATO_MS/);
