@@ -323,7 +323,8 @@ def test_linhas_das_solicitacoes_e_quando_sai_da_aba():
     assert por["sol-1"]["criada_em"] == "2026-11-01" and por["sol-1"]["numero"] == 901
     assert por["sol-2"]["pendente"] is False and por["sol-2"]["resolvida_em"] == agora      # a OC foi criada agora
     assert por["sol-3"]["resolvida_em"] == agora                                             # nunca aparece no mapa
-    assert cont == {"com_material": 3, "pendentes": 1, "resolvidas": 1}
+    assert {k: cont[k] for k in ("com_material", "pendentes", "resolvidas")} == {"com_material": 3, "pendentes": 1,
+                                                                                  "resolvidas": 1}
     linhas, _ = ro.linhas_solicitacoes([virou_oc], {"sol-2": {"pendente": False}}, "creationDate", agora)
     assert "resolvida_em" not in linhas[0]                                                   # mantém a data de antes
     json.dumps(linhas)
@@ -335,3 +336,16 @@ def test_data_da_solicitacao_de_cada_oc_fica_com_a_mais_antiga():
     m = ro.data_da_solicitacao_por_oc([a, b], "creationDate")
     assert m == {"oc-1": (902, "2026-10-01"), "oc-2": (902, "2026-10-01")}
     assert ro.data_da_solicitacao_por_oc([a], None) == {}
+
+
+def test_solicitacao_so_fica_enquanto_em_aprovacao_ou_a_atender():
+    em_aprov = dict(_sol(1, [("Bancada", "OPEN", None)]), status="AWAITING_APPROVAL")
+    a_atender = dict(_sol(2, [("Janela", "OPEN", None)]), status="TO_ATTEND")
+    atendida = dict(_sol(3, [("Portão", "OPEN", None)]), status="ATTENDED")
+    texto = dict(_sol(4, [("Calha", "OPEN", None)]), status="A atender")
+    assert ro.solicitacao_pendente(em_aprov)["pendente"] and ro.solicitacao_pendente(a_atender)["pendente"]
+    assert ro.solicitacao_pendente(texto)["pendente"]
+    assert ro.solicitacao_pendente(atendida)["pendente"] is False          # atendida sem OC: sai do mapa
+    linhas, cont = ro.linhas_solicitacoes([em_aprov, atendida], {}, "creationDate")
+    assert cont["status"] == {"AWAITING_APPROVAL": 1, "ATTENDED": 1}
+    assert {x["sol_id"]: x["aprovacao_mc"] for x in linhas} == {"sol-1": "AWAITING_APPROVAL", "sol-3": "ATTENDED"}

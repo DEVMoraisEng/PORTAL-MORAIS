@@ -92,6 +92,12 @@ SOL_PALAVRAS = (("BANCADA", "Bancada"), ("JANELA", "Janela"), ("RUFO", "Calhas e
                 ("PORTAO", "Portão"))
 SOL_MESES = int(os.environ.get("OCS_SOL_MESES") or 6)          # solicitações criadas nos últimos N meses
 TABELA_SOL = "oc_solicitacao"                                   # supabase/oc_solicitacao.sql (o dono roda uma vez)
+#: 19/11 (dono, 2ª conversa): solicitação sem OC fica "Em aprovação" ou "A atender" — só ENQUANTO estiver num desses
+#: dois status ela aparece no mapa (nem toda solicitação vira OC: mudou de status, sai). Os códigos do MC para esses
+#: dois ainda não foram vistos: casa pelo nome (sem acento, maiúsculas, basta conter). OCS_SOL_STATUS="COD1,COD2" troca.
+SOL_STATUS_ABERTA = tuple(x.strip().upper() for x in (os.environ.get("OCS_SOL_STATUS") or
+                          "EM APROVACAO,A ATENDER,AWAITING,PENDING,IN_APPROVAL,TO_ATTEND,TO_BE_ATTENDED,"
+                          "WAITING,UNDER_APPROVAL,APPROVAL_PENDING,OPEN").split(",") if x.strip())
 SOL_STATUS_FORA = {"CANCELED", "CANCELLED", "REJECTED", "REFUSED", "DENIED", "REPROVADO", "REPROVADA", "CANCELADO",
                    "CANCELADA", "NEGADO", "NEGADA"}
 #: 16/11 (dono, depois da 1ª descoberta): as OCs da Rocha / VIDRO ALVES já chegam "Aprovado" no MC. As que NÃO têm
@@ -787,10 +793,24 @@ def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple
 #: alguns campos não foram vistos ainda: o robô tenta as formas abaixo, na ordem, e fica com a 1ª que o MC aceitar.
 _Q_SOL = ("query ($first: Int, $after: String, $specification: PurchaseRequestSpecificationInput, "
           "$order: [PurchaseRequestSortInput!]) { purchaseRequest(first: $first after: $after specification: "
-          "$specification order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus %s "
+          "$specification order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus %s %s "
           "work { name } costCenters { items { id status purchaseOrderItem { id %s } originItem { name code } } } } } }")
 _SOL_DATAS = ("creationDate", "createdAt", "date", "")
 _SOL_OCS = ("purchaseOrder { id number }", "purchaseOrderId", "")
+_SOL_STATUS = ("status", "situation", "")
+
+
+def status_da_solicitacao(sol: dict) -> str:
+    """O status que a tela mostra (Em aprovação / A atender / Atendida…): o campo status do MC, se veio; senão a
+    aprovação."""
+    return N(sol.get("status") or sol.get("situation") or sol.get("approvalStatus"))
+
+
+def solicitacao_aberta(sol: dict) -> bool:
+    """Em aprovação / A atender? Só julga pelo campo status do MC; sem ele (a aprovação sozinha não diz se foi
+    atendida), não filtra."""
+    st = N(sol.get("status") or sol.get("situation")).replace("_", " ")
+    return any(x.replace("_", " ") in st for x in SOL_STATUS_ABERTA) if st else True
 
 
 def categoria_do_item(nome) -> str | None:
@@ -822,7 +842,9 @@ def solicitacao_pendente(sol: dict) -> dict | None:
                 nomes.append(str(nome).strip())
     if not cats:
         return None
-    return {"categorias": " · ".join(cats), "itens": " · ".join(dict.fromkeys(nomes))[:500] or None, "pendente": falta}
+    # 19/11 (dono): só fica no mapa enquanto a solicitação está "Em aprovação" ou "A atender"
+    return {"categorias": " · ".join(cats), "itens": " · ".join(dict.fromkeys(nomes))[:500] or None,
+            "pendente": falta and solicitacao_aberta(sol), "status": status_da_solicitacao(sol) or None}
 
 
 def ocs_da_solicitacao(sol: dict) -> list:
@@ -891,11 +913,12 @@ def ler_solicitacoes(aba, hoje: dt.date | None = None, meses: int = SOL_MESES) -
     for k in ("keyword", "search", "text"):
         esp.pop(k, None)
     v["first"], v["after"] = 50, None
-    est = {"solicitacoes": 0, "paginas": 0, "campo_data": None, "campo_oc": None, "desde": ini.isoformat()}
+    est = {"solicitacoes": 0, "paginas": 0, "campo_data": None, "campo_oc": None, "campo_status": None,
+           "desde": ini.isoformat()}
     query, recusas = None, []
-    for cd in _SOL_DATAS:                      # acha a forma que o MC aceita (1ª página)
-        for co in _SOL_OCS:
-            q = _Q_SOL % (cd, co)
+    for cd, cs, co in [(a, b, c) for a in _SOL_DATAS for b in _SOL_STATUS for c in _SOL_OCS]:
+        if True:                               # acha a forma que o MC aceita (1ª página)
+            q = _Q_SOL % (cd, cs, co)
             try:
                 pr = pedir(q, v)
             except RuntimeError as e:
@@ -909,9 +932,7 @@ def ler_solicitacoes(aba, hoje: dt.date | None = None, meses: int = SOL_MESES) -
                 else:
                     recusas.append(str(e)[:120])
                     continue
-            query, est["campo_data"], est["campo_oc"] = q, cd or None, co or None
-            break
-        if query:
+            query, est["campo_data"], est["campo_oc"], est["campo_status"] = q, cd or None, co or None, cs or None
             break
     if not query:
         raise RuntimeError("o GraphQL de Compras recusou todas as formas da lista de solicitações (%s)" % recusas[-1:])
@@ -935,17 +956,18 @@ def linhas_solicitacoes(sols: list, existentes: dict, campo_data: str | None,
     """(linhas para oc_solicitacao, contagem). Grava as solicitações com item da lista (pendentes ou não): a que
     deixou de estar pendente ganha resolvida_em (sai da aba do mapa)."""
     agora = agora or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
-    out, cont = [], {"com_material": 0, "pendentes": 0, "resolvidas": 0}
+    out, cont = [], {"com_material": 0, "pendentes": 0, "resolvidas": 0, "status": {}}
     for sol in sols:
         r = solicitacao_pendente(sol)
         if not r:
             continue
         cont["com_material"] += 1
+        cont["status"][r["status"] or "?"] = cont["status"].get(r["status"] or "?", 0) + 1
         criada = str(sol.get(campo_data) or "")[:10] if campo_data else ""
         ln = {"sol_id": str(sol["id"]), "numero": sol.get("number"),
               "obra": (((sol.get("work") or {}).get("name")) or "")[:300] or None,
               "criada_em": criada if re.match(r"^\d{4}-\d\d-\d\d$", criada) else None,
-              "aprovacao_mc": (str(sol.get("approvalStatus") or "").upper() or None),
+              "aprovacao_mc": r["status"] or (str(sol.get("approvalStatus") or "").upper() or None),
               "categorias": r["categorias"], "itens": r["itens"], "pendente": r["pendente"], "visto_em": agora,
               "resolvida_em": None}
         antes = existentes.get(ln["sol_id"])
@@ -2040,9 +2062,12 @@ def main() -> int:
             elif sol_erro:
                 log("   solicitações: não consegui ler (%s) — fica para a próxima rodada" % sol_erro)
             elif sol_est:
-                log("   solicitações desde %s: %d lida(s) · data: %s · OC no item: %s%s%s" % (
+                if sol_cont and sol_cont.get("status"):
+                    log("   status das solicitações com Bancada/Janela/Calhas/Portão: %s" % ", ".join(
+                        "%s=%d" % kv for kv in sorted(sol_cont["status"].items(), key=lambda kv: -kv[1])))
+                log("   solicitações desde %s: %d lida(s) · data: %s · status: %s · OC no item: %s%s%s" % (
                     sol_est["desde"], sol_est["solicitacoes"], sol_est["campo_data"] or "o MC não deu",
-                    sol_est["campo_oc"] or "o MC não deu",
+                    sol_est.get("campo_status") or "o MC não deu", sol_est["campo_oc"] or "o MC não deu",
                     " · com Bancada/Janela/Calhas/Portão: %d (sem OC: %d · OC criada agora: %d)" % (
                         sol_cont["com_material"], sol_cont["pendentes"], sol_cont["resolvidas"]) if sol_cont else "",
                     " · %d OC(s) da conferência com a data da solicitação" % sum(
