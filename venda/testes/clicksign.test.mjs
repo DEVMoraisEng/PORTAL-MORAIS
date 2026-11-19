@@ -42,15 +42,20 @@ test("config: lê as Propriedades (JSON) e o liga/desliga do corretor", () => {
   assert.deepEqual(ruim.invalidas, ["ASSINATURA_TESTEMUNHAS_SPE", "ASSINATURA_REPRESENTANTE"]);
 });
 
-test("signatários, vendedor PJ: comprador, representante, par de testemunhas SPE; sem corretor por padrão", () => {
+test("signatários, vendedor PJ (casa de rua): comprador, representante, par de testemunhas SPE e o corretor no fim — sem depender de ASSINATURA_INCLUIR_CORRETOR (19/11/2026: ele assina sempre fora do condomínio)", () => {
   const l = CS.signatarios(dadosPJ(), CS.montarConfig(PROPS));
   assert.deepEqual(l.map((s) => [s.papel, s.role, s.nome, s.email]), [
     ["Comprador 1", "buyer", "Fulano de Teste", "fulano@teste.example"],
     ["Vendedor (representante)", "seller", "Beltrano Representante", "beltrano@teste.example"],
     ["Testemunha 1", "witness", "Testemunha Um Spe", "t1.spe@teste.example"],
     ["Testemunha 2", "witness", "Testemunha Dois Spe", "t2.spe@teste.example"],
+    ["Corretor", "real_estate_broker", "Corretor de Teste", "corretor@teste.example"],
   ]);
   assert.equal(l[1].cpf, "000.000.002-72");
+});
+test("signatários, vendedor PJ (condomínio): sem corretor por padrão — ASSINATURA_INCLUIR_CORRETOR continua opcional só aqui", () => {
+  const l = CS.signatarios(dadosPJ({ condominio: {} }), CS.montarConfig(PROPS));
+  assert.deepEqual(l.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2"]);
 });
 
 test("signatários, vendedor PF + casal + corretor ligado: par de testemunhas PF e corretor no fim", () => {

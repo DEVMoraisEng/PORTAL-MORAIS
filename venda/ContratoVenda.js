@@ -241,9 +241,11 @@ var ContratoVenda = (function () {
   }
   /* Bloco "Pagamento da comissão" da aba Contrato (casa de rua). linha = { COLUNA: valor } do cadastro do corretor ou null
      (sem cadastro); colunas = nomes das colunas que a base tem (null = não se sabe). formaAntiga = CONTRATO - COMISSÃO FORMA.
-     19/11/2026 (dono): pagaPor e email voltam a sair da própria venda (CONTRATO - COMISSÃO PAGA POR, EMAIL CORRETOR) —
-     a tela de Gerar pré-contrato tem o seletor Comprador/Vendedor e o campo de e-mail do corretor. */
-  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga, pagaPorVenda, emailVenda) {
+     19/11/2026 (dono): pagaPor volta a sair da própria venda (CONTRATO - COMISSÃO PAGA POR) — a tela de Gerar
+     pré-contrato tem o seletor Comprador/Vendedor. O e-mail do corretor é a coluna E-MAIL do cadastro em
+     CORRETORES – CONTRATO (CAMPOS_CADASTRO.corretor) — sem ele válido, o Gerar pré-contrato trava e abre o
+     formulário "Faltam dados" com CRECI/CPF/CNPJ/E-MAIL, do mesmo jeito que já fazia para CRECI e CPF/CNPJ. */
+  function estadoComissaoCorretor(nomeCorretor, linha, colunas, formaAntiga, pagaPorVenda) {
     var nome = txt(nomeCorretor), k = { nome: nome }, faltando = [];
     var campos = CAMPOS_PAGAMENTO_CORRETOR.map(function (c) {
       var v = linha ? txt(linha[c.coluna]) : "";
@@ -254,9 +256,9 @@ var ContratoVenda = (function () {
     });
     var forma = formaComissaoCorretor(k), legado = false;
     if (!forma && txt(formaAntiga)) { forma = formaPorExtenso(formaAntiga); legado = true; }
-    var pagaPor = up(pagaPorVenda) === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR", email = txt(emailVenda);
+    var pagaPor = up(pagaPorVenda) === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR";
     return { pagaPor: pagaPor, corretor: nome, temCadastro: !!linha, campos: campos, colunasFaltando: faltando,
-             forma: forma, formaLegada: legado, email: email, emailValido: !!nome && emailValido(email) };
+             forma: forma, formaLegada: legado };
   }
 
   /* ---- condomínio ---- */
@@ -1016,9 +1018,10 @@ var ContratoVenda = (function () {
       exige(!vazio(k.nome), "Corretor", "nome");
       exige(!vazio(k.creci), "Corretor", "CRECI");
       exige(!vazio(k.cpfCnpj), "Corretor", "CPF/CNPJ");
-      /* 19/11/2026 (dono): casa de rua — o corretor também assina o contrato; sem e-mail válido não há como
-         mandar o envelope para ele, então trava aqui (mesmo padrão das outras faltas) em vez de gerar sem ele. */
-      if (!d.condominio) exige(emailValido(k.email), "Corretor", "e-mail (para assinar o contrato)");
+      /* 19/11/2026 (dono): casa de rua — o corretor também assina o contrato; sem e-mail válido (coluna E-MAIL
+         em CORRETORES – CONTRATO, a mesma do CRECI/CPF) não há como mandar o envelope, então trava aqui (mesmo
+         padrão do CRECI/CPF/CNPJ) em vez de gerar sem ele. */
+      if (!d.condominio) exige(emailValido(k.email), "Corretor", "E-MAIL");
     }
     return faltas;
   }
@@ -1439,7 +1442,8 @@ var ContratoVenda = (function () {
     "nacionalidade": ["NACIONALIDADE"], "estado civil": ["ESTADO CIVIL"], "profissão": ["PROFISSÃO"], "RG": ["RG"]
   };
   var FALTA_CONTA = { "banco": 1, "agência": 1, "conta": 1 };
-  var FALTA_CORRETOR = { "CRECI": ["CRECI"], "CPF/CNPJ": ["CPF/CNPJ"], "cadastro em CORRETORES – CONTRATO": ["CRECI", "CPF/CNPJ"] };
+  var FALTA_CORRETOR = { "CRECI": ["CRECI"], "CPF/CNPJ": ["CPF/CNPJ"], "E-MAIL": ["E-MAIL"],
+    "cadastro em CORRETORES – CONTRATO": ["CRECI", "CPF/CNPJ"] };
   var FALTA_LOTEAMENTO = {
     "denominação": ["DENOMINAÇÃO"], "município/UF": ["MUNICÍPIO/UF"], "matrícula do loteamento": ["MATRÍCULA DO LOTEAMENTO"],
     "matrícula do empreendimento": ["MATRÍCULA DO LOTEAMENTO"], "cartório": ["CARTÓRIO"],
@@ -1700,7 +1704,7 @@ var ContratoVenda = (function () {
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
     comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
     CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
-    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso, emailValido: emailValido,
+    estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
     validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,

@@ -1356,12 +1356,13 @@ function ctrComissaoCorretorEstado_(pg) {
   if (!prop_("DB_CORRETORES")) return null;
   var v = ctrPorChave_(pg.properties), nome = ctrTxt_(ctrCampo_(v, "CORRETOR")).trim();
   var formaAntiga = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_FORMA));
-  /* 19/11/2026 (dono): pagaPor e e-mail do corretor são da própria venda (seletor + campo no Gerar pré-contrato) */
-  var pagaPor = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_PAGA_POR)), email = ctrTxt_(ctrCampo_(v, "EMAIL CORRETOR"));
-  if (!nome) return ContratoVenda.estadoComissaoCorretor("", null, null, formaAntiga, pagaPor, email);
+  /* 19/11/2026 (dono): pagaPor é da própria venda (seletor no Gerar pré-contrato); o e-mail do corretor
+     continua sendo a coluna E-MAIL do cadastro em CORRETORES – CONTRATO (CRECI/CPF/CNPJ/E-MAIL, "Faltam dados") */
+  var pagaPor = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_PAGA_POR));
+  if (!nome) return ContratoVenda.estadoComissaoCorretor("", null, null, formaAntiga, pagaPor);
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
   if (lc && lc.duplicado) return { pagaPor: pagaPor === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR", corretor: nome, duplicado: true,
-                                   campos: [], colunasFaltando: [], forma: "", email: email, emailValido: ContratoVenda.emailValido(email) };
+                                   campos: [], colunasFaltando: [], forma: "" };
   var linha = null, colunas;
   if (lc) {
     linha = {};
@@ -1372,7 +1373,7 @@ function ctrComissaoCorretorEstado_(pg) {
     try { colunas = Object.keys(ctrTiposDaBase_(dbc).tipos); } catch (e) { colunas = null; }
     /* ctrTiposDaBase_ devolve as chaves já normalizadas — a comparação é pela mesma chave */
   }
-  return ContratoVenda.estadoComissaoCorretor(lc ? lc.titulo : nome, linha, colunas, formaAntiga, pagaPor, email);
+  return ContratoVenda.estadoComissaoCorretor(lc ? lc.titulo : nome, linha, colunas, formaAntiga, pagaPor);
 }
 /* "Salvar no cadastro do corretor" (p.soSalvar): grava só o grupo corretor, só as colunas de pagamento, na linha do corretor
  * da venda (cria a linha com o nome da venda se não existir). Não gera pré-contrato. Coluna que a base não tem:
@@ -1419,43 +1420,25 @@ function salvarPagamentoCorretor_(col, sess, p) {
   return r;
 }
 
-/* Ação "salvarComissaoRua" (19/11/2026, dono): o seletor "Comissão paga por" (Comprador/Vendedor) e o e-mail do
- * corretor voltam à tela de Gerar pré-contrato da casa de rua — gravam direto na venda (CONTRATO - COMISSÃO
- * PAGA POR, EMAIL CORRETOR), sem tocar no cadastro em CORRETORES – CONTRATO. p = { pageId, pagaPor?, emailCorretor? },
- * pelo menos um dos dois. O corretor assina o contrato (ClicksignVenda.sigCorretor); sem e-mail válido o gerador
- * trava (ContratoVenda.faltasContrato), por isso aqui só valida o formato — não exige nome de corretor na venda
- * para pagaPor (é independente de ter corretor), mas exige para emailCorretor. */
+/* Ação "salvarComissaoRua" (19/11/2026, dono): o seletor "Comissão paga por" (Comprador/Vendedor) volta à tela
+ * de Gerar pré-contrato da casa de rua — grava direto na venda (CONTRATO - COMISSÃO PAGA POR). p = { pageId, pagaPor }.
+ * O e-mail do corretor NÃO passa por aqui: é a coluna E-MAIL do cadastro em CORRETORES – CONTRATO, editada pelo
+ * formulário "Faltam dados" (salvarCamposContrato) do mesmo jeito que CRECI e CPF/CNPJ já eram. */
 function salvarComissaoRua_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8), rot = "salvarComissaoRua";
-  var temPagaPor = p.pagaPor !== undefined && p.pagaPor !== null && p.pagaPor !== "";
-  var temEmail = p.emailCorretor !== undefined && p.emailCorretor !== null && p.emailCorretor !== "";
-  if (!temPagaPor && !temEmail) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Nada para salvar"] };
-  var erros = [];
-  if (temPagaPor && p.pagaPor !== "COMPRADOR" && p.pagaPor !== "VENDEDOR") erros.push("Comissão paga por: Comprador ou Vendedor");
-  if (temEmail && !ContratoVenda.emailValido(p.emailCorretor)) erros.push("E-mail do corretor: formato inválido");
-  if (erros.length) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: erros };
+  if (p.pagaPor !== "COMPRADOR" && p.pagaPor !== "VENDEDOR")
+    return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Comissão paga por: Comprador ou Vendedor"] };
   var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
   if (info.base === "CONDOMINIO") return { ok: false, erro: "SO_CASA_DE_RUA" };
-  if (temEmail && !ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), "CORRETOR")).trim())
-    return { ok: false, erro: "CORRETOR_NA_VENDA_FALTANDO" };
-  var props = {}, salvos = [];
-  function achar(nomeCanonico) { for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(nomeCanonico)) return n; return null; }
-  if (temPagaPor) {
-    var realPP = achar(ContratoVenda.COL.COMISSAO_PAGA_POR);
-    if (!realPP) return { ok: false, erro: "COLUNA_FALTANDO: " + ContratoVenda.COL.COMISSAO_PAGA_POR };
-    props[realPP] = propNotion_("select", p.pagaPor);
-    salvos.push("pagaPor");
-  }
-  if (temEmail) {
-    var realEm = achar("EMAIL CORRETOR");
-    if (!realEm) return { ok: false, erro: "COLUNA_FALTANDO: EMAIL CORRETOR" };
-    props[realEm] = propNotion_("email", p.emailCorretor);
-    salvos.push("emailCorretor");
-  }
+  var real = null;
+  for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(ContratoVenda.COL.COMISSAO_PAGA_POR)) real = n;
+  if (!real) return { ok: false, erro: "COLUNA_FALTANDO: " + ContratoVenda.COL.COMISSAO_PAGA_POR };
+  var props = {};
+  props[real] = propNotion_("select", p.pagaPor);
   try { notion_("PATCH", "/pages/" + p.pageId, { properties: props }); }
   catch (e) { ctrErro_(rot + " " + pid + " gravar", e); return { ok: false, erro: "GRAVACAO_FALHOU", salvos: [] }; }
-  ctrLog_(rot + " " + pid + " salvos " + salvos.join(","));
-  var r = { ok: true, salvos: salvos };
+  ctrLog_(rot + " " + pid + " pagaPor=" + p.pagaPor);
+  var r = { ok: true, salvos: ["pagaPor"] };
   try { r.comissaoCorretor = ctrComissaoCorretorEstado_(ctrLerPaginaVenda_(p.pageId)); } catch (e) { ctrErro_(rot + " estado", e); }
   return r;
 }

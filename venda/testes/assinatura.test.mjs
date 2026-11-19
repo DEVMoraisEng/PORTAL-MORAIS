@@ -133,14 +133,17 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   assert.equal(r.situacao, "ENVIADO");
   const pend = { assinou: false, situacao: "pendente", data: "" };
   assert.ok(r.signatarios.every((s) => /@/.test(s.email)), "27/10: cada um com o e-mail para onde foi");
-  assert.deepEqual(r.signatarios.map((s) => s.id), ["sig-1", "sig-2", "sig-3", "sig-4"], "03/11: id para o Trocar e-mail");
+  assert.deepEqual(r.signatarios.map((s) => s.id), ["sig-1", "sig-2", "sig-3", "sig-4", "sig-5"], "03/11: id para o Trocar e-mail");
   assert.deepEqual(r.signatarios.map(({ email, id, ...s }) => s), [
     Object.assign({ papel: "Comprador 1", nome: "Fulano T." }, pend), Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
-    Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)]);
+    Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend),
+    /* 19/11/2026 (dono): fora do condomínio o corretor assina sempre (não depende de ASSINATURA_INCLUIR_CORRETOR) */
+    Object.assign({ papel: "Corretor", nome: "Corretor T." }, pend)]);
   assert.ok(!JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) }).includes("@"), "e-mail fora do campo email");
   assert.deepEqual(csCalls(c), [
     "POST /envelopes", "POST /envelopes/env-1/documents",
-    "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers",
+    "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers", "POST /envelopes/env-1/signers",
+    "POST /envelopes/env-1/requirements", "POST /envelopes/env-1/requirements",
     "POST /envelopes/env-1/requirements", "POST /envelopes/env-1/requirements",
     "POST /envelopes/env-1/requirements", "POST /envelopes/env-1/requirements",
     "POST /envelopes/env-1/requirements", "POST /envelopes/env-1/requirements",
@@ -151,7 +154,7 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
     assert.equal(x.headers.Accept, "application/vnd.api+json");
     assert.equal(x.contentType, "application/vnd.api+json");
   }
-  const [env, doc, s1, s2, , , q1, a1] = c.c.chamadas.map((x) => x.corpo);
+  const [env, doc, s1, s2, , , , q1, a1] = c.c.chamadas.map((x) => x.corpo);
   /* entrega 14: padrão "OBRA - COMPRADOR" (obra = endereço + CASA n) no envelope e no documento */
   assert.equal(env.data.attributes.name, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste");
   assert.equal(doc.data.attributes.filename, "RESIDENCIAL TESTE QD 07 LT 12 CASA 3 - Fulano de Teste.pdf");
@@ -164,13 +167,13 @@ test("envio feliz: ordem das chamadas, cabeçalhos e corpos; grava envelope e EN
   assert.deepEqual(a1.data.attributes, { action: "provide_evidence", auth: "email" });
   assert.equal(a1.data.relationships.signer.data.id, "sig-1");
   const roles = c.c.chamadas.filter((x) => x.corpo && x.corpo.data.attributes.action === "agree").map((x) => x.corpo.data.attributes.role);
-  assert.deepEqual(roles, ["buyer", "seller", "witness", "witness"]);
+  assert.deepEqual(roles, ["buyer", "seller", "witness", "witness", "real_estate_broker"]);
   assert.deepEqual(c.c.chamadas.at(-2).corpo, { data: { id: "env-1", type: "envelopes", attributes: { status: "running" } } });
   assert.equal(c.c.estado.status, "running");
   assert.equal(c.txt("ASSINATURA - ENVELOPE ID"), "env-1");
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
   const papeis = JSON.parse(c.p["ASSINATURA_PAPEIS_env-1"]);
-  assert.deepEqual(papeis, { "sig-1": "Comprador 1", "sig-2": "Vendedor (representante)", "sig-3": "Testemunha 1", "sig-4": "Testemunha 2" });
+  assert.deepEqual(papeis, { "sig-1": "Comprador 1", "sig-2": "Vendedor (representante)", "sig-3": "Testemunha 1", "sig-4": "Testemunha 2", "sig-5": "Corretor" });
   /* duas gravações: o rascunho logo depois de criar o envelope, e ENVIADO depois de ativar */
   const sits = c.n.patches.map((x) => x["ASSINATURA - SITUAÇÃO"].rich_text.map((t) => t.text.content).join(""));
   assert.deepEqual(sits, ["RASCUNHO", "ENVIADO"]);
@@ -500,11 +503,12 @@ test("estado em andamento: quem já assinou (evento sign) com a data, nome masca
   const pend = { assinou: false, situacao: "pendente", data: "" };
   assert.ok(r.signatarios.every((s) => /@/.test(s.email)));
   /* 03/11: cada um traz o id do signatário na Clicksign (o botão Trocar e-mail usa) */
-  assert.deepEqual(r.signatarios.map((s) => s.id), ["sig-1", "sig-2", "sig-3", "sig-4"]);
+  assert.deepEqual(r.signatarios.map((s) => s.id), ["sig-1", "sig-2", "sig-3", "sig-4", "sig-5"]);
   assert.deepEqual({ ...r, signatarios: r.signatarios.map(({ email, id, ...s }) => s) }, { ok: true, situacao: "ENVIADO", envelope: true, temAssinado: false, signatarios: [
     { papel: "Comprador 1", nome: "Fulano T.", assinou: true, situacao: "assinou", data: "2026-10-07T10:20:30.000-03:00" },
     Object.assign({ papel: "Vendedor (representante)", nome: "Beltrano R." }, pend),
-    Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend)] });
+    Object.assign({ papel: "Testemunha 1", nome: "Testemunha S." }, pend), Object.assign({ papel: "Testemunha 2", nome: "Testemunha S." }, pend),
+    Object.assign({ papel: "Corretor", nome: "Corretor T." }, pend)] });
   const semEmail = JSON.stringify({ ...r, signatarios: r.signatarios.map(({ email, ...s }) => s) });
   assert.ok(!semEmail.includes("@") && !JSON.stringify(r).includes("Fulano de Teste"), "e-mail fora do campo email ou nome inteiro");
   assert.equal(c.c.estado.baixados, 0);
@@ -512,7 +516,8 @@ test("estado em andamento: quem já assinou (evento sign) com a data, nome masca
 });
 
 const SIGN = (email) => ({ type: "events", attributes: { name: "sign", data: { signer: { email } } } });
-const TODOS_ASSINARAM = ["fulano@teste.example", "beltrano@teste.example", "t1.spe@teste.example", "t2.spe@teste.example"].map(SIGN);
+/* 19/11/2026: o corretor (sig-5) assina sempre fora do condomínio — entra na lista de quem assinou */
+const TODOS_ASSINARAM = ["fulano@teste.example", "beltrano@teste.example", "t1.spe@teste.example", "t2.spe@teste.example", "corretor@teste.example"].map(SIGN);
 
 test("estado concluído: baixa o PDF assinado, anexa em CONTRATO ASSINADO (troca) e grava ASSINADO", () => {
   const c = cenario({ venda: { "CONTRATO ASSINADO": { files: [{ name: "antigo.pdf", type: "file", file: { url: "https://s3.falso/antigo" } }] } },
@@ -547,7 +552,7 @@ test("closed sem o evento sign de alguém: continua ASSINADO, não marca essa pe
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.situacao, "ASSINADO");
   assert.equal(r.aviso, "ASSINATURAS_INCOMPLETAS");
-  assert.deepEqual(r.signatarios.map((s) => s.assinou), [true, true, true, false]);
+  assert.deepEqual(r.signatarios.map((s) => s.assinou), [true, true, true, false, false]);
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ASSINADO");
   assert.ok(c.g.logs.some((l) => l.includes("assinaturas incompletas")), c.g.logs.join(" | "));
 });
@@ -702,9 +707,9 @@ test("reenviar: avisa os pendentes pela rota de notificações, guarda a hora e 
   const antes = notificacoes(c), patches = c.n.patches.length;
   const r = reenviar(c);
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.equal(r.pendentes, 3);
+  assert.equal(r.pendentes, 4);
   assert.equal(r.situacao, "ENVIADO");
-  assert.deepEqual(r.signatarios.map((s) => s.situacao), ["assinou", "pendente", "pendente", "pendente"]);
+  assert.deepEqual(r.signatarios.map((s) => s.situacao), ["assinou", "pendente", "pendente", "pendente", "pendente"]);
   assert.equal(notificacoes(c), antes + 1);
   const corpo = c.c.chamadas.filter((x) => x.caminho === "/envelopes/env-1/notifications").pop().corpo;
   assert.deepEqual(corpo, { data: { type: "notifications", attributes: {} } });
@@ -713,7 +718,7 @@ test("reenviar: avisa os pendentes pela rota de notificações, guarda a hora e 
   assert.ok(!JSON.stringify({ ...r, signatarios: (r.signatarios || []).map(({ email, ...s }) => s) }).includes("@"));
   const todos = c.g.logs.join("\n");
   for (const s of PESSOAIS) assert.ok(!todos.includes(s), "log vazou: " + s);
-  assert.match(todos, /reenviar 01234567 por ana\.teste: ok pendentes 3/);
+  assert.match(todos, /reenviar 01234567 por ana\.teste: ok pendentes 4/);
 });
 
 test("reenviar: no máximo 1 a cada 10 minutos por envelope", () => {
@@ -1376,17 +1381,17 @@ function vigiaCom({ eventos = [], colunas, props = {}, venda, status } = {}) {
   return c;
 }
 
-test("vigia 03/11: assinatura nova com o envelope ainda aberto — caminho completo e o progresso vai de '0 de 4' a '1 de 4'", () => {
+test("vigia 03/11: assinatura nova com o envelope ainda aberto — caminho completo e o progresso vai de '0 de 5' a '1 de 5'", () => {
   const ev = [];
   const c = vigiaCom({ eventos: ev, colunas: Object.assign(colunasVenda(), COL_PROG) });
   assert.equal(c.enviar(TOK_LONGO).ok, true);
   c.volta();
-  assert.equal(c.txt("ASSINATURA - PROGRESSO"), "0 de 4");
+  assert.equal(c.txt("ASSINATURA - PROGRESSO"), "0 de 5");
   ev.push(SIGN("fulano@teste.example"));
   c.c.chamadas.length = 0;
   c.volta();
   assert.ok(csCalls(c).includes("GET /envelopes/env-1/signers"), csCalls(c).join(" | "));
-  assert.equal(c.txt("ASSINATURA - PROGRESSO"), "1 de 4");
+  assert.equal(c.txt("ASSINATURA - PROGRESSO"), "1 de 5");
   assert.equal(c.txt("ASSINATURA - SITUAÇÃO"), "ENVIADO");
   /* nada mudou de novo: volta curta, sem regravar */
   c.c.chamadas.length = 0;
