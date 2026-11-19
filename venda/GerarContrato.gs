@@ -374,7 +374,8 @@ function ctrFontes_(col, pageId) {
     COMISSAO_VENCIMENTO: cv(CV.COMISSAO_VENCIMENTO), COMISSAO_PAGA_POR: cv(CV.COMISSAO_PAGA_POR),
     PRAZO_CONCLUSAO: cv(CV.PRAZO_CONCLUSAO), CONDICOES_ESPECIAIS: cv(CV.CONDICOES_ESPECIAIS),
     VALOR_CONTRATO: ctrNum_(cv("VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)")), COMISSAO: ctrNum_(cv("COMISSÃO")),
-    VALOR_NA_MAO: ctrNum_(cv("VALOR NA MÃO")), CORRETOR: ctrTxt_(cv("CORRETOR"))
+    VALOR_NA_MAO: ctrNum_(cv("VALOR NA MÃO")), CORRETOR: ctrTxt_(cv("CORRETOR")),
+    SETOR: ctrTxt_(cv("SETOR"))   /* 19/11/2026 (dono): SETOR é o bairro — vai no endereço do item 3 a) */
   };
   var setor = ctrTxt_(cv("SETOR"));
 

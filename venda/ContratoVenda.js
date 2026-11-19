@@ -889,7 +889,7 @@ var ContratoVenda = (function () {
         prazoChavesDias: cond ? txt(f.loteamento.prazoChavesDias) : PRAZO_CHAVES_RUA
       } : null,
       imovel: {
-        endereco: txt(v.ENDERECO), lote: lq ? lq.lote : "", quadra: lq ? lq.quadra : "",
+        endereco: txt(v.ENDERECO), setor: txt(v.SETOR), lote: lq ? lq.lote : "", quadra: lq ? lq.quadra : "",
         area: num(v.AREA), confrontacoes: txt(v.CONFRONTACOES),
         matriculaIndividual: txt(v.MATRICULA_INDIVIDUAL), cri: txt(v.CRI),
         alvaraNumero: txt(v.ALVARA_NUMERO), alvaraData: txt(v.ALVARA_DATA),
@@ -1202,6 +1202,14 @@ var ContratoVenda = (function () {
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
   /* 19/11/2026 (dono): "todos os valores de R$ têm que ter escrita por extenso" (casa de rua) */
   function moedaComExtenso(n) { return n === null || n === undefined ? "" : moedaBR(n) + " (" + valorPorExtenso(n) + ")"; }
+  function enderecoCompleto(endereco, setor, municipio) {
+    var partes = [txt(endereco)], base = txt(endereco).toUpperCase();
+    [setor, municipio].forEach(function (x) {
+      x = txt(x);
+      if (x && base.indexOf(x.toUpperCase()) < 0) partes.push(x);
+    });
+    return partes.filter(function (x) { return x; }).join(", ");
+  }
   function saldoIntermediaria(aquisicao, sinal, entrada) {
     if (aquisicao === null || aquisicao === undefined) return null;
     var r = so2(aquisicao - (sinal || 0) - (entrada || 0));
@@ -1292,7 +1300,8 @@ var ContratoVenda = (function () {
       /* 19/11/2026 (dono): na casa de rua o endereço completo (rua, QD, LT, bloco) vai para o item 3 a)
          ({{ENDERECO_IMOVEL}}) e as confrontações voltam a ser só as confrontações; condomínio não muda */
       CONFRONTACOES: d.condominio ? (txt(im.endereco) ? txt(im.endereco) + " — " : "") + txt(im.confrontacoes) : txt(im.confrontacoes),
-      ENDERECO_IMOVEL: txt(im.endereco),
+      /* 19/11/2026 (dono): endereço completo = título da venda (rua, QD, LT, bloco) + bairro (SETOR) + município/UF */
+      ENDERECO_IMOVEL: enderecoCompleto(im.endereco, im.setor, l.municipioUf),
       MATRICULA_INDIVIDUAL: im.matriculaIndividual,
       CRI: im.cri,
       VALOR_IMOVEL: d.condominio ? moedaOuVazio(n.aquisicao) : moedaComExtenso(n.aquisicao),
