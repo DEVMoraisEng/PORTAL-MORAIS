@@ -183,7 +183,8 @@ test("valor com $ e \\ entra literal (a substituição do Docs interpreta os doi
   const c = cenario({ venda: { "CONTRATO - CONFRONTAÇÕES": rt("lote $1 e \\ fim $") } });
   const r = c.gerar();
   assert.equal(r.ok, true, JSON.stringify(r));
-  assert.ok(c.pdfTexto().includes("Confrontações: RESIDENCIAL TESTE QD 07 LT 12 — lote $1 e \\ fim $"), c.pdfTexto());
+  /* 19/11/2026: na casa de rua o endereço saiu das confrontações (foi para {{ENDERECO_IMOVEL}}) */
+  assert.ok(c.pdfTexto().includes("Confrontações: lote $1 e \\ fim $"), c.pdfTexto());
 });
 
 function semExportar(c, r, nomes) {
@@ -439,7 +440,7 @@ test("pré-contrato: valores preenchidos grifados em amarelo (vários no mesmo p
   const par0 = s.grifos.filter((x) => x.onde === "corpo" && x.par === 0).map((x) => x.trecho);
   assert.deepEqual(par0, ["Residencial Teste", "Cidade Teste/GO"], "dois marcadores no mesmo parágrafo, o texto do modelo entre eles sem grifo");
   assert.ok(s.grifos.some((x) => x.trecho === "291.000,00"));
-  assert.ok(s.grifos.some((x) => x.trecho === "RESIDENCIAL TESTE QD 07 LT 12 — Norte: lote 11; Sul: lote 13"));
+  assert.ok(s.grifos.some((x) => x.trecho === "Norte: lote 11; Sul: lote 13"));
   assert.deepEqual(s.grifos.filter((x) => x.onde === "header").map((x) => x.trecho), ["Residencial Teste"]);
   assert.equal(s.cab.header, "Cabeçalho Residencial Teste");
   /* Propriedade com carimbo, link, data e quem gerou */
@@ -460,8 +461,18 @@ test("pré-contrato: valor com $ e barra entra literal e grifado", () => {
   const c = cenario({ venda: { "CONTRATO - CONFRONTAÇÕES": rt("lote $1 e \\ fim $") } });
   assert.equal(c.acao("gerarPreContrato").ok, true);
   const s = c.d.estado.salvos[c.d.estado.copias[0].id];
-  assert.ok(s.pars.includes("Confrontações: RESIDENCIAL TESTE QD 07 LT 12 — lote $1 e \\ fim $"), s.pars.join("\n"));
-  assert.ok(s.grifos.some((x) => x.trecho === "RESIDENCIAL TESTE QD 07 LT 12 — lote $1 e \\ fim $" && x.cor === AMARELO));
+  assert.ok(s.pars.includes("Confrontações: lote $1 e \\ fim $"), s.pars.join("\n"));
+  assert.ok(s.grifos.some((x) => x.trecho === "lote $1 e \\ fim $" && x.cor === AMARELO));
+});
+
+/* 19/11/2026 (dono): no pré-contrato o amarelo do texto fixo do modelo ("nº", "m²") também some; só o valor preenchido fica grifado */
+test("pré-contrato: o texto fixo em volta do marcador não sai grifado", () => {
+  const c = cenario({ venda: { "CONTRATO GERADO": ANTIGO }, drive: { realce: "em volta", cabecalhos: MODELO_COM_CAB } });
+  assert.equal(c.acao("gerarPreContrato").ok, true);
+  const s = c.d.estado.salvos[c.d.estado.copias[0].id];
+  assert.ok(s.grifos.length > 0);
+  const par0 = s.grifos.filter((x) => x.onde === "corpo" && x.par === 0).map((x) => x.trecho);
+  assert.deepEqual(par0, ["Residencial Teste", "Cidade Teste/GO"], JSON.stringify(s.grifos));
 });
 
 test("aprovar com os mesmos dados: contrato FINAL sem grifo nenhum (nem o realce velho do modelo) em CONTRATO GERADO; registra quem conferiu", () => {
