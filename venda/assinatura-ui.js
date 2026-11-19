@@ -70,7 +70,22 @@
     SIGNATARIO_NAO_ACHADO: "Essa pessoa não está mais no envelope — clique em Atualizar situação.",
     SIGNATARIO_JA_ASSINOU: "Essa pessoa já assinou — o e-mail dela não muda mais.",
     TROCA_SEM_REQUISITOS: "Este envelope não tem guardado o que a troca precisa (foi enviado antes desta versão) — para corrigir, cancele o envelope e envie de novo.",
-    TROCA_INCOMPLETA: "A troca parou no meio e não deu para desfazer: a Clicksign ficou com o e-mail antigo e o novo. Cancele o envelope e envie de novo."
+    TROCA_INCOMPLETA: "A troca parou no meio e não deu para desfazer: a Clicksign ficou com o e-mail antigo e o novo. Cancele o envelope e envie de novo.",
+    /* 18/11/2026: troca de fiadores (termos num envelope próprio) */
+    TROCA_SEM_ENVELOPE: "A troca de fiadores é para contrato já enviado para assinatura. Antes do envio, corrija os fiadores e gere o contrato de novo.",
+    TROCA_DESATUALIZADA: "Os dados mudaram depois da prévia ou dos termos gerados — clique em Atualizar prévia e gere os termos de novo.",
+    TROCA_SEM_TERMOS_GERADOS: "Gere os termos novos antes de enviar.",
+    TROCA_RASCUNHO_PENDENTE: "O envio anterior dos termos parou em rascunho na Clicksign — descarte o rascunho dos termos e tente de novo.",
+    SEM_TERMOS: "Esta venda não tem termos de confissão (só existem com parcelas depois das chaves).",
+    SO_CONDOMINIO: "A troca de fiadores é só para vendas do condomínio.",
+    COTA_GOOGLE_ESGOTADA: "A cota diária do Google acabou — nada mais foi feito. Tente de novo amanhã (o que já foi feito fica guardado).",
+    COLUNA_NAO_PERMITIDA: "No modo Trocar fiadores só os campos dos fiadores podem mudar.",
+    FIADOR_SEM_DOCUMENTO: "Anexe o documento do fiador novo antes de gerar os termos.",
+    CONFERENCIA_FALTANDO: "Faça a conferência dos documentos (IA) depois de anexar o documento do fiador.",
+    CONFERENCIA_DESATUALIZADA: "A conferência dos documentos é de antes da troca — confira de novo.",
+    CONFERENCIA_DIVERGENTE: "A conferência achou divergência no nome ou no CPF do fiador novo — corrija antes de gerar os termos.",
+    CONFERENCIA_PENDENTE: "A conferência do fiador novo tem item ilegível ou faltando — confira antes de gerar os termos.",
+    NADA_MUDOU: "Nenhum fiador mudou — corrija o fiador no bloco Fiadores e salve."
   };
 
   function esc(s) {
@@ -225,14 +240,197 @@
     return copia(c, { ocupado: null, assinados: Array.isArray(r.documentos) ? r.documentos : [] });
   }
   /* PDF assinado de um documento (ação verDocumentoAssinado): { ctx, arquivo: { nome, base64 } | null } */
-  async function baixarAssinado(c, docId, deps) {
-    var r;
-    try { r = await deps.chamar(comDoc(c, { action: "verDocumentoAssinado", pageId: deps.pageId, docId: String(docId || "") }));   /* 07/11: sem o doc do termo o servidor conferia o contrato e dava NAO_ASSINADO */ }
+  async function baixarAssinado(c, docId, deps, envelope) {
+    var r, ped = comDoc(c, { action: "verDocumentoAssinado", pageId: deps.pageId, docId: String(docId || "") });
+    if (envelope) ped.envelope = String(envelope);   /* 18/11: "Já assinado" — documento fechado num envelope ainda aberto */
+    try { r = await deps.chamar(ped);   /* 07/11: sem o doc do termo o servidor conferia o contrato e dava NAO_ASSINADO */ }
     catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
     r = r || { ok: false, erro: "SEM_RESPOSTA" };
     if (!r.ok || typeof r.base64 !== "string" || !r.base64)
       return { ctx: copia(c, { ocupado: null, msg: mensagemAssinatura(r.ok ? { erro: "DOWNLOAD_ASSINADO_FALHOU" } : r) }), arquivo: null };
     return { ctx: copia(c, { ocupado: null, msg: "" }), arquivo: { nome: nomeArquivoAssinado(r.nome), base64: r.base64 } };
+  }
+
+  /* ---- 18/11/2026 (dono): troca de fiadores e termos de confissão em envelope próprio ----
+   * "A venda só conta como ASSINADA quando contrato e termos estiverem assinados por todos"; "o que já foi assinado por
+   * todos fica travado e visível: quem assinou, quando, e botão para ver o PDF assinado". O "Já assinado" vem do servidor
+   * (estado.jaAssinado / c.jaAssinado, Propriedade ASS_HIST — sem chamar a Clicksign). */
+  var CONTRATO_ASSINADO_TERMOS = "Contrato assinado — termos de confissão em assinatura";
+  function jaAssinadoDe(c) {
+    var l = (c && c.estado && c.estado.jaAssinado) || (c && c.jaAssinado) || [];
+    return Array.isArray(l) ? l : [];
+  }
+  function htmlJaAssinado(c) {
+    var l = jaAssinadoDe(c), x = pre(c);
+    if (!l.length) return "";
+    /* coordenação 18/11: por documento, uma pessoa por linha ("✓ Nome (papel) — dd/mm/aaaa hh:mm") e o botão embaixo */
+    return '<div class="dz-linha"><b>Já assinado</b> <span class="ass-data">(travado — nada mais muda nestes documentos)</span></div>' +
+      l.map(function (d) {
+        var pessoas = (d.assinaram || []).map(function (s) {
+          var dt = dataCurta(s.data);
+          return '<li><b class="ass-ok">✓</b> ' + esc(s.nome ? s.nome + " (" + s.papel + ")" : s.papel) + (dt ? ' <span class="ass-data">— ' + esc(dt) + "</span>" : "") + "</li>";
+        }).join("");
+        return '<div class="ass-ja"><div class="dz-linha"><b>' + esc(ROTULO_DOC[d.tipo] || "Documento") + "</b></div>" +
+          (pessoas ? '<ul class="ass-lista ass-ja-pessoas">' + pessoas + "</ul>" : "") +
+          '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="' + x + 'doc-ver" data-doc="' + esc(d.docId) + '" data-env="' + esc(d.envelope) + '"' +
+          (c.ocupado ? " disabled" : "") + ">Ver PDF assinado</button></div></div>";
+      }).join("");
+  }
+  /* envelope próprio dos termos (depois de uma troca): situação, quem falta e os botões do envelope certo (doc TERMOS) */
+  function termosDe(c) { return (c && c.estado && c.estado.termos) || null; }
+  function htmlTermosEnvelope(c) {
+    var t = termosDe(c);
+    if (!t || !t.envelope) return "";
+    var sit = situacaoDe(t), ocup = !!c.ocupado || !!c.testes;
+    var h = '<div class="dz-linha"><b>Termos de confissão</b> <span class="ass-data">(envelope próprio)</span> — ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</div>";
+    var sigs = (sit === "CANCELADO" || sit === "EXPIRADO") ? [] : (t.signatarios || []);
+    if (sigs.length) h += '<ul class="ass-lista">' + sigs.map(function (s) {
+      var st = sitSignatario(s), rot = ROTULO_SIG[st] || ROTULO_SIG.pendente, d = dataCurta(s.data);
+      return "<li><span>" + (s.nome ? "<b>" + esc(s.nome) + "</b> (" + esc(s.papel) + ")" : esc(s.papel)) + "</span>" +
+        (s.email ? ' <span class="ass-data">- ' + esc(s.email) + "</span>" : "") + " " + '<b class="' + rot[0] + '">' + rot[1] + "</b>" +
+        (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") +
+        (st === "pendente" && s.id && sit === "ENVIADO" && !c.testes
+          ? ' <button type="button" class="bt ghost bt-mini" data-acao="a-t-trocar-email" data-sig="' + esc(s.id) + '"' + (c.ocupado ? " disabled" : "") + ">Trocar e-mail</button>" : "") + "</li>";
+    }).join("") + "</ul>";
+    var pend = sigs.filter(function (s) { return sitSignatario(s) === "pendente"; }).length;
+    if (sit === "ENVIADO") {
+      h += '<div class="dz-linha">';
+      if (pend) h += '<button type="button" class="bt ghost bt-mini" data-acao="a-t-reenviar"' + (ocup ? " disabled" : "") + ">Reenviar link dos termos</button> ";
+      h += '<button type="button" class="bt ghost bt-mini" data-acao="a-t-cancelar"' + (ocup ? " disabled" : "") + ">Cancelar envelope dos termos</button></div>";
+    }
+    if (sit === "RASCUNHO" && !c.testes)
+      h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="a-t-descartar"' + (ocup ? " disabled" : "") + ">Descartar rascunho dos termos</button></div>";
+    return h;
+  }
+  /* Trocar fiadores: quem já pode enviar o contrato (o TESTES não), com o contrato enviado e não assinado por todos */
+  function podeTrocarFiadores(c) {
+    return !!(c && c.podeTrocarFiadores && c.estado && c.estado.envelope && situacaoDe(c.estado) === "ENVIADO" && !c.ocupado && !c.testes);
+  }
+  function htmlTroca(c) {
+    var t = c.troca, pv = t.previa || {}, ocup = !!c.ocupado;
+    var h = '<div class="dz-fia-bloco ass-troca"><div class="dz-linha dz-grupo"><b>Trocar fiadores</b></div>';
+    if (c.ocupado === "troca") h += '<div class="dz-linha"><b>' + esc(t.passo || "consultando…") + "</b></div>";
+    h += '<div class="dz-linha dz-nota">1) Corrija o fiador abaixo e salve. 2) Anexe o documento dele (DOC. FIADOR) e rode a Conferência dos documentos. ' +
+      "3) Gere os termos novos e confira. 4) Envie: os termos antigos em andamento são cancelados e os novos vão num envelope próprio (o contrato não muda).</div>";
+    h += '<div class="ass-troca-fia"></div>';
+    if (pv.problemas && pv.problemas.length) h += '<div class="dz-aviso">Antes de gerar os termos novos:</div><ul>' + pv.problemas.map(function (p) { return "<li>" + esc(p) + "</li>"; }).join("") + "</ul>";
+    /* 18/11 (dono): "o contrato já gerado manda" — as travas de data contra hoje/assinatura não valem ao refazer os termos */
+    var ign = Number(pv.datasIgnoradas || pv.sinalIgnorado) || 0;
+    if (ign) h += '<div class="dz-linha dz-nota">Travas de data ignoradas (o contrato já gerado manda): ' + ign + (ign === 1 ? " aviso" : " avisos") + ".</div>";
+    if (pv.cancelar) h += '<div class="dz-linha"><span class="dz-rot">Será cancelado (envelope ' + (pv.envelopeAntigo === "termos" ? "dos termos" : "do contrato") + "): " +
+      (pv.cancelar.length ? esc(pv.cancelar.map(function (x) { return x.nome; }).join("; ")) : "nenhum termo em andamento") + "</span></div>";
+    if (pv.assinam && pv.assinam.length) h += '<div class="dz-linha"><span class="dz-rot">Recebem os termos novos: ' +
+      esc(pv.assinam.map(function (s) { return s.nome ? s.nome + " (" + s.papel + ")" : s.papel; }).join("; ")) + "</span></div>";
+    h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="a-troca-previa"' + (ocup ? " disabled" : "") + ">Atualizar prévia</button> " +
+      '<button type="button" class="bt bt-mini" data-acao="a-troca-gerar"' + (ocup || !pv.liberado ? " disabled" : "") + ">Gerar termos novos</button> " +
+      '<button type="button" class="bt ghost bt-mini" data-acao="a-troca-sair"' + (ocup ? " disabled" : "") + ">Sair da troca</button></div>";
+    if (t.termos && t.termos.length) {
+      var lim = limitesPrazo(c.agora || new Date()), valor = c.prazo && c.prazo >= lim.min && c.prazo <= lim.max ? c.prazo : lim.padrao;
+      h += '<div class="dz-linha"><span class="dz-rot">Termos novos gerados:</span> ' + t.termos.map(function (x, i) {
+        return '<button type="button" class="bt ghost bt-mini" data-acao="a-troca-ver" data-n="' + i + '"' + (ocup ? " disabled" : "") + ">Ver " + esc(x.nome) + "</button>";
+      }).join(" ") + "</div>";
+      h += '<div class="dz-linha"><label class="ass-data">Assinar até <input type="date" data-prazo="a-" value="' + esc(valor) + '" min="' + lim.min + '" max="' + lim.max + '"' +
+        (ocup ? " disabled" : "") + "></label> " +
+        '<button type="button" class="bt bt-mini" data-acao="a-troca-enviar"' + (ocup ? " disabled" : "") + ">Enviar termos novos para assinatura</button></div>";
+    }
+    return h + "</div>";
+  }
+  /* PDFs dos termos novos (base64, da ação trocarFiadoresGerar) → linhas de assinatura (RubricasVenda, como no envio normal) */
+  async function lerLinhasTermos(r, deps) {
+    if (r.linhas !== true || r.semRubricas) return { ok: true, rubricas: null };
+    var R = deps.rubricas || (typeof window !== "undefined" ? window.RubricasVenda : null);
+    if (!R || typeof R.acharLinhas !== "function") return { ok: false, erro: "RUBRICAS_SEM_LEITOR" };
+    var termos = [];
+    try {
+      for (var i = 0; i < (r.termos || []).length; i++)
+        termos.push({ nome: r.termos[i].nome, linhas: R.acharLinhas(await R.paginasDoPdf(r.termos[i].base64), r.ajuste) });
+    } catch (err) { return { ok: false, erro: "RUBRICAS_SEM_LEITOR" }; }
+    return { ok: true, rubricas: { termos: termos } };
+  }
+  function mensagemTroca(r) {
+    r = r || {};
+    if (r.problemas && r.problemas.length) return r.problemas.join(" ");
+    if (r.mensagem) return r.mensagem;
+    return mensagemAssinatura(r);
+  }
+  async function chamarSeguro(deps, payload) {
+    var r;
+    try { r = await deps.chamar(payload); } catch (err) { r = { ok: false, erro: "SEM_RESPOSTA" }; }
+    return r || { ok: false, erro: "SEM_RESPOSTA" };
+  }
+  async function acaoTroca(acao, c, deps) {
+    function ocupar(passo) { if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "troca", msg: "", troca: copia(c.troca || {}, { passo: passo }) })); }
+    if (acao === "a-troca-sair") return copia(c, { troca: null, msg: "" });
+    if (acao === "a-troca-abrir" || acao === "a-troca-previa") {
+      if (acao === "a-troca-abrir" && !podeTrocarFiadores(c)) return c;
+      if (c.testes) return c;
+      c = copia(c, { troca: c.troca || {} });
+      ocupar("conferindo a troca…");
+      var r = await chamarSeguro(deps, { action: "trocarFiadoresPrevia", pageId: deps.pageId });
+      if (!r.ok) return copia(c, { ocupado: null, troca: acao === "a-troca-abrir" ? null : c.troca, msg: mensagemTroca(r) });
+      return copia(c, { ocupado: null, msg: "", troca: { previa: r, termos: null, rubricas: null } });
+    }
+    if (!c.troca) return c;
+    if (acao === "a-troca-ver") {
+      var t = (c.troca.termos || [])[Number(deps.n) || 0];
+      if (t && typeof deps.abrirPdf === "function") deps.abrirPdf(t.nome, t.base64);
+      return c;
+    }
+    if (acao === "a-troca-gerar") {
+      if (!c.troca.previa || !c.troca.previa.liberado) return c;
+      if (!deps.confirmar("Gerar os termos de confissão novos com os fiadores de agora? O contrato não muda; nada vai para a Clicksign ainda.")) return c;
+      ocupar("gerando os termos novos… (até 1 minuto)");
+      var g = await chamarSeguro(deps, { action: "trocarFiadoresGerar", pageId: deps.pageId, carimbo: c.troca.previa.carimbo });
+      if (!g.ok) return copia(c, { ocupado: null, msg: mensagemTroca(g) });
+      var lt = await lerLinhasTermos(g, deps);
+      if (!lt.ok) return copia(c, { ocupado: null, msg: mensagemAssinatura(lt) });
+      return copia(c, { ocupado: null, troca: copia(c.troca, { termos: g.termos || [], rubricas: lt.rubricas, passo: "" }),
+                        msg: "Termos novos gerados — abra e confira antes de enviar." });
+    }
+    if (acao === "a-troca-enviar") {
+      if (!c.troca.termos || !c.troca.termos.length) return c;
+      var lim = limitesPrazo(c.agora || new Date());
+      var prazo = (typeof deps.lerPrazo === "function" && deps.lerPrazo()) || c.prazo || lim.padrao;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(prazo) || prazo < lim.min || prazo > lim.max)
+        return copia(c, { prazo: prazo, msg: "Escolha a data limite para assinar entre " + dataBr(lim.min) + " e " + dataBr(lim.max) + "." });
+      var pv = c.troca.previa || {};
+      var texto = "Enviar os termos novos para assinatura até " + dataBr(prazo) + "? Será cancelado: " +
+        ((pv.cancelar || []).map(function (x) { return x.nome; }).join("; ") || "nenhum termo em andamento") +
+        ". Recebem os termos novos: " + (pv.assinam || []).map(function (s) { return s.nome ? s.nome + " (" + s.papel + ")" : s.papel; }).join("; ") +
+        ". O contrato não muda e quem já assinou o contrato não assina de novo.";
+      if (!deps.confirmar(texto)) return c;
+      c = copia(c, { prazo: prazo });
+      ocupar("cancelando os termos antigos e enviando os novos… (até 2 minutos)");
+      var pedido = { action: "trocarFiadoresEnviar", pageId: deps.pageId, prazo: prazo };
+      if (c.troca.rubricas) pedido.rubricas = c.troca.rubricas;
+      var e = await chamarSeguro(deps, pedido);
+      if (!e.ok) return copia(c, { ocupado: null, msg: mensagemTroca(e.erro === "SEM_RESPOSTA" ? { erro: "SEM_RESPOSTA_ENVIO" } : e) });
+      var est = copia(c.estado || {}, { termos: e.termos || { envelope: true, situacao: "ENVIADO", signatarios: [] } });
+      return copia(c, { ocupado: null, troca: null, estado: est, recarregar: true,
+                        msg: "Termos novos enviados — cada pessoa recebe o e-mail da Clicksign." + (e.aviso === "NOTIFICACAO_FALHOU" ? " O aviso por e-mail falhou: use Reenviar link dos termos." : "") +
+                             (Array.isArray(e.avisos) && e.avisos.length ? " Atenção: " + e.avisos.join("; ") + "." : "") });
+    }
+    return c;
+  }
+  /* botões do envelope de termos: as mesmas ações do contrato, com doc TERMOS e o estado do envelope dos termos */
+  async function acaoTermos(acao, c, deps) {
+    var t = termosDe(c);
+    if (!t) return c;
+    var ct = copia(c, { doc: "TERMOS", estado: t });
+    var base = acao.replace(/^a-t-/, "a-"), n;
+    /* o bloco ocupado mostra o contrato (não o estado dos termos) enquanto a ação roda */
+    var d2 = copia(deps, { pintar: function (x) { if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: x.ocupado, msg: x.msg })); } });
+    if (base === "a-reenviar") n = await reenviarLink(ct, d2);
+    else if (base === "a-trocar-email") n = await trocarEmail(ct, d2);
+    else if (base === "a-cancelar" || base === "a-descartar") {
+      if (!deps.confirmar(base === "a-cancelar" ? "Cancelar o envelope dos termos de confissão na Clicksign? O contrato não muda; ninguém mais assina estes termos."
+                                                 : "Descartar o rascunho dos termos na Clicksign? Nada foi enviado aos signatários.")) return c;
+      if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "cancelar", msg: "" }));
+      var r = await chamarSeguro(deps, { action: "assinaturaCancelar", pageId: deps.pageId, doc: "TERMOS", descartar: base === "a-descartar" ? true : undefined });
+      if (!r.ok) return copia(c, { ocupado: null, msg: mensagemAssinatura(r) });
+      return copia(c, { ocupado: null, recarregar: true, msg: base === "a-cancelar" ? "Envelope dos termos cancelado na Clicksign." : "Rascunho dos termos descartado." });
+    } else return c;
+    return copia(c, { estado: copia(c.estado, { termos: n.estado }), ocupado: null, msg: n.msg });
   }
 
   function ehTermo(c) { return !!(c && c.doc === "PRE_RESERVA"); }
@@ -244,6 +442,7 @@
     if (!c.estado) return h + '<div class="vazio">' + esc(c.msg || "carregando…") + "</div>";
     if (assinado(c)) return montarDocumentosAssinados(c);   /* 01/11 (plano 23 A): só visualizar */
     var e = c.estado, sit = situacaoDe(e);
+    if (c.troca && !termo) return h + htmlTroca(c) + (c.msg ? '<div class="dz-msg">' + esc(c.msg) + "</div>" : "");   /* 18/11: modo Trocar fiadores */
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
@@ -253,7 +452,8 @@
     if (!c.contratoGerado) h += '<div class="dz-aviso">Gere o ' + (termo ? "termo" : "contrato") + ' antes de enviar para assinatura.</div>';
     else if (c.desatualizado && !termo && !envelopeAberto(c)) h += '<div class="dz-aviso">' + esc(MSG_DESATUALIZADO) + "</div>";
     if (e.envelope) {
-      h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(SITUACAO[sit] || sit || "sem situação gravada") + "</span></div>";
+      h += '<div class="dz-linha"><span class="dz-rot">Situação: ' + esc(e.contratoAssinado && sit === "ENVIADO" ? CONTRATO_ASSINADO_TERMOS : (SITUACAO[sit] || sit || "sem situação gravada")) + "</span></div>";
+      if (!termo) h += htmlJaAssinado(c);   /* 18/11 (dono): o que já foi assinado por todos, travado e visível */
       /* 30/10 (dono): envelope cancelado ou vencido não mostra mais quem está "pendente" — ninguém vai assinar */
       var sigs = (sit === "CANCELADO" || sit === "EXPIRADO") ? [] : (e.signatarios || []);
       if (sigs.length) {
@@ -264,10 +464,11 @@
             (s.email ? ' <span class="ass-data">- ' + esc(s.email) + "</span>" : "") + " " +
             '<b class="' + rot[0] + '">' + rot[1] + "</b>" + (d && st !== "pendente" ? ' <span class="ass-data">em ' + esc(d) + "</span>" : "") +
             /* 03/11 (dono): e-mail errado se corrige aqui, sem cancelar o envelope */
-            (st === "pendente" && s.id && sit === "ENVIADO" && !c.testes
+            (st === "pendente" && s.id && sit === "ENVIADO" && !c.testes && !e.contratoAssinado
               ? ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'trocar-email" data-sig="' + esc(s.id) + '"' + (c.ocupado ? " disabled" : "") + ">Trocar e-mail</button>" : "") + "</li>";
         }).join("") + "</ul>";
       }
+      if (!termo) h += htmlTermosEnvelope(c);   /* 18/11: envelope próprio dos termos (depois de uma troca) */
     }
     if (c.faltas && c.faltas.length) {
       h += '<div class="dz-aviso">Para enviar, falta:</div><ul>' +
@@ -294,8 +495,10 @@
     if (e.envelope) h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'atualizar"' + (podeAtualizar(c) ? "" : " disabled") + ">Atualizar situação</button>";
     if (e.envelope && situacaoDe(e) === "ENVIADO" && pendentes(e))
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'reenviar"' + (podeReenviar(c) ? "" : " disabled") + ">Reenviar link de assinatura</button>";
-    if (e.envelope && situacaoDe(e) === "ENVIADO")
+    if (e.envelope && situacaoDe(e) === "ENVIADO" && !e.contratoAssinado)
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'cancelar"' + (podeCancelar(c) ? "" : " disabled") + ">Cancelar envelope</button>";
+    if (!termo && c.podeTrocarFiadores && e.envelope && sit === "ENVIADO" && !c.testes)
+      h += ' <button type="button" class="bt ghost bt-mini" data-acao="a-troca-abrir"' + (podeTrocarFiadores(c) ? "" : " disabled") + ">Trocar fiadores</button>";
     if (e.envelope && situacaoDe(e) === "RASCUNHO" && !c.testes)
       h += ' <button type="button" class="bt ghost bt-mini" data-acao="' + x + 'descartar"' + (podeDescartar(c) ? "" : " disabled") + ">Descartar rascunho</button>";
     /* só leitura: o perfil TESTES também vê */
@@ -305,7 +508,7 @@
     return h;
   }
 
-  function comDoc(c, payload) { if (ehTermo(c)) payload.doc = "PRE_RESERVA"; return payload; }
+  function comDoc(c, payload) { if (ehTermo(c)) payload.doc = "PRE_RESERVA"; else if (c && c.doc === "TERMOS") payload.doc = "TERMOS"; return payload; }
   function copia(c, mud) {
     var n = {};
     for (var k in c) n[k] = c[k];
@@ -363,6 +566,8 @@
    * Devolve o contexto novo (não muda o recebido). */
   async function executarAcaoAssinatura(acao, c, deps) {
     acao = String(acao || "").replace(/^p-/, "a-");   /* termo: mesmos cliques com prefixo p- */
+    if (/^a-troca-/.test(acao)) return acaoTroca(acao, c, deps);   /* 18/11: Trocar fiadores */
+    if (/^a-t-/.test(acao)) return acaoTermos(acao, c, deps);       /* 18/11: envelope próprio dos termos */
     if (acao === "a-reenviar") return reenviarLink(c, deps);
     if (acao === "a-previa") return previaAssinaturas(c, deps);
     if (acao === "a-cancelar") return cancelarEnvelope(c, deps);
@@ -410,6 +615,10 @@
     }
     var estado = { situacao: r.situacao || "", envelope: enviar ? true : !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado };
     if (r.aguardandoArquivo) estado.aguardandoArquivo = true;
+    /* 18/11: contrato assinado com os termos pendentes, envelope dos termos e o "Já assinado" */
+    if (r.contratoAssinado) estado.contratoAssinado = true;
+    if (r.termos) estado.termos = r.termos;
+    if (Array.isArray(r.jaAssinado)) estado.jaAssinado = r.jaAssinado;
     var msg = r.aguardandoArquivo ? AGUARDANDO_ARQUIVO
       : (mensagemAssinatura(r) || (enviar ? "Enviado — cada signatário recebe o e-mail da Clicksign." : "Situação atualizada."));
     /* unidade 22 (01/11): avisos do envio (rubrica que a Clicksign guardou diferente, pessoa sem posição, aviso do leitor) */
@@ -540,7 +749,10 @@
                    executarAcaoAssinatura: executarAcaoAssinatura, limitesPrazo: limitesPrazo, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar, podeTrocarEmail: podeTrocarEmail,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
                    carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado,
-                   envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO, preReservaDispensada: preReservaDispensada };
+                   envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO, preReservaDispensada: preReservaDispensada,
+                   /* 18/11/2026: troca de fiadores */
+                   podeTrocarFiadores: podeTrocarFiadores, htmlJaAssinado: htmlJaAssinado, htmlTermosEnvelope: htmlTermosEnvelope, htmlTroca: htmlTroca,
+                   lerLinhasTermos: lerLinhasTermos, CONTRATO_ASSINADO_TERMOS: CONTRATO_ASSINADO_TERMOS };
   if (typeof module !== "undefined" && module.exports) { module.exports = exportar; return; }
   window.VendaAssinatura = exportar; /* o coordenador liga no painel (venda-dossie.js / vendas.html) */
 })();

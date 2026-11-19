@@ -6,7 +6,7 @@
 
 /* Gera e anexa os termos desta venda: { nomes } ou { resp } (resposta de erro pronta). */
 function cfdGerarTermos_(prep, p, pid, rot) {
-  var tipos = ConfissaoVenda.quais(prep.d), nomes = [];
+  var tipos = ConfissaoVenda.quais(prep.d), nomes = [], pdfs = [];
   var pg = ctrLerPaginaVenda_(p.pageId);
   if (!tipos.length) { cfdLimparForaDe_(pg, p.pageId, tipos, pid, rot); return { nomes: nomes }; }
   for (var i = 0; i < tipos.length; i++) {
@@ -25,14 +25,16 @@ function cfdGerarTermos_(prep, p, pid, rot) {
                          pid, rot + " termo " + tipo, false);
     if (g.resp) return g;
     var nome = ConfissaoVenda.PREFIXO[tipo] + prep.resto;
+    var b64 = Utilities.base64Encode(g.pdf.getBytes());
     try {
-      anexarArquivo_(p.pageId, col, { nome: nome, mime: "application/pdf", base64: Utilities.base64Encode(g.pdf.getBytes()) }, true);
+      anexarArquivo_(p.pageId, col, { nome: nome, mime: "application/pdf", base64: b64 }, true);
     } catch (e) { ctrErro_(rot + " " + pid + " anexo do termo " + tipo, e); return { resp: { ok: false, erro: "CONTRATO_FALHOU" } }; }
     nomes.push(nome);
+    pdfs.push({ nome: cfdNomeNaClicksign_(nome), base64: b64 });   /* 18/11 (troca de fiadores): a tela lê as linhas destes PDFs */
   }
   cfdLimparForaDe_(pg, p.pageId, tipos, pid, rot);   /* 01/11: só depois de gerar os novos — se falharem, nada muda */
   ctrLog_(rot + " " + pid + " termos de confissao " + nomes.length);
-  return { nomes: nomes };
+  return { nomes: nomes, pdfs: pdfs };
 }
 
 /* 01/11: envelope com os signatários (ou prestes a ir): situação não final, ou envio pendente. Nesse caso os termos

@@ -1777,6 +1777,13 @@
     ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
     /* 01/11 (plano 23 A): Documentos assinados — nome e botões quebram de linha no celular */
     ".vb-ass .ass-docs,.vb-pr-ass .ass-docs{list-style:none;padding-left:0}" +
+    /* 18/11/2026 (troca de fiadores): "Já assinado" — um documento por caixa, uma pessoa por linha */
+    ".vb-ass .ass-ja{margin:6px 0 10px}.vb-ass .ass-ja-pessoas{list-style:none;padding-left:0;margin:2px 0}" +
+    ".vb-ass .ass-ja-pessoas li{margin:3px 0;overflow-wrap:anywhere}" +
+    /* 18/11/2026 (conferência de celular, CLAUDE.md): na seção da Clicksign e no bloco Fiadores/painel Trocar fiadores,
+       alvo de toque de 44 px e campo com 16 px (o iPhone não dá zoom) — só até 600 px e só nestas seções */
+    "@media (max-width:600px){.vb-ass button,.dz-fia-bloco button{min-height:44px!important}" +
+    ".vb-ass input,.vb-ass select,.vb-ass textarea,.dz-fia-bloco input,.dz-fia-bloco select{font-size:16px!important}}" +
     ".vb-ass .ass-docs li,.vb-pr-ass .ass-docs li{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0}" +
     ".vb-ass .ass-docs li>span,.vb-pr-ass .ass-docs li>span{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}" +
     /* entrega 14: Recebimentos */
@@ -2812,11 +2819,23 @@
 
     /* Assinatura (Clicksign): o desenho e as ações moram em venda/assinatura-ui.js
      * (window.VendaAssinatura, carregado por iniciar()); aqui só o estado e a ligação. */
+    /* 18/11/2026 (troca de fiadores): o botão aparece no cartão do condomínio com as colunas dos termos na base; o "Já
+       assinado" vem do contratoEstado (Propriedade, sem Clicksign) até o assinaturaEstado responder */
+    function ligarTroca() {
+      var tr = estadoC && estadoC.troca;
+      ctxA.podeTrocarFiadores = !!(comPR && tr && tr.colunasTermos);
+      ctxA.jaAssinado = (tr && tr.jaAssinado) || null;
+    }
     function htmlAss() {
       if (!window.VendaAssinatura) return '<div class="grp">Enviar contrato via Clicksign</div><div class="vazio">carregando…</div>';
       ctxA.contratoGerado = contratoFinal(estadoC);
       ctxA.desatualizado = !!(contratoFinal(estadoC) && estadoC.envioDesatualizado);   /* 03/11: trava o Enviar */
-      return window.VendaAssinatura.montarBlocoAssinatura(ctxA);
+      ligarTroca();
+      var h = window.VendaAssinatura.montarBlocoAssinatura(ctxA);
+      /* modo Trocar fiadores: o bloco Fiadores (editável) entra dentro do painel da troca */
+      var fb = ctxA.troca && ctxA.troca.previa ? fiadoresDoEstado(ctxA.troca.previa.fiadores) : null;
+      if (fb) h = h.replace('<div class="ass-troca-fia"></div>', htmlFiadores(fb, uiC, (ctxA.ocupado || uiC.ocupadoContrato || uiC.testes) ? " disabled" : ""));
+      return h;
     }
     /* 01/11/2026 (plano 23 A, dono): "depois do contrato assinado por todos, tem que tirar essas opções e deixar só para
      * visualizar os documentos todos assinados (inclusive o projeto)". Contrato ASSINADO: a aba Contrato fica só com o
@@ -3221,6 +3240,7 @@
     function pintarA() {
       if (assinadoA() !== vistoA) return pintar();   /* 01/11 (plano 23 A): assinou agora — a aba inteira muda */
       if (enviadoA() !== vistoEnvA) return pintar();   /* 03/11: enviou ou cancelou agora — a aba Contrato trava/destrava */
+      if (ctxA.troca) rascunhoFia(uiC.rascunho, caixasFia());   /* 18/11: o que foi digitado no bloco da troca sobrevive ao redesenho */
       var w = dentro(".vb-ass"); if (w) w.innerHTML = htmlAss();
       garantirAssinados();
     }
@@ -3505,7 +3525,7 @@
       var ver = /-ver$/.test(acao), w = ver ? window.open("about:blank", "_blank") : null;
       c.ocupado = "baixar"; c.msg = "";
       if (termo) pintarP(); else pintarA();
-      var res = await VA.baixarAssinado(c, b.getAttribute("data-doc"), { pageId: pageId, chamar: function (p) { return chamarVenda(p, 90000); } });
+      var res = await VA.baixarAssinado(c, b.getAttribute("data-doc"), { pageId: pageId, chamar: function (p) { return chamarVenda(p, 90000); } }, b.getAttribute("data-env") || "");
       if (!vivo()) { if (w) { try { w.close(); } catch (e) {} } return; }
       var n = res.ctx;
       if (res.arquivo) {
@@ -3533,7 +3553,14 @@
     async function carregarAss() {
       var r = await chamarVenda({ action: "assinaturaEstado", pageId: pageId }, 90000);
       if (!vivo()) return;
-      if (r.ok) { ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado, aguardandoArquivo: !!r.aguardandoArquivo }; ctxA.msg = ""; }
+      if (r.ok) {
+        ctxA.estado = { situacao: r.situacao || "", envelope: !!r.envelope, signatarios: r.signatarios || [], temAssinado: !!r.temAssinado, aguardandoArquivo: !!r.aguardandoArquivo };
+        /* 18/11: contrato assinado com os termos pendentes, envelope próprio dos termos e o "Já assinado" */
+        if (r.contratoAssinado) ctxA.estado.contratoAssinado = true;
+        if (r.termos) ctxA.estado.termos = r.termos;
+        if (Array.isArray(r.jaAssinado)) ctxA.estado.jaAssinado = r.jaAssinado;
+        ctxA.msg = "";
+      }
       else ctxA.msg = window.VendaAssinatura ? window.VendaAssinatura.mensagemAssinatura(r) : "";
       pintarA();
       if (r.ok) avisarContratoEnviado(pageId, ctxA.estado);
@@ -3544,9 +3571,15 @@
       ctxA.desatualizado = !!(contratoFinal(estadoC) && estadoC.envioDesatualizado);   /* 03/11: trava o Enviar */
       /* 01/11 (dono): prévia das assinaturas — a janela abre no clique (senão o navegador bloqueia) */
       var janelaPrevia = acao === "a-previa" ? window.open("about:blank", "_blank") : null;
+      ligarTroca();
       var novo = await window.VendaAssinatura.executarAcaoAssinatura(acao, ctxA, {
         pageId: pageId,
         alvo: b ? b.getAttribute("data-sig") : "",   /* 03/11: Trocar e-mail */
+        n: b ? b.getAttribute("data-n") : "",          /* 18/11: Ver termo novo da troca */
+        abrirPdf: function (nome, b64) {               /* 18/11: termos novos gerados na troca (base64 da resposta) */
+          var w = window.open("about:blank", "_blank");
+          abrirPdf(w, { ok: true, base64: b64 }, ctxA, function () { return ""; });
+        },
         perguntar: function (t, v) { return window.prompt(t, v); },
         mostrarPrevia: function (prev) { return window.RubricasVenda ? window.RubricasVenda.mostrarPrevia(prev, janelaPrevia) : null; },
         confirmar: function (t) { return window.confirm(t); },
@@ -3558,6 +3591,8 @@
       if (!vivo()) return;
       ctxA = novo; pintarA();
       avisarContratoEnviado(pageId, ctxA.estado);
+      /* 18/11: depois de enviar/cancelar os termos, relê a situação dos dois envelopes e o contrato */
+      if (ctxA.recarregar) { ctxA.recarregar = false; await carregarAss(); if (vivo()) await carregarContrato(); }
     }
 
     /* Mais Controle */
@@ -3826,7 +3861,9 @@
     /* 01/11/2026: bloco Fiadores — Salvar (só o que mudou) e "O cônjuge do Fiador 1 é o Fiador 2"; depois relê o
        contratoEstado (as faltas corrigidas somem e o bloco fecha quando não falta mais nada) */
     async function aoClicarFia(acao) {
-      var b = estadoC && estadoC.fiadores;
+      /* 18/11/2026: no modo Trocar fiadores o bloco é o da prévia e grava com modoTroca (envelope aberto) */
+      var troca = !!(ctxA && ctxA.troca && ctxA.troca.previa && ctxA.troca.previa.fiadores);
+      var b = troca ? fiadoresDoEstado(ctxA.troca.previa.fiadores) : (estadoC && estadoC.fiadores);
       if (!b) return;
       guardarRascunho();
       var pedido;
@@ -3838,6 +3875,7 @@
         if (!window.confirm(perguntaConjugeFiador2(b))) return;
         pedido = { action: "conjugeEhFiador2", pageId: pageId };
       }
+      if (troca) pedido.modoTroca = true;
       uiC.ocupadoContrato = "fia"; uiC.msg = ""; pintar();
       var r = await chamarVenda(pedido);
       if (!vivo()) return;
@@ -3848,6 +3886,14 @@
         if (raiz && raiz.querySelectorAll) raiz.querySelectorAll("[data-fia-col]").forEach(function (x) { if (x.parentNode) x.parentNode.removeChild(x); });
         limparRascunhoFia();
         uiC.faltas = null; uiC.campos = null;
+        if (troca) {   /* 18/11: na troca, a prévia é refeita (o que falta para gerar os termos novos) */
+          var tv = await window.VendaAssinatura.executarAcaoAssinatura("a-troca-previa", ctxA, { pageId: pageId, chamar: function (p) { return chamarVenda(p, 90000); },
+                                                                                               pintar: function (c) { ctxA = c; pintarA(); } });
+          if (!vivo()) return;
+          ctxA = tv; ctxA.msg = (r.gravou && r.gravou.length) ? "Fiador salvo na venda. Agora anexe o documento dele e rode a Conferência dos documentos." : "Nada mudou.";
+          pintarA();
+          return;
+        }
         var feito = (r.gravou && r.gravou.length) ? "Salvo na venda. Gere o pré-contrato de novo." : "Nada mudou.";
         await carregarContrato();   /* relê as faltas: o que foi corrigido some do bloco */
         if (!vivo()) return;
@@ -4460,7 +4506,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=9"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=31";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=32";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;

@@ -12,8 +12,9 @@ var LogContratoVenda = (function () {
     return s.length > n ? s.slice(0, n - 1) + "…" : s;
   }
   function preReserva(p) { return txt(p && p.doc).toUpperCase() === "PRE_RESERVA"; }
+  function termos(p) { return txt(p && p.doc).toUpperCase() === "TERMOS"; }   /* 18/11: envelope próprio dos termos de confissão */
   function doc(p) { return preReserva(p) ? "o termo de reserva" : "o contrato"; }
-  function docDe(p) { return preReserva(p) ? "do termo de reserva" : "do contrato"; }
+  function docDe(p) { return preReserva(p) ? "do termo de reserva" : termos(p) ? "dos termos de confissão" : "do contrato"; }
 
   /* ação -> function (p, r) { return "o que fez" }. Só ações que GRAVAM alguma coisa na venda;
      leituras (estado, ver PDF, consultar situação) não entram. */
@@ -45,6 +46,14 @@ var LogContratoVenda = (function () {
       return "cancelou o envelope " + docDe(p) + " na Clicksign";
     },
     escolherTestemunhas: function () { return "escolheu as testemunhas"; },
+    /* 18/11/2026 (dono): cada troca de fiadores vira uma linha — só contagem e id do envelope (sem nome) */
+    trocarFiadoresGerar: function () { return "gerou os termos de confissão novos para a troca de fiadores"; },
+    trocarFiadoresEnviar: function (p, r) {
+      if (r && r.jaFeito) return "";
+      var n = Number(r && r.cancelados) || 0;
+      return "trocou os fiadores: " + (n ? n + (n === 1 ? " termo antigo cancelado" : " termos antigos cancelados") : "nenhum termo antigo em andamento") +
+        ", termos novos no envelope " + curto(r && r.envelopeId, 60);
+    },
     salvarCamposContrato: function (p) {
       var c = (p && p.campos) || {}, nomes = [];
       for (var g in c) {

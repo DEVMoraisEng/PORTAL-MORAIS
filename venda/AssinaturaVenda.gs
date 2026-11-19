@@ -33,6 +33,10 @@ var ASS_REENVIO = "ASSINATURA_REENVIO_";   /* + id do envelope = hora (ms) do ú
 /* 27/10/2026: o mesmo fluxo assina o CONTRATO (padrão) e o TERMO DE PRÉ-RESERVA (p.doc = "PRE_RESERVA").
  * Cada documento tem as suas 3 colunas na linha e a sua chave de pendente (ASSINATURA_PENDENTE_PR_<página>). */
 function assDoc_(p) {
+  /* 18/11/2026 (troca de fiadores): envelope só dos termos de confissão (TrocaFiadores.gs) — 2 colunas de texto, sem arquivo;
+     Reenviar link, Trocar e-mail e Cancelar aceitam doc = "TERMOS"; a situação é a do contrato (combinada) */
+  if (p && p.doc === "TERMOS")
+    return { pre: false, termos: true, chave: TROCA_CHAVE, cols: { ENVELOPE: TermosVenda.COL.ENVELOPE, SITUACAO: TermosVenda.COL.SITUACAO } };
   if (p && p.doc === "PRE_RESERVA") {
     var C = PreReservaVenda.COL;
     return { pre: true, chave: "PR_", cols: { ENVELOPE: C.ENVELOPE, SITUACAO: C.SITUACAO, ASSINADO: C.ASSINADO },
@@ -168,7 +172,8 @@ function cs_(metodo, caminho, corpo) {
     try {
       r = UrlFetchApp.fetch(csBase_() + caminho, opt);
     } catch (e) {
-      return { ok: false, http: 0, detalhe: "sem resposta da Clicksign" };
+      /* 18/11/2026: cota diária de UrlFetch esgotada vira um detalhe próprio (a troca de fiadores responde COTA_GOOGLE_ESGOTADA) */
+      return { ok: false, http: 0, detalhe: /too many times|quota/i.test(String((e && e.message) || "")) ? "COTA_GOOGLE_ESGOTADA" : "sem resposta da Clicksign" };
     }
     tentativa++;
     var code = r.getResponseCode();
@@ -232,6 +237,7 @@ function assGravarComRetentativa_(pageId, porReal, pid) {
 function assinaturaEnviar_(col, sess, p) {
   var pid = String(p.pageId).slice(0, 8);
   csGastoTotal_ = 0;
+  if (p && p.doc === "TERMOS") return { ok: false, erro: "ACAO_DESCONHECIDA" };   /* 18/11: os termos vão pelo trocarFiadoresEnviar */
   if (!prop_("CLICKSIGN_TOKEN")) return { ok: false, erro: "CLICKSIGN_SEM_TOKEN" };
   if (!csBase_()) return { ok: false, erro: "CLICKSIGN_URL_INVALIDA" };
   /* um envio por vez: ler → conferir → criar → gravar não pode correr em paralelo (dois cliques, duas abas) */
@@ -266,9 +272,14 @@ function assEnviarTravado_(col, p, pid) {
     assLog_("enviar " + pid + " recusado: fluxo/condicoes depois do contrato");
     return { ok: false, erro: "CONTRATO_DESATUALIZADO", mensagem: ASS_MSG_DESATUALIZADO };
   }
+  /* 18/11/2026 (troca de fiadores): envelope de termos ainda aberto barra o envio de outro contrato */
+  var tb = trocaBloqueioEnvio_(pg, p.pageId);
+  if (tb) { assLog_("enviar " + pid + " recusado: envelope de termos aberto"); return tb; }
   var prep = assPrepararContrato_(col, p, pid, gerado, false, pg);
   if (prep.resp) return prep.resp;
-  return assCriarEnvelope_(p, pid, cols, doc, gerado, prep.lista, prep.nomeCs, prep.extras, prep.ad.docs, prep.rub, prep.d, prep.mensagem);
+  var rEnv = assCriarEnvelope_(p, pid, cols, doc, gerado, prep.lista, prep.nomeCs, prep.extras, prep.ad.docs, prep.rub, prep.d, prep.mensagem);
+  if (rEnv && rEnv.ok) trocaLimparTermos_(pg, p.pageId);   /* o envelope novo leva os termos: o de termos terminado sai da linha */
+  return rEnv;
 }
 
 /* Tudo o que o envio do contrato confere e monta antes de falar com a Clicksign: { d, config, lista, nomeCs, extras, ad, rub }
@@ -715,6 +726,9 @@ function assListaSignatarios_(envId, signers, eventos) {
 }
 
 function assinaturaEstado_(col, p) {
+  /* 18/11/2026 (dono): o contrato lê também o envelope de termos e grava a situação combinada (TrocaFiadores.gs);
+     daqui para baixo, só o termo de reserva */
+  if (!assDoc_(p).pre) return assEstadoContrato_(col, p);
   var pid = String(p.pageId).slice(0, 8), S = ClicksignVenda.SITUACOES, doc = assDoc_(p);
   var pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
   var envId = assTexto_(pg, cols.ENVELOPE), sitAtual = assTexto_(pg, cols.SITUACAO);
@@ -1143,6 +1157,8 @@ function verContratoAssinado_(col, p) {
 function assEnvelopeAssinado_(p) {
   var doc = assDoc_(p), pg = ctrLerPaginaVenda_(p.pageId), cols = assColunas_(pg, doc);
   var envId = prop_(ASS_PENDENTE + doc.chave + p.pageId) || assTexto_(pg, cols.ENVELOPE);
+  /* 18/11/2026: contrato — os dois envelopes (contrato e termos); documento fechado com o envelope running também abre */
+  if (!doc.pre) return trocaEnvelopesAssinados_(p, pg, cols, envId);
   if (!envId || assTexto_(pg, cols.SITUACAO).toUpperCase() !== ClicksignVenda.SITUACOES.ASSINADO) return { resp: { ok: false, erro: "NAO_ASSINADO" } };
   if (!prop_("CLICKSIGN_TOKEN")) return { resp: { ok: false, erro: "CLICKSIGN_SEM_TOKEN" } };
   if (!csBase_()) return { resp: { ok: false, erro: "CLICKSIGN_URL_INVALIDA" } };
@@ -1213,6 +1229,12 @@ function assPreReservaDispensada_(pg, pageId) {
   return PreReservaVenda.dispensada(sitTermo, temContrato);
 }
 function assTravaAssinado_(p) {
+  /* 18/11/2026 (dono): modo "Trocar fiadores" — o bloco Fiadores grava com o envelope aberto (só os campos dos fiadores) */
+  if ((p.action === "salvarFiadores" || p.action === "conjugeEhFiador2") && p.modoTroca === true) {
+    var modo = trocaTravaModo_(p);
+    if (modo === "LIVRE") return null;
+    if (modo) return modo;
+  }
   var a = String(p.action || ""), termo, envelope = ASS_TRAVA_ENVELOPE.indexOf(a) >= 0, soAberto = ASS_TRAVA_SO_ABERTO.indexOf(a) >= 0;
   if (ASS_TRAVA_CONTRATO.indexOf(a) >= 0 || soAberto) termo = false;
   else if (ASS_TRAVA_TERMO.indexOf(a) >= 0) termo = true;
