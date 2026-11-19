@@ -59,9 +59,10 @@ test("dados completos: nenhuma falta, modelo PRONTO, valores com comprador pagan
   assert.deepEqual(C.faltasContrato(d), []);
   assert.equal(d.modelo, "PRONTO");
   const m = C.marcadores(d);
-  assert.equal(m.VALOR_IMOVEL, "290.000,00");
-  assert.equal(m.VALOR_INTERMEDIACAO, "R$ 10.000,00");
-  assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
+  /* 19/11/2026 (dono): na casa de rua todo valor em R$ sai com o extenso */
+  assert.equal(m.VALOR_IMOVEL, "290.000,00 (duzentos e noventa mil reais)");
+  assert.equal(m.VALOR_INTERMEDIACAO, "R$ 10.000,00 (dez mil reais)");
+  assert.equal(m.VALOR_TOTAL, "R$ 300.000,00 (trezentos mil reais)");
   /* 19/11/2026 (dono): "6.1. Valor total" é só o valor de aquisição (construtora), sem a comissão */
   assert.equal(m.VALOR_TOTAL_NUM, "290.000,00");
   assert.equal(m.VALOR_TOTAL_EXTENSO, "duzentos e noventa mil reais");
@@ -71,7 +72,8 @@ test("dados completos: nenhuma falta, modelo PRONTO, valores com comprador pagan
   assert.equal(m.COMPRADORES, "ANA TESTE, brasileira, solteira, professora, RG nº 1234567 SSP/GO, CPF nº 529.982.247-25, residente e domiciliado à RUA TESTE, 10, GOIÂNIA/GO");
   assert.equal(m.SINAL_DATA, "28/09/2026");
   const b = C.blocos(d);
-  assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: false, SEM_INTERMEDIARIA: true, SE_COMISSAO_VENDEDOR: false,
+  /* 19/11/2026: o saldo (290.000 − 5.000 − 20.000) vira a intermediária da casa de rua */
+  assert.deepEqual(b, { SEM_COMISSAO: false, COM_COMISSAO: true, SE_VENDEDOR_PJ: true, SE_VENDEDOR_PF: false, SE_INTERMEDIARIA: true, SEM_INTERMEDIARIA: false, SE_COMISSAO_VENDEDOR: false,
     SE_CASAL: false, TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
   for (const [k, v] of Object.entries(m)) assert.equal(typeof v, "string", k);
 });
@@ -107,9 +109,11 @@ test("vendedor PF e intermediária; VENDEDOR na coluna PAGA POR é ignorado (05/
     SE_CASAL: false, TEM_FIADORES: false, TEM_FIADOR1: false, TEM_FIADOR2: false });
   assert.equal(d.comissao.pagaPor, "COMPRADOR");
   assert.notEqual(m.VALOR_INTERMEDIACAO, "paga pelo VENDEDOR");
-  assert.equal(m.VALOR_TOTAL, "R$ 300.000,00");
+  assert.equal(m.VALOR_TOTAL, "R$ 300.000,00 (trezentos mil reais)");
   assert.notEqual(m.COMISSAO_RESPONSAVEL, "INVESTIDOR TESTE");
-  assert.equal(m.INTERMEDIARIA_VALOR, "250.000,00");
+  /* 19/11/2026 (dono): intermediária = aquisição − sinal − entrada (290.000 − 5.000 − 20.000); a coluna (250.000) vira aviso */
+  assert.equal(m.INTERMEDIARIA_VALOR, "265.000,00 (duzentos e sessenta e cinco mil reais)");
+  assert.ok(C.avisosContrato(d).some((x) => /coluna tem R\$ 250\.000,00.*265\.000,00/.test(x)), JSON.stringify(C.avisosContrato(d)));
 });
 
 test("faltas agrupadas e legíveis; cadastros ausentes", () => {

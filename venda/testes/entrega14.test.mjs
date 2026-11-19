@@ -72,7 +72,7 @@ test("entrada preenchida: a linha 'b) Entrada' fica e as letras não mudam", () 
   const c = cenario({ drive: { modelos: { "modelo-obra": MODELO_ENTRADA } } });
   assert.equal(c.acao("gerarPreContrato").ok, true);
   const t = textoPre(c);
-  assert.ok(t.includes("b) Entrada: R$ 20.000,00, vencimento em 15/10/2026"), t);
+  assert.ok(t.includes("b) Entrada: R$ 20.000,00 (vinte mil reais), vencimento em 15/10/2026"), t);
   assert.ok(t.includes("\nc) Parcela Intermediária: não há.\n"), t);
   assert.ok(t.includes("\nd) Meio de pagamento: PIX\n"), t);
 });
