@@ -12,7 +12,7 @@ OBRA · FORNECEDOR · Nº OC · DATA DA OC · ENGENHEIRO · SERVIÇO FINALIZADO?
       na OC: Aprovação  "Em aberto / aguardando aprovação"  →  "Aprovado"
              e depois Status da Compra  →  "Aguardando".
       OC que já está aprovada no MC não é mexida (nem o status da compra: não volta "Entregue" para "Aguardando").
-  ROBÔ 2 — conferência do SERVIÇO (Serralheria do Fabio)                          ação "PARCELA"
+  ROBÔ 2 — conferência do SERVIÇO (Serralheria do Fabio, Ideia Calhas e Rufos)    ação "PARCELA"
       no lançamento da OC ($ Lançamento › Ir para lançamento › Editar lançamento):
       vencimento da 2ª PARCELA  →  próximo DIA ÚTIL depois do dia em que o engenheiro marcou SIM
       (se esse dia já passou, o próximo dia útil a partir de hoje). Parcela já paga não é mexida.
@@ -22,8 +22,9 @@ Os dois rodam juntos neste script (uma aba do porteiro só, um de cada vez no Ma
   1. lê as OCs no GraphQL de Compras do MC — o MESMO pedido que a tela Compras › Ordem de Compra faz (o robô copia
      a consulta e os filtros da própria tela, como o robô de medidores faz com as solicitações);
   2. guarda as OCs dos fornecedores acima (criadas a partir de OCS_A_PARTIR_DE e, da Rocha / VIDRO ALVES, também as
-     ANTIGAS ainda sem lançamento e sem aprovação — últimos OCS_ANTIGAS_MESES meses; da Serralheria do Fabio, TODAS
-     as antigas com a 2ª parcela do lançamento ainda NÃO paga — 19/11, sem limite de data) na tabela oc_conferencia do
+     ANTIGAS ainda sem lançamento e sem aprovação — últimos OCS_ANTIGAS_MESES meses; da Serralheria do Fabio e da
+     Ideia Calhas, TODAS as antigas APROVADAS com lançamento e a 2ª parcela ainda NÃO paga — 19/11, sem limite de
+     data) na tabela oc_conferencia do
      Supabase ORÇADO/REALIZADO — o Mapa de Obras lê dali pelo Apps Script (ações ocLista / ocResponder);
   3. para cada OC com SIM e ainda não feita, faz a mudança no MC PELA TELA (os mesmos campos e botões que uma
      pessoa usa), confere relendo a tela e grava o resultado na linha (FEITO / ERRO / SIMULADO).
@@ -72,8 +73,8 @@ ANTIGAS_MESES = int(os.environ.get("OCS_ANTIGAS_MESES") or 6)
 #: (as que têm lançamento ficam anotadas em _central\ocs-com-lancamento.json e não são abertas de novo).
 MAX_CONFERIR = int(os.environ.get("OCS_MAX_CONFERIR") or 30)
 COM_LANCAMENTO = CENTRAL / "ocs-com-lancamento.json"
-#: 19/11 (dono): da Serralheria do Fabio entram TODAS as OCs antigas (antes de OCS_A_PARTIR_DE, sem limite de data)
-#: em que a 2ª parcela do lançamento ainda NÃO foi paga. A lista do MC não diz se a parcela foi paga: o robô abre o
+#: 19/11 (dono): da Serralheria do Fabio e da Ideia Calhas (ação PARCELA) entram TODAS as OCs antigas (antes de
+#: OCS_A_PARTIR_DE, sem limite de data) APROVADAS no MC em que a 2ª parcela do lançamento ainda NÃO foi paga. A lista do MC não diz se a parcela foi paga: o robô abre o
 #: lançamento na tela (só olha). O histórico inteiro do MC é lido 1 vez por dia (é lento) e as OCs antigas da
 #: Serralheria ficam em ocs-parcela-candidatas.json; o que o robô já viu fica em ocs-parcela-conferidas.json
 #: (paga = não abre mais; sem lançamento = confere de novo em 7 dias; sem 2ª parcela / vários lançamentos = 30 dias).
@@ -102,6 +103,10 @@ FORNECEDORES = {
     "ROCHA MARMORES E GRANITOS": "APROVAR",
     "VIDRO ALVES": "APROVAR",
     "SERRALHERIA DO FABIO": "PARCELA",
+    # 19/11 (dono): Ideia Calhas e Rufos (CNPJ 36.135.809/0001-78) — mesma lógica da 2ª parcela da Serralheria.
+    # No MC pode vir pelo nome fantasia ou pela razão social (IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHA…)
+    "IDEIA CALHAS E RUFOS": "PARCELA",
+    "IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHA": "PARCELA",
 }
 
 APROVADO = {"APPROVED", "APROVADO", "APROVADA"}
@@ -350,8 +355,12 @@ def interessa(oc: dict, desde: str = A_PARTIR_DE, antigas: str | None = None) ->
         return None
     if not oc.get("criada_em") or oc["criada_em"] >= desde:
         return f[0], f[1], False
-    if f[1] == "PARCELA":           # 19/11 (dono): toda antiga da Serralheria — quem chama confere a 2ª parcela na tela
-        return None if oc.get("cancelada") else (f[0], f[1], True)
+    if f[1] == "PARCELA":
+        # 19/11 (dono): antiga de PARCELA em qualquer data, mas só APROVADA e com lançamento (a lista dizendo que não
+        # tem, fica fora) — quem chama abre o lançamento e confere se a 2ª parcela ainda não foi paga
+        if oc.get("cancelada") or N(oc.get("aprovacao_mc")) not in APROVADO or oc.get("tem_lancamento") is False:
+            return None
+        return f[0], f[1], True
     if f[1] != "APROVAR" or oc["criada_em"] < (antigas or antigas_desde()) or oc.get("tem_lancamento") is True:
         return None
     return f[0], f[1], True
@@ -1218,7 +1227,7 @@ def segunda_parcela(tela: Tela, oc: dict) -> str:
     """19/11: como está a 2ª parcela do lançamento da OC — "aberta" (não paga), "paga", "sem_lanc" (OC sem
     lançamento), "sem2" (lançamento sem 2ª parcela) ou "varios" (mais de um lançamento). SÓ OLHA: não salva nada.
     Erro (tela que não abriu etc.) sobe — quem chama deixa para a próxima rodada."""
-    passo("OC %s (serralheria antiga): conferindo a 2ª parcela" % oc.get("numero"))
+    passo("OC %s (antiga, 2ª parcela): conferindo o lançamento" % oc.get("numero"))
     try:
         n = lancamentos_vinculados(tela, oc["oc_id"])
         if n == 0:
@@ -1272,9 +1281,10 @@ def guardar_json(caminho: pathlib.Path, dado) -> None:
 
 
 def candidatas_parcela(ocs: list, desde: str = A_PARTIR_DE) -> list:
-    """19/11: OCs antigas (antes de `desde`) da Serralheria, não canceladas — guardadas da leitura do histórico."""
+    """19/11: OCs antigas (antes de `desde`) de PARCELA (Serralheria / Ideia Calhas) que podem entrar — aprovadas, não
+    canceladas e sem a lista dizer que não têm lançamento. Guardadas da leitura do histórico."""
     return [o for o in ocs if (acao_do_fornecedor(o.get("fornecedor")) or ("", ""))[1] == "PARCELA"
-            and o.get("criada_em") and o["criada_em"] < desde and not o.get("cancelada")]
+            and o.get("criada_em") and o["criada_em"] < desde and interessa(o, desde)]
 
 
 def juntar_candidatas(ocs: list, candidatas: list) -> list:
@@ -1614,7 +1624,7 @@ def main() -> int:
                     HISTORICO_DIA.write_text(hoje.isoformat(), encoding="utf-8")
                 except Exception:       # noqa: BLE001
                     pass
-                log("   histórico de OCs lido desde %s: %d OC(s) · %d antiga(s) da Serralheria" % (
+                log("   histórico de OCs lido desde %s: %d OC(s) · %d antiga(s) aprovada(s) da Serralheria / Ideia Calhas" % (
                     PARCELA_DESDE, len(ocs), len(cand)))
             else:
                 ocs = juntar_candidatas(ocs, ler_json(PARCELA_CANDIDATAS, []))
@@ -1657,7 +1667,7 @@ def main() -> int:
                 try:
                     r = segunda_parcela(tela_c, oc)
                 except Exception as e:      # noqa: BLE001 — fica para a próxima rodada
-                    log("   OC %s (serralheria antiga): não consegui ver a 2ª parcela (%s)" % (oc.get("numero"), str(e)[:120]))
+                    log("   OC %s (antiga, 2ª parcela): não consegui ver o lançamento (%s)" % (oc.get("numero"), str(e)[:120]))
                     return None
                 parc_vistas[oc["oc_id"]] = {"r": r, "em": hoje.isoformat(), "numero": oc.get("numero")}
                 guardar_json(PARCELA_CONFERIDAS, parc_vistas)
@@ -1666,7 +1676,7 @@ def main() -> int:
             novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento, parcela_aberta=parcela_aberta)
             guardar_com_lancamento(com_lanc)
             if parc["vistas"]:
-                log("   Serralheria antigas conferidas no lançamento: %d (2ª parcela em aberto: %d · paga: %d · sem "
+                log("   antigas da Serralheria / Ideia Calhas conferidas no lançamento: %d (2ª parcela em aberto: %d · paga: %d · sem "
                     "lançamento/sem 2ª parcela/vários: %d)%s" % (parc["vistas"], parc["aberta"], parc["paga"],
                                                                   parc["outras"],
                                                                   " · %s, o resto fica para a próxima" % parc["parou"]
