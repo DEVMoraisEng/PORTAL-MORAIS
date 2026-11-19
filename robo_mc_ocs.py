@@ -85,6 +85,15 @@ PARCELA_CONFERIDAS = CENTRAL / "ocs-parcela-conferidas.json"
 MAX_PARCELAS = int(os.environ.get("OCS_MAX_PARCELAS") or 12)          # lançamentos abertos por rodada, no máximo
 PRAZO_PARCELAS_S = int(os.environ.get("OCS_PRAZO_PARCELAS_S") or 5 * 60)   # e no máximo este tempo por rodada
 REVER_DIAS = {"sem_lanc": 7, "sem2": 30, "varios": 30}                # "paga" não é revista
+#: 19/11 (dono): SOLICITAÇÕES de compra destes materiais que ainda NÃO viraram OC aparecem na aba "Solicitações sem
+#: OC" do Mapa de Obras, contando os dias corridos, até a OC ser criada. Entra a solicitação que tiver PELO MENOS UM
+#: item com uma destas palavras no nome (sem acento, maiúsculas, basta conter) → categoria mostrada no mapa.
+SOL_PALAVRAS = (("BANCADA", "Bancada"), ("JANELA", "Janela"), ("RUFO", "Calhas e rufos"), ("CALHA", "Calhas e rufos"),
+                ("PORTAO", "Portão"))
+SOL_MESES = int(os.environ.get("OCS_SOL_MESES") or 6)          # solicitações criadas nos últimos N meses
+TABELA_SOL = "oc_solicitacao"                                   # supabase/oc_solicitacao.sql (o dono roda uma vez)
+SOL_STATUS_FORA = {"CANCELED", "CANCELLED", "REJECTED", "REFUSED", "DENIED", "REPROVADO", "REPROVADA", "CANCELADO",
+                   "CANCELADA", "NEGADO", "NEGADA"}
 #: 16/11 (dono, depois da 1ª descoberta): as OCs da Rocha / VIDRO ALVES já chegam "Aprovado" no MC. As que NÃO têm
 #: lançamento voltam para "Aguardando aprovação" (o pagamento fica esperando o SIM do engenheiro). No máximo isto por rodada.
 MAX_VOLTAR = int(os.environ.get("OCS_MAX_VOLTAR") or 40)
@@ -482,6 +491,28 @@ class Supa:
              "and(robo_situacao.eq.ERRO,robo_tentativas.lt.%d))&order=respondido_em.asc&limit=100" % MAX_TENTATIVAS)
         return self.pedir("GET", q) or []
 
+    def tem(self, caminho: str) -> bool:
+        """19/11: a tabela / coluna existe? (o dono roda o SQL novo depois do código chegar — sem ele, o robô segue
+        sem a parte nova em vez de quebrar o upsert das OCs)"""
+        try:
+            self.pedir("GET", caminho)
+            return True
+        except RuntimeError:
+            return False
+
+    def solicitacoes(self) -> dict:
+        l = self.pedir("GET", TABELA_SOL + "?select=sol_id,pendente&limit=10000") or []
+        return {x["sol_id"]: x for x in l}
+
+    def gravar_solicitacoes(self, linhas: list) -> None:
+        grupos: dict = {}
+        for ln in linhas:
+            grupos.setdefault(tuple(sorted(ln)), []).append(ln)
+        for lote in grupos.values():
+            for i in range(0, len(lote), 200):
+                self.pedir("POST", TABELA_SOL + "?on_conflict=sol_id", lote[i:i + 200],
+                           prefer="resolution=merge-duplicates,return=minimal")
+
     def resultado(self, linha: dict, situacao: str, msg: str) -> None:
         """Só grava se a resposta ainda é SIM (o engenheiro pode ter voltado para NÃO enquanto o robô trabalhava)."""
         corpo = {"robo_situacao": situacao, "robo_msg": str(msg)[:500],
@@ -749,6 +780,201 @@ def ler_ocs(aba, desde: str | None = None, hoje: dt.date | None = None) -> tuple
         v["after"] = info["endCursor"]
     est["ocs"] = len(todas)
     return todas, est
+
+
+# ------------------------------------------------------------------------------------------- solicitações
+#: 19/11: a lista de Solicitação de compra vem do mesmo GraphQL de Compras (ver robo_mc_medidores.py). Os nomes de
+#: alguns campos não foram vistos ainda: o robô tenta as formas abaixo, na ordem, e fica com a 1ª que o MC aceitar.
+_Q_SOL = ("query ($first: Int, $after: String, $specification: PurchaseRequestSpecificationInput, "
+          "$order: [PurchaseRequestSortInput!]) { purchaseRequest(first: $first after: $after specification: "
+          "$specification order: $order) { pageInfo { endCursor hasNextPage } nodes { id number approvalStatus %s "
+          "work { name } costCenters { items { id status purchaseOrderItem { id %s } originItem { name code } } } } } }")
+_SOL_DATAS = ("creationDate", "createdAt", "date", "")
+_SOL_OCS = ("purchaseOrder { id number }", "purchaseOrderId", "")
+
+
+def categoria_do_item(nome) -> str | None:
+    n = N(nome)
+    for chave, rot in SOL_PALAVRAS:
+        if chave in n:
+            return rot
+    return None
+
+
+def solicitacao_pendente(sol: dict) -> dict | None:
+    """{categorias, itens, pendente} se a solicitação tem item de Bancada / Janela / Calhas e rufos / Portão; None se
+    não tem. pendente = algum desses itens (não cancelado) ainda sem OC. Solicitação cancelada/recusada: None."""
+    if N(sol.get("approvalStatus")) in SOL_STATUS_FORA:
+        return None
+    cats, nomes, falta = [], [], False
+    for cc in sol.get("costCenters") or []:
+        for it in (cc or {}).get("items") or []:
+            if not it:
+                continue
+            nome = ((it.get("originItem") or {}).get("name")) or ""
+            cat = categoria_do_item(nome)
+            if not cat or N(it.get("status")) in SOL_STATUS_FORA:
+                continue
+            if cat not in cats:
+                cats.append(cat)
+            if not it.get("purchaseOrderItem"):
+                falta = True
+                nomes.append(str(nome).strip())
+    if not cats:
+        return None
+    return {"categorias": " · ".join(cats), "itens": " · ".join(dict.fromkeys(nomes))[:500] or None, "pendente": falta}
+
+
+def ocs_da_solicitacao(sol: dict) -> list:
+    """ids (ou nºs) das OCs dos itens desta solicitação — quando o MC devolve a OC dentro do item."""
+    out = []
+    for cc in sol.get("costCenters") or []:
+        for it in (cc or {}).get("items") or []:
+            poi = (it or {}).get("purchaseOrderItem") or {}
+            po = poi.get("purchaseOrder") if isinstance(poi.get("purchaseOrder"), dict) else {}
+            oid = po.get("id") or poi.get("purchaseOrderId")
+            if oid and oid not in out:
+                out.append(str(oid))
+    return out
+
+
+def ler_solicitacoes(aba, hoje: dt.date | None = None, meses: int = SOL_MESES) -> tuple[list, dict]:
+    """(solicitações com itens, estatística) — as criadas nos últimos `meses` meses, pela aba do porteiro.
+    Só LÊ o Mais Controle."""
+    hoje = hoje or dt.date.today()
+    page = aba._page
+    visto = {}
+
+    def ouvir(req):
+        try:
+            corpo = req.post_data or ""
+            if HOST_COMPRAS in req.url and "/graphql" in req.url and "purchaseRequest(" in corpo \
+                    and "pageInfo" in corpo and "cab" not in visto:
+                visto["cab"] = {k: v for k, v in (req.headers or {}).items() if k.lower() in ("authorization", "company-id")}
+                visto["vars"] = (json.loads(corpo) or {}).get("variables") or {}
+                visto["url"] = req.url
+        except Exception:
+            pass
+
+    def pedir(query, variaveis):
+        st, texto = aba.fetch("POST", visto["url"], visto["cab"], {"query": query, "variables": variaveis})
+        if st >= 300:
+            raise RuntimeError("GraphQL de Compras respondeu HTTP %s: %s" % (st, (texto or "")[:200]))
+        j = json.loads(texto or "{}")
+        if j.get("errors"):
+            raise RuntimeError("GraphQL de Compras recusou a consulta: %s" % str(j["errors"])[:300])
+        return ((j.get("data") or {}).get("purchaseRequest")) or {}
+
+    page.context.on("request", ouvir)
+    try:
+        page.evaluate("() => { location.hash = '#/home' }")
+        page.wait_for_timeout(1200)
+        page.evaluate("h => { location.hash = h }", "#/purchase-request")
+        for _ in range(160):
+            if "cab" in visto:
+                break
+            page.wait_for_timeout(250)
+        if "cab" not in visto or not visto["cab"].get("authorization"):
+            raise RuntimeError("a tela Solicitação não pediu a lista ao GraphQL de Compras em 40 s")
+    finally:
+        try:
+            page.context.remove_listener("request", ouvir)
+        except Exception:       # noqa: BLE001
+            pass
+    v = json.loads(json.dumps(visto["vars"]))
+    esp = v.setdefault("specification", {})
+    faixa = esp.get("creationDateRange") or {}
+    m = hoje.month - meses
+    ini = dt.date(hoje.year + (m - 1) // 12, (m - 1) % 12 + 1, 1)
+    esp["creationDateRange"] = {"start": _com_data(faixa.get("start") or ini.isoformat(), ini),
+                                "end": _com_data(faixa.get("end") or hoje.isoformat(), hoje + dt.timedelta(days=1))}
+    for k in ("keyword", "search", "text"):
+        esp.pop(k, None)
+    v["first"], v["after"] = 50, None
+    est = {"solicitacoes": 0, "paginas": 0, "campo_data": None, "campo_oc": None, "desde": ini.isoformat()}
+    query, recusas = None, []
+    for cd in _SOL_DATAS:                      # acha a forma que o MC aceita (1ª página)
+        for co in _SOL_OCS:
+            q = _Q_SOL % (cd, co)
+            try:
+                pr = pedir(q, v)
+            except RuntimeError as e:
+                if "PAGINATION_MAX_ITEMS" in str(e):
+                    v["first"] = 25
+                    try:
+                        pr = pedir(q, v)
+                    except RuntimeError as e2:
+                        recusas.append(str(e2)[:120])
+                        continue
+                else:
+                    recusas.append(str(e)[:120])
+                    continue
+            query, est["campo_data"], est["campo_oc"] = q, cd or None, co or None
+            break
+        if query:
+            break
+    if not query:
+        raise RuntimeError("o GraphQL de Compras recusou todas as formas da lista de solicitações (%s)" % recusas[-1:])
+    todas = []
+    for _pag in range(400):
+        est["paginas"] += 1
+        for sol in pr.get("nodes") or []:
+            if isinstance(sol, dict) and sol.get("id"):
+                todas.append(sol)
+        info = pr.get("pageInfo") or {}
+        if not info.get("hasNextPage") or not info.get("endCursor"):
+            break
+        v["after"] = info["endCursor"]
+        pr = pedir(query, v)
+    est["solicitacoes"] = len(todas)
+    return todas, est
+
+
+def linhas_solicitacoes(sols: list, existentes: dict, campo_data: str | None,
+                        agora: str | None = None) -> tuple[list, dict]:
+    """(linhas para oc_solicitacao, contagem). Grava as solicitações com item da lista (pendentes ou não): a que
+    deixou de estar pendente ganha resolvida_em (sai da aba do mapa)."""
+    agora = agora or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    out, cont = [], {"com_material": 0, "pendentes": 0, "resolvidas": 0}
+    for sol in sols:
+        r = solicitacao_pendente(sol)
+        if not r:
+            continue
+        cont["com_material"] += 1
+        criada = str(sol.get(campo_data) or "")[:10] if campo_data else ""
+        ln = {"sol_id": str(sol["id"]), "numero": sol.get("number"),
+              "obra": (((sol.get("work") or {}).get("name")) or "")[:300] or None,
+              "criada_em": criada if re.match(r"^\d{4}-\d\d-\d\d$", criada) else None,
+              "aprovacao_mc": (str(sol.get("approvalStatus") or "").upper() or None),
+              "categorias": r["categorias"], "itens": r["itens"], "pendente": r["pendente"], "visto_em": agora,
+              "resolvida_em": None}
+        antes = existentes.get(ln["sol_id"])
+        if r["pendente"]:
+            cont["pendentes"] += 1
+        elif antes and antes.get("pendente"):
+            ln["resolvida_em"] = agora
+            cont["resolvidas"] += 1
+        elif antes is None:
+            ln["resolvida_em"] = agora              # já chegou com OC: nunca aparece no mapa
+        else:
+            ln.pop("resolvida_em")                  # já estava resolvida: mantém a data de antes
+        out.append(ln)
+    return out, cont
+
+
+def data_da_solicitacao_por_oc(sols: list, campo_data: str | None) -> dict:
+    """{id da OC: (nº da solicitação, data)} — a solicitação mais antiga de cada OC."""
+    out = {}
+    if not campo_data:
+        return out
+    for sol in sols:
+        d = str(sol.get(campo_data) or "")[:10]
+        if not re.match(r"^\d{4}-\d\d-\d\d$", d):
+            continue
+        for oid in ocs_da_solicitacao(sol):
+            if oid not in out or d < out[oid][1]:
+                out[oid] = (sol.get("number"), d)
+    return out
 
 
 # ------------------------------------------------------------------------------------------- tela (Playwright)
@@ -1775,7 +2001,26 @@ def main() -> int:
                 guardar_json(PARCELA_CONFERIDAS, parc_vistas)
                 parc[r if r in ("aberta", "paga") else "outras"] += 1
                 return r == "aberta"
+            # 19/11 (dono): solicitações de Bancada / Janela / Calhas e rufos / Portão sem OC + data da solicitação
+            # de cada OC. Só com o SQL novo rodado (supabase/oc_solicitacao.sql); erro aqui não para as OCs.
+            sol_por_oc, sol_linhas, sol_cont, sol_est, sol_erro = {}, [], None, None, ""
+            tem_sol = sb.tem(TABELA_SOL + "?select=sol_id&limit=1")
+            tem_col = sb.tem(TABELA + "?select=solicitacao_em&limit=1")
+            if tem_sol or tem_col:
+                passo("lendo as solicitações de compra (últimos %d meses)" % SOL_MESES)
+                try:
+                    sols, sol_est = ler_solicitacoes(aba)
+                    if tem_col:
+                        sol_por_oc = data_da_solicitacao_por_oc(sols, sol_est["campo_data"])
+                    if tem_sol:
+                        sol_linhas, sol_cont = linhas_solicitacoes(sols, sb.solicitacoes(), sol_est["campo_data"])
+                except Exception as e:      # noqa: BLE001
+                    sol_erro = str(e)[:200]
             novas, atual = linhas_novas_e_atualizadas(ocs, existentes, sem_lancamento, parcela_aberta=parcela_aberta)
+            for ln in novas + atual:
+                x = sol_por_oc.get(ln["oc_id"]) or sol_por_oc.get(str(ln.get("numero") or ""))
+                if x:
+                    ln["solicitacao_numero"], ln["solicitacao_em"] = x
             guardar_com_lancamento(com_lanc)
             if parc["vistas"]:
                 log("   antigas da Serralheria / Ideia Calhas conferidas no lançamento: %d (2ª parcela em aberto: %d · paga: %d · sem "
@@ -1787,6 +2032,21 @@ def main() -> int:
             ea = com_anexos(aba, novas + atual, existentes, tem_arquivo={o["oc_id"]: o.get("tem_arquivo") for o in ocs})
             passo("gravando %d linha(s) no Supabase" % len(novas + atual))
             sb.gravar(novas + atual)
+            if sol_linhas:
+                passo("gravando %d solicitação(ões) no Supabase" % len(sol_linhas))
+                sb.gravar_solicitacoes(sol_linhas)
+            if not (tem_sol or tem_col):
+                log("   solicitações: falta rodar supabase/oc_solicitacao.sql no Supabase — parte nova desligada")
+            elif sol_erro:
+                log("   solicitações: não consegui ler (%s) — fica para a próxima rodada" % sol_erro)
+            elif sol_est:
+                log("   solicitações desde %s: %d lida(s) · data: %s · OC no item: %s%s%s" % (
+                    sol_est["desde"], sol_est["solicitacoes"], sol_est["campo_data"] or "o MC não deu",
+                    sol_est["campo_oc"] or "o MC não deu",
+                    " · com Bancada/Janela/Calhas/Portão: %d (sem OC: %d · OC criada agora: %d)" % (
+                        sol_cont["com_material"], sol_cont["pendentes"], sol_cont["resolvidas"]) if sol_cont else "",
+                    " · %d OC(s) da conferência com a data da solicitação" % sum(
+                        1 for x in novas + atual if x.get("solicitacao_em")) if tem_col else ""))
             log("OCs lidas: %d (novas desde %s; antigas sem lançamento desde %s) · novas na conferência: %d · "
                 "atualizadas: %d" % (est["ocs"], A_PARTIR_DE, antigas_desde(), len(novas), len(atual)))
             log("   arquivos (NF) nas OCs em aberto: %d conferida(s) · %d com arquivo anexado%s" % (
