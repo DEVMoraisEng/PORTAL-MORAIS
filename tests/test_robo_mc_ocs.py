@@ -349,3 +349,14 @@ def test_solicitacao_so_fica_enquanto_em_aprovacao_ou_a_atender():
     linhas, cont = ro.linhas_solicitacoes([em_aprov, atendida], {}, "creationDate")
     assert cont["status"] == {"AWAITING_APPROVAL": 1, "ATTENDED": 1}
     assert {x["sol_id"]: x["aprovacao_mc"] for x in linhas} == {"sol-1": "AWAITING_APPROVAL", "sol-3": "ATTENDED"}
+
+
+def test_data_da_solicitacao_pela_coluna_vinculos_da_oc():
+    a = _sol(1, [("Cimento", "OPEN", None)], data="2026-10-05T08:00:00")
+    oc = ro.oc_do_no(dict(NO, purchaseRequests=[{"id": "sol-1", "number": 901}]))
+    assert oc["solicitacoes"] == [("sol-1", 901)]
+    so_num = ro.oc_do_no(dict(NO, id="77777777-7777-7777-7777-777777777777", purchaseRequestNumber=901))
+    assert so_num["solicitacoes"] == [(None, 901)]
+    m = ro.data_da_solicitacao_por_oc([a], "creationDate", [oc, so_num])
+    assert m[oc["oc_id"]] == (901, "2026-10-05") and m[so_num["oc_id"]] == (901, "2026-10-05")
+    json.dumps(oc)
