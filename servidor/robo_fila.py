@@ -299,8 +299,9 @@ class Fila:
         env.update(extra)
         log("[%s] %s %s: começando (%s)" % (self.nome, tipo, alvo, " ".join(a for a in argv if a.startswith("--") and a != "--page")))
         try:
-            r = subprocess.run([sys.executable] + argv, cwd=RAIZ, env=env, capture_output=True, text=True,
-                               encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
+            # 18/11: rodar_com_prazo — o subprocess.run(timeout=) no Windows não soltava quando o node do Playwright do
+            # pedido continuava vivo, e a rodada da fila ficava presa (11:37 → 14:07 de 18/11)
+            r = rodar_com_prazo([sys.executable] + argv, PRAZO_ROBO_S, cwd=RAIZ, env=env)
             codigo, saida = r.returncode, (r.stdout or "").strip().splitlines()
         except subprocess.TimeoutExpired:
             codigo, saida = 124, ['{"situacao": "ERRO", "codigo": "PRAZO_ESGOTADO"}']
@@ -308,14 +309,16 @@ class Fila:
         if codigo != 0:
             m = marcar_erro_argv(argv)
             if m:
-                subprocess.run([sys.executable] + m, cwd=RAIZ, env=env, capture_output=True, timeout=120)
+                try:
+                    rodar_com_prazo([sys.executable] + m, 120, cwd=RAIZ, env=env)
+                except subprocess.TimeoutExpired:
+                    pass
         self.marcar(linha["id"], "FEITO" if codigo == 0 else "ERRO", ultima)
         log("[%s] %s %s: código %s %s" % (self.nome, tipo, alvo, codigo, ultima[:200]))
         depois = apos_gravar(argv) if codigo == 0 else None
         if depois:     # best-effort: o pedido já está FEITO e assim fica, aconteça o que acontecer aqui
             try:
-                r2 = subprocess.run([sys.executable] + depois, cwd=RAIZ, env=env, capture_output=True, text=True,
-                                    encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
+                r2 = rodar_com_prazo([sys.executable] + depois, PRAZO_ROBO_S, cwd=RAIZ, env=env)
                 saida2 = (r2.stdout or "").strip().splitlines()
                 log("[%s] retratos depois de gravar: código %s %s" % (self.nome, r2.returncode, (saida2[-1] if saida2 else "")[:200]))
             except subprocess.TimeoutExpired:
@@ -718,8 +721,7 @@ def indices() -> int:
         env.pop(n, None)
     argv = ["-m", "venda.mc.indices"] + (["--aplicar"] if (CENTRAL / "INDICES_APLICAR.txt").exists() else [])
     try:
-        r = subprocess.run([sys.executable] + argv, cwd=RAIZ, env=env, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=PRAZO_ROBO_S)
+        r = rodar_com_prazo([sys.executable] + argv, PRAZO_ROBO_S, cwd=RAIZ, env=env)
     except subprocess.TimeoutExpired:
         log("[indices] código 124 passou de %d min" % (PRAZO_ROBO_S // 60))
         return 124
