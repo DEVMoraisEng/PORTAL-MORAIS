@@ -79,9 +79,12 @@ def test_oc_antiga_so_da_rocha_vidro_e_sem_lancamento():
     assert com["tem_lancamento"] is True and ro.interessa(com, antigas="2026-05-01") is None
     muito_velha = ro.oc_do_no(dict(NO, creationDate="2026-01-10", tradePayables=[]))
     assert ro.interessa(muito_velha, antigas="2026-05-01") is None
-    fabio = ro.oc_do_no(dict(NO, creationDate="2026-10-01", tradePayables=[], supplier={"name": "Serralheria do Fabio"}))
-    # 19/11 (dono): Fabio antigo entra em qualquer data — a 2ª parcela é conferida na tela (parcela_aberta)
+    fabio = ro.oc_do_no(dict(NO, creationDate="2026-10-01", approvalStatus="APPROVED",
+                             supplier={"name": "Serralheria do Fabio"}))
+    # 19/11 (dono): Fabio antigo APROVADO entra em qualquer data — a 2ª parcela é conferida na tela (parcela_aberta)
     assert ro.interessa(fabio, antigas="2026-05-01") == ("SERRALHERIA DO FABIO", "PARCELA", True)
+    assert ro.interessa(dict(fabio, aprovacao_mc="AWAITING"), antigas="2026-05-01") is None     # não aprovada
+    assert ro.interessa(dict(fabio, tem_lancamento=False), antigas="2026-05-01") is None       # a lista diz: sem lançamento
     fabio_velho = dict(fabio, criada_em="2021-03-10")
     assert ro.interessa(fabio_velho, antigas="2026-05-01") == ("SERRALHERIA DO FABIO", "PARCELA", True)
     assert ro.interessa(dict(fabio, cancelada=True), antigas="2026-05-01") is None
@@ -260,9 +263,18 @@ def test_rever_parcela_paga_nunca_as_outras_depois_de_um_tempo():
 def test_candidatas_do_historico_e_juntar_com_a_rodada():
     velha, nova, rocha = _fabio(1, "2023-05-05"), _fabio(2, "2026-11-17"), ro.oc_do_no(dict(NO, creationDate="2023-01-01"))
     cancelada = dict(_fabio(3, "2024-01-01"), cancelada=True)
-    cand = ro.candidatas_parcela([velha, nova, rocha, cancelada])
+    nao_aprovada = dict(_fabio(6, "2024-01-01"), aprovacao_mc="AWAITING")
+    cand = ro.candidatas_parcela([velha, nova, rocha, cancelada, nao_aprovada])
     assert [c["numero"] for c in cand] == [1]
     json.dumps(cand)                                        # vai para o arquivo do _central
     mais_velha = _fabio(5, "2022-01-01")
     junto = ro.juntar_candidatas([nova, velha], [mais_velha, velha])
     assert [o["numero"] for o in junto] == [2, 1, 5]        # sem repetir a que já veio na rodada
+
+
+def test_ideia_calhas_pelo_nome_fantasia_ou_pela_razao_social():
+    assert ro.acao_do_fornecedor("Ideia Calhas e Rufos")[1] == "PARCELA"
+    assert ro.acao_do_fornecedor("IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHAS LTDA")[1] == "PARCELA"
+    assert ro.acao_do_fornecedor("Ideias e Soluções Comércio e Serviços em Calha e Rufos")[1] == "PARCELA"
+    ideia = ro.oc_do_no(dict(FABIO, creationDate="2025-04-01", supplier={"name": "Ideia Calhas e Rufos"}))
+    assert ro.interessa(ideia)[1:] == ("PARCELA", True)
