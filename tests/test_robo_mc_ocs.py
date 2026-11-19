@@ -80,7 +80,11 @@ def test_oc_antiga_so_da_rocha_vidro_e_sem_lancamento():
     muito_velha = ro.oc_do_no(dict(NO, creationDate="2026-01-10", tradePayables=[]))
     assert ro.interessa(muito_velha, antigas="2026-05-01") is None
     fabio = ro.oc_do_no(dict(NO, creationDate="2026-10-01", tradePayables=[], supplier={"name": "Serralheria do Fabio"}))
-    assert ro.interessa(fabio, antigas="2026-05-01") is None        # Fabio antigo: a ação precisa do lançamento
+    # 19/11 (dono): Fabio antigo entra em qualquer data — a 2ª parcela é conferida na tela (parcela_aberta)
+    assert ro.interessa(fabio, antigas="2026-05-01") == ("SERRALHERIA DO FABIO", "PARCELA", True)
+    fabio_velho = dict(fabio, criada_em="2021-03-10")
+    assert ro.interessa(fabio_velho, antigas="2026-05-01") == ("SERRALHERIA DO FABIO", "PARCELA", True)
+    assert ro.interessa(dict(fabio, cancelada=True), antigas="2026-05-01") is None
     outro = ro.oc_do_no(dict(NO, supplier={"name": "Casa do Construtor"}))
     assert ro.interessa(outro) is None
 
@@ -206,3 +210,59 @@ def test_ao_vivo_mostra_o_passo(tmp_path, monkeypatch):
     txt = arq.read_text(encoding="utf-8")
     assert "clicando Salvar" in txt and "linha normal" in txt
     assert r._PASSO["txt"].endswith("clicando Salvar")
+
+
+# ------------------------------------------------- 19/11: Serralheria antiga com a 2ª parcela em aberto
+FABIO = dict(NO, supplier={"name": "Serralheria do Fabio"}, approvalStatus="APPROVED")
+
+
+def _fabio(i, criada):
+    return ro.oc_do_no(dict(FABIO, id="%08d-0000-0000-0000-000000000000" % i, number=i, creationDate=criada))
+
+
+def test_serralheria_antiga_so_entra_com_a_2a_parcela_em_aberto():
+    aberta, paga, sem_saber, nova = _fabio(1, "2024-02-01"), _fabio(2, "2025-06-01"), _fabio(3, "2026-10-01"), \
+        _fabio(4, "2026-11-18")
+    vistos = []
+
+    def parcela_aberta(oc):
+        vistos.append(oc["numero"])
+        return {1: True, 2: False, 3: None}[oc["numero"]]
+    novas, _ = ro.linhas_novas_e_atualizadas([aberta, paga, sem_saber, nova], {}, parcela_aberta=parcela_aberta)
+    assert [x["numero"] for x in novas] == [1, 4]           # a nova (de 16/11 em diante) entra sem conferir
+    assert sorted(vistos) == [1, 2, 3]
+    assert all(x["acao"] == "PARCELA" for x in novas)
+    novas, _ = ro.linhas_novas_e_atualizadas([aberta], {}, parcela_aberta=None)
+    assert novas == []                                      # sem como conferir: fica fora
+
+
+def test_serralheria_antiga_que_ja_esta_na_conferencia_nao_e_aberta_de_novo():
+    a = _fabio(1, "2024-02-01")
+
+    def nao_pode(oc):
+        raise AssertionError("não pode abrir o lançamento de quem já está na conferência")
+    novas, atual = ro.linhas_novas_e_atualizadas([a], {a["oc_id"]: {"fornecedor": "SERRALHERIA DO FABIO",
+                                                                   "acao": "PARCELA"}}, parcela_aberta=nao_pode)
+    assert novas == [] and [x["oc_id"] for x in atual] == [a["oc_id"]]
+
+
+def test_rever_parcela_paga_nunca_as_outras_depois_de_um_tempo():
+    hoje = D(2026, 11, 19)
+    assert ro.rever_parcela(None, hoje) is True
+    assert ro.rever_parcela({"r": "paga", "em": "2020-01-01"}, hoje) is False
+    assert ro.rever_parcela({"r": "aberta", "em": "2026-11-19"}, hoje) is False
+    assert ro.rever_parcela({"r": "sem_lanc", "em": "2026-11-15"}, hoje) is False
+    assert ro.rever_parcela({"r": "sem_lanc", "em": "2026-11-12"}, hoje) is True
+    assert ro.rever_parcela({"r": "sem2", "em": "2026-11-01"}, hoje) is False
+    assert ro.rever_parcela({"r": "varios", "em": "2026-10-01"}, hoje) is True
+
+
+def test_candidatas_do_historico_e_juntar_com_a_rodada():
+    velha, nova, rocha = _fabio(1, "2023-05-05"), _fabio(2, "2026-11-17"), ro.oc_do_no(dict(NO, creationDate="2023-01-01"))
+    cancelada = dict(_fabio(3, "2024-01-01"), cancelada=True)
+    cand = ro.candidatas_parcela([velha, nova, rocha, cancelada])
+    assert [c["numero"] for c in cand] == [1]
+    json.dumps(cand)                                        # vai para o arquivo do _central
+    mais_velha = _fabio(5, "2022-01-01")
+    junto = ro.juntar_candidatas([nova, velha], [mais_velha, velha])
+    assert [o["numero"] for o in junto] == [2, 1, 5]        # sem repetir a que já veio na rodada
