@@ -33,7 +33,8 @@ var RecebimentoVenda = (function () {
   var ANTIGOS = ["SINAL", "ENTRADA", "FINANCIAMENTO"];
   var TIPOS = { data: "date", comprovante: "files", por: "rich_text", pagamentos: "rich_text" };
   var COL = { OUTROS: "RECEBIMENTO - OUTROS", OUTROS_COMPROVANTE: "RECEBIMENTO - OUTROS COMPROVANTE",
-              MC: "MC - RECEBIMENTOS", CONTRATO_FIN: "CONTRATO DE FINANCIAMENTO", VENDA_ID: "MC - VENDA ID" };
+              MC: "MC - RECEBIMENTOS", CONTRATO_FIN: "CONTRATO DE FINANCIAMENTO", VENDA_ID: "MC - VENDA ID",
+              SITUACAO: "MC - SITUAÇÃO" };
   var RE_ID = /^[0-9a-z]{4,24}$/;
 
   function txt(v) { return v === null || v === undefined ? "" : String(v).trim(); }
@@ -188,11 +189,18 @@ var RecebimentoVenda = (function () {
     if (/^https:\/\//.test(txt(x.link))) linhas.push("Faturamento no Mais Controle: " + txt(x.link));
     return linhas.join("\n");
   }
+  /* 23/11: o que o robô do sinal (venda/mc/sinal.py) escreveu em MC - SITUAÇÃO; "" se a situação é de outro robô */
+  function textoSinal(t) {
+    t = txt(t);
+    var l1 = t.split(/\r?\n/)[0];
+    return /^SINAL(?![A-Z])/.test(l1) || /PRÉVIA DO SINAL/.test(l1) ? t.slice(0, 600) : "";
+  }
   var api = { ITENS: ITENS, ANTIGOS: ANTIGOS, TIPOS: TIPOS, COL: COL, item: item, outroId: outroId, colunas: colunas,
               colunasNecessarias: colunasNecessarias, colunasNovas: colunasNovas, dataValida: dataValida, valor: valor,
               lerLista: lerLista, soma: soma, resumo: resumo, lerOutros: lerOutros, rotuloValido: rotuloValido, lerMC: lerMC,
               idNovo: idNovo, nomeArquivo: nomeArquivo, textoLongo: textoLongo,
-              destinatarios: destinatarios, assunto: assunto, corpo: corpo, moedaBR: moedaBR };
+              destinatarios: destinatarios, assunto: assunto, corpo: corpo, moedaBR: moedaBR,
+              textoSinal: textoSinal };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();
@@ -268,14 +276,15 @@ function recTudo_(x) {
   var mc = recMC_(x), cf = recCol_(x.pg, RecebimentoVenda.COL.CONTRATO_FIN, "files");
   return { mc: mc, itens: RecebimentoVenda.ITENS.map(function (it) { return recItem_(x, it, mc); }), outros: recOutros_(x, mc),
            contratoFin: { coluna: !!cf.nome, arquivos: recArquivos_(x.pg, cf.nome).length, erro: cf.erro || "" },
-           vendaLancada: !!ctrTxt_(ctrCampo_(x.c, RecebimentoVenda.COL.VENDA_ID)).trim() };
+           vendaLancada: !!ctrTxt_(ctrCampo_(x.c, RecebimentoVenda.COL.VENDA_ID)).trim(),
+           sinalMC: RecebimentoVenda.textoSinal(ctrTxt_(ctrCampo_(x.c, RecebimentoVenda.COL.SITUACAO))) };
 }
 /* o que a tela recebe */
 function recResposta_(t) {
   var mc = t.mc ? { situacao: String(t.mc.situacao || ""), texto: String(t.mc.texto || "").slice(0, 400), em: String(t.mc.em || ""),
                     avisos: (t.mc.avisos || []).slice(0, 5) } : null;
   return { itens: t.itens, outros: t.outros.itens, outrosColuna: !!t.outros.coluna, contratoFin: t.contratoFin,
-           vendaLancada: t.vendaLancada, filaLigada: roboUsaFila_(), mc: mc };
+           vendaLancada: t.vendaLancada, sinalMC: t.sinalMC || "", filaLigada: roboUsaFila_(), mc: mc };
 }
 function recebimentoEstado_(col, p) {
   var x = recPagina_(p.pageId);
@@ -303,6 +312,23 @@ function recFilaMC_(x, pageId) {
   var f = roboFilaPor_("mc-recebimento", { pageId: String(pageId).replace(/-/g, ""), aplicar: true });
   if (!f.ok) return "FILA_FALHOU";
   return roboAvisoSinal_(f.sinal, Date.now()) ? "NA_FILA_SEM_SINAL" : "NA_FILA";
+}
+
+/* 23/11/2026 (dono): sinal confirmado numa casa sem venda no Mais Controle -> pedido "mc-venda" com acao "sinal"
+   (venda/mc/sinal.py): confere se a casa já tem venda; se não, cadastra o cliente e cria a venda só com o sinal
+   (valor do contrato, do portal, do comprovante ou R$ 1,00 marcado "VALOR A CONFIRMAR"). A baixa fica para a mão.
+   Gravar depende das travas do servidor (pode_gravar + VENDA_APLICAR.txt); sem elas o robô escreve a prévia.
+   Devolve "NA_FILA_SINAL" | "NA_FILA_SINAL_SEM_SINAL" | "FILA_NAO_CONFIGURADA" | "FILA_FALHOU". */
+function recFilaSinal_(x, pageId) {
+  if (!roboUsaFila_()) return "FILA_NAO_CONFIGURADA";
+  var c = recCol_(x.pg, RecebimentoVenda.COL.SITUACAO, "rich_text");
+  if (c.nome) {
+    var props = {}; props[c.nome] = propNotion_("rich_text", "SINAL: PROCESSANDO — pedido na fila do servidor — " + hoje_("dd/MM HH:mm"));
+    try { notion_("PATCH", "/pages/" + pageId, { properties: props }); } catch (e) { ctrErro_("recebimento sinal anotar", e); }
+  }
+  var f = roboFilaPor_("mc-venda", { pageId: String(pageId).replace(/-/g, ""), aplicar: true, acao: "sinal" });
+  if (!f.ok) return "FILA_FALHOU";
+  return roboAvisoSinal_(f.sinal, Date.now()) ? "NA_FILA_SINAL_SEM_SINAL" : "NA_FILA_SINAL";
 }
 
 /* o item pedido (fixo ou "OUTRO:<id>") dentro de recTudo_ */
@@ -439,10 +465,16 @@ function recConfirmarTravado_(p, sess, pid) {
   }
   /* 05/11: sinal/entrada pagos -> o robô dá baixa no Mais Controle */
   if (it.baixaMC) {
-    try { resp.mcPedido = recFilaMC_(recPagina_(p.pageId), p.pageId); } catch (e) { ctrErro_("recebimento " + pid + " fila", e); resp.mcPedido = "FILA_FALHOU"; }
+    try {
+      resp.mcPedido = recFilaMC_(recPagina_(p.pageId), p.pageId);
+      /* 23/11 (dono): sinal confirmado e a casa sem venda no Mais Controle -> o robô lança cliente + venda só com o sinal */
+      if (resp.mcPedido === "SEM_VENDA" && it.id === "SINAL") resp.mcPedido = recFilaSinal_(recPagina_(p.pageId), p.pageId);
+    } catch (e) { ctrErro_("recebimento " + pid + " fila", e); resp.mcPedido = "FILA_FALHOU"; }
   }
-  try { var t2 = recResposta_(recTudo_(recPagina_(p.pageId))); resp.itens = t2.itens; resp.outros = t2.outros; resp.mc = t2.mc; }
-  catch (e) { ctrErro_("recebimento " + pid + " releitura", e); }
+  try {
+    var t2 = recResposta_(recTudo_(recPagina_(p.pageId)));
+    resp.itens = t2.itens; resp.outros = t2.outros; resp.mc = t2.mc; resp.sinalMC = t2.sinalMC; resp.vendaLancada = t2.vendaLancada;
+  } catch (e) { ctrErro_("recebimento " + pid + " releitura", e); }
   return resp;
 }
 

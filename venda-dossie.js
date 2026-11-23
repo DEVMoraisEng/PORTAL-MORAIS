@@ -1609,6 +1609,8 @@
     NA_FILA: " O robô vai conferir no Mais Controle em instantes.",
     NA_FILA_SEM_SINAL: " O pedido ao Mais Controle está na fila, mas o servidor não está dando sinal.",
     SEM_VENDA: " A venda ainda não está no Mais Controle: a baixa sai depois do lançamento.",
+    NA_FILA_SINAL: " A venda não estava no Mais Controle: o robô vai cadastrar o cliente e lançar a venda só com o sinal (a baixa fica para fazer no Mais Controle).",
+    NA_FILA_SINAL_SEM_SINAL: " O pedido para lançar o sinal no Mais Controle está na fila, mas o servidor não está dando sinal.",
     FILA_NAO_CONFIGURADA: "",
     FILA_FALHOU: " Não consegui pedir a baixa no Mais Controle — use “Conferir no Mais Controle”."
   };
@@ -1727,7 +1729,9 @@
         '<button type="button" class="bt ghost bt-mini" data-acao="r-mc"' + ((dis || !e.filaLigada) ? " disabled" : "") + ">Conferir no Mais Controle</button></div>";
       (mc.avisos || []).forEach(function (a) { h += '<div class="dz-msg dz-nota">' + esc(a) + "</div>"; });
     } else if (e.vendaLancada === false) {
-      h += '<div class="dz-msg dz-nota">A venda ainda não foi lançada no Mais Controle: as baixas saem depois do lançamento.</div>';
+      h += '<div class="dz-msg dz-nota">A venda ainda não foi lançada no Mais Controle: ao confirmar o sinal, o robô cadastra o cliente e lança a venda só com o sinal.</div>';
+      /* 23/11: o que o robô do sinal escreveu (prévia, lançado, recusado), uma linha por tópico */
+      if (e.sinalMC) h += '<div class="dz-msg rec-sinal-mc" style="font-weight:400;overflow-wrap:anywhere">' + String(e.sinalMC).split(/\r?\n/).map(esc).join("<br>") + "</div>";
     }
     if (e.emailConfigurado === false) h += '<div class="dz-msg dz-nota">O e-mail de aviso ainda não está configurado: o recebimento grava, mas ninguém é avisado.</div>';
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
@@ -3116,12 +3120,16 @@
       if (r.itens) estadoR.itens = r.itens;
       if (r.outros) estadoR.outros = r.outros;
       if ("mc" in r) estadoR.mc = r.mc;
+      if ("sinalMC" in r) estadoR.sinalMC = r.sinalMC;
       if (r.contratoFinEstado) estadoR.contratoFin = r.contratoFinEstado;
     }
+    /* 23/11: o robô do sinal trabalha enquanto MC - SITUAÇÃO diz "SINAL: PROCESSANDO" */
+    function sinalProcessando(e) { return !!(e && /^SINAL: PROCESSANDO/.test(String(e.sinalMC || ""))); }
     /* o robô do servidor devolve o resultado em MC - RECEBIMENTOS: a tela relê a cada 20 s enquanto ele trabalha (até 10 min) */
     function acompanharR(r) {
       if (r && /^NA_FILA/.test(String(r.mcPedido || ""))) uiR.voltas = 0;
-      if (esperaR || !estadoR || !estadoR.mc || estadoR.mc.situacao !== "PROCESSANDO" || uiR.voltas >= 30) return;
+      var trabalhando = (estadoR && estadoR.mc && estadoR.mc.situacao === "PROCESSANDO") || sinalProcessando(estadoR);
+      if (esperaR || !estadoR || !trabalhando || uiR.voltas >= 30) return;
       esperaR = setTimeout(function () { esperaR = null; uiR.voltas++; if (vivo() && !uiR.ocupado) carregarRec(); }, 20000);
     }
     async function carregarRec() {
@@ -3129,7 +3137,8 @@
       if (!vivo()) return;
       if (r.ok) {
         estadoR = { itens: r.itens || [], outros: r.outros || [], outrosColuna: !!r.outrosColuna, contratoFin: r.contratoFin || null,
-                    vendaLancada: r.vendaLancada, filaLigada: !!r.filaLigada, mc: r.mc || null, emailConfigurado: !!r.emailConfigurado };
+                    vendaLancada: r.vendaLancada, sinalMC: r.sinalMC || "", filaLigada: !!r.filaLigada, mc: r.mc || null,
+                    emailConfigurado: !!r.emailConfigurado };
         if (!uiR.ocupado && uiR.msg === "carregando…") uiR.msg = "";
       } else uiR.msg = mensagemRec(r);
       pintarR();

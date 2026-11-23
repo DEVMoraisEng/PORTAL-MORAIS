@@ -16,7 +16,7 @@ function cen({ venda = {}, props = {}, semNovas = false, ia } = {}) {
   const enviados = [];
   const MailApp = { sendEmail: (o) => enviados.push(o), getRemainingDailyQuota: () => 99 };
   const colunas = Object.assign(colunasVenda(), REC.colunasNecessarias(), semNovas ? {} : REC.colunasNovas(),
-                                { "MC - VENDA ID": "rich_text", CASA: "rich_text" });
+                                { "MC - VENDA ID": "rich_text", "MC - SITUAÇÃO": "rich_text", CASA: "rich_text" });
   const c = cenario({ colunas, venda: Object.assign({ "VALOR FINANCIADO": num(150000) }, venda), props: Object.assign({ DB_FILA_ROBO: FILA }, props),
                       bases: { [FILA]: [] }, esquemas: { [FILA]: COLS_FILA },
                       rotaExtra: (url, opt) => (ia && url.startsWith("https://api.openai.com/") ? ia(url, opt) : null) });
@@ -88,8 +88,32 @@ test("financiamento não vai para a fila; sem MC - VENDA ID, o pedido não sai",
   assert.equal(r.mcPedido, undefined);
   assert.equal(c.fila().length, 0);
   const s = cen();
-  assert.equal(s.chamar({ action: "recebimentoConfirmar", item: "SINAL", data: "2026-11-02", valor: 10 }).mcPedido, "SEM_VENDA");
-  assert.equal(s.fila().length, 0);
+  assert.equal(s.chamar({ action: "recebimentoConfirmar", item: "ENTRADA", data: "2026-11-02", valor: 10 }).mcPedido, "SEM_VENDA");
+  assert.equal(s.fila().length, 0, "entrada sem venda lançada não pede nada");
+});
+
+test("23/11: sinal confirmado sem venda no Mais Controle -> pedido mc-venda 'sinal' e situação PROCESSANDO na tela", () => {
+  const c = cen();
+  const r = c.chamar({ action: "recebimentoConfirmar", item: "SINAL", data: "2026-11-20", valor: "5.000,00", arquivo: PDF });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.match(r.mcPedido, /^NA_FILA_SINAL/);
+  const pedidos = c.fila();
+  assert.equal(pedidos.length, 1);
+  const pr = pedidos[0];   /* a base falsa guarda as propriedades da linha */
+  assert.equal(pr.TIPO.select.name, "mc-venda");
+  const payload = JSON.parse(pr.PAYLOAD.rich_text.map((t) => t.text ? t.text.content : t.plain_text).join(""));
+  assert.deepEqual([payload.acao, payload.aplicar], ["sinal", true]);
+  assert.match(c.txt("MC - SITUAÇÃO"), /^SINAL: PROCESSANDO/);
+  assert.match(r.sinalMC, /^SINAL: PROCESSANDO/, "a tela recebe a situação para acompanhar");
+  assert.equal(r.vendaLancada, false);
+});
+
+test("23/11: situação do robô do sinal só aparece quando é dele", () => {
+  assert.equal(REC.textoSinal("PRÉVIA OK [#abcd1234] | VENDA CASA 02 - X"), "");
+  assert.match(REC.textoSinal("SINAL LANÇADO | venda v1\nCliente: X"), /^SINAL LANÇADO/);
+  assert.match(REC.textoSinal("BLOQUEADO: gravar ... — PRÉVIA DO SINAL | VENDA CASA 02"), /PRÉVIA DO SINAL/);
+  assert.equal(REC.textoSinal("SINALIZADO"), "");
+  assert.equal(REC.textoSinal(""), "");
 });
 
 test("corrigir e tirar pagamento; baixado no Mais Controle não muda nem sai", () => {
