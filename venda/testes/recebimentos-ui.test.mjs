@@ -91,3 +91,11 @@ test("ligações: as ações novas chegam aos tratadores e o acompanhamento para
     assert.ok(fonte.includes('action: "' + f + '"'), f);
   assert.match(fonte, /if \(esperaR\) clearTimeout\(esperaR\); esperaR = null;/);
 });
+
+test("23/11: Financiamento calculado pela intermediária — sem Mudar valor, com a origem escrita", () => {
+  const it = { id: "FINANCIAMENTO", rotulo: "Financiamento", esperado: 280000, editavel: false, calculado: "INTERMEDIARIA", modo: "lista",
+               pagamentos: [], soma: 0, falta: 280000, situacao: "AGUARDANDO", comprovantes: 0, aceitaArquivo: true };
+  const h = D.htmlRecebimentos({ itens: [it], outros: [], outrosColuna: true, contratoFin: null, vendaLancada: true, filaLigada: true, mc: null }, { rascunho: {}, arquivos: {}, valores: {}, esperados: {} });
+  assert.match(h, /intermediária do contrato menos o FGTS/);
+  assert.ok(!/data-acao="r-editar" data-item="FINANCIAMENTO"/.test(h));
+});

@@ -192,6 +192,21 @@ def test_plano_alteracao_fgts_novo_cria_parcela_e_recalcula_total():
     assert v["tradeReceivable"]["grossValue"] == 165000.0, "a venda original não muda"
 
 
+def test_plano_alteracao_casa_de_rua_com_intermediaria_nao_cria_financiamento_nem_fgts():
+    """23/11/2026: venda lançada como casa de rua (sinal + intermediária) — o VALOR FINANCIADO do banco (maior) e o FGTS
+    pagam a intermediária; o robô não cria parcela de financiamento/FGTS (duplicaria o a receber)."""
+    ps = [parcela("p-sinal", R.TIPO_SINAL, 5000.0), parcela("p-int", R.TIPO_INTERMEDIARIA, 280000.0, "2026-12-21")]
+    v = venda_base()
+    v["tradeReceivable"]["installments"] = ps
+    pl = M.plano_alteracao(v, {"SINAL": 5000.0, "ENTRADA": None, "FINANCIAMENTO": 320000.0, "FGTS": 15000.0})
+    assert pl["acao"] == "NADA" and pl["mudancas"] == [] and pl["recusas"] == {} and pl["avisos"] == []
+    # o sinal continua sendo acertado
+    pl2 = M.plano_alteracao(v, {"SINAL": 6000.0, "FINANCIAMENTO": 320000.0})
+    assert [m["item"] for m in pl2["mudancas"]] == ["SINAL"]
+    tipos = [p["readjustmentDetail"]["type"]["id"] for p in pl2["corpo"]["tradeReceivable"]["installments"]]
+    assert R.TIPO_FINANCIAMENTO not in tipos and tipos.count(R.TIPO_INTERMEDIARIA) == 1
+
+
 def test_plano_alteracao_recusas_entrada_zerar_indice_e_recebido_maior():
     v = venda_base(fgts=True)
     v["tradeReceivable"]["installments"][0]["readjustmentDetail"]["table"] = {"id": "t", "name": "INCC"}

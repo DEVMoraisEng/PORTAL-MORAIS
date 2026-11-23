@@ -38,6 +38,24 @@ var RecebimentoVenda = (function () {
   var RE_ID = /^[0-9a-z]{4,24}$/;
 
   function txt(v) { return v === null || v === undefined ? "" : String(v).trim(); }
+  /* 23/11/2026 (Juliana/Gustavo): na casa de rua o financiamento PAGA A INTERMEDIÁRIA (regra de 19/11 — venda/mc/regras.py
+     parcelas e ContratoVenda.saldoIntermediaria). O esperado do item Financiamento é o saldo do contrato (aquisição − sinal
+     − entrada) menos o FGTS, não o VALOR FINANCIADO do banco (que pode ser maior: 320 mil × 280 mil no caso real).
+     Aquisição como no contrato: comissão paga pelo VENDEDOR = valor do contrato; senão VALOR NA MÃO (> 0) ou
+     contrato − comissão (vazia = 0). d = { total, comissao, naMao, pagaPor, sinal, entrada, fgts } (números ou null).
+     Devolve o número (0 quando o FGTS cobre tudo) ou null quando não dá para calcular (sem valor do contrato). */
+  function num(v) { return typeof v === "number" && isFinite(v) ? v : null; }
+  function esperadoFinanciamento(d) {
+    d = d || {};
+    var total = num(d.total), naMao = num(d.naMao), comissao = num(d.comissao), aq;
+    if (txt(d.pagaPor).toUpperCase() === "VENDEDOR") aq = total;
+    else aq = naMao !== null && naMao > 0 ? naMao : (total !== null ? total - (comissao || 0) : null);
+    if (aq === null) return null;
+    var saldo = aq - (num(d.sinal) || 0) - (num(d.entrada) || 0);
+    if (!(saldo > 0)) return null;
+    var r = Math.round((saldo - (num(d.fgts) || 0)) * 100) / 100;
+    return r > 0 ? r : 0;
+  }
   function item(id) {
     for (var i = 0; i < ITENS.length; i++) if (ITENS[i].id === txt(id).toUpperCase()) return ITENS[i];
     return null;
@@ -200,7 +218,7 @@ var RecebimentoVenda = (function () {
               lerLista: lerLista, soma: soma, resumo: resumo, lerOutros: lerOutros, rotuloValido: rotuloValido, lerMC: lerMC,
               idNovo: idNovo, nomeArquivo: nomeArquivo, textoLongo: textoLongo,
               destinatarios: destinatarios, assunto: assunto, corpo: corpo, moedaBR: moedaBR,
-              textoSinal: textoSinal };
+              textoSinal: textoSinal, esperadoFinanciamento: esperadoFinanciamento };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
 })();
@@ -234,7 +252,17 @@ function recItem_(x, it, mc) {
   var cPag = recCol_(x.pg, c.pagamentos, "rich_text"), cData = recCol_(x.pg, c.data, "date");
   var cComp = recCol_(x.pg, c.comprovante, "files"), cPor = recCol_(x.pg, c.por, "rich_text");
   var cEsp = recCol_(x.pg, it.esperado, "number");
-  var esperado = ctrNum_(ctrCampo_(x.c, it.esperado));
+  var esperado = ctrNum_(ctrCampo_(x.c, it.esperado)), calculado = null;
+  /* 23/11/2026: Financiamento = intermediária do contrato − FGTS (casa de rua); sem como calcular, segue o VALOR FINANCIADO */
+  if (it.id === "FINANCIAMENTO") {
+    var CC = ContratoVenda.COL;
+    calculado = RecebimentoVenda.esperadoFinanciamento({
+      total: ctrNum_(ctrCampo_(x.c, "VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)")), comissao: ctrNum_(ctrCampo_(x.c, "COMISSÃO")),
+      naMao: ctrNum_(ctrCampo_(x.c, "VALOR NA MÃO")), pagaPor: ctrTxt_(ctrCampo_(x.c, CC.COMISSAO_PAGA_POR)),
+      sinal: ctrNum_(ctrCampo_(x.c, CC.SINAL_VALOR)), entrada: ctrNum_(ctrCampo_(x.c, CC.ENTRADA_VALOR)),
+      fgts: ctrNum_(ctrCampo_(x.c, "VALOR DO FGTS")) });
+    if (calculado !== null) esperado = calculado;
+  }
   var modo = cPag.nome ? "lista" : (cData.nome ? "antigo" : "");
   var data = cData.nome ? String(ctrValor_(pr[cData.nome]) || "").slice(0, 10) : "";
   var por = cPor.nome ? ctrTxt_(ctrValor_(pr[cPor.nome])).trim() : "";
@@ -245,7 +273,7 @@ function recItem_(x, it, mc) {
   var mcItem = mc && mc.itens ? mc.itens[it.id] || null : null;
   lista.forEach(function (p) { p.mc = mcItem && mcItem.pagamentos ? mcItem.pagamentos[p.id] || null : null; });
   var rs = RecebimentoVenda.resumo(esperado, lista);
-  var r = { id: it.id, rotulo: it.rotulo, esperado: esperado, editavel: !!cEsp.nome, baixaMC: it.baixaMC, modo: modo,
+  var r = { id: it.id, rotulo: it.rotulo, esperado: esperado, editavel: !!cEsp.nome && calculado === null, baixaMC: it.baixaMC, modo: modo,
             pagamentos: lista, soma: rs.soma, falta: rs.falta, situacao: rs.situacao,
             data: lista.length ? lista[lista.length - 1].data : "", por: lista.length ? (lista[lista.length - 1].por || por) : "",
             comprovantes: arqs.length, aceitaArquivo: !!cComp.nome, confirmado: rs.situacao === "RECEBIDO" || rs.situacao === "SOBRA",
@@ -253,7 +281,8 @@ function recItem_(x, it, mc) {
   if (!modo) r.erro = cPag.erro;
   else if (cPag.erro && /^TIPO/.test(cPag.erro)) r.erro = cPag.erro;
   else if (!cComp.nome) r.aviso = cComp.erro;
-  if (!cEsp.nome) r.avisoValor = cEsp.erro;
+  if (calculado !== null) { r.calculado = "INTERMEDIARIA"; r.avisoValor = "VALOR_CALCULADO"; }
+  else if (!cEsp.nome) r.avisoValor = cEsp.erro;
   /* nomes reais (só para gravar; a tela não recebe) */
   Object.defineProperty(r, "_cols", { value: { pagamentos: cPag.nome, data: cData.nome, comprovante: cComp.nome, por: cPor.nome, esperado: cEsp.nome } });
   return r;

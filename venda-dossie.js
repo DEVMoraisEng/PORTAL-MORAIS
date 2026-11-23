@@ -1598,6 +1598,7 @@
    *       novo: { rotulo, valor }, arquivos: { id: File } (FIN = contrato de financiamento), finMsg }. */
   var MSG_REC = {
     COMPROVANTE_OBRIGATORIO: "Escolha o comprovante (foto ou PDF) antes de confirmar.",
+    VALOR_CALCULADO: "O valor esperado do financiamento vem do contrato (intermediária menos o FGTS) — mude no contrato, não aqui.",
     DATA_INVALIDA: "Data do recebimento inválida (não pode ser depois de hoje).",
     ITEM_INVALIDO: "Item de recebimento desconhecido — recarregue a página.",
     SO_CASA: "Recebimentos só existem na casa da VENDAS.",
@@ -1670,7 +1671,9 @@
     var id = esc(it.id), esperado = moedaRec(it.esperado), lista = it.modo === "lista", h = "";
     var rasc = u.rascunho || {}, arqs = u.arquivos || {}, vals = u.valores || {}, esps = u.esperados || {};
     h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>' + esc(it.rotulo) + "</b> — valor esperado: " +
-      (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") + "</span>" +
+      (esperado ? "<b>" + esc(esperado) + "</b>" : "<i>sem valor no contrato</i>") +
+      /* 23/11/2026: casa de rua — o financiamento paga a intermediária do contrato (não o VALOR FINANCIADO do banco) */
+      (it.calculado === "INTERMEDIARIA" ? ' <small class="rec-arq">(intermediária do contrato' + (it.id === "FINANCIAMENTO" ? " menos o FGTS" : "") + ")</small>" : "") + "</span>" +
       (it.editavel && lista ? ' <button type="button" class="bt ghost bt-mini" data-acao="r-editar" data-item="' + id + '"' + dis + ">" +
         (u.editando === it.id ? "Cancelar" : "Mudar valor") + "</button>" : "") + "</div>";
     if (u.editando === it.id) {

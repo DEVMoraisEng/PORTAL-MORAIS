@@ -237,3 +237,27 @@ test("Conferir no Mais Controle e perfil TESTES", () => {
   assert.deepEqual(cen({ props: { DB_FILA_ROBO: "" }, venda: { "MC - VENDA ID": rt("x") } }).chamar({ action: "recebimentoMC" }),
     { ok: false, erro: "FILA_NAO_CONFIGURADA" });
 });
+
+/* 23/11/2026 (caso real: banco financiou 320 mil, intermediária do contrato 280 mil): o esperado do Financiamento na casa
+   de rua é a intermediária − FGTS, com a mesma aquisição do contrato */
+test("esperadoFinanciamento: intermediária do contrato menos FGTS", () => {
+  const f = REC.esperadoFinanciamento;
+  assert.equal(f({ naMao: 285000, total: 304000, comissao: 19000, sinal: 5000 }), 280000, "na mão vale antes de contrato − comissão");
+  assert.equal(f({ naMao: 285000, sinal: 5000, fgts: 15000 }), 265000, "o FGTS paga parte da intermediária");
+  assert.equal(f({ total: 300000, comissao: 9000, sinal: 10000, entrada: 20000 }), 261000, "sem na mão: contrato − comissão");
+  assert.equal(f({ total: 300000, sinal: 10000 }), 290000, "comissão vazia = 0");
+  assert.equal(f({ total: 300000, comissao: 9000, naMao: 291000, pagaPor: "VENDEDOR", sinal: 10000 }), 290000, "paga pelo vendedor: o contrato todo");
+  assert.equal(f({ naMao: 100000, sinal: 5000, fgts: 200000 }), 0, "FGTS cobre tudo: nada de financiamento");
+  assert.equal(f({ sinal: 5000 }), null, "sem valor do contrato: não calcula (fica o VALOR FINANCIADO)");
+  assert.equal(f({ naMao: 5000, sinal: 5000 }), null, "sem saldo: não calcula");
+});
+
+test("Financiamento calculado: não edita pela aba e explica na tela", () => {
+  const c = cen({ venda: { "VALOR FINANCIADO": num(320000) } });
+  const r = c.chamar({ action: "recebimentoEstado" });
+  const fin = r.itens.find((x) => x.id === "FINANCIAMENTO");
+  assert.equal(fin.calculado, "INTERMEDIARIA"); assert.equal(fin.editavel, false);
+  assert.notEqual(fin.esperado, 320000, "não usa o VALOR FINANCIADO do banco");
+  const v = c.chamar({ action: "recebimentoValor", item: "FINANCIAMENTO", valor: 1000 });
+  assert.equal(v.ok, false); assert.equal(v.erro, "VALOR_CALCULADO");
+});
