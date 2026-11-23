@@ -172,7 +172,9 @@ test("recebimentoEstado: os itens com o valor esperado (05/11: + FGTS); nada con
   const r = chamar(c, { action: "recebimentoEstado" });
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.deepEqual(r.itens.map((x) => [x.id, x.esperado, x.confirmado, x.comprovantes]),
-    [["SINAL", 10000, false, 0], ["ENTRADA", 20000, false, 0], ["FINANCIAMENTO", 150000, false, 0], ["FGTS", null, false, 0]]);
+    /* 23/11/2026: Financiamento = intermediária do contrato (na mão 291.000 − sinal 10.000 − entrada 20.000), não o VALOR FINANCIADO */
+    [["SINAL", 10000, false, 0], ["ENTRADA", 20000, false, 0], ["FINANCIAMENTO", 261000, false, 0], ["FGTS", null, false, 0]]);
+  assert.equal(r.itens[2].calculado, "INTERMEDIARIA"); assert.equal(r.itens[2].editavel, false);
   assert.deepEqual(r.itens.map((x) => x.modo), ["antigo", "antigo", "antigo", ""], "sem as colunas de 05/11: o jeito da entrega 14");
   assert.match(r.itens[3].erro, /^COLUNA_FALTANDO: RECEBIMENTO - FGTS PAGAMENTOS/);
   assert.equal(r.emailConfigurado, false);

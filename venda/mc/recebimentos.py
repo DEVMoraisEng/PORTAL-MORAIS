@@ -248,9 +248,16 @@ def plano_alteracao(venda: dict, esp: dict) -> dict:
     if not isinstance(inst, list):
         out["recusas"]["_venda"] = "a venda veio sem parcelas do Mais Controle"
         return out
+    # 23/11/2026: casa de rua lançada desde 19/11 (regras.parcelas) sobe SÓ sinal, entrada e INTERMEDIÁRIA — FGTS,
+    # financiamento e subsídio pagam a intermediária. Nessa venda o robô NÃO cria nem altera parcela de financiamento/FGTS
+    # (criar duplicaria o a receber: caso real, financiado 320 mil + intermediária 280 mil). Venda antiga, com parcela de
+    # financiamento/FGTS e sem intermediária, segue como antes.
+    com_intermediaria = any(tipo_da_parcela(p) == R.TIPO_INTERMEDIARIA for p in inst)
     for item in ORDEM:
         alvo = esp.get(item)
         if alvo is None:
+            continue
+        if com_intermediaria and item in ("FINANCIAMENTO", "FGTS"):
             continue
         ps = [p for p in inst if tipo_da_parcela(p) == ITENS[item]["tipo"]]
         atual = _r2(sum(_f(p.get("plannedValue")) for p in ps))
