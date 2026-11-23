@@ -441,3 +441,24 @@ test("03/11 (dono): conferência feita antes de os documentos chegarem — aviso
   assert.match(h, /Os dados mudaram depois desta conferência/);
   assert.doesNotMatch(D.htmlConferencia({ ...base, atual: true }, {}), /confira de novo/);
 });
+
+/* ---- 23/11/2026 (financeiro): condições especiais resumidas na leitura ---- */
+test("23/11: condições especiais longas aparecem resumidas (títulos dos subitens) e o texto inteiro fica em 'Ver texto completo'", () => {
+  const longo = ["As condições especiais deste item prevalecem sobre as demais disposições." + " x".repeat(150),
+    "16.1. Financiamento após a conclusão da obra. Por opção do COMPRADOR, o saldo…",
+    "16.2. Prazo para financiar. O COMPRADOR terá 60 (sessenta) dias…", "a) Habite-se;",
+    "16.10. Encargos da unidade. Se o financiamento não for contratado…"].join("\n");
+  const r = D.resumoCondicoes(longo);
+  assert.equal(r.curto, false);
+  assert.deepEqual(r.titulos, ["16.1 Financiamento após a conclusão da obra", "16.2 Prazo para financiar", "16.10 Encargos da unidade"]);
+  const h = D.htmlContratoLeitura(D.estadoContrato(Object.assign({}, ESTADO_ENVIADO, { condicoes: { coluna: true, texto: longo, max: 10000 } })), { rascunho: {} });
+  assert.match(h, /<li>16\.2 Prazo para financiar<\/li>/);
+  assert.match(h, /<details class="dz-linha"><summary[^>]*>Ver texto completo \([\d.]+ caracteres\)<\/summary>/);
+  assert.match(h, /O COMPRADOR terá 60 \(sessenta\) dias/);
+  /* curto continua inteiro, sem dobra */
+  const curto = D.htmlContratoLeitura(D.estadoContrato(ESTADO_ENVIADO), { rascunho: {} });
+  assert.doesNotMatch(curto, /Ver texto completo/);
+  /* longo sem títulos: começo do texto + dobra */
+  const semTit = D.htmlCondicoesResumo("palavra ".repeat(80));
+  assert.match(semTit, /palavra…<\/div><details/);
+});
