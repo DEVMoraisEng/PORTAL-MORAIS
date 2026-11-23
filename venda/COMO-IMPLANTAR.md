@@ -780,6 +780,11 @@ opção **Digitar outra conta** (Banco, Agência, Conta, Chave PIX opcional).
   vendedor. Conta escolhida que sumiu da base vira falta ("escolha de novo"),
   nunca troca sozinha por outra.
 - O contrato sempre leva banco, agência e conta; o PIX só quando existe.
+- **Só a chave Pix (23/11/2026, dono):** vendedor pessoa física tem a conta preenchida na hora do contrato;
+  se for por Pix, basta a chave — banco, agência e conta ficam todos em branco. O 6.3 sai
+  "PIX: <chave> - Titularidade…" (`ContratoVenda.TRECHO_SO_PIX` tira "Banco: – Agência: – Operação: – Conta – ").
+  Conta pela metade (ex.: banco sem agência) continua pedindo o que falta. Implantar: colar `ContratoVenda` e
+  `GerarContrato` no PORTAL-VENDA, nova versão; o site publica `venda-dossie.js?v=97` sozinho.
 - A conta entra no carimbo: trocar a conta depois do pré-contrato deixa o
   pré-contrato **desatualizado** (gere de novo antes do "Conferi").
 

@@ -192,8 +192,10 @@ test("condomínio (contrato de 21/10): sem cadastro em LOTEAMENTOS e sem conta d
   const f = fontes();
   f.vendedor = { ...f.vendedor, banco: "", agencia: "", conta: "" };
   assert.deepEqual(C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null })), []);
-  /* fora do condomínio continua exigido */
-  const rua = C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null, condominio: null }));
+  /* fora do condomínio continua exigido — sem conta E sem Pix (23/11/2026: só a chave Pix já basta) */
+  const rua = C.faltasContrato(C.montarDadosContrato({ ...f, vendedor: { ...f.vendedor, pix: "" }, loteamento: null, condominio: null }));
+  const ruaSoPix = C.faltasContrato(C.montarDadosContrato({ ...f, loteamento: null, condominio: null }));
+  assert.ok(f.vendedor.pix && !ruaSoPix.some((x) => /^Vendedor: (banco|agência|conta)$/.test(x)), ruaSoPix.join(" | "));
   /* 05/11/2026: casa de rua sem cadastro de loteamento — pede a matrícula da casa lida pela IA */
   assert.ok(rua.includes("Imóvel: matrícula-mãe do loteamento — anexe a matrícula da casa e clique em Ler") && rua.includes("Vendedor: banco"), rua.join(" | "));
 });

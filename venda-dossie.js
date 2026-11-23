@@ -558,7 +558,7 @@
     if (!c || !Array.isArray(c.opcoes)) return null;
     var esc = c.escolhida, escolhida = null;
     if (esc && esc.id) escolhida = { id: String(esc.id) };
-    else if (esc && (esc.banco || esc.conta))
+    else if (esc && (esc.banco || esc.conta || esc.pix))   /* 23/11/2026: conta só com a chave Pix */
       escolhida = { banco: String(esc.banco || ""), agencia: String(esc.agencia || ""), operacao: String(esc.operacao || ""),
                     conta: String(esc.conta || ""), pix: String(esc.pix || "") };
     return { opcoes: c.opcoes.map(function (o) { return { id: String(o.id || ""), nome: String(o.nome || "") }; }),
@@ -594,7 +594,7 @@
         var k = "conta|" + x[0], v = k in rasc ? rasc[k] : (esc.id ? "" : (esc[x[0]] || ""));
         return '<label class="dz-campo">' + esc_(x[1]) + ' <input type="text" maxlength="120" data-conta-campo="' + x[0] + '" value="' + esc_(v) + '"' + dis + "></label>";
       }).join(" ") + ' <button type="button" class="bt bt-mini" data-acao="c-salvar-conta"' + dis + ">Salvar conta</button></div>";
-      h += '<div class="dz-msg dz-nota">A conta digitada vale só para esta venda (não muda o cadastro).</div>';
+      h += '<div class="dz-msg dz-nota">A conta digitada vale só para esta venda (não muda o cadastro). Se for por Pix, basta a chave Pix: deixe banco, agência e conta em branco.</div>';
     }
     return h;
   }
@@ -621,7 +621,7 @@
         h += '<div class="dz-linha"><label class="dz-rot">' + esc(c.rotulo) + "</label>" + inp + "</div>";
       });
     });
-    if (campos.conta) h += '<div class="dz-aviso">Banco, agência e conta: escolha ou digite em "Conta de recebimento", abaixo.</div>';
+    if (campos.conta) h += '<div class="dz-aviso">Banco, agência e conta (ou só a chave Pix): escolha ou digite em "Conta de recebimento", abaixo.</div>';
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-salvar-campos"' + dis + ">Salvar dados e gerar pré-contrato</button></div>";
     return h;
   }
@@ -978,7 +978,7 @@
     if (!conta || conta.fixa || !Array.isArray(conta.opcoes)) return "";
     var e = conta.escolhida;
     if (e && e.id) { var o = conta.opcoes.filter(function (x) { return x.id === e.id; })[0]; return o ? o.nome : "conta escolhida"; }
-    if (e && (e.banco || e.conta)) return [e.banco, e.agencia ? "ag. " + e.agencia : "", e.conta ? "conta " + e.conta : "", e.pix ? "PIX " + e.pix : ""]
+    if (e && (e.banco || e.conta || e.pix)) return [e.banco, e.agencia ? "ag. " + e.agencia : "", e.conta ? "conta " + e.conta : "", e.pix ? "PIX " + e.pix : ""]
       .filter(function (x) { return x; }).join(" · ");
     var pd = conta.opcoes.filter(function (x) { return x.id === conta.padrao; })[0];
     return pd ? pd.nome + " (conta da obra)" : "";

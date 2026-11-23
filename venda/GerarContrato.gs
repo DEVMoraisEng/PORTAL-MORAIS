@@ -448,7 +448,7 @@ function ctrFontes_(col, pageId) {
   var contaErro = "", escolha = vendedor && !cond ? ctrLerContaReceb_(pageId) : null, usouEscolha = false;
   if (escolha) {
     var de = escolha.contaId ? ctrDadosDaConta_(escolha.contaId) : escolha.digitada;
-    if (de && (de.banco || de.conta)) {
+    if (de && (de.banco || de.conta || de.pix)) {   /* 23/11/2026: só a chave Pix também vale */
       vendedor.banco = de.banco; vendedor.agencia = de.agencia; vendedor.operacao = ctrTxt_(de.operacao); vendedor.conta = de.conta; vendedor.pix = de.pix;
       usouEscolha = true;
     } else contaErro = "Conta de recebimento: a conta escolhida não foi encontrada ou está sem banco e número — escolha de novo";
@@ -616,6 +616,13 @@ function aplicarMarcadores_(sec, marcadores, grifar) {
    ("Conta 1234-5 – PIX: {{PIX}} - Titularidade" -> "Conta 1234-5 - Titularidade"), nunca um "PIX:" em branco. */
 function ctrTirarTrechosVazios_(sec, marcadores) {
   var trechos = ContratoVenda.TRECHOS_SE_VAZIO || {};
+  /* 23/11/2026 (dono): conta só com a chave Pix — sai "Banco: – Agência: – (Operação: –) Conta – " de uma vez */
+  if (ContratoVenda.TRECHO_SO_PIX && ContratoVenda.contaSoPix && ("PIX" in marcadores) &&
+      ContratoVenda.contaSoPix({ banco: marcadores.BANCO, agencia: marcadores.AGENCIA, conta: marcadores.CONTA, pix: marcadores.PIX })) {
+    var rp, vp = 0;
+    while ((rp = sec.findText(ContratoVenda.TRECHO_SO_PIX)) && vp++ < 50)
+      rp.getElement().asText().deleteText(rp.getStartOffset(), rp.getEndOffsetInclusive());
+  }
   for (var chave in trechos) {
     if (!(chave in marcadores) || ctrTxt_(marcadores[chave]).trim()) continue;
     var padrao = trechos[chave] + "\\{\\{" + chave + "\\}\\}", r, voltas = 0;
@@ -1111,8 +1118,8 @@ function ctrLerContaReceb_(pageId) {
   try { o = JSON.parse(s); } catch (e) { return null; }
   if (!o || typeof o !== "object") return null;
   if (o.contaId && CTR_REGEX_ID_COND.test(String(o.contaId))) return { contaId: String(o.contaId) };
-  if (o.banco || o.conta) {
-    var dig = { banco: ctrTxt_(o.banco), agencia: ctrTxt_(o.agencia), conta: ctrTxt_(o.conta), pix: ctrTxt_(o.pix) };
+  if (o.banco || o.conta || o.pix) {   /* 23/11/2026: conta só com a chave Pix */
+    var dig ={ banco: ctrTxt_(o.banco), agencia: ctrTxt_(o.agencia), conta: ctrTxt_(o.conta), pix: ctrTxt_(o.pix) };
     if (ctrTxt_(o.operacao)) dig.operacao = ctrTxt_(o.operacao);   // entrega 14: só quando foi digitada
     return { digitada: dig };
   }
