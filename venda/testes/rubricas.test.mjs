@@ -3,12 +3,13 @@
  * RubricasVenda.paginaDoPdfjs produz. Só dados inventados — o repositório é público. */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { embrulharConfirmacao, EMAILS_TESTE } from "./confirmar-emails-teste.mjs";
 import { createRequire } from "node:module";
 
 const req = createRequire(import.meta.url);
 const R = req("../RubricasVenda.js");
 const CS = req("../ClicksignVenda.js");
-const A = req("../assinatura-ui.js");
+const A = embrulharConfirmacao(req("../assinatura-ui.js"));
 
 /* A4 em pontos; margem 57; quadro-resumo com a coluna cinza até 177 e o texto a partir de 183 */
 const W = 595, H = 842;

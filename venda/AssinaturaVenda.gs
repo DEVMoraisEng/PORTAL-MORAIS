@@ -285,8 +285,9 @@ function assEnviarTravado_(col, p, pid) {
 /* Tudo o que o envio do contrato confere e monta antes de falar com a Clicksign: { d, config, lista, nomeCs, extras, ad, rub }
  * ou { resp }. 01/11 (dono: "não dá para ver o documento antes de mandar assinar?"): a prévia (assinaturaPrevia) usa a mesma
  * conta, com previa = true — sem gerar o memorial (as linhas dele já vieram da tela) e sem nada na Clicksign. */
-function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
-  /* mesmos dados do contrato (GerarContrato): o que foi gerado é o que se confere */
+/* Quem assina o contrato (mesmos dados do GerarContrato): { f, d, config, termos } ou { resp }. 23/11: separado do
+ * assPrepararContrato_ para a tela de confirmar e-mails (assinaturaSignatarios) montar a mesma lista do envio. */
+function assQuemAssinaContrato_(col, p) {
   var f = ctrFontes_(col, p.pageId);
   if (f.condominioErro) return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: [f.condominioErro] } };
   if (f.obraAmbigua) return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra ambígua em DOCUMENTOS (endereço repetido)"] } };
@@ -297,8 +298,19 @@ function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
   var fiadoresAssinam = ConfissaoVenda.fiadoresAssinam(d, cfdLigado_());
   var termos = fiadoresAssinam ? ConfissaoVenda.quais(d) : [];
   if (fiadoresAssinam) config.comFiadores = true;
+  return { f: f, d: d, config: config, termos: termos };
+}
+
+function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
+  /* mesmos dados do contrato (GerarContrato): o que foi gerado é o que se confere */
+  var q = assQuemAssinaContrato_(col, p);
+  if (q.resp) return q;
+  var f = q.f, d = q.d, config = q.config, termos = q.termos;
+  /* 23/11/2026 (dono): o envio só sai com os e-mails confirmados na tela (a prévia não envia nada: não precisa) */
+  var conf = previa ? null : ClicksignVenda.aplicarEmailsConfirmados(ClicksignVenda.signatarios(d, config), p.emails);
+  if (conf && !conf.ok) { assLog_("enviar " + pid + " " + conf.erro); return { resp: assRespEmails_(conf) }; }
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
-    .concat(ContratoVenda.faltasContrato(d), termos.length ? ConfissaoVenda.faltas(d) : [], ClicksignVenda.faltasAssinatura(d, config));
+    .concat(ContratoVenda.faltasContrato(d), termos.length ? ConfissaoVenda.faltas(d) : [], ClicksignVenda.faltasAssinatura(d, config, previa ? null : p.emails));
   if (faltas.length) {
     assLog_("enviar " + pid + " faltas " + faltas.length);
     return { resp: { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) } };
@@ -348,8 +360,39 @@ function assPrepararContrato_(col, p, pid, gerado, previa, pg) {
     /* revisão 01/11: tamanho real das páginas (MediaBox) — sem ele, o padrão (memorial Carta, projeto A1/A2) */
     if (x.tamanhos) rub.tamanhos[x.tipo] = x.tamanhos;
   });
-  return { d: d, config: config, lista: ClicksignVenda.signatarios(d, config), nomeCs: nomeCs, extras: extras, ad: ad, rub: rub,
+  if (conf && conf.trocados) assLog_("enviar " + pid + " e-mails trocados na confirmacao: " + conf.trocados);
+  return { d: d, config: config, lista: conf ? conf.lista : ClicksignVenda.signatarios(d, config), nomeCs: nomeCs, extras: extras, ad: ad, rub: rub,
            mensagem: ClicksignVenda.mensagemEnvelope("contrato", f.endereco, f.casa, prop_("CLICKSIGN_MENSAGEM_CONTRATO")) };
+}
+
+/* 23/11/2026: resposta do envio quando a confirmação dos e-mails não fecha (sem dado pessoal no texto) */
+var ASS_MSG_EMAILS = {
+  EMAILS_NAO_CONFIRMADOS: "A tela está desatualizada (falta a confirmação dos e-mails) — recarregue a página (Ctrl+F5) e envie de novo.",
+  EMAILS_DESATUALIZADOS: "Quem assina mudou depois da confirmação dos e-mails — clique em Enviar de novo para conferir a lista atual."
+};
+function assRespEmails_(conf) {
+  return { ok: false, erro: conf.erro, mensagem: ASS_MSG_EMAILS[conf.erro] || "" };
+}
+
+/* 23/11/2026 (dono): tela de confirmar ou alterar os e-mails antes de cada envio para a Clicksign (contrato e termo de
+ * reserva). Só leitura; devolve a MESMA lista que o envio monta: [{ papel, nome, email }] ("" quando falta no cadastro).
+ * O perfil TESTES não envia — não vê os e-mails. Log sem dado pessoal (só a página e quantos). */
+function assinaturaSignatarios_(col, sess, p) {
+  if (String((sess && sess.t) || "").toUpperCase() === "TESTES") return { ok: false, erro: "SEM_PERMISSAO_TESTES" };
+  var pid = String(p.pageId).slice(0, 8), doc = assDoc_(p);
+  if (!prop_("DB_VENDEDORES") || !prop_("DB_LOTEAMENTOS") || !prop_("DB_CORRETORES") || !prop_("DB_DOCUMENTOS")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
+  var lista;
+  if (doc.pre) {
+    var qt = assQuemAssinaTermo_(col, p, pid);
+    if (qt.resp) return qt.resp;
+    lista = ClicksignVenda.signatarios(qt.dAss, qt.cfg);
+  } else {
+    var qc = assQuemAssinaContrato_(col, p);
+    if (qc.resp) return qc.resp;
+    lista = ClicksignVenda.signatarios(qc.d, qc.config);
+  }
+  assLog_("signatarios " + pid + (doc.pre ? " termo" : "") + ": " + lista.length);
+  return { ok: true, signatarios: ClicksignVenda.listaParaConfirmar(lista) };
 }
 
 /* Prévia: memorial (migrado ou não, páginas da tela) e projeto, sem gerar nem baixar nada */
@@ -501,9 +544,10 @@ function cfdGerado_(pg, tipo) {
  * corretor ligou "Incluir o cônjuge na pré-reserva" nesta venda (PR_CONJUGE_<pageId>, PreReserva.gs); desligado, ele
  * não entra no envelope nem tem o e-mail cobrado. Isto muda só o termo: no contrato o cônjuge continua assinando
  * (decisão de 31/10). Faltas do termo + da assinatura; o carimbo do PDF tem de bater com o de agora. */
-function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
+/* Quem assina o termo de reserva: { x, dAss, cfg, config } ou { resp }. 23/11: separado para a tela de confirmar e-mails. */
+function assQuemAssinaTermo_(col, p, pid) {
   var x = prDados_(col, p, pid, "assinatura termo");
-  if (x.resp) return x.resp;
+  if (x.resp) return { resp: x.resp };
   var dAss = {}, k;
   for (k in x.d) dAss[k] = x.d[k];
   dAss.comprador2 = null; dAss.corretor = null;
@@ -517,8 +561,18 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   for (k in config) cfg[k] = config[k];
   cfg.incluirCorretor = false;
   cfg.semTestemunhas = true;   /* 06/11/2026 (dono): o termo de reserva não leva testemunhas */
+  return { x: x, dAss: dAss, cfg: cfg, config: config };
+}
+
+function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
+  var q = assQuemAssinaTermo_(col, p, pid);
+  if (q.resp) return q.resp;
+  var x = q.x, dAss = q.dAss, cfg = q.cfg, config = q.config;
+  /* 23/11/2026 (dono): e-mails confirmados na tela, como no contrato */
+  var conf = ClicksignVenda.aplicarEmailsConfirmados(ClicksignVenda.signatarios(dAss, cfg), p.emails);
+  if (!conf.ok) { assLog_("enviar termo " + pid + " " + conf.erro); return assRespEmails_(conf); }
   var faltas = config.invalidas.map(function (n) { return "Propriedade " + n + ": JSON inválido"; })
-    .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg));
+    .concat(PreReservaVenda.faltas(x.t), ClicksignVenda.faltasAssinatura(dAss, cfg, p.emails));
   if (faltas.length) {
     assLog_("enviar termo " + pid + " faltas " + faltas.length);
     return { ok: false, erro: "FALTAM_DADOS", faltas: faltas, corrigir: assCorrigir_(faltas) };
@@ -526,7 +580,8 @@ function assEnviarTermo_(col, p, pid, cols, doc, gerado) {
   var carimbo = ctrCarimboDoNome_(gerado.nome);
   if (!carimbo || (carimbo !== prCarimbo_(x.t) && carimbo !== prCarimbo_(x.t, prAssinCarimbo_(x.d, p.pageId)))) { assLog_("enviar termo " + pid + " carimbo diferente"); return { ok: false, erro: "TERMO_DESATUALIZADO" }; }
   var nomeCs = "RESERVA - " + ClicksignVenda.nomePadrao(x.f.endereco, x.f.casa, dAss.comprador1 && dAss.comprador1.nome);
-  return assCriarEnvelope_(p, pid, cols, doc, gerado, ClicksignVenda.signatarios(dAss, cfg), nomeCs, null, null, null, dAss,
+  if (conf.trocados) assLog_("enviar termo " + pid + " e-mails trocados na confirmacao: " + conf.trocados);
+  return assCriarEnvelope_(p, pid, cols, doc, gerado, conf.lista, nomeCs, null, null, null, dAss,
                            ClicksignVenda.mensagemEnvelope("termo", x.f.endereco, x.f.casa, prop_("CLICKSIGN_MENSAGEM_TERMO")));
 }
 

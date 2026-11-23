@@ -3537,6 +3537,7 @@
         alvo: b ? b.getAttribute("data-sig") : "",   /* 03/11: Trocar e-mail */
         perguntar: function (t, v) { return window.prompt(t, v); },
         confirmar: function (t) { return window.confirm(t); },
+        confirmarEmails: function (o) { return window.VendaAssinatura.abrirConfirmacaoEmails(o); },   /* 23/11 (dono) */
         lerPrazo: function () { return prazoDaTela(b); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxP = c; pintarP(); },
@@ -3622,6 +3623,7 @@
         perguntar: function (t, v) { return window.prompt(t, v); },
         mostrarPrevia: function (prev) { return window.RubricasVenda ? window.RubricasVenda.mostrarPrevia(prev, janelaPrevia) : null; },
         confirmar: function (t) { return window.confirm(t); },
+        confirmarEmails: function (o) { return window.VendaAssinatura.abrirConfirmacaoEmails(o); },   /* 23/11 (dono) */
         lerPrazo: function () { return prazoDaTela(b); },
         chamar: function (p) { return chamarVenda(p, ESPERA_ASSINATURA); },
         pintar: function (c) { ctxA = c; pintarA(); },
@@ -4552,7 +4554,7 @@
        Carrega mesmo sem o painel da casa: o cartão do condomínio também usa. */
     /* 30/10: leitor das rubricas do comprador (pdf.js só carrega na hora de enviar) */
     var sr = document.createElement("script"); sr.src = "venda/RubricasVenda.js?v=9"; document.head.appendChild(sr);
-    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=32";
+    var sa = document.createElement("script"); sa.src = "venda/assinatura-ui.js?v=33";
     sa.onload = function () { [blocosCasa, blocosCond, blocosPR].forEach(function (b) { if (b) b.pintarAssinatura(); }); };
     document.head.appendChild(sa);
     var body = document.getElementById("pn-body"); if (!body) return;
