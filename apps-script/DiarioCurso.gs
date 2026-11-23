@@ -42,7 +42,7 @@
  *      e marcar nos estagiários.
  *************************************************************************/
 
-var DC_VERSAO = "d1";
+var DC_VERSAO = "d2";   // d2 (23/11): exceção da ementa casa qualquer palavra do nome
 var DC_ACESSO = "DIÁRIO DO CURSO";
 var DC_INICIO = "2026-11-24";       // 1º dia da página 1
 var DC_DIAS = 15;                    // duração de cada página
@@ -190,8 +190,7 @@ function dcGarantir_(sess) {
   var nome = String(sess.n || sess.p || sess.u || "").trim();
   var fora = [];
   [nome, login].forEach(function (s) {
-    var prim = dcNorm_(s).split(/[ ._-]/)[0];
-    if (prim && DC_FORA_INICIAL[prim]) fora = DC_FORA_INICIAL[prim].slice();
+    dcNorm_(s).split(/[ ._-]+/).forEach(function (w) { if (w && DC_FORA_INICIAL[w]) fora = DC_FORA_INICIAL[w].slice(); });   // qualquer palavra do nome (o Arthur está como "José Arthur")
   });
   var novo = dcRest_("post", "diario_estagiarios?on_conflict=login",
     [{ login: login, nome: nome, fora: fora, ativo: true }], "resolution=ignore-duplicates,return=representation");
