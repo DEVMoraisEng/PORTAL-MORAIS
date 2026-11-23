@@ -829,6 +829,10 @@ function contratoEstado_(col, p) {
     try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
     /* 05/11/2026 (dono): casa de rua — bloco "Pagamento da comissão" (paga por COMPRADOR + dados do corretor), sempre */
     try { var cc = ctrComissaoCorretorEstado_(pgE); if (cc) r.comissaoCorretor = cc; } catch (e) { ctrErro_("contratoEstado comissao", e); }
+    /* 23/11/2026 (Gustavo): casa de rua — o Gerar pré-contrato pergunta CASA PRONTA × CASA EM CONSTRUÇÃO (o tipo escolhe o
+       modelo); vai o tipo gravado hoje para a pergunta mostrar qual está valendo */
+    r.casaDeRua = true;
+    try { r.tipoCasa = ctrTxt_(ctrCampo_(ctrPorChave_(pgE.properties), RegrasVenda.COL.TIPO_CASA)); } catch (e) { r.tipoCasa = ""; ctrErro_("contratoEstado tipo", e); }
   }
   /* entrega 10 + rodada 1 (H5): lista de testemunhas (só id e nome), a escolha desta venda e o par padrão pelo tipo do vendedor
      (casa de rua e contrato final também: lê os cadastros só aqui, e só quando há lista para mostrar) */
