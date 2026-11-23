@@ -745,7 +745,8 @@ def indices() -> int:
 # "github_token_arquivo": "..." (só medições: publica dist/mc_medicoes/contratos.json no repositório)}.
 # Gravar (APLICAR=1) exige o arquivo _central\ROBOS_APLICAR.txt — o dono cria.
 ROBOS = {
-    "contas": ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py"],   # robos-mc.yml (06:23)
+    "contas": ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py",
+               "robo_mc_distratos.py"],   # robos-mc.yml (06:23); 23/11: + distrato de venda manual
     "bases": ["robo_mc_bases.py"],                                                # robos-mc-bases.yml (07:17)
     "medicoes": ["robo_mc_medicoes.py"],                                          # robos-mc-medicoes.yml (2/2 h)
     # 31/10: retrato diário das vendas do condomínio (aba Financeiro + antecipação); só lê o ERP
