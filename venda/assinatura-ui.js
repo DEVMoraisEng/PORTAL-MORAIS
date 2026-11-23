@@ -63,6 +63,10 @@
     DOCUMENTO_NAO_ENCONTRADO: "Esse documento não está mais no envelope — recarregue a página.",
     CONTRATO_ASSINADO: "O contrato já foi assinado por todos — nada mais muda nele. Recarregue a página.",
     TERMO_ASSINADO: "O termo de reserva já foi assinado por todos — nada mais muda nele. Recarregue a página.",
+    /* 23/11/2026: confirmar os e-mails antes de cada envio */
+    EMAILS_NAO_CONFIRMADOS: "A tela está desatualizada (falta a confirmação dos e-mails) — recarregue a página (Ctrl+F5) e envie de novo.",
+    EMAILS_DESATUALIZADOS: "Quem assina mudou depois da confirmação dos e-mails — clique em Enviar de novo para conferir a lista atual.",
+    EMAILS_SEM_SERVIDOR: "O servidor da venda ainda não tem a confirmação dos e-mails — avise o administrador (falta publicar o PORTAL-VENDA). Nada foi enviado.",
     /* 03/11: Trocar e-mail (sem cancelar o envelope) */
     EMAIL_INVALIDO: "Esse e-mail não parece válido — confira e tente de novo.",
     EMAIL_IGUAL: "Esse já é o e-mail desta pessoa na Clicksign.",
@@ -443,6 +447,7 @@
     if (assinado(c)) return montarDocumentosAssinados(c);   /* 01/11 (plano 23 A): só visualizar */
     var e = c.estado, sit = situacaoDe(e);
     if (c.troca && !termo) return h + htmlTroca(c) + (c.msg ? '<div class="dz-msg">' + esc(c.msg) + "</div>" : "");   /* 18/11: modo Trocar fiadores */
+    if (c.ocupado === "emails") h += '<div class="dz-linha"><b>conferindo os e-mails de quem assina…</b></div>';   /* 23/11 */
     if (c.ocupado === "enviar") h += '<div class="dz-linha"><b>enviando… (até 1 minuto)</b></div>';
     if (c.ocupado === "atualizar") h += '<div class="dz-linha"><b>consultando…</b></div>';
     if (c.ocupado === "reenviar") h += '<div class="dz-linha"><b>reenviando…</b></div>';
@@ -561,6 +566,131 @@
     return { ok: true, rubricas: rubricas, pdfs: pdfs };
   }
 
+  /* ---- 23/11/2026 (dono): confirmar ou alterar os e-mails antes de cada envio para a Clicksign ----
+   * conferirEmailsDaTela(lista, valores): valores = e-mail digitado de cada linha (mesma ordem da lista). Devolve
+   * { ok: true, emails: { papel: email }, trocados } ou { ok: false, erros: [texto ou "" por linha] }. Cada pessoa precisa de
+   * um e-mail válido e diferente dos outros (a Clicksign não aceita o mesmo e-mail para duas pessoas do envelope). */
+  function conferirEmailsDaTela(lista, valores) {
+    var erros = [], vistos = {}, emails = {}, trocados = 0, ruim = false;
+    (lista || []).forEach(function (s, i) {
+      var e = String((valores && valores[i]) || "").trim().toLowerCase(), err = "";
+      if (!e) err = "Falta o e-mail.";
+      else if (!EMAIL_OK.test(e)) err = "E-mail inválido.";
+      else if (vistos[e] !== undefined) err = "Igual ao de " + lista[vistos[e]].papel + " — cada pessoa precisa de um e-mail.";
+      else vistos[e] = i;
+      if (err) ruim = true;
+      erros.push(err);
+      emails[s.papel] = e;
+      if (e !== String(s.email || "").toLowerCase()) trocados++;
+    });
+    return ruim ? { ok: false, erros: erros } : { ok: true, emails: emails, trocados: trocados };
+  }
+  /* Pede a lista ao servidor e abre a confirmação. Devolve { ctx, emails } (emails null = não enviar). */
+  async function confirmarEmailsDoEnvio(c, deps, prazo) {
+    if (typeof deps.confirmarEmails !== "function") return { ctx: copia(c, { msg: MSG.EMAILS_NAO_CONFIRMADOS }), emails: null };
+    if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: "emails", msg: "", faltas: null, corrigir: null }));
+    var rl;
+    try { rl = await deps.chamar(comDoc(c, { action: "assinaturaSignatarios", pageId: deps.pageId })); }
+    catch (err) { rl = { ok: false, erro: "SEM_RESPOSTA" }; }
+    rl = rl || { ok: false, erro: "SEM_RESPOSTA" };
+    if (!rl.ok || !Array.isArray(rl.signatarios)) {
+      var msg = rl.erro === "ACAO_DESCONHECIDA" ? MSG.EMAILS_SEM_SERVIDOR : mensagemAssinatura(rl);
+      return { ctx: copia(c, { ocupado: null, faltas: rl.faltas || null, msg: msg,
+                               corrigir: (rl.corrigir || []).map(function (x) {
+                                 return { rotulo: x.rotulo, url: typeof deps.linkCorrigir === "function" ? deps.linkCorrigir(x.quem) || "" : "" };
+                               }) }), emails: null };
+    }
+    var emails = await deps.confirmarEmails({ termo: ehTermo(c), prazo: dataBr(prazo), signatarios: rl.signatarios });
+    if (!emails) return { ctx: copia(c, { ocupado: null, msg: "Envio cancelado — nada foi para a Clicksign." }), emails: null };
+    return { ctx: c, emails: emails };
+  }
+  /* A janela (no navegador). opc: { termo, prazo ("dd/mm/aaaa"), signatarios: [{ papel, nome, email }] }. Devolve uma
+   * Promise com { papel: email } (Confirmar e enviar) ou null (Cancelar, Esc, clique fora). Estilo próprio, para funcionar
+   * em qualquer página que carregue o bloco (vendas.html e simulacoes.html). Celular: campos empilhados, fonte 16 px,
+   * botões de 44 px, rola na vertical. */
+  var CSS_CE = "#ce-fundo{position:fixed;inset:0;background:rgba(15,30,40,.72);display:flex;align-items:center;justify-content:center;z-index:90;padding:16px;box-sizing:border-box}" +
+    "#ce-fundo .ce-caixa{background:var(--sup,#fff);color:var(--text,#1b2a33);border-radius:14px;padding:20px 20px 0;width:min(680px,100%);max-height:100%;overflow:auto;box-sizing:border-box;box-shadow:0 18px 50px rgba(0,0,0,.25)}" +
+    "#ce-fundo h3{margin:0 0 6px;font-size:17px}" +
+    "#ce-fundo .ce-aviso{margin:0 0 14px;font-size:13px;line-height:1.5;color:var(--text3,#5b6b75)}" +
+    "#ce-fundo .ce-lin{border:1px solid var(--border,#d9e0e4);border-radius:10px;padding:10px 12px;margin:0 0 10px}" +
+    "#ce-fundo .ce-lin.ce-mud{border-color:#d68910;background:rgba(214,137,16,.07)}" +
+    "#ce-fundo .ce-lin.ce-err{border-color:#c0392b}" +
+    "#ce-fundo .ce-pap{display:block;font-size:11px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text3,#5b6b75)}" +
+    "#ce-fundo .ce-nome{display:block;font-size:14px;font-weight:600;margin:2px 0 6px;overflow-wrap:anywhere}" +
+    "#ce-fundo input{width:100%;box-sizing:border-box;font-size:16px;padding:10px 11px;min-height:44px;border:1.5px solid var(--border,#d9e0e4);border-radius:8px;background:var(--sup,#fff);color:inherit}" +
+    "#ce-fundo .ce-nota{display:block;font-size:12px;margin-top:5px;color:#b9770e;min-height:0}" +
+    "#ce-fundo .ce-lin.ce-err .ce-nota{color:#c0392b}" +
+    "#ce-fundo .ce-nota:empty{display:none}" +
+    "#ce-fundo .ce-bots{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin:4px -20px 0;padding:12px 20px 16px;position:sticky;bottom:0;background:var(--sup,#fff);border-top:1px solid var(--border,#d9e0e4)}" +
+    "@media (min-width:700px){#ce-fundo .ce-lin{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.25fr);column-gap:14px;align-items:center}" +
+    "#ce-fundo .ce-pap{grid-column:1}#ce-fundo .ce-nome{grid-column:1;margin-bottom:0}#ce-fundo input{grid-column:2;grid-row:1 / span 2}#ce-fundo .ce-nota{grid-column:2}}" +
+    "#ce-fundo button{min-height:44px;padding:0 18px;border-radius:9px;font-size:15px;font-weight:600;cursor:pointer;border:1.5px solid var(--border,#d9e0e4);background:none;color:inherit}" +
+    "#ce-fundo button.ce-ok{background:#1f6f43;border-color:#1f6f43;color:#fff}" +
+    "@media (max-width:480px){#ce-fundo{padding:0;align-items:stretch}#ce-fundo .ce-caixa{border-radius:0;width:100%;padding:16px 16px 0}#ce-fundo .ce-bots{margin:4px -16px 0;padding:10px 16px 14px}#ce-fundo .ce-bots button{flex:1 1 40%}}";
+  function abrirConfirmacaoEmails(opc) {
+    return new Promise(function (resolve) {
+      if (typeof document === "undefined") { resolve(null); return; }
+      if (!document.getElementById("ce-estilo")) {
+        var st = document.createElement("style"); st.id = "ce-estilo"; st.textContent = CSS_CE; document.head.appendChild(st);
+      }
+      var lista = (opc && opc.signatarios) || [], doc = opc && opc.termo ? "termo de reserva" : "contrato";
+      var velho = document.getElementById("ce-fundo");
+      if (velho) velho.remove();
+      var fundo = document.createElement("div");
+      fundo.id = "ce-fundo";
+      fundo.className = "pdfoverlay on";   /* o painel do vendas.html não fecha no Esc com janela por cima (pnOutraJanelaAberta) */
+      fundo.setAttribute("role", "dialog"); fundo.setAttribute("aria-modal", "true"); fundo.setAttribute("aria-labelledby", "ce-tit");
+      fundo.innerHTML = '<div class="ce-caixa"><h3 id="ce-tit">Confirme os e-mails de quem assina</h3>' +
+        '<p class="ce-aviso">Cada pessoa recebe neste e-mail o link da Clicksign para assinar o ' + esc(doc) +
+        (opc && opc.prazo ? ", até " + esc(opc.prazo) + " (depois disso o envelope é cancelado)" : "") +
+        '. Confira um por um; se algum estiver errado, corrija aqui. A correção vale para este envio — o cadastro da venda não muda.</p>' +
+        lista.map(function (s, i) {
+          return '<div class="ce-lin" data-i="' + i + '"><span class="ce-pap">' + esc(s.papel) + '</span>' +
+            '<span class="ce-nome">' + esc(s.nome || "(sem nome no cadastro)") + '</span>' +
+            '<input type="email" inputmode="email" autocomplete="off" spellcheck="false" aria-label="E-mail de ' + esc(s.papel) + '" value="' + esc(s.email || "") + '">' +
+            '<span class="ce-nota" aria-live="polite">' + (s.email ? "" : "Sem e-mail no cadastro — digite o e-mail.") + '</span></div>';
+        }).join("") +
+        '<div class="ce-bots"><button type="button" class="ce-nao">Cancelar</button><button type="button" class="ce-ok">Confirmar e enviar</button></div></div>';
+      document.body.appendChild(fundo);
+      var inputs = Array.prototype.slice.call(fundo.querySelectorAll("input")), linhas = fundo.querySelectorAll(".ce-lin");
+      var antes = document.activeElement;
+      function fechar(v) {
+        document.removeEventListener("keydown", tecla, true);
+        fundo.remove();
+        try { if (antes && antes.focus) antes.focus(); } catch (e) { /* o botão pode ter sido redesenhado */ }
+        resolve(v);
+      }
+      function tecla(ev) {
+        if (ev.key === "Escape") { ev.stopPropagation(); ev.preventDefault(); fechar(null); }
+      }
+      document.addEventListener("keydown", tecla, true);
+      inputs.forEach(function (inp, i) {
+        inp.addEventListener("input", function () {
+          var e = inp.value.trim().toLowerCase(), orig = String(lista[i].email || "").toLowerCase(), lin = linhas[i];
+          lin.classList.remove("ce-err");
+          lin.classList.toggle("ce-mud", !!orig && e !== orig);
+          lin.querySelector(".ce-nota").textContent = !orig ? (e ? "" : "Sem e-mail no cadastro — digite o e-mail.")
+            : e !== orig ? "Alterado (no cadastro: " + orig + ")" : "";
+        });
+        inp.addEventListener("keydown", function (ev) { if (ev.key === "Enter") { ev.preventDefault(); confirmar(); } });
+      });
+      function confirmar() {
+        var r = conferirEmailsDaTela(lista, inputs.map(function (x) { return x.value; }));
+        if (r.ok) { fechar(r.emails); return; }
+        var primeiro = -1;
+        r.erros.forEach(function (err, i) {
+          linhas[i].classList.toggle("ce-err", !!err);
+          if (err) { linhas[i].querySelector(".ce-nota").textContent = err; if (primeiro < 0) primeiro = i; }
+        });
+        if (primeiro >= 0) inputs[primeiro].focus();
+      }
+      fundo.querySelector(".ce-ok").addEventListener("click", confirmar);
+      fundo.querySelector(".ce-nao").addEventListener("click", function () { fechar(null); });
+      fundo.addEventListener("click", function (ev) { if (ev.target === fundo) fechar(null); });
+      (inputs.filter(function (x) { return !x.value; })[0] || fundo.querySelector(".ce-ok")).focus();
+    });
+  }
+
   /* Executa um clique. deps: { pageId, confirmar(texto) -> bool, chamar(payload) -> Promise<resposta>,
    * pintar(ctx) opcional — chamado com o bloco ocupado antes de ir ao servidor }.
    * Devolve o contexto novo (não muda o recebido). */
@@ -583,11 +713,17 @@
         return copia(c, { prazo: prazo, msg: "Escolha a data limite para assinar entre " + dataBr(lim.min) + " e " + dataBr(lim.max) + "." });
       c = copia(c, { prazo: prazo });
     }
-    if (enviar && !deps.confirmar("Enviar o " + (ehTermo(c) ? "termo de reserva" : "contrato") + " para assinatura até " + dataBr(prazo) +
-                                  "? Cada signatário recebe um e-mail da Clicksign para assinar; depois dessa data o envelope é cancelado.")) return c;
+    /* 23/11/2026 (dono): "sempre que for mandar o contrato para assinatura aparecer uma tela de confirmar ou alterar os
+       e-mails" — a lista vem do servidor (a mesma do envio) e só segue com os e-mails confirmados; sem a tela, não envia */
+    var emails = null;
+    if (enviar) {
+      var ce = await confirmarEmailsDoEnvio(c, deps, prazo);
+      if (!ce.emails) return ce.ctx;
+      emails = ce.emails; c = ce.ctx;
+    }
     if (typeof deps.pintar === "function") deps.pintar(copia(c, { ocupado: enviar ? "enviar" : "atualizar", msg: "", faltas: null, corrigir: null }));
     var r, pedido = comDoc(c, { action: enviar ? "assinaturaEnviar" : "assinaturaEstado", pageId: deps.pageId });
-    if (enviar) pedido.prazo = prazo;
+    if (enviar) { pedido.prazo = prazo; pedido.emails = emails; }
     if (enviar && !ehTermo(c)) {
       var rb = await prepararRubricas(deps);
       if (!rb.ok) return copia(c, { ocupado: null, faltas: null, corrigir: null, msg: mensagemAssinatura(rb) });
@@ -746,7 +882,8 @@
   }
 
   var exportar = { montarBlocoAssinatura: montarBlocoAssinatura, mensagemAssinatura: mensagemAssinatura,
-                   executarAcaoAssinatura: executarAcaoAssinatura, limitesPrazo: limitesPrazo, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar, podeTrocarEmail: podeTrocarEmail,
+                   executarAcaoAssinatura: executarAcaoAssinatura, limitesPrazo: limitesPrazo,
+                   conferirEmailsDaTela: conferirEmailsDaTela, abrirConfirmacaoEmails: abrirConfirmacaoEmails, prepararRubricas: prepararRubricas, caixasDaPrevia: caixasDaPrevia, TINTA: TINTA, podeEnviar: podeEnviar, podeReenviar: podeReenviar, podeCancelar: podeCancelar, podeDescartar: podeDescartar, podeTrocarEmail: podeTrocarEmail,
                    podeVerAssinado: podeVerAssinado, nomeArquivoAssinado: nomeArquivoAssinado, precisaCarregarAssinados: precisaCarregarAssinados,
                    carregarAssinados: carregarAssinados, baixarAssinado: baixarAssinado, assinado: assinado,
                    envelopeAberto: envelopeAberto, MSG_DESATUALIZADO: MSG_DESATUALIZADO, preReservaDispensada: preReservaDispensada,

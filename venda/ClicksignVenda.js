@@ -246,6 +246,34 @@ var ClicksignVenda = (function () {
                      sigCorretor(dados, config), sigFiadores(dados, config));
   }
 
+  /* 23/11/2026 (dono: "sempre que for mandar o contrato para assinatura aparecer uma tela de confirmar ou alterar os
+   * e-mails"): a tela mostra quem assina e manda de volta o e-mail CONFIRMADO de cada um, pelo papel (único na lista:
+   * "Comprador 1", "Testemunha 2"…). emails = { papel: email } com TODOS os papéis da lista — papel a mais ou a menos é
+   * lista que mudou depois da confirmação (EMAILS_DESATUALIZADOS). Vale só para este envelope: o cadastro não muda.
+   * Devolve { ok, lista (cópia), trocados } ou { ok: false, erro }. */
+  function aplicarEmailsConfirmados(lista, emails) {
+    if (!emails || typeof emails !== "object" || Array.isArray(emails)) return { ok: false, erro: "EMAILS_NAO_CONFIRMADOS" };
+    var papeis = {}, out = [], trocados = 0;
+    (lista || []).forEach(function (s) { papeis[s.papel] = true; });
+    for (var k in emails) if (Object.prototype.hasOwnProperty.call(emails, k) && !papeis[k]) return { ok: false, erro: "EMAILS_DESATUALIZADOS" };
+    for (var i = 0; i < (lista || []).length; i++) {
+      var s = lista[i];
+      if (!Object.prototype.hasOwnProperty.call(emails, s.papel)) return { ok: false, erro: "EMAILS_DESATUALIZADOS" };
+      /* e-mail vazio ou inválido passa daqui: quem barra é o faltasAssinatura, com o texto e o atalho "Corrigir" de sempre */
+      var e = email(emails[s.papel]);
+      var c = {};
+      for (var j in s) c[j] = s[j];
+      if (e !== s.email) trocados++;
+      c.email = e;
+      out.push(c);
+    }
+    return { ok: true, lista: out, trocados: trocados };
+  }
+  /* O que a tela de confirmação mostra: papel, nome completo e o e-mail do cadastro ("" quando falta). */
+  function listaParaConfirmar(lista) {
+    return (lista || []).map(function (s) { return { papel: s.papel, nome: s.nome, email: s.email || "" }; });
+  }
+
   /* 01/11/2026 (plano 23 B, dono: "essas alterações estéticas pode fazer"): bloco de assinaturas com UMA linha por pessoa,
    * no lugar dos blocos fixos do modelo ({{ASSINATURAS_QUADRO}}, {{ASSINATURAS_FINAL}} e {{ASSINATURAS_TERMO}}).
    * tipo: "CONTRATO" | "TERMO" (confissão PRÉ/PÓS) | "PRE_RESERVA". Só entra quem assina aquele documento, pelas mesmas
@@ -318,14 +346,18 @@ var ClicksignVenda = (function () {
   };
 
   /* Faltas legíveis (sem dado pessoal: só papel e o que falta). */
-  function faltasAssinatura(dados, config) {
+  function faltasAssinatura(dados, config, emails) {
     var faltas = [];
     config = config || montarConfig({});
+    /* 23/11: com os e-mails confirmados na tela, confere a lista que vai mesmo para a Clicksign (e-mail que faltava no
+       cadastro e foi digitado na confirmação deixa de ser falta; o repetido continua sendo) */
+    var lista = signatarios(dados, config);
+    if (emails) { var ap = aplicarEmailsConfirmados(lista, emails); if (ap.ok) lista = ap.lista; }
     if (!dados.vendedor) faltas.push("Vendedor: cadastro em VENDEDORES – CONTRATO");
     if (!config.semTestemunhas && !testemunhas(dados, config)) faltas.push("Testemunhas: Propriedade " + nomeDoPar(dados) + " não configurada (precisa de 2)");
     if ((config.incluirCorretor || !dados.condominio) && !dados.corretor && !vendaDireta(dados)) faltas.push("Corretor: cadastro em CORRETORES – CONTRATO");
     var vistos = {}, porPessoa = [];
-    signatarios(dados, config).forEach(function (s) {
+    lista.forEach(function (s) {
       var f = [];
       if (!nomeValido(s.nome)) f.push(s.papel + ": nome e sobrenome, sem números");
       if (!s.email && s.origem === "representante") f.push("Vendedor: falta REPRESENTANTE E-MAIL no cadastro");
@@ -1054,6 +1086,7 @@ var ClicksignVenda = (function () {
 
   var api = {
     PAPEIS: PAPEIS, SITUACOES: SITUACOES, montarConfig: montarConfig, conferirConfig: conferirConfig, signatarios: signatarios,
+    aplicarEmailsConfirmados: aplicarEmailsConfirmados, listaParaConfirmar: listaParaConfirmar,
     faltasAssinatura: faltasAssinatura, faltasDeNomeEEmail: faltasDeNomeEEmail, linksCorrigirEmail: linksCorrigirEmail, nomeEnvelope: nomeEnvelope, nomeArquivo: nomeArquivo, nomePadrao: nomePadrao, tituloDocumento: tituloDocumento, listaAssinados: listaAssinados,
     corpoEnvelope: corpoEnvelope, corpoDocumento: corpoDocumento, corpoSignatario: corpoSignatario,
     corpoQualificacao: corpoQualificacao, corpoAutenticacao: corpoAutenticacao, autenticacoes: autenticacoes, AUTH_SELFIE: AUTH_SELFIE, corpoAtivar: corpoAtivar, corpoCancelarDocumento: corpoCancelarDocumento, statusEfetivo: statusEfetivo,

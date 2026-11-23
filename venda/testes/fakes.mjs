@@ -85,7 +85,20 @@ export function criarGas({ props, rotas, extras = {} }) {
                    "FluxoLivre.js", "FluxoVenda.gs", "LogContratoVenda.js", "LogContrato.gs",
                    "Antecipacao.js", "AntecipacaoVenda.gs", "FiadoresVenda.js", "TermosVenda.js", "TrocaFiadores.gs"])
     vm.runInContext(fs.readFileSync(path.join(VENDA, f), "utf8"), ctx, { filename: f });
-  const chamar = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
+  const post = (payload) => JSON.parse(ctx.doPost({ postData: { contents: JSON.stringify(payload) } }).texto);
+  /* 23/11/2026: a tela só envia depois de o usuário confirmar os e-mails (assinaturaSignatarios). Os testes de envio fazem o
+     mesmo sem mudar nada: pedem a lista e mandam os e-mails do cadastro. As chamadas e logs dessa leitura saem do registro,
+     para os testes seguirem conferindo só o envio. semConfirmar: true manda sem a confirmação (tela velha). */
+  const chamar = (payload) => {
+    if (payload && payload.action === "assinaturaEnviar" && !("emails" in payload) && !payload.semConfirmar) {
+      const nc = chamadas.length, nl = logs.length, ns = sleeps.length;
+      const r = post({ action: "assinaturaSignatarios", token: payload.token, pageId: payload.pageId, doc: payload.doc });
+      chamadas.length = nc; logs.length = nl; sleeps.length = ns;
+      if (r && r.ok) payload = Object.assign({}, payload, { emails: Object.fromEntries(r.signatarios.map((s) => [s.papel, s.email])) });
+    }
+    if (payload && payload.semConfirmar) { payload = Object.assign({}, payload); delete payload.semConfirmar; }
+    return post(payload);
+  };
   return { ctx, chamar, chamadas, logs, cache, sleeps };
 }
 

@@ -8,13 +8,14 @@
  *    testemunhas). Só dados inventados — o repositório é público. */
 import test from "node:test";
 import assert from "node:assert/strict";
+import { embrulharConfirmacao, EMAILS_TESTE } from "./confirmar-emails-teste.mjs";
 import { createRequire } from "node:module";
 
 const req = createRequire(import.meta.url);
 const R = req("../RubricasVenda.js");
 const CS = req("../ClicksignVenda.js");
 const C = req("../ContratoVenda.js");
-const A = req("../assinatura-ui.js");
+const A = embrulharConfirmacao(req("../assinatura-ui.js"));
 
 const W = 595, H = 842;
 const it = (str, x, y, w = str.length * 5, h = 11) => ({ str, x, y, w, h });

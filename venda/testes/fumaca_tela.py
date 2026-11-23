@@ -25,6 +25,13 @@ HTML = """<!doctype html><html><head><meta charset="utf-8"><style>/*CSS_DO_VENDA
     aprovarPreContrato: { ok: true, nome: "CONTRATO - Unidade 13 [#0a1b2c3d].pdf", url: "https://exemplo.invalid/c2.pdf" },
     assinaturaEstado: { ok: true, situacao: "", envelope: false, signatarios: [] },
     assinaturaEnviar: { ok: true, situacao: "ENVIADO" },
+    assinaturaSignatarios: { ok: true, signatarios: [
+      { papel: "Comprador 1", nome: "FULANO DE TESTE DA SILVA", email: "fulano@teste.example" },
+      { papel: "Cônjuge do comprador 1", nome: "FULANA DE TESTE DA SILVA", email: "" },
+      { papel: "Vendedor (representante)", nome: "BELTRANO REPRESENTANTE", email: "beltrano@teste.example" },
+      { papel: "Testemunha 1", nome: "TESTEMUNHA UM", email: "t1@teste.example" },
+      { papel: "Testemunha 2", nome: "TESTEMUNHA DOIS", email: "t2@teste.example" },
+      { papel: "Corretor", nome: "CORRETOR DE TESTE", email: "corretor@teste.example" }] },
     mcEstado: { ok: true, situacao: "", vendaId: "" },
     mcLancar: { ok: true, aplicar: false },
     financeiroEstado: { ok: true, lancada: true, semLeitura: true, parcelas: [] },
@@ -80,6 +87,41 @@ def main() -> int:
             env = pg.locator('[data-acao="a-enviar"]')
             conf(env.count() == 1 and env.is_enabled(), "Enviar para assinatura habilitado com contrato gerado")
             env.click(); pg.wait_for_timeout(500)
+            # 23/11/2026 (dono): antes de enviar, a tela de confirmar ou alterar os e-mails
+            conf(pg.locator("#ce-fundo").count() == 1, "Enviar abre a tela de confirmar os e-mails")
+            conf("assinaturaEnviar" not in pg.evaluate("() => window.pedidos"), "nada enviado com a tela aberta")
+            conf("Sem e-mail no cadastro" in pg.inner_text("#ce-fundo"), "quem está sem e-mail aparece pedindo o e-mail")
+            pg.locator("#ce-fundo .ce-ok").click(); pg.wait_for_timeout(200)
+            conf("Falta o e-mail" in pg.inner_text("#ce-fundo"), "Confirmar com e-mail vazio não fecha e aponta a linha")
+            ins = pg.locator("#ce-fundo input")
+            ins.nth(1).fill("fulana@teste.example")
+            ins.nth(0).fill("fulano.certo@teste.example")
+            conf("Alterado (no cadastro: fulano@teste.example)" in pg.inner_text("#ce-fundo"), "e-mail mudado fica marcado com o do cadastro")
+            prova = pathlib.Path(sys.argv[1]) if len(sys.argv) > 1 else None
+            pg.evaluate("() => { document.getElementById('pn-body').style.width = 'auto'; }")   # o painel do teste tem 560 px fixos
+            for lw, lh in [(360, 800), (375, 812), (414, 896), (1366, 768), (1920, 1080)]:
+                pg.set_viewport_size({"width": lw, "height": lh}); pg.wait_for_timeout(150)
+                m = pg.evaluate("""() => { const c = document.querySelector('#ce-fundo .ce-caixa'), r = c.getBoundingClientRect();
+                  const i = document.querySelector('#ce-fundo input'), b = document.querySelector('#ce-fundo .ce-ok');
+                  return { sw: document.documentElement.scrollWidth, iw: window.innerWidth, cx: Math.round(r.right), ch: c.scrollHeight > c.clientHeight,
+                           fonte: parseFloat(getComputedStyle(i).fontSize), bot: Math.round(b.getBoundingClientRect().height), inp: Math.round(i.getBoundingClientRect().height) }; }""")
+                print("  %dx%d: scrollWidth %d / innerWidth %d, caixa até %d px, fonte %s px, botão %d px, campo %d px, rola dentro: %s"
+                      % (lw, lh, m["sw"], m["iw"], m["cx"], m["fonte"], m["bot"], m["inp"], m["ch"]))
+                conf(m["sw"] <= m["iw"] and m["cx"] <= m["iw"] and m["fonte"] >= 16 and m["bot"] >= 44 and m["inp"] >= 44,
+                     "tela dos e-mails cabe em %dx%d (sem rolagem lateral, fonte 16, toque 44)" % (lw, lh))
+                m2 = pg.evaluate("""() => { const b = document.querySelector('#ce-fundo .ce-ok').getBoundingClientRect(); return b.bottom <= window.innerHeight && b.top >= 0; }""")
+                conf(m2, "Confirmar e enviar visível sem rolar em %dx%d" % (lw, lh))
+                if prova:
+                    pg.evaluate("() => { document.querySelector('#ce-fundo .ce-caixa').scrollTop = 0; }")
+                    pg.screenshot(path=str(prova / ("confirmar-emails-%dx%d.png" % (lw, lh))))
+            pg.evaluate("() => { document.getElementById('pn-body').style.width = '560px'; }")
+            pg.set_viewport_size({"width": 1280, "height": 800})
+            pg.keyboard.press("Escape"); pg.wait_for_timeout(200)
+            conf(pg.locator("#ce-fundo").count() == 0 and "assinaturaEnviar" not in pg.evaluate("() => window.pedidos"), "Esc fecha sem enviar")
+            conf("Envio cancelado" in pg.inner_text("#contrato-wrap .vb-ass"), "cancelar avisa que nada foi enviado")
+            env.click(); pg.wait_for_timeout(500)
+            pg.locator("#ce-fundo input").nth(1).fill("fulana@teste.example")
+            pg.locator("#ce-fundo .ce-ok").click(); pg.wait_for_timeout(500)
             conf("assinaturaEnviar" in pg.evaluate("() => window.pedidos"), "clique chama assinaturaEnviar")
             conf("Enviado" in pg.inner_text("#contrato-wrap .vb-ass"), "situação ENVIADO aparece")
             prev = pg.locator('[data-acao="mc-previa"]')

@@ -1737,3 +1737,69 @@ test("05/11 casa de rua: sem a leitura envia como antes; leitura sem campo vale;
   assert.equal(chamarCom(o, "assinaturaEnviar", { rubricas: { nome: "OUTRO [#00000000].pdf", campos: [] } }).erro, "RUBRICAS_DE_OUTRO_PDF");
   assert.equal(o.c.chamadas.length, 0, "nada na Clicksign");
 });
+
+/* ---- 23/11/2026 (dono): confirmar ou alterar os e-mails antes de cada envio ---- */
+const signatariosDe = (c, tok = tokenDe(), extra = {}) => c.g.chamar(Object.assign({ action: "assinaturaSignatarios", token: tok, pageId: PAGE }, extra));
+const enviarCom = (c, emails, extra = {}) => c.g.chamar(Object.assign({ action: "assinaturaEnviar", token: tokenDe(), pageId: PAGE, emails }, extra));
+
+test("assinaturaSignatarios: a mesma lista do envio (papel, nome, e-mail), sem chamar a Clicksign; log sem dado pessoal; TESTES não vê", () => {
+  const c = cenario();
+  const r = signatariosDe(c);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(r.signatarios.map((s) => s.papel), ["Comprador 1", "Vendedor (representante)", "Testemunha 1", "Testemunha 2", "Corretor"]);
+  assert.deepEqual(r.signatarios[0], { papel: "Comprador 1", nome: "FULANO DE TESTE", email: "fulano@teste.example" });
+  assert.equal(r.signatarios[1].email, "beltrano@teste.example");
+  assert.equal(c.c.chamadas.length, 0);
+  assert.ok(!c.g.logs.join(" ").match(/@|Fulano|FULANO|Beltrano/), c.g.logs.join(" | "));
+  assert.deepEqual(signatariosDe(c, tokenDe("TESTES")), { ok: false, erro: "SEM_PERMISSAO_TESTES" });
+});
+
+test("envio com e-mail alterado na confirmação: a Clicksign recebe o novo; o cadastro não muda; log só conta", () => {
+  const c = cenario();
+  const emails = Object.fromEntries(signatariosDe(c).signatarios.map((s) => [s.papel, s.email]));
+  emails["Comprador 1"] = " Fulano.Novo@Teste.example ";
+  c.g.logs.length = 0;
+  const r = enviarCom(c, emails);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const sig = c.c.chamadas.filter((x) => x.caminho.endsWith("/signers")).map((x) => x.corpo.data.attributes.email);
+  assert.deepEqual(sig, ["fulano.novo@teste.example", "beltrano@teste.example", "t1.spe@teste.example", "t2.spe@teste.example", "corretor@teste.example"]);
+  assert.ok(!c.n.patches.some((x) => "Email" in x), "o e-mail do cadastro não é regravado");
+  assert.ok(c.g.logs.some((l) => /e-mails trocados na confirmacao: 1/.test(l)), c.g.logs.join(" | "));
+  assert.ok(!c.g.logs.join(" ").includes("fulano.novo"), "log sem o e-mail");
+});
+
+test("envio sem a confirmação (tela velha): EMAILS_NAO_CONFIRMADOS com a mensagem, nada na Clicksign", () => {
+  const c = cenario();
+  const r = c.g.chamar({ action: "assinaturaEnviar", token: tokenDe(), pageId: PAGE, semConfirmar: true });
+  assert.equal(r.erro, "EMAILS_NAO_CONFIRMADOS");
+  assert.match(r.mensagem, /recarregue a página/);
+  assert.equal(c.c.chamadas.length, 0);
+});
+
+test("lista que mudou depois da confirmação (papel a menos ou a mais): EMAILS_DESATUALIZADOS, nada na Clicksign", () => {
+  const c = cenario();
+  const emails = Object.fromEntries(signatariosDe(c).signatarios.map((s) => [s.papel, s.email]));
+  const menos = Object.assign({}, emails); delete menos["Corretor"];
+  assert.equal(enviarCom(c, menos).erro, "EMAILS_DESATUALIZADOS");
+  assert.equal(enviarCom(c, Object.assign({ "Fiador 1": "f1@teste.example" }, emails)).erro, "EMAILS_DESATUALIZADOS");
+  assert.equal(c.c.chamadas.length, 0);
+});
+
+test("confirmação com e-mail repetido ou vazio: FALTAM_DADOS do jeito de sempre; e-mail que faltava no cadastro e foi digitado vale", () => {
+  const c = cenario();
+  const emails = Object.fromEntries(signatariosDe(c).signatarios.map((s) => [s.papel, s.email]));
+  const rep = enviarCom(c, Object.assign({}, emails, { "Corretor": "fulano@teste.example" }));
+  assert.equal(rep.erro, "FALTAM_DADOS");
+  assert.ok(rep.faltas.some((f) => /Corretor: e-mail repetido/.test(f)), rep.faltas.join(" | "));
+  assert.equal(enviarCom(c, Object.assign({}, emails, { "Comprador 1": "" })).erro, "FALTAM_DADOS");
+  assert.equal(c.c.chamadas.length, 0);
+  /* vendedor sem REPRESENTANTE E-MAIL no cadastro: a lista vem com "" e o e-mail digitado na confirmação passa */
+  const s = cenario({ vendedor: { "REPRESENTANTE E-MAIL": rt("") } });
+  const l = signatariosDe(s).signatarios;
+  assert.equal(l.find((x) => x.papel === "Vendedor (representante)").email, "");
+  const em = Object.fromEntries(l.map((x) => [x.papel, x.email]));
+  em["Vendedor (representante)"] = "representante@teste.example";
+  const r = enviarCom(s, em);
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(s.c.chamadas.some((x) => x.caminho.endsWith("/signers") && x.corpo.data.attributes.email === "representante@teste.example"));
+});

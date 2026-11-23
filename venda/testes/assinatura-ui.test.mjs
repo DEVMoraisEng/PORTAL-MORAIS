@@ -1,8 +1,9 @@
 /* assinatura-ui.js — bloco "Assinatura" do painel da casa (entrega 3). Sem navegador. */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import { embrulharConfirmacao, EMAILS_TESTE } from "./confirmar-emails-teste.mjs";
 import { createRequire } from "node:module";
-const A = createRequire(import.meta.url)("../assinatura-ui.js");
+const A = embrulharConfirmacao(createRequire(import.meta.url)("../assinatura-ui.js"));
 
 const botao = (h, acao) => (h.match(new RegExp('<button[^>]*data-acao="' + acao + '"[^>]*>', "g")) || []);
 const ctx = (x = {}) => Object.assign({ contratoGerado: true, estado: { situacao: "", envelope: false, signatarios: [] },
@@ -176,7 +177,7 @@ test("Enviar confirmado: chama assinaturaEnviar uma vez e mostra a situação no
     pageId: "p1", confirmar: (t) => { perguntas.push(t); return true; },
     chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [{ papel: "Comprador 1", assinou: false }] }; } });
   /* 30/10: antes, a tela pede o PDF do contrato para achar as rubricas (aqui a resposta não traz PDF: envia sem) */
-  assert.deepEqual(chamadas, [{ action: "assinaturaPdf", pageId: "p1" }, { action: "assinaturaEnviar", pageId: "p1", prazo: A.limitesPrazo(new Date()).padrao }]);
+  assert.deepEqual(chamadas, [{ action: "assinaturaPdf", pageId: "p1" }, { action: "assinaturaEnviar", pageId: "p1", prazo: A.limitesPrazo(new Date()).padrao, emails: EMAILS_TESTE }]);
   assert.match(perguntas[0], /Enviar o contrato para assinatura até \d{2}\/\d{2}\/\d{4}\?/);
   assert.deepEqual(novo.estado, { situacao: "ENVIADO", envelope: true, signatarios: [{ papel: "Comprador 1", assinou: false }], temAssinado: false });
   assert.equal(novo.ocupado, null);
@@ -253,7 +254,7 @@ test("termo de reserva (27/10): botões com prefixo p-, textos do termo e doc PR
   const chamadas = [];
   const novo = await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA" }), { pageId: "p", confirmar: (t) => /termo de reserva/.test(t),
     chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [] }; } });
-  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA", prazo: A.limitesPrazo(new Date()).padrao }]);
+  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA", prazo: A.limitesPrazo(new Date()).padrao, emails: EMAILS_TESTE }]);
   assert.equal(novo.estado.situacao, "ENVIADO");
   const ch2 = [];
   await A.executarAcaoAssinatura("a-atualizar", ctx({ estado: ENVIADO }), { pageId: "p", confirmar: () => true,
@@ -602,7 +603,7 @@ test("prazo: a data escolhida vai no pedido e na pergunta; fora da faixa não ch
   const deps = (prazo) => ({ pageId: "p", lerPrazo: () => prazo, confirmar: (t) => { perguntas.push(t); return true; },
     chamar: async (x) => { chamadas.push(x); return { ok: true, situacao: "ENVIADO", signatarios: [] }; } });
   const novo = await A.executarAcaoAssinatura("p-enviar", ctx({ doc: "PRE_RESERVA", agora: AGORA }), deps("2026-11-20"));
-  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA", prazo: "2026-11-20" }]);
+  assert.deepEqual(chamadas, [{ action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA", prazo: "2026-11-20", emails: EMAILS_TESTE }]);
   assert.match(perguntas[0], /termo de reserva para assinatura até 20\/11\/2026\?/);   /* #121: "pré-reserva" vira "reserva" */
   assert.equal(novo.prazo, "2026-11-20");
   for (const ruim of ["2026-11-03", "2027-02-01", "20/11/2026"]) {
@@ -612,4 +613,73 @@ test("prazo: a data escolhida vai no pedido e na pergunta; fora da faixa não ch
   }
   assert.equal(chamadas.length, 1, "nenhuma chamada a mais");
   assert.match(A.mensagemAssinatura({ ok: false, erro: "PRAZO_INVALIDO" }), /entre amanhã e 89 dias/);
+});
+
+/* ---- 23/11/2026 (dono): tela de confirmar ou alterar os e-mails antes de cada envio ---- */
+const SIGS = [{ papel: "Comprador 1", nome: "Fulano de Teste", email: "fulano@teste.example" },
+              { papel: "Vendedor", nome: "Beltrano de Teste", email: "" },
+              { papel: "Testemunha 1", nome: "Ciclano de Teste", email: "ciclano@teste.example" }];
+const envia = (acao, c, d) => A.executarAcaoAssinaturaOriginal(acao, c, d);
+
+test("confirmar e-mails: pede a lista, abre a tela com prazo e documento e envia com os e-mails confirmados (alterado incluso)", async () => {
+  const chamadas = [], telas = [], pintados = [];
+  const confirmados = { "Comprador 1": "fulano.certo@teste.example", "Vendedor": "beltrano@teste.example", "Testemunha 1": "ciclano@teste.example" };
+  const novo = await envia("p-enviar", ctx({ doc: "PRE_RESERVA", agora: AGORA }), { pageId: "p", lerPrazo: () => "2026-11-20",
+    pintar: (c) => pintados.push(c.ocupado),
+    confirmarEmails: async (o) => { telas.push(o); return confirmados; },
+    chamar: async (x) => { chamadas.push(x); return x.action === "assinaturaSignatarios" ? { ok: true, signatarios: SIGS } : { ok: true, situacao: "ENVIADO", signatarios: [] }; } });
+  assert.deepEqual(chamadas, [{ action: "assinaturaSignatarios", pageId: "p", doc: "PRE_RESERVA" },
+                              { action: "assinaturaEnviar", pageId: "p", doc: "PRE_RESERVA", prazo: "2026-11-20", emails: confirmados }]);
+  assert.deepEqual(telas, [{ termo: true, prazo: "20/11/2026", signatarios: SIGS }]);
+  assert.deepEqual(pintados, ["emails", "enviar"], "bloco ocupado enquanto a tela está aberta");
+  assert.match(A.montarBlocoAssinatura(ctx({ ocupado: "emails" })), /conferindo os e-mails/);
+  assert.equal(novo.estado.situacao, "ENVIADO");
+});
+
+test("confirmar e-mails: Cancelar na tela não envia nada e avisa", async () => {
+  const chamadas = [];
+  const novo = await envia("a-enviar", ctx(), { pageId: "p", confirmarEmails: async () => null,
+    chamar: async (x) => { chamadas.push(x.action); return { ok: true, signatarios: SIGS }; } });
+  assert.deepEqual(chamadas, ["assinaturaSignatarios"]);
+  assert.equal(novo.ocupado, null);
+  assert.equal(novo.estado.envelope, false);
+  assert.match(novo.msg, /Envio cancelado — nada foi para a Clicksign/);
+});
+
+test("confirmar e-mails: sem a tela (deps.confirmarEmails) não chama o servidor nem envia", async () => {
+  const chamadas = [];
+  const novo = await envia("a-enviar", ctx(), { pageId: "p", confirmar: () => true, chamar: async (x) => { chamadas.push(x); return { ok: true }; } });
+  assert.equal(chamadas.length, 0);
+  assert.match(novo.msg, /recarregue a página/);
+});
+
+test("confirmar e-mails: servidor velho (ACAO_DESCONHECIDA) ou com faltas não abre a tela e não envia", async () => {
+  let abriu = 0;
+  const velho = await envia("a-enviar", ctx(), { pageId: "p", confirmarEmails: async () => { abriu++; return {}; },
+    chamar: async () => ({ ok: false, erro: "ACAO_DESCONHECIDA" }) });
+  assert.match(velho.msg, /ainda não tem a confirmação dos e-mails.*Nada foi enviado/);
+  const faltas = await envia("a-enviar", ctx(), { pageId: "p", confirmarEmails: async () => { abriu++; return {}; },
+    linkCorrigir: (q) => "vendas.html?editar=" + q,
+    chamar: async () => ({ ok: false, erro: "FALTAM_DADOS", faltas: ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"], corrigir: [{ quem: "vendedor", rotulo: "Corrigir" }] }) });
+  assert.deepEqual(faltas.faltas, ["Vendedor: obra da casa não encontrada em DOCUMENTOS (endereço)"]);
+  assert.deepEqual(faltas.corrigir, [{ rotulo: "Corrigir", url: "vendas.html?editar=vendedor" }]);
+  const caiu = await envia("a-enviar", ctx(), { pageId: "p", confirmarEmails: async () => { abriu++; return {}; }, chamar: async () => { throw new Error("rede"); } });
+  assert.match(caiu.msg, /servidor não respondeu/);
+  assert.equal(abriu, 0);
+});
+
+test("confirmar e-mails: o servidor diz que a lista mudou ou que a tela é velha — mensagem própria", () => {
+  assert.match(A.mensagemAssinatura({ ok: false, erro: "EMAILS_DESATUALIZADOS" }), /Quem assina mudou/);
+  assert.match(A.mensagemAssinatura({ ok: false, erro: "EMAILS_NAO_CONFIRMADOS" }), /recarregue a página/);
+});
+
+test("conferirEmailsDaTela: exige e-mail válido e diferente para cada pessoa; devolve o mapa por papel e quantos mudaram", () => {
+  const ok = A.conferirEmailsDaTela(SIGS, [" Fulano.Certo@Teste.example ", "beltrano@teste.example", "ciclano@teste.example"]);
+  assert.deepEqual(ok, { ok: true, trocados: 2,
+    emails: { "Comprador 1": "fulano.certo@teste.example", "Vendedor": "beltrano@teste.example", "Testemunha 1": "ciclano@teste.example" } });
+  assert.deepEqual(A.conferirEmailsDaTela(SIGS, ["fulano@teste.example", "", "sem-arroba"]),
+    { ok: false, erros: ["", "Falta o e-mail.", "E-mail inválido."] });
+  assert.deepEqual(A.conferirEmailsDaTela(SIGS, ["fulano@teste.example", "x@teste.example", "FULANO@teste.example"]).erros,
+    ["", "", "Igual ao de Comprador 1 — cada pessoa precisa de um e-mail."]);
+  assert.equal(A.conferirEmailsDaTela(SIGS, ["fulano@teste.example", "b@teste.example", "ciclano@teste.example"]).trocados, 1, "vazio no cadastro e digitado conta como troca");
 });
