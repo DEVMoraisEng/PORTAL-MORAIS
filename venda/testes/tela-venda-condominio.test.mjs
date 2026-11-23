@@ -825,7 +825,18 @@ test("29/10 condições especiais: grava na coluna, guarda quem e quando, avisa 
   assert.ok(e.pre.desatualizado, "o pré-contrato de antes devia ficar desatualizado");
   const pre1 = c.acao("gerarPreContrato");
   assert.ok(pre1.avisos.some((a) => /Condições especiais: este contrato tem texto próprio no item 16/.test(a)), JSON.stringify(pre1.avisos));
-  assert.equal(c.acao("salvarCondicoesEspeciais", { texto: "x".repeat(1901) }).erro, "CAMPOS_INVALIDOS");
+  assert.equal(c.acao("salvarCondicoesEspeciais", { texto: "x".repeat(10001) }).erro, "CAMPOS_INVALIDOS");
+});
+
+test("23/11/2026 condições especiais longas (6 mil caracteres): grava em pedaços de até 1.900 e lê o texto inteiro", () => {
+  const c = cenario({ linha: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt("") } });
+  const longo = Array.from({ length: 60 }, (_, i) => "16." + i + ". Linha de condição especial número " + i + " com texto suficiente para passar dos limites.").join("\n");
+  assert.ok(longo.length > 5000);
+  const r = c.acao("salvarCondicoesEspeciais", { texto: longo });
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.condicoes.max, 10000);
+  assert.equal(c.txt("CONTRATO - CONDIÇÕES ESPECIAIS"), longo);
+  assert.equal(c.acao("contratoEstado").condicoes.texto, longo);
 });
 
 test("29/10 Redigir com IA: manda o pedido e o texto do modelo à OpenAI, devolve a redação SEM gravar e avisa cláusula inexistente", () => {
