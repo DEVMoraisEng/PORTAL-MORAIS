@@ -277,6 +277,7 @@ const MODELO_COND = [
   "Corretor {{CORRETOR_NOME}}, CRECI {{CORRETOR_CRECI}}, CPF {{CORRETOR_DOC}}",
   "{{#TEM_FIADOR1}}", "{{FIADOR1_NOME}} — CPF {{FIADOR1_CPF}} — FIADOR", "{{/TEM_FIADOR1}}",
   "{{#TEM_FIADOR2}}", "{{FIADOR2_NOME}} — CPF {{FIADOR2_CPF}} — FIADOR", "{{/TEM_FIADOR2}}",
+  "16. CONDIÇÕES ESPECIAIS DESTA VENDA", "{{CONDICOES_ESPECIAIS}}", "As condições especiais deste item prevalecem.",
   "TESTEMUNHAS",
 ];
 
@@ -424,11 +425,21 @@ test("pré-contrato do condomínio: cada linha do 6.1 e da qualificação do fia
   assert.deepEqual(c.salvo().pars, s.pars);
 });
 
-test("29/10 marcador CONDICOES_ESPECIAIS: vazio = 'Não há.'; texto com quebra de linha vira uma linha só", () => {
+test("29/10 marcador CONDICOES_ESPECIAIS: vazio = 'Não há.'; 23/11: a quebra de linha digitada vale (um parágrafo por linha)", () => {
   const vazio = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "" } })));
   assert.equal(vazio.CONDICOES_ESPECIAIS, "Não há.");
-  const com = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "Na cláusula 9.2,\n  leia-se 45 dias." } })));
-  assert.equal(com.CONDICOES_ESPECIAIS, "Na cláusula 9.2, leia-se 45 dias.");
+  const com = C.marcadores(C.montarDadosContrato(fontes({ venda: { CONDICOES_ESPECIAIS: "Na cláusula 9.2,\r\n  leia-se 45 dias.\n\n" } })));
+  assert.equal(com.CONDICOES_ESPECIAIS, "Na cláusula 9.2,\nleia-se 45 dias.");
+  assert.ok(C.MARCADORES_PARAGRAFOS.includes("CONDICOES_ESPECIAIS"));
+});
+
+test("23/11/2026: item 16 corrido com alíneas em ordem (a, b, c…) quebra antes de cada uma; letra fora de ordem não quebra", () => {
+  const t = "FINANCIAMENTO PELO INTER. Observado o seguinte: a) prazo de 45 dias, conforme item 8, \"a\"; b) sem juros de obra; c) INCC-M até a assinatura.";
+  assert.equal(C.linhasCondicoes(t), "FINANCIAMENTO PELO INTER. Observado o seguinte:\na) prazo de 45 dias, conforme item 8, \"a\";\nb) sem juros de obra;\nc) INCC-M até a assinatura.");
+  assert.equal(C.linhasCondicoes("Conforme item 8, a) do quadro, vale b) isso"), "Conforme item 8, a) do quadro, vale b) isso");
+  assert.equal(C.linhasCondicoes("Só uma: a) nada mais."), "Só uma: a) nada mais.");
+  assert.equal(C.linhasCondicoes("Ordem trocada: b) um; a) outro."), "Ordem trocada: b) um; a) outro.");
+  assert.equal(C.linhasCondicoes("Já em linhas:\na) um;\nb) dois."), "Já em linhas:\na) um;\nb) dois.");
 });
 
 test("01/11 (H1): sem data de assinatura é UMA falta só — as datas das parcelas saem dela e não viram falta uma por uma", () => {
@@ -469,4 +480,18 @@ test("contrato do condomínio: assinatura que já passou trava; parcela vencendo
   const d2 = C.montarDadosContrato(fontes({ condominio: { fluxo: Object.assign({}, FLUXO, { pre1Data: "2026-10-05" }) } }));
   d2.hoje = "2026-10-07";
   assert.ok(C.faltasContrato(d2).some((x) => /pré-chaves vence em 05\/10\/2026 — tem de vencer depois da assinatura \(07\/10\/2026\)/.test(x)), JSON.stringify(C.faltasContrato(d2)));
+});
+
+test("23/11/2026: item 16 no contrato gerado — cada alínea num parágrafo; sem texto sai 'Não há.'", () => {
+  const sem = cenario();
+  assert.equal(sem.gerar().ok, true);
+  const p0 = sem.salvo().pars, k0 = p0.indexOf("16. CONDIÇÕES ESPECIAIS DESTA VENDA");
+  assert.deepEqual(p0.slice(k0 + 1, k0 + 3), ["Não há.", "As condições especiais deste item prevalecem."]);
+  const t = "FINANCIAMENTO PELO INTER. Observado o seguinte: a) prazo de 45 dias; b) INCC-M até a assinatura.";
+  const com = cenario({ casa: { "CONTRATO - CONDIÇÕES ESPECIAIS": rt(t) } });
+  const r = com.gerar();
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const p = com.salvo().pars, k = p.indexOf("16. CONDIÇÕES ESPECIAIS DESTA VENDA");
+  assert.deepEqual(p.slice(k + 1, k + 5), ["FINANCIAMENTO PELO INTER. Observado o seguinte:", "a) prazo de 45 dias;",
+    "b) INCC-M até a assinatura.", "As condições especiais deste item prevalecem."]);
 });

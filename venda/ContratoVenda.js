@@ -664,6 +664,33 @@ var ContratoVenda = (function () {
   var MEIO_PAGAMENTO_PADRAO = "boleto bancário ou PIX";
 
   /* Quantos caracteres do começo da linha do 6.1 / dos fiadores vão em negrito (0 = nenhum). */
+  /* 23/11/2026 (financeiro): item 16 (condições especiais) com cada alínea na sua linha. Vale a quebra de linha
+     que a pessoa digitou; e um parágrafo corrido com "…: a) …; b) …" é quebrado antes de cada alínea, desde que as
+     letras venham em ordem a partir de "a)" (assim "item 8, "a"" ou um "b)" solto no meio não quebram).
+     No modelo do condomínio o marcador está sozinho no parágrafo (MARCADORES_PARAGRAFOS): uma linha = um parágrafo.
+     Em modelo com o marcador no meio do texto, as linhas voltam a ser uma só (aplicarMarcadores_). */
+  function linhasCondicoes(texto) {
+    var linhas = [];
+    txt(texto).replace(/\r/g, "").split("\n").forEach(function (l) {
+      l = l.replace(/[ \t]+/g, " ").trim();
+      if (l) linhas = linhas.concat(quebrarAlineas(l));
+    });
+    return linhas.join("\n");
+  }
+  function quebrarAlineas(l) {
+    var re = /(^|[:;.]\s+)([a-z])\)\s/g, m, cortes = [], espera = "a";
+    while ((m = re.exec(l))) {
+      if (m[2] !== espera) continue;
+      cortes.push(m.index + m[1].length);
+      espera = String.fromCharCode(espera.charCodeAt(0) + 1);
+    }
+    if (cortes.length < 2) return [l];
+    var out = [], ini = 0;
+    cortes.forEach(function (c) { if (c > ini) out.push(l.slice(ini, c).trim()); ini = c; });
+    out.push(l.slice(ini).trim());
+    return out.filter(function (x) { return x; });
+  }
+
   function negritoDaLinha(linha) {
     var t = txt(linha), m;
     if (/^(?:I|II|III|IV|V) — /.test(t)) return t.length;
@@ -1273,7 +1300,7 @@ var ContratoVenda = (function () {
       REPRESENTANTE_CPF: ehPF ? txt(v.cpfCnpj) : txt(v.representanteCpf),
       PRAZO_CONCLUSAO: dataBR(im.prazoConclusao),
       /* 29/10: uma linha só (o Google Docs não troca marcador por texto com quebra de linha) */
-      CONDICOES_ESPECIAIS: txt(im.condicoesEspeciais).replace(/\s*\n+\s*/g, " ").trim() || "Não há.",
+      CONDICOES_ESPECIAIS: linhasCondicoes(im.condicoesEspeciais) || "Não há.",
       ASSINATURA_COMPRADORES_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : [], cjq2 ? [cjq2.nome] : []).join(" / "),
       ASSINATURA_COMPRADORES_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : [], cjq2 ? [cjq2.cpf] : []).join(" / "),
       /* 01/11/2026 (dono): o cônjuge assina tudo que o comprador 1 assina — também o memorial (AssinaturaVenda.assDocsDoComprador_) */
@@ -1796,7 +1823,10 @@ var ContratoVenda = (function () {
     /* marcadores cujo valor tem várias linhas: no Docs, o parágrafo que só tem o marcador vira um parágrafo por linha */
     MARCADORES_PARAGRAFOS: ["FORMA_PAGAMENTO_CONDOMINIO", "FIADORES_QUALIFICACAO",
       /* 01/11 (plano 23 B): blocos de assinatura, uma linha por pessoa (ClicksignVenda.blocoAssinaturas) */
-      "ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO", "ASSINATURAS_MEMORIAL"],
+      "ASSINATURAS_QUADRO", "ASSINATURAS_FINAL", "ASSINATURAS_TERMO", "ASSINATURAS_MEMORIAL",
+      /* 23/11/2026: item 16, uma alínea por parágrafo (linhasCondicoes) */
+      "CONDICOES_ESPECIAIS"],
+    linhasCondicoes: linhasCondicoes,
     /* marcador VAZIO cujo rótulo sai junto: no modelo a linha é
        "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade…";
        sem Pix (ou sem operação, que a conta da obra não tem) o "– PIX: " / "– Operação: " some, em vez de ficar em branco.
