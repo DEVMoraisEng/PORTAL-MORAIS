@@ -20,6 +20,14 @@ def test_previa_lancar_e_distrato_como_no_workflow():
     assert argv[:2] == ["-m", "venda.mc.distrato"] and "--recebeu" in argv and argv[-1] == "2026-11-30"
 
 
+def test_sinal_23_11_vai_para_o_robo_do_sinal_com_as_mesmas_travas():
+    assert R.argumentos("mc-venda", {"acao": "sinal", "pageId": PG, "aplicar": True}, True) == (
+        ["-m", "venda.mc.sinal", "--page", PG, "--aplicar"], {})
+    assert R.argumentos("mc-venda", {"acao": "sinal", "pageId": PG, "aplicar": True}, False)[0][-1] == "--bloqueado"
+    assert R.argumentos("mc-venda", {"acao": "sinal", "pageId": "x; y", "aplicar": True}, True) is None
+    assert R.marcar_erro_argv(["-m", "venda.mc.sinal", "--page", PG, "--aplicar"])[4] == "--marcar-erro"
+
+
 def test_sem_poder_gravar_vira_bloqueado_e_nunca_aplica():
     argv = R.argumentos("mc-venda", {"pageId": PG, "aplicar": True, "anexar": True}, False)[0]
     assert "--aplicar" not in argv and argv[-1] == "--bloqueado"

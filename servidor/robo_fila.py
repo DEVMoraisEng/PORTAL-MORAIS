@@ -153,6 +153,8 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
             return None
         return (["-m", "venda.mc.distrato", "--page", pagina, "--recebeu", recebeu, "--destino", destino,
                  "--valor", valor, "--data", data] + flag, {})
+    if str(p.get("acao") or "lancar") == "sinal":   # 23/11: sinal confirmado no portal -> venda só com o sinal
+        return (["-m", "venda.mc.sinal", "--page", pagina] + flag, {})
     if str(p.get("acao") or "lancar") != "lancar":
         return None
     if p.get("anexar") is True and flag == ["--aplicar"]:
