@@ -469,6 +469,13 @@ const SISTEMAS=[
      dos outros itens acima. Se não bater, o botão não aparece e não dá erro
      nenhum na tela. */
   {chave:"RAS OBRAS",nome:"RAS Obras",desc:"Reunião de alinhamento — Execução de obras",ico:"R",link:"https://devmoraiseng.github.io/RAS-OBRAS/",externo:true,grupo:"REUNIÕES"},
+  /* 23/11/26 — DIÁRIO DO CURSO REVIT: último item de REUNIÕES. Cada estagiário
+     preenche o avanço no curso (relatório + prints, com a data) e dá check nas
+     aulas da ementa (% de conclusão); página de 15 dias que trava sozinha (a
+     reunião é a cada 15 dias, desde 24/11/26). O ADM/MASTER vê todos.
+     Chave "DIÁRIO DO CURSO" na coluna ACESSOS do LOGINS (ADM/MASTER veem sempre).
+     Servidor: apps-script/DiarioCurso.gs (PORTAL-LEITURA) + supabase/diario_curso.sql. */
+  {chave:"DIÁRIO DO CURSO",nome:"Diário do Curso Revit",desc:"Avanço dos estagiários no curso — relatórios, prints e % da ementa",ico:"D",link:"diario-curso.html",grupo:"REUNIÕES"},
 
   /* ---------- AUTOMAÇÕES ----------
      Mesma regra dos RAS: cada automação mora no PRÓPRIO repositório e entra

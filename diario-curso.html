@@ -1,0 +1,692 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Diário do Curso Revit · Morais Engenharia</title>
+<link rel="icon" href="img/logo-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--sombra:rgba(20,40,55,.16);
+  --ok:#1a6b40;--ok-bg:#e6f6ec;--at:#8a5a00;--at-bg:#fff4d6;--div:#b3261e;--div-bg:#fdecea;--na:#5a8099;--na-bg:#e4edf1;
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--sombra:rgba(0,0,0,.45);
+  --ok:#6fd49b;--ok-bg:#143325;--at:#f0c264;--at-bg:#3a2e12;--div:#f08a7e;--div-bg:#3b1c19;--na:#9db4c4;--na-bg:#1f3340;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+main{max-width:1100px;margin:0 auto;padding:18px 16px 56px;display:flex;flex-direction:column;gap:16px}
+main>*{min-width:0}
+.hide{display:none!important}
+.painel{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px 18px;min-width:0}
+.tit{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:8px 13px;margin-bottom:12px}
+.tit .cond{font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .tit .cond{color:var(--text)}
+.tit em{font-style:normal;margin-left:auto;font-size:12px;color:var(--text3)}
+.dica{font-size:12.5px;color:var(--text3);margin:0}
+.btn{font:inherit;font-weight:700;font-size:13.5px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.btn:hover{border-color:var(--azul)}
+.btn.pri{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn.pri:hover{background:var(--verde-esc)}
+.btn.perigo{color:var(--div);border-color:var(--div-bg)}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.peq{min-height:44px;font-size:12.5px;padding:0 12px}
+:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.carregando{padding:40px 10px;text-align:center;color:var(--text3)}
+.aviso{border-radius:10px;padding:11px 14px;font-size:13.5px;font-weight:600}
+.aviso.erro{background:var(--div-bg);color:var(--div)}
+.aviso.trava{background:var(--na-bg);color:var(--na)}
+.aviso.ok{background:var(--ok-bg);color:var(--ok)}
+
+/* ---------- barra de progresso ---------- */
+.barra{height:10px;background:var(--bg3);border-radius:99px;overflow:hidden}
+.barra i{display:block;height:100%;background:linear-gradient(90deg,var(--verde),var(--verde-btn));border-radius:99px;transition:width .3s}
+.pct{font-family:'Barlow Condensed';font-weight:800;line-height:1;color:var(--verde-esc)}
+html[data-tema="escuro"] .pct{color:var(--ok)}
+
+/* ---------- equipe (ADM) ---------- */
+.equipe{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px}
+.cart{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px 16px;cursor:pointer;text-align:left;font:inherit;color:inherit;display:flex;flex-direction:column;gap:8px;min-width:0}
+.cart:hover{border-color:var(--azul);box-shadow:0 4px 14px var(--sombra)}
+.cart .nome{font-family:'Barlow Condensed';font-weight:800;font-size:20px;text-transform:uppercase;letter-spacing:.3px;line-height:1.1}
+.cart .linha{display:flex;align-items:baseline;gap:8px}
+.cart .linha .pct{font-size:30px}
+.cart .meta{font-size:12px;color:var(--text3);display:flex;flex-direction:column;gap:2px}
+.cart.inativo{opacity:.55}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+
+/* ---------- resumo do estagiário ---------- */
+.topo{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.topo .hspace{flex:1}
+.topo .quem{font-family:'Barlow Condensed';font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.3px}
+.resumo{display:grid;grid-template-columns:minmax(200px,280px) 1fr;gap:18px;align-items:center}
+@media(max-width:700px){.resumo{grid-template-columns:1fr}}
+.grande{display:flex;flex-direction:column;gap:6px}
+.grande .pct{font-size:56px}
+.grande small{color:var(--text3);font-size:13px}
+.partes{display:flex;flex-direction:column;gap:9px;min-width:0}
+.parte-l{display:grid;grid-template-columns:minmax(110px,170px) 1fr 48px;gap:10px;align-items:center;font-size:12.5px}
+.parte-l b{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.parte-l span{text-align:right;color:var(--text3);font-weight:700}
+.pag-info{margin-top:14px;display:flex;gap:10px;flex-wrap:wrap;align-items:center;font-size:13px}
+.chip{display:inline-flex;align-items:center;gap:5px;border-radius:99px;padding:4px 11px;font-size:12px;font-weight:700;background:var(--bg3);color:var(--text3)}
+.chip.aberta{background:var(--ok-bg);color:var(--ok)}
+.chip.trava{background:var(--na-bg);color:var(--na)}
+
+/* ---------- abas ---------- */
+.abas{display:flex;gap:4px;border-bottom:2px solid var(--border2);flex-wrap:wrap}
+.aba{font:inherit;font-weight:700;font-size:14px;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--text3);padding:0 16px;min-height:44px;cursor:pointer}
+.aba[aria-selected="true"]{color:var(--text);border-bottom-color:var(--verde)}
+
+/* ---------- páginas do diário ---------- */
+.paginas{display:flex;gap:6px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
+.pg{flex:0 0 auto;font:inherit;font-size:12.5px;font-weight:700;border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:9px;padding:6px 12px;min-height:44px;cursor:pointer;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;line-height:1.2}
+.pg small{font-weight:500;color:var(--text3);font-size:11px}
+.pg[aria-pressed="true"]{border-color:var(--verde);background:var(--ok-bg)}
+.form{display:flex;flex-direction:column;gap:10px}
+textarea{font:inherit;font-size:16px;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:10px 12px;width:100%;min-height:120px;resize:vertical}
+.solta{border:2px dashed var(--border);border-radius:10px;padding:12px;text-align:center;color:var(--text3);font-size:13px}
+.solta.sobre{border-color:var(--verde);background:var(--ok-bg)}
+.miniaturas{display:flex;gap:8px;flex-wrap:wrap}
+.mini{position:relative;width:96px;height:72px;border-radius:8px;overflow:hidden;border:1px solid var(--border2);background:var(--bg3)}
+.mini img{width:100%;height:100%;object-fit:cover;display:block;cursor:zoom-in}
+.mini button{position:absolute;top:2px;right:2px;width:28px;height:28px;border-radius:50%;border:0;background:rgba(0,0,0,.62);color:#fff;font-size:15px;line-height:1;cursor:pointer}
+.acoes{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.registros{display:flex;flex-direction:column;gap:12px}
+.reg{border:1px solid var(--border2);border-radius:11px;padding:12px 14px;background:var(--bg2);min-width:0}
+.reg .quando{display:flex;gap:8px;flex-wrap:wrap;align-items:baseline;font-size:12.5px;color:var(--text3);margin-bottom:6px}
+.reg .quando b{color:var(--text);font-size:13.5px}
+.reg .txt{white-space:pre-wrap;word-wrap:break-word;overflow-wrap:anywhere;font-size:14px}
+.reg .fotos{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-top:10px}
+.reg .fotos img{width:100%;aspect-ratio:4/3;object-fit:cover;border-radius:8px;border:1px solid var(--border2);cursor:zoom-in;display:block;background:var(--bg3)}
+.reg .acoes{margin-top:10px}
+.vazio{color:var(--text3);font-size:13.5px;padding:10px 2px}
+.aulas-pag{display:flex;flex-direction:column;gap:4px;font-size:13px}
+.aulas-pag div{display:flex;gap:8px;align-items:baseline}
+.aulas-pag .d{color:var(--text3);font-size:12px;flex:0 0 auto}
+
+/* ---------- ementa ---------- */
+.filtros{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+.ck{display:inline-flex;align-items:center;gap:8px;min-height:44px;font-size:13.5px;font-weight:600;cursor:pointer}
+.ck input{width:20px;height:20px;accent-color:var(--verde)}
+.ep{border:1px solid var(--border2);border-radius:11px;margin-bottom:12px;overflow:hidden;background:var(--sup)}
+.ep>summary,.em>summary{list-style:none;cursor:pointer}
+.ep>summary::-webkit-details-marker,.em>summary::-webkit-details-marker{display:none}
+.ep>summary{display:flex;align-items:center;gap:10px;padding:12px 14px;background:var(--bg3);min-height:48px;flex-wrap:wrap}
+.ep>summary .cond{font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;flex:1 1 160px}
+.ep>summary .barra{flex:1 1 120px;max-width:240px}
+.ep>summary .n{font-weight:700;color:var(--text3);font-size:12.5px;min-width:70px;text-align:right}
+.em{border-top:1px solid var(--border2)}
+.em>summary{display:flex;align-items:center;gap:10px;padding:10px 14px;min-height:48px;flex-wrap:wrap}
+.em>summary .nm{flex:1 1 220px;font-weight:700;font-size:13.5px;min-width:0;overflow-wrap:anywhere}
+.em>summary .n{font-size:12px;font-weight:700;color:var(--text3)}
+.em>summary .n.cheio{color:var(--ok)}
+.em.fora{opacity:.55}
+.em.fora .nm{text-decoration:line-through}
+.seta{transition:transform .15s;color:var(--text3);flex:0 0 auto}
+details[open]>summary .seta{transform:rotate(90deg)}
+.aula{display:flex;align-items:center;gap:10px;padding:4px 14px 4px 18px;min-height:44px;border-top:1px dashed var(--border2);font-size:13.5px}
+.aula label{display:flex;align-items:center;gap:10px;flex:1;min-width:0;cursor:pointer;min-height:44px}
+.aula input{width:22px;height:22px;flex:0 0 auto;accent-color:var(--verde)}
+.aula .t{min-width:0;overflow-wrap:anywhere}
+.aula.feita .t{color:var(--text3)}
+.aula .quando{flex:0 0 auto;font-size:11.5px;font-weight:700;color:var(--ok);background:var(--ok-bg);border-radius:99px;padding:2px 8px;white-space:nowrap}
+.aula .quando.trava{color:var(--na);background:var(--na-bg)}
+.aula input:disabled+.t{cursor:default}
+.sw{display:inline-flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:var(--text3);min-height:44px;cursor:pointer}
+.sw input{width:20px;height:20px;accent-color:var(--verde)}
+
+/* ---------- foto grande ---------- */
+.lb{position:fixed;inset:0;background:rgba(0,0,0,.86);display:flex;align-items:center;justify-content:center;z-index:50;padding:16px}
+.lb img{max-width:100%;max-height:100%;border-radius:6px;box-shadow:0 10px 40px rgba(0,0,0,.5)}
+.lb button{position:absolute;top:10px;right:10px;width:44px;height:44px;border-radius:50%;border:0;background:rgba(255,255,255,.16);color:#fff;font-size:22px;cursor:pointer}
+.lb .nav{top:50%;transform:translateY(-50%)}
+.lb .ant{left:10px;right:auto}.lb .prox{right:10px}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;font-size:13.5px;z-index:60;max-width:calc(100vw - 24px);box-shadow:0 6px 20px var(--sombra)}
+.toast.erro{background:var(--div)}
+footer{max-width:1100px;margin:0 auto;padding:0 16px 24px;color:var(--text4);font-size:11.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle">Diário do Curso Revit</div>
+      <div class="hsub">Morais Engenharia · avanço dos estagiários no curso</div>
+    </div>
+    <div class="hspace"></div>
+    <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
+    <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+
+<main id="app"><div class="carregando">Abrindo o diário…</div></main>
+<footer id="rodape"></footer>
+
+<script src="app.js?v=46"></script>
+<script src="diario-ementa.js?v=1"></script>
+<script>
+"use strict";
+/* ===== DIÁRIO DO CURSO REVIT (23/11/26) =======================================
+ * Último item de REUNIÕES no portal. Cada estagiário tem o próprio diário:
+ *  - relatórios com prints, com a data e a hora em que foram preenchidos;
+ *  - páginas de 15 dias a partir de 24/11/2026 (a reunião é a cada 15 dias):
+ *    passou o prazo, a página TRAVA (só leitura) e a seguinte abre sozinha;
+ *  - a ementa do curso (diario-ementa.js) com check por aula → % de conclusão.
+ * O ADM/MASTER vê a equipe inteira e abre o diário de qualquer um; também tira
+ * módulos da ementa de um estagiário (ex.: o Arthur não faz o Desafio Revit).
+ * Quem decide o que está travado é o servidor (apps-script/DiarioCurso.gs);
+ * aqui é só desenho. Acesso: "DIÁRIO DO CURSO" na coluna ACESSOS do LOGINS.
+ * ============================================================================ */
+const PAGINA_VERSAO = "v1";
+const SESS = exigirSessao();
+const CHAVE_ACESSO = "DIÁRIO DO CURSO";
+const VE_TODOS = ["ADM","MASTER","TESTES"].indexOf(tipoDe(SESS)) >= 0;
+const EH_EST = (SESS.acessos||[]).some(a=>nz(a)===nz(CHAVE_ACESSO));
+const EMENTA = window.DIARIO_EMENTA || [];
+const MAX_FOTOS = 8;
+
+function nz(x){ return String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/\s+/g," ").trim(); }
+const $ = s => document.querySelector(s);
+const APP = $("#app");
+
+/* índice da ementa: id da aula -> {parte, modulo, n, titulo} */
+const AULA = {}, MODULO = {};
+EMENTA.forEach(p => p.modulos.forEach(m => {
+  MODULO[m.id] = { parte:p, modulo:m };
+  m.aulas.forEach((t,i) => { const id = m.id+"-"+String(i+1).padStart(2,"0"); AULA[id] = { parte:p, modulo:m, n:i+1, titulo:t, id }; });
+}));
+function idAula(m,i){ return m.id+"-"+String(i+1).padStart(2,"0"); }
+
+/* ---------- datas (sempre no fuso de São Paulo) ---------- */
+const FUSO = "America/Sao_Paulo";
+function fmtData(iso, comHora){
+  if(!iso) return "";
+  const d = new Date(iso);
+  const o = { timeZone:FUSO, day:"2-digit", month:"2-digit", year:"numeric" };
+  if(comHora){ o.hour="2-digit"; o.minute="2-digit"; }
+  return d.toLocaleString("pt-BR", o).replace(",", " às");
+}
+function fmtDiaSemana(iso){
+  return new Date(iso).toLocaleDateString("pt-BR",{ timeZone:FUSO, weekday:"short" }).replace(".","");
+}
+function ymdBr(ymd){ const a=String(ymd).split("-"); return a[2]+"/"+a[1]+"/"+a[0]; }
+function ymdCurto(ymd){ const a=String(ymd).split("-"); return a[2]+"/"+a[1]; }
+function diaN(ymd){ const a=String(ymd).split("-"); return Math.floor(Date.UTC(+a[0],+a[1]-1,+a[2])/86400000); }
+function ymdDe(n){ return new Date(n*86400000).toISOString().slice(0,10); }
+function faixa(D, n){ const i=diaN(D.inicio)+(n-1)*D.dias; return { pagina:n, inicio:ymdDe(i), fim:ymdDe(i+D.dias-1) }; }
+
+/* ---------- avisos ---------- */
+const ERROS = {
+  PAGINA_TRAVADA: "Esta página do diário já travou (passaram os 15 dias). Só a página aberta aceita mudança.",
+  SEM_PERMISSAO: "Sem acesso ao diário. Peça ao ADM a opção DIÁRIO DO CURSO na coluna ACESSOS.",
+  NAO_AUTORIZADO: "Sua sessão venceu. Entre de novo no portal.",
+  MODO_TESTE: "Login de TESTES não grava nada.",
+  SUPABASE_NAO_CONFIGURADO: "O servidor do diário ainda não foi configurado (Supabase).",
+  DIARIO_NAO_ENCONTRADO: "Este estagiário ainda não abriu o diário.",
+  REGISTRO_VAZIO: "Escreva o relatório ou coloque pelo menos um print.",
+  PRINTS_DEMAIS: "No máximo "+MAX_FOTOS+" prints por registro.",
+  TEXTO_GRANDE_DEMAIS: "O texto passou do limite (20 mil caracteres). Divida em dois registros.",
+  ACAO_DESCONHECIDA: "O Apps Script ainda não tem o Diário do Curso (falta publicar a versão nova)."
+};
+function msgErro(c){ const b=String(c||"").split(":")[0].trim(); return ERROS[b] || (typeof erroTexto==="function"?erroTexto(c):c) || "erro desconhecido"; }
+let _toastT=null;
+function toast(msg, erro){
+  let t=$(".toast"); if(!t){ t=document.createElement("div"); t.className="toast"; t.setAttribute("role","status"); document.body.appendChild(t); }
+  t.textContent=msg; t.classList.toggle("erro",!!erro); t.classList.remove("hide");
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.add("hide"), erro?6000:2800);
+}
+async function api(payload){
+  let r;
+  try{ r = await chamar(payload, 90000, true); }
+  catch(e){ return { ok:false, erro:"Sem conexão com o servidor — tente de novo." }; }
+  if(!r) return { ok:false, erro:"resposta vazia do servidor" };
+  if(r.ok===false && /ACAO|DESCONHECIDA|nao encontrada|não encontrada/i.test(String(r.erro||""))) r.erro="ACAO_DESCONHECIDA";
+  return r;
+}
+
+/* ===================== ESTADO ===================== */
+const ST = {
+  modo: null,            // "equipe" | "diario"
+  login: null,           // diário aberto
+  D: null,               // resposta do diarioLer
+  aba: "diario",
+  pagina: null,          // página selecionada no diário
+  soPendentes: false,
+  editando: null,        // id do registro em edição
+  novas: [],             // prints novos do formulário: {b64, url}
+  manter: [],            // prints antigos mantidos na edição
+  equipe: null,
+  verInativos: false,
+  enviando: false
+};
+
+/* ===================== CÁLCULO DE PROGRESSO ===================== */
+function ementaDe(fora){
+  const f = new Set(fora||[]);
+  return EMENTA.map(p => ({ parte:p, modulos:p.modulos.filter(m=>!f.has(m.id)) })).filter(x=>x.modulos.length);
+}
+function progresso(fora, checks){
+  const feitos = new Set((checks||[]).map(c=>c.item));
+  const f = new Set(fora||[]);
+  let tot=0, ok=0; const porParte={}, porModulo={};
+  EMENTA.forEach(p => {
+    let pt=0, po=0;
+    p.modulos.forEach(m => {
+      if(f.has(m.id)) return;
+      let mo=0;
+      m.aulas.forEach((_,i)=>{ if(feitos.has(idAula(m,i))) mo++; });
+      porModulo[m.id] = { tot:m.aulas.length, ok:mo };
+      pt += m.aulas.length; po += mo;
+    });
+    porParte[p.id] = { tot:pt, ok:po };
+    tot += pt; ok += po;
+  });
+  return { tot, ok, pct: tot ? ok/tot*100 : 0, porParte, porModulo };
+}
+const pctTxt = v => (v>=99.95||v===0) ? Math.round(v)+"%" : (v<1 ? v.toFixed(1).replace(".",",")+"%" : Math.round(v)+"%");
+
+/* ===================== ROTEAMENTO ===================== */
+function loginDaUrl(){ try{ return new URLSearchParams(location.search).get("login")||""; }catch(e){ return ""; } }
+function irPara(login, push){
+  const url = login ? ("?login="+encodeURIComponent(login)) : location.pathname;
+  if(push) history.pushState({login}, "", url);
+  iniciar(login);
+}
+window.addEventListener("popstate", ()=>iniciar(loginDaUrl()));
+
+function iniciar(login){
+  ST.editando=null; ST.novas=[]; ST.manter=[];
+  if(!VE_TODOS && !EH_EST){
+    APP.innerHTML = `<div class="aviso erro">${esc(ERROS.SEM_PERMISSAO)}</div>`;
+    return;
+  }
+  if(VE_TODOS && !login){ abrirEquipe(); return; }
+  abrirDiario(login || "");
+}
+
+/* ===================== EQUIPE (ADM / MASTER) ===================== */
+async function abrirEquipe(){
+  ST.modo="equipe"; ST.login=null;
+  const c = (cacheGet("diario_equipe")||{}).v;
+  if(c) { ST.equipe=c; pintarEquipe(); } else APP.innerHTML = `<div class="carregando">Carregando a equipe…</div>`;
+  const r = await api({ action:"diarioEquipe" });
+  if(ST.modo!=="equipe") return;
+  if(!r.ok){ if(!c) APP.innerHTML = `<div class="aviso erro">${esc(msgErro(r.erro))}</div>`; else toast(msgErro(r.erro), true); return; }
+  ST.equipe=r; cacheSet("diario_equipe", r); pintarEquipe(); rodape(r.versao);
+}
+function pintarEquipe(){
+  const E = ST.equipe, pa = E.paginaAtual;
+  const ests = (E.estagiarios||[]).filter(e => ST.verInativos || e.ativo!==false);
+  const chk = {}, regs = {};
+  (E.checks||[]).forEach(c => (chk[c.login]=chk[c.login]||[]).push(c));
+  (E.registros||[]).forEach(r => (regs[r.login]=regs[r.login]||[]).push(r));
+  const restam = diaN(pa.fim) - diaN(E.hoje) + 1;
+  const cards = ests.map(e => {
+    const P = progresso(e.fora, chk[e.login]);
+    const rs = (regs[e.login]||[]).sort((a,b)=>String(b.criado_em).localeCompare(String(a.criado_em)));
+    const nPag = rs.filter(r=>r.pagina===pa.pagina).length;
+    const aPag = (chk[e.login]||[]).filter(c=>c.pagina===pa.pagina && AULA[c.item]).length;
+    return `<button type="button" class="cart${e.ativo===false?" inativo":""}" data-login="${esc(e.login)}">
+      <span class="nome">${esc(e.nome||e.login)}</span>
+      <span class="linha"><span class="pct">${pctTxt(P.pct)}</span><span class="dica">${P.ok} de ${P.tot} aulas</span></span>
+      <span class="barra"><i style="width:${Math.max(P.pct?2:0,Math.min(100,P.pct)).toFixed(1)}%"></i></span>
+      <span class="meta">
+        <span>Página ${pa.pagina}: <b>${nPag}</b> registro${nPag===1?"":"s"} · <b>${aPag}</b> aula${aPag===1?"":"s"} concluída${aPag===1?"":"s"}</span>
+        <span>Último registro: ${rs[0] ? esc(fmtData(rs[0].criado_em,true)) : "nenhum ainda"}</span>
+        ${e.ativo===false?'<span>Inativo</span>':''}
+      </span>
+    </button>`;
+  }).join("");
+  APP.innerHTML = `
+    <section class="painel">
+      <div class="tit"><span class="cond">Estagiários</span><em>Página ${pa.pagina} · ${ymdCurto(pa.inicio)} a ${ymdCurto(pa.fim)} · trava em ${restam} dia${restam===1?"":"s"}</em></div>
+      <div class="filtros">
+        <label class="ck"><input type="checkbox" id="verInat" ${ST.verInativos?"checked":""}> Mostrar inativos</label>
+        ${EH_EST?'<button type="button" class="btn peq" id="meuDiario">Meu diário</button>':''}
+      </div>
+      ${ests.length ? `<div class="equipe">${cards}</div>` :
+        `<p class="vazio">Nenhum diário ainda. O diário de cada estagiário nasce na primeira vez que ele abre esta página — antes, marque <b>DIÁRIO DO CURSO</b> na coluna ACESSOS do LOGINS de cada um.</p>`}
+    </section>`;
+  APP.querySelectorAll(".cart").forEach(b => b.onclick = () => irPara(b.dataset.login, true));
+  $("#verInat").onchange = e => { ST.verInativos = e.target.checked; pintarEquipe(); };
+  const md=$("#meuDiario"); if(md) md.onclick = () => irPara(String(SESS.login||"").toLowerCase(), true);
+}
+
+/* ===================== DIÁRIO ===================== */
+async function abrirDiario(login){
+  ST.modo="diario"; ST.login=login;
+  const ck = "diario_"+(login||"eu");
+  const c = (cacheGet(ck)||{}).v;
+  if(c){ ST.D=c; if(!ST.pagina) ST.pagina=c.paginaAtual.pagina; pintarDiario(); }
+  else APP.innerHTML = `<div class="carregando">Abrindo o diário…</div>`;
+  const r = await api({ action:"diarioLer", login: login || undefined });
+  if(ST.modo!=="diario" || ST.login!==login) return;
+  if(!r.ok){ if(!c) APP.innerHTML = `${voltarHtml()}<div class="aviso erro">${esc(msgErro(r.erro))}</div>`, ligarVoltar(); else toast(msgErro(r.erro), true); return; }
+  const mudouPagina = !ST.D || ST.D.paginaAtual.pagina !== r.paginaAtual.pagina;
+  ST.D = r; cacheSet(ck, r);
+  if(!ST.pagina || mudouPagina || ST.pagina > r.paginaAtual.pagina) ST.pagina = r.paginaAtual.pagina;
+  if(!ST.editando) pintarDiario(); else pintarResumo();
+  rodape(r.versao);
+}
+function voltarHtml(){ return VE_TODOS ? `<div class="topo"><button type="button" class="btn peq" id="voltar">← Equipe</button></div>` : ""; }
+function ligarVoltar(){ const v=$("#voltar"); if(v) v.onclick=()=>irPara("", true); }
+
+function pintarDiario(){
+  const D = ST.D, e = D.estagiario;
+  APP.innerHTML = `
+    <div class="topo">${VE_TODOS?'<button type="button" class="btn peq" id="voltar">← Equipe</button>':''}
+      <span class="quem">${esc(e.nome||e.login)}</span>
+      ${D.podeEditar?'':'<span class="chip">só leitura</span>'}
+      ${VE_TODOS && !D.podeEditar && tipoDe(SESS)!=="TESTES" ? `<span class="hspace"></span><button type="button" class="btn peq" id="ativo">${e.ativo===false?"Reativar diário":"Estágio encerrado (inativar)"}</button>` : ""}
+    </div>
+    <section class="painel" id="resumo"></section>
+    <div class="abas" role="tablist">
+      <button type="button" class="aba" role="tab" data-aba="diario" aria-selected="${ST.aba==="diario"}">Diário</button>
+      <button type="button" class="aba" role="tab" data-aba="ementa" aria-selected="${ST.aba==="ementa"}">Ementa</button>
+    </div>
+    <section id="corpo"></section>`;
+  ligarVoltar();
+  const bA=$("#ativo"); if(bA) bA.onclick = async () => {
+    const novo = e.ativo===false;
+    if(!novo && !confirm("Inativar o diário de "+(e.nome||e.login)+"? Ele some da lista da equipe (fica em \"Mostrar inativos\"); nada é apagado.")) return;
+    bA.disabled=true;
+    const r = await api({ action:"diarioConfig", login:e.login, ativo:novo });
+    if(!r.ok){ bA.disabled=false; toast(msgErro(r.erro), true); return; }
+    e.ativo=novo; pintarDiario(); toast(novo?"Diário reativado.":"Diário inativado.");
+  };
+  APP.querySelectorAll(".aba").forEach(b => b.onclick = () => { ST.aba=b.dataset.aba; ST.editando=null; ST.novas=[]; ST.manter=[]; pintarDiario(); });
+  pintarResumo();
+  if(ST.aba==="ementa") pintarEmenta(); else pintarPaginas();
+}
+
+function pintarResumo(){
+  const D = ST.D, P = progresso(D.estagiario.fora, D.checks), pa = D.paginaAtual;
+  const restam = diaN(pa.fim) - diaN(D.hoje) + 1;
+  const partes = ementaDe(D.estagiario.fora).map(x => {
+    const pp = P.porParte[x.parte.id] || {tot:0,ok:0}, v = pp.tot ? pp.ok/pp.tot*100 : 0;
+    return `<div class="parte-l"><b title="${esc(x.parte.nome)}">${esc(x.parte.nome)}</b>
+      <span class="barra" style="text-align:left"><i style="width:${v.toFixed(1)}%"></i></span><span>${pctTxt(v)}</span></div>`;
+  }).join("");
+  const el = $("#resumo"); if(!el) return;
+  el.innerHTML = `
+    <div class="resumo">
+      <div class="grande">
+        <span class="pct">${pctTxt(P.pct)}</span>
+        <span class="barra"><i style="width:${Math.min(100,P.pct).toFixed(1)}%"></i></span>
+        <small>${P.ok} de ${P.tot} aulas concluídas</small>
+      </div>
+      <div class="partes">${partes}</div>
+    </div>
+    <div class="pag-info">
+      <span class="chip aberta">Página ${pa.pagina} aberta</span>
+      <span>${ymdBr(pa.inicio)} a ${ymdBr(pa.fim)} · trava em <b>${restam}</b> dia${restam===1?"":"s"} (reunião em ${ymdBr(ymdDe(diaN(pa.fim)+1))})</span>
+    </div>`;
+}
+
+/* ---------- aba Diário ---------- */
+function pintarPaginas(){
+  const D = ST.D, atual = D.paginaAtual.pagina, sel = ST.pagina;
+  const regs = (D.registros||[]).filter(r=>r.pagina===sel);
+  const aulasPag = (D.checks||[]).filter(c=>c.pagina===sel && AULA[c.item]).sort((a,b)=>String(a.feito_em).localeCompare(String(b.feito_em)));
+  const f = faixa(D, sel), aberta = sel===atual;
+  let botoes="";
+  for(let n=atual;n>=1;n--){
+    const fx=faixa(D,n), q=(D.registros||[]).filter(r=>r.pagina===n).length;
+    botoes += `<button type="button" class="pg" data-p="${n}" aria-pressed="${n===sel}">${n===atual?"Página "+n+" · aberta":"🔒 Página "+n}<small>${ymdCurto(fx.inicio)} a ${ymdCurto(fx.fim)} · ${q} registro${q===1?"":"s"}</small></button>`;
+  }
+  $("#corpo").innerHTML = `
+    <section class="painel">
+      <div class="paginas" role="group" aria-label="Páginas do diário">${botoes}</div>
+      <div style="height:12px"></div>
+      ${aberta ? "" : `<div class="aviso trava">🔒 Página ${sel} travada em ${ymdBr(ymdDe(diaN(f.fim)+1))} — só leitura.</div><div style="height:12px"></div>`}
+      ${aberta && D.podeEditar ? formHtml() : ""}
+      <div class="tit" style="margin-top:4px"><span class="cond">Aulas concluídas na página ${sel}</span><em>${aulasPag.length}</em></div>
+      ${aulasPag.length ? `<div class="aulas-pag">${aulasPag.map(c=>{const a=AULA[c.item];return `<div><span class="d">${esc(fmtData(c.feito_em))}</span><span>✓ ${esc(a.modulo.nome)} — ${esc(a.titulo)}</span></div>`;}).join("")}</div>`
+        : `<p class="vazio">Nenhuma aula marcada nesta página${aberta&&D.podeEditar?" — marque na aba Ementa conforme for terminando":""}.</p>`}
+      <div class="tit" style="margin-top:16px"><span class="cond">Relatórios da página ${sel}</span><em>${regs.length}</em></div>
+      <div class="registros">${regs.length ? regs.map(regHtml).join("") : `<p class="vazio">Nenhum relatório nesta página.</p>`}</div>
+    </section>`;
+  $("#corpo").querySelectorAll(".pg").forEach(b => b.onclick = () => { ST.pagina=+b.dataset.p; ST.editando=null; ST.novas=[]; ST.manter=[]; pintarPaginas(); });
+  ligarRegistros();
+  if(aberta && D.podeEditar) ligarForm();
+}
+function regHtml(r){
+  const D=ST.D, podeMexer = D.podeEditar && r.pagina===D.paginaAtual.pagina;
+  const fotos = (r.fotos||[]).filter(f=>f.url);
+  return `<article class="reg" data-id="${esc(r.id)}">
+    <div class="quando"><b>${esc(fmtDiaSemana(r.criado_em))}, ${esc(fmtData(r.criado_em,true))}</b>
+      ${r.editado_em?`<span>· editado em ${esc(fmtData(r.editado_em,true))}</span>`:""}</div>
+    ${r.texto?`<div class="txt">${esc(r.texto)}</div>`:""}
+    ${fotos.length?`<div class="fotos">${fotos.map((f,i)=>`<img src="${esc(f.url)}" alt="Print ${i+1}" loading="lazy" data-g="${esc(r.id)}" data-i="${i}">`).join("")}</div>`:""}
+    ${(r.fotos||[]).length>fotos.length?`<p class="dica">Algum print não carregou — recarregue a página.</p>`:""}
+    ${podeMexer?`<div class="acoes"><button type="button" class="btn peq" data-ed="${esc(r.id)}">Editar</button><button type="button" class="btn peq perigo" data-ex="${esc(r.id)}">Excluir</button></div>`:""}
+  </article>`;
+}
+function ligarRegistros(){
+  const box=$("#corpo");
+  box.querySelectorAll(".reg .fotos img").forEach(img => img.onclick = () => {
+    const r=(ST.D.registros||[]).find(x=>x.id===img.dataset.g);
+    abrirFoto((r.fotos||[]).filter(f=>f.url).map(f=>f.url), +img.dataset.i);
+  });
+  box.querySelectorAll("[data-ed]").forEach(b => b.onclick = () => {
+    const r=(ST.D.registros||[]).find(x=>x.id===b.dataset.ed); if(!r) return;
+    ST.editando=r.id; ST.novas=[]; ST.manter=(r.fotos||[]).map(f=>({p:f.p,url:f.url}));
+    pintarPaginas();
+    const ta=$("#txt"); if(ta){ ta.value=r.texto||""; ta.focus(); ta.scrollIntoView({block:"center",behavior:"smooth"}); }
+  });
+  box.querySelectorAll("[data-ex]").forEach(b => b.onclick = async () => {
+    if(!confirm("Excluir este relatório e os prints dele? Não dá para desfazer.")) return;
+    b.disabled=true;
+    const r = await api({ action:"diarioExcluir", id:b.dataset.ex });
+    if(!r.ok){ b.disabled=false; toast(msgErro(r.erro), true); return; }
+    ST.D.registros = ST.D.registros.filter(x=>x.id!==b.dataset.ex);
+    if(ST.editando===b.dataset.ex){ ST.editando=null; ST.manter=[]; ST.novas=[]; }
+    cacheSet("diario_"+(ST.login||"eu"), ST.D); pintarPaginas(); toast("Relatório excluído.");
+  });
+}
+
+/* ---------- formulário (registro novo / edição) ---------- */
+function formHtml(){
+  const ed = ST.editando;
+  return `<div class="tit"><span class="cond">${ed?"Editando relatório":"Novo relatório"}</span><em>${ed?"":"a data e a hora entram sozinhas"}</em></div>
+  <div class="form">
+    <textarea id="txt" maxlength="20000" placeholder="O que você estudou ou praticou? Quais aulas fez, o que aprendeu, dúvidas e dificuldades…" aria-label="Relatório"></textarea>
+    <div class="solta" id="solta">Arraste os prints aqui, cole com <b>Ctrl+V</b> ou
+      <label class="btn peq" style="margin-left:6px">Escolher imagens<input type="file" id="arq" accept="image/*" multiple class="hide"></label></div>
+    <div class="miniaturas" id="minis"></div>
+    <div class="acoes">
+      <button type="button" class="btn pri" id="salvar">${ed?"Salvar alteração":"Salvar no diário"}</button>
+      ${ed?'<button type="button" class="btn" id="cancelar">Cancelar</button>':''}
+      <span class="dica" id="fstat"></span>
+    </div>
+  </div>
+  <div style="height:16px"></div>`;
+}
+function pintarMinis(){
+  const box=$("#minis"); if(!box) return;
+  const todas=[...ST.manter.map((f,i)=>({url:f.url,k:"m"+i})), ...ST.novas.map((f,i)=>({url:f.url,k:"n"+i}))];
+  box.innerHTML = todas.map((f,i)=>`<div class="mini"><img src="${esc(f.url)}" alt="Print ${i+1}" data-i="${i}"><button type="button" data-k="${f.k}" aria-label="Tirar print ${i+1}">×</button></div>`).join("");
+  box.querySelectorAll("img").forEach(img => img.onclick = () => abrirFoto(todas.map(x=>x.url), +img.dataset.i));
+  box.querySelectorAll("button").forEach(b => b.onclick = () => {
+    const k=b.dataset.k, i=+k.slice(1);
+    if(k[0]==="m") ST.manter.splice(i,1); else ST.novas.splice(i,1);
+    pintarMinis();
+  });
+  const st=$("#fstat"); if(st) st.textContent = todas.length ? `${todas.length} de ${MAX_FOTOS} prints` : "";
+}
+function ligarForm(){
+  const arq=$("#arq"), solta=$("#solta"), ta=$("#txt");
+  arq.onchange = () => { adicionarArquivos(arq.files); arq.value=""; };
+  ["dragenter","dragover"].forEach(ev => solta.addEventListener(ev, e => { e.preventDefault(); solta.classList.add("sobre"); }));
+  ["dragleave","drop"].forEach(ev => solta.addEventListener(ev, e => { e.preventDefault(); solta.classList.remove("sobre"); }));
+  solta.addEventListener("drop", e => adicionarArquivos(e.dataTransfer.files));
+  ta.addEventListener("paste", e => {
+    const fs=[...(e.clipboardData&&e.clipboardData.files||[])].filter(f=>/^image\//.test(f.type));
+    if(fs.length){ e.preventDefault(); adicionarArquivos(fs); }
+  });
+  $("#salvar").onclick = enviar;
+  const c=$("#cancelar"); if(c) c.onclick = () => { ST.editando=null; ST.novas=[]; ST.manter=[]; pintarPaginas(); };
+  pintarMinis();
+}
+/* print → JPEG de no máximo 1600 px no lado maior (um print de tela inteira
+   cai de ~2 MB em PNG para ~250 KB) */
+function comprimir(file){
+  return new Promise((ok, falha) => {
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload = () => {
+      const max=1600, k=Math.min(1, max/Math.max(img.naturalWidth,img.naturalHeight));
+      const w=Math.max(1,Math.round(img.naturalWidth*k)), h=Math.max(1,Math.round(img.naturalHeight*k));
+      const cv=document.createElement("canvas"); cv.width=w; cv.height=h;
+      const cx=cv.getContext("2d"); cx.fillStyle="#fff"; cx.fillRect(0,0,w,h); cx.drawImage(img,0,0,w,h);
+      URL.revokeObjectURL(url);
+      let q=.82, d=cv.toDataURL("image/jpeg",q);
+      while(d.length>2600000 && q>.4){ q-=.12; d=cv.toDataURL("image/jpeg",q); }
+      ok({ url:d, b64:d.split(",")[1] });
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); falha(new Error("imagem ilegível")); };
+    img.src=url;
+  });
+}
+async function adicionarArquivos(lista){
+  const fs=[...(lista||[])].filter(f=>/^image\//.test(f.type));
+  if(!fs.length){ toast("Só imagens (prints).", true); return; }
+  for(const f of fs){
+    if(ST.manter.length+ST.novas.length>=MAX_FOTOS){ toast(ERROS.PRINTS_DEMAIS, true); break; }
+    try{ ST.novas.push(await comprimir(f)); }catch(e){ toast("Não consegui ler "+f.name, true); }
+  }
+  pintarMinis();
+}
+async function enviar(){
+  if(ST.enviando) return;
+  const texto=$("#txt").value.trim();
+  if(!texto && !ST.manter.length && !ST.novas.length){ toast(ERROS.REGISTRO_VAZIO, true); return; }
+  ST.enviando=true;
+  const bt=$("#salvar"); bt.disabled=true; bt.textContent="Salvando…";
+  const r = await api({ action:"diarioEnviar", id: ST.editando || undefined, texto,
+    fotos: ST.manter.map(f=>f.p), novas: ST.novas.map(f=>f.b64) });
+  ST.enviando=false;
+  if(!r.ok){ bt.disabled=false; bt.textContent=ST.editando?"Salvar alteração":"Salvar no diário"; toast(msgErro(r.erro), true); return; }
+  const regs=ST.D.registros||[]; const i=regs.findIndex(x=>x.id===r.registro.id);
+  if(i>=0) regs[i]=r.registro; else regs.unshift(r.registro);
+  ST.D.registros=regs; cacheSet("diario_"+(ST.login||"eu"), ST.D);
+  const eraEd=!!ST.editando;
+  ST.editando=null; ST.novas=[]; ST.manter=[];
+  pintarPaginas(); toast(eraEd?"Relatório atualizado.":"Relatório salvo no diário.");
+}
+
+/* ---------- aba Ementa ---------- */
+function pintarEmenta(){
+  const D=ST.D, e=D.estagiario, fora=new Set(e.fora||[]);
+  const checks={}; (D.checks||[]).forEach(c=>checks[c.item]=c);
+  const atual=D.paginaAtual.pagina, P=progresso(e.fora, D.checks);
+  const adm = VE_TODOS && !D.podeEditar && tipoDe(SESS)!=="TESTES";
+  const partes = EMENTA.map(p => {
+    const mods = p.modulos.filter(m => adm || !fora.has(m.id));
+    if(!mods.length) return "";
+    const pp=P.porParte[p.id]||{tot:0,ok:0}, vp=pp.tot?pp.ok/pp.tot*100:0;
+    const modsHtml = mods.map(m => {
+      const ehFora=fora.has(m.id), pm=P.porModulo[m.id]||{tot:m.aulas.length,ok:0};
+      const aulas = m.aulas.map((t,i) => {
+        const id=idAula(m,i), c=checks[id];
+        if(ST.soPendentes && c) return "";
+        const trava = c && c.pagina!==atual;
+        const pode = D.podeEditar && !ehFora && !trava;
+        return `<div class="aula${c?" feita":""}"><label><input type="checkbox" data-id="${id}" ${c?"checked":""} ${pode?"":"disabled"}><span class="t">${esc(t)}</span></label>
+          ${c?`<span class="quando${trava?" trava":""}" title="${trava?"marcada na página "+c.pagina+" (travada)":"marcada na página aberta"}">${trava?"🔒 ":"✓ "}${esc(fmtData(c.feito_em))}</span>`:""}</div>`;
+      }).join("");
+      const cheio = !ehFora && pm.ok===pm.tot;
+      return `<details class="em${ehFora?" fora":""}"${ST.abertos&&ST.abertos.has(m.id)?" open":""} data-m="${m.id}"><summary>
+          <span class="seta">▶</span><span class="nm">${esc(m.nome)}</span>
+          <span class="n${cheio?" cheio":""}">${ehFora?"fora da ementa":pm.ok+"/"+pm.tot}</span>
+        </summary>
+        ${adm?`<div class="aula" style="border-top:0"><label class="sw"><input type="checkbox" data-fora="${m.id}" ${ehFora?"":"checked"}> Faz parte da ementa de ${esc((e.nome||e.login).split(" ")[0])}</label></div>`:""}
+        ${aulas || (ST.soPendentes?'<div class="aula"><span class="dica">Todas concluídas.</span></div>':"")}
+      </details>`;
+    }).join("");
+    return `<details class="ep" open><summary><span class="cond">${esc(p.nome)}</span>
+      <span class="barra"><i style="width:${vp.toFixed(1)}%"></i></span><span class="n">${pp.ok}/${pp.tot}</span></summary>${modsHtml}</details>`;
+  }).join("");
+  $("#corpo").innerHTML = `<section class="painel">
+    <div class="filtros">
+      <label class="ck"><input type="checkbox" id="pend" ${ST.soPendentes?"checked":""}> Só aulas pendentes</label>
+      <span class="dica">${D.podeEditar?"Marque cada aula assim que terminar. Aula marcada numa página que já travou não pode mais ser desmarcada.":"Só leitura."}</span>
+    </div>${partes}</section>`;
+  $("#pend").onchange = ev => { ST.soPendentes=ev.target.checked; guardarAbertos(); pintarEmenta(); };
+  $("#corpo").querySelectorAll("details.em").forEach(d => d.addEventListener("toggle", guardarAbertos));
+  $("#corpo").querySelectorAll("input[data-id]").forEach(cb => cb.onchange = () => marcar(cb));
+  $("#corpo").querySelectorAll("input[data-fora]").forEach(cb => cb.onchange = () => mudarFora(cb));
+}
+function guardarAbertos(){ ST.abertos = new Set([...document.querySelectorAll("details.em[open]")].map(d=>d.dataset.m)); }
+async function marcar(cb){
+  const id=cb.dataset.id, feito=cb.checked, D=ST.D;
+  const antes=(D.checks||[]).slice();
+  if(feito) D.checks=[...D.checks.filter(c=>c.item!==id), { item:id, pagina:D.paginaAtual.pagina, feito_em:new Date().toISOString() }];
+  else D.checks=D.checks.filter(c=>c.item!==id);
+  guardarAbertos(); pintarResumo(); pintarEmenta();
+  const r = await api({ action:"diarioCheck", item:id, feito });
+  if(!r.ok){ D.checks=antes; pintarResumo(); pintarEmenta(); toast(msgErro(r.erro), true); return; }
+  if(r.check) D.checks=[...D.checks.filter(c=>c.item!==id), r.check];
+  cacheSet("diario_"+(ST.login||"eu"), D);
+  guardarAbertos(); pintarResumo(); pintarEmenta();
+}
+async function mudarFora(cb){
+  const D=ST.D, e=D.estagiario, m=cb.dataset.fora;
+  const fora=new Set(e.fora||[]); if(cb.checked) fora.delete(m); else fora.add(m);
+  const antes=e.fora; e.fora=[...fora];
+  guardarAbertos(); pintarResumo(); pintarEmenta();
+  const r = await api({ action:"diarioConfig", login:e.login, fora:e.fora });
+  if(!r.ok){ e.fora=antes; guardarAbertos(); pintarResumo(); pintarEmenta(); toast(msgErro(r.erro), true); return; }
+  cacheSet("diario_"+(ST.login||"eu"), D); toast("Ementa de "+(e.nome||e.login)+" atualizada.");
+}
+
+/* ---------- foto grande ---------- */
+function abrirFoto(urls, i){
+  const lb=document.createElement("div"); lb.className="lb"; lb.setAttribute("role","dialog"); lb.setAttribute("aria-label","Print ampliado");
+  const pintar=()=>{ lb.innerHTML=`<img src="${esc(urls[i])}" alt="Print ${i+1} de ${urls.length}">
+    <button type="button" class="fechar" aria-label="Fechar">×</button>
+    ${urls.length>1?`<button type="button" class="nav ant" aria-label="Anterior">‹</button><button type="button" class="nav prox" aria-label="Próximo">›</button>`:""}`;
+    lb.querySelector(".fechar").onclick=fechar;
+    const a=lb.querySelector(".ant"), p=lb.querySelector(".prox");
+    if(a) a.onclick=ev=>{ ev.stopPropagation(); i=(i-1+urls.length)%urls.length; pintar(); };
+    if(p) p.onclick=ev=>{ ev.stopPropagation(); i=(i+1)%urls.length; pintar(); };
+  };
+  const tecla=ev=>{ if(ev.key==="Escape") fechar(); if(urls.length>1&&ev.key==="ArrowRight"){ i=(i+1)%urls.length; pintar(); } if(urls.length>1&&ev.key==="ArrowLeft"){ i=(i-1+urls.length)%urls.length; pintar(); } };
+  function fechar(){ lb.remove(); document.removeEventListener("keydown",tecla); }
+  lb.addEventListener("click", ev=>{ if(ev.target===lb) fechar(); });
+  document.addEventListener("keydown",tecla);
+  pintar(); document.body.appendChild(lb);
+}
+
+function rodape(v){ $("#rodape").textContent = "Diário do Curso · página "+PAGINA_VERSAO+(v?" · Apps Script "+v:""); }
+
+/* início */
+rodape();
+iniciar(loginDaUrl());
+</script>
+</body>
+</html>
