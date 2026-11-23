@@ -355,6 +355,8 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
   .cd-prox{flex-direction:column;align-items:flex-start}
 }
 /* ===== Planilha Casas Condomínio (r67) ===== */
+.cd-card-bts{display:flex;gap:6px;flex:0 0 auto}.cd-card-bts .cd-bt{min-height:44px;min-width:44px}
+@media (max-width:480px){.cd-card-bts .cd-bt-txt{display:none}}
 .cd-bt{border:1.5px solid var(--border);background:var(--sup);color:var(--azul);border-radius:8px;padding:8px 12px;font:inherit;font-weight:700;font-size:13px;cursor:pointer}
 .cd-bt:hover{background:var(--bg3)}
 .cd-bt.pri{background:var(--verde-btn);border-color:var(--verde-btn);color:#1a3347}
@@ -1343,7 +1345,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="venda/FluxoLivre.js?v=25"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=90"></script>
+<script src="venda-dossie.js?v=91"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: faixa "a reserva cai amanhã" -->
@@ -2080,6 +2082,8 @@ async function condSalvar(id,prop,valor){
 }
 
 /* ---- card da unidade ---- */
+/* 23/11/2026 (financeiro): ↻ Atualizar no cartão — relê o banco de vendas e reabre a mesma unidade, na mesma aba */
+async function condAtualizar(){ const id=COND_ABERTA; if(!id) return; await condCarregar(true); if(COND&&COND.linhas.some(x=>x.id===id)) condAbrir(id); }
 function condFechar(){ COND_ABERTA=null; if(window.VendaBlocos) VendaBlocos.soltar(); const c=document.getElementById("cd-card"); c.style.display="none"; c.innerHTML=""; }
 function condFluxo(l){
   /* 31/10/2026 (dono): venda com o fluxo alterado no portal (Alterar fluxo) — o quadro mostra a lista que vai para o
@@ -2331,7 +2335,7 @@ function condAbrir(id){
   document.getElementById("cd-card").innerHTML='<div class="cd-cardbox" data-aba="'+COND_ABA+'">'+
     '<div style="display:flex;justify-content:space-between;gap:10px;align-items:flex-start"><div>'+
     '<h3>Unidade '+esc(g(tit)||"")+(g("CONDOMÍNIO")?' · '+esc(g("CONDOMÍNIO")):'')+'</h3><div class="sub">'+esc(g("PROPONENTE")||"—")+' · Proposta '+esc(g("PROPOSTA")||"—")+' · Corretor: '+esc(g("CORRETOR")||"—")+(g("CPF CORRETOR")?' · CPF '+esc(g("CPF CORRETOR")):'')+'</div></div>'+
-    '<button class="cd-bt" onclick="condFechar()">✕ Fechar</button></div>'+
+    '<div class="cd-card-bts"><button class="cd-bt" onclick="condAtualizar()" aria-label="Atualizar" title="Relê a venda (faltas, fluxo, contrato) sem fechar a unidade">↻<span class="cd-bt-txt"> Atualizar</span></button><button class="cd-bt" onclick="condFechar()" aria-label="Fechar">✕<span class="cd-bt-txt"> Fechar</span></button></div></div>'+
     condEtapasHtml(l)+
     condAbasHtml(l)+
     /* aba Resumo: valores, link para completar a venda e pendências */

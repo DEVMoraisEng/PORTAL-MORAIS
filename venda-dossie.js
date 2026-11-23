@@ -4134,6 +4134,13 @@
         catch (e) { /* sem CustomEvent: o quadro do cartão só atualiza ao reabrir a unidade */ }
       } else uiC.msg = mensagemContrato(rs);
       pintar();
+      /* 23/11/2026 (financeiro, unidade 30): o fluxo muda o que falta (de 36x/48x para 24x os fiadores e os termos saem;
+         o contrário, entram) — relê o bloco do servidor na hora, sem precisar fechar e abrir a unidade */
+      if (rs.ok) {
+        var msgFluxo = uiC.msg;
+        await carregarContrato();
+        if (vivo() && !uiC.msg) { uiC.msg = msgFluxo; pintar(); }
+      }
     }
     /* 03/11: digitando no formulário do bem: guarda na linha e redesenha só o placar */
     function aoDigitarBem(alvo) {
