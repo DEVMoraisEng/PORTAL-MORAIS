@@ -271,9 +271,10 @@ def _mais_dias(data_iso: str, dias: int) -> str:
 def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[dict]:
     """[{tipo, rotulo, valor, data}] na ordem em que entram na venda.
 
-    Casa de rua (19/11/2026): Sinal, Entrada (se tiver) e Intermediária = aquisição − sinal − entrada
-    (FGTS/financiamento/subsídio pagam a intermediária). Sem data da intermediária, vence na data da
-    venda + `dias_financiamento` (previsão; o ERP deixa editar)."""
+    Casa de rua (23/11/2026, Gustavo): Sinal, Entrada (se tiver), FGTS (se tiver) e Financiamento = aquisição − sinal −
+    entrada − FGTS (o mesmo saldo do contrato; NÃO o VALOR FINANCIADO do banco, que pode ser maior). De 19 a 23/11 esse
+    saldo subia como "Intermediária". Vencimento: CONTRATO - INTERMEDIÁRIA VENCIMENTO; sem ele, a data da venda +
+    `dias_financiamento` (previsão; o ERP deixa editar)."""
     if dados.get("parcelas_prontas") is not None:   # condomínio: montadas por condominio.parcelas()
         return dados["parcelas_prontas"]
     out = []
@@ -290,8 +291,14 @@ def parcelas(dados: dict, dias_financiamento: int = DIAS_FINANCIAMENTO) -> list[
     # saldo do contrato (aquisição − sinal − entrada), o mesmo número do contrato (ContratoVenda.saldoIntermediaria);
     # FGTS, financiamento e subsídio são formas de pagar essa intermediária, não parcelas próprias. A data é a da
     # coluna CONTRATO - INTERMEDIÁRIA VENCIMENTO; sem ela, a previsão (data da venda + dias_financiamento).
+    # 23/11/2026 (Gustavo: "entra como financiamento"): o saldo do contrato (aquisição − sinal − entrada) é pago pelo
+    # banco — sobe como FINANCIAMENTO, com o FGTS (VALOR DO FGTS) separado em parcela própria quando houver.
     saldo = _saldo_intermediaria(dados)
-    add(TIPO_INTERMEDIARIA, "Intermediária", saldo, dados["intermediaria"]["data"] or prev)
+    venc = dados["intermediaria"]["data"] or prev
+    if saldo:
+        fgts = min(float(dados.get("fgts") or 0), saldo) if (dados.get("fgts") or 0) > 0 else 0.0
+        add(TIPO_FGTS, "FGTS", fgts or None, venc)
+        add(TIPO_FINANCIAMENTO, "Financiamento", round(saldo - fgts, 2), venc)
     return out
 
 

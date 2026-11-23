@@ -74,21 +74,27 @@ def test_aquisicao_sem_valor_na_mao_usa_total_menos_comissao():
 def test_parcelas_ordem_tipos_e_datas():
     d = R.dados_da_pagina(pagina())
     ps = R.parcelas(d)
-    # 19/11/2026 (dono): só sinal, entrada e intermediária = aquisição − sinal − entrada (FGTS e financiamento pagam ela)
-    assert [p["rotulo"] for p in ps] == ["Sinal", "Entrada", "Intermediária"]
+    # 23/11/2026 (Gustavo): sinal, entrada, FGTS e financiamento = aquisição − sinal − entrada − FGTS (não o VALOR FINANCIADO)
+    assert [p["rotulo"] for p in ps] == ["Sinal", "Entrada", "FGTS", "Financiamento"]
     assert ps[0]["tipo"] == R.TIPO_SINAL and ps[0]["data"] == "2026-09-28"
-    assert ps[2]["tipo"] == R.TIPO_INTERMEDIARIA and ps[2]["data"] == "2026-10-31"
+    assert ps[2]["tipo"] == R.TIPO_FGTS and ps[2]["valor"] == 10000
+    assert ps[3]["tipo"] == R.TIPO_FINANCIAMENTO and ps[3]["data"] == "2026-10-31"
+    assert ps[3]["valor"] == 260000 - 5000 - 10000 - 10000, "saldo do contrato menos FGTS, não os 230 mil do banco"
+    assert not any(p["tipo"] == R.TIPO_INTERMEDIARIA for p in ps)
     assert round(sum(p["valor"] for p in ps), 2) == d["aquisicao"]
     assert R.faltas(d) == []
 
 
-def test_intermediaria_vira_entrada_com_comentario():
+def test_financiamento_sem_comentario_e_sem_intermediaria_no_corpo():
     d = R.dados_da_pagina(pagina(**{"CONTRATO - INTERMEDIÁRIA VALOR": num(5000),
                                     "CONTRATO - INTERMEDIÁRIA VENCIMENTO": data("2026-12-10"),
-                                    "VALOR FINANCIADO": num(225000)}))
+                                    "VALOR FINANCIADO": num(225000), "VALOR DO FGTS": num(None)}))
     corpo = R.corpo_venda(d, {"id": "o1", "name": "x"}, "c1", {"id": "k1"})
-    inter = [i for i in corpo["tradeReceivable"]["installments"] if i["comment"] == "Intermediária"]
-    assert len(inter) == 1 and inter[0]["readjustmentDetail"]["type"]["id"] == R.TIPO_INTERMEDIARIA
+    inst = corpo["tradeReceivable"]["installments"]
+    fin = [i for i in inst if i["readjustmentDetail"]["type"]["id"] == R.TIPO_FINANCIAMENTO]
+    assert len(fin) == 1 and fin[0]["comment"] is None and fin[0]["plannedDate"] == "2026-12-10"
+    assert fin[0]["plannedValue"] == 260000 - 5000 - 10000
+    assert not any(i["readjustmentDetail"]["type"]["id"] == R.TIPO_INTERMEDIARIA for i in inst)
     assert R.faltas(d) == []
 
 
@@ -97,9 +103,10 @@ def test_intermediaria_e_o_saldo_mesmo_com_coluna_e_financiamento_diferentes():
     d = R.dados_da_pagina(pagina(**{"VALOR FINANCIADO": num(200000), "CONTRATO - INTERMEDIÁRIA VALOR": num(5000),
                                     "CONTRATO - INTERMEDIÁRIA VENCIMENTO": data("2026-12-10")}))
     ps = R.parcelas(d)
-    inter = [p for p in ps if p["rotulo"] == "Intermediária"]
-    assert len(inter) == 1 and inter[0]["data"] == "2026-12-10"
-    assert inter[0]["valor"] == round(d["aquisicao"] - d["sinal"]["valor"] - (d["entrada"]["valor"] or 0), 2)
+    fin = [p for p in ps if p["rotulo"] == "Financiamento"]
+    assert len(fin) == 1 and fin[0]["data"] == "2026-12-10"
+    assert round(sum(p["valor"] for p in ps), 2) == d["aquisicao"]
+    assert fin[0]["valor"] == round(d["aquisicao"] - d["sinal"]["valor"] - (d["entrada"]["valor"] or 0) - (d["fgts"] or 0), 2)
     assert R.faltas(d) == []
 
 
@@ -124,7 +131,7 @@ def test_corpo_venda_formato_da_tela():
     tr = c["tradeReceivable"]
     assert tr["receivingCondition"] == {"id": R.CONDICAO_PARCELADO, "name": "Parcelado", "deferred": True}
     assert tr["defaultAccount"] == {"id": "conta-1"} and tr["nature"] == {"id": R.NATUREZA_VENDA, "name": "Venda"}
-    assert tr["value"] == 260000 and tr["numberOfInstallments"] == 3   # 19/11: sinal, entrada e intermediária
+    assert tr["value"] == 260000 and tr["numberOfInstallments"] == 4   # 23/11: sinal, entrada, FGTS e financiamento
     p = tr["installments"][0]
     assert p["plannedValue"] == 5000 and p["readjustmentDetail"] == {
         "type": {"id": R.TIPO_SINAL}, "table": None, "rawValue": 5000, "reference": 0}

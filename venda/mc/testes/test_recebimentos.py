@@ -381,3 +381,19 @@ def test_alteracao_que_falha_mantem_anotadas_as_baixas_da_rodada_anterior():
     r, n, _ = rodar(pr, Erp(v, estragar=estragar))
     assert r["situacao"] == "ERRO"
     assert n.resultado()["itens"]["SINAL"]["pagamentos"]["aaa111"]["recibos"] == ["r-p-sinal-0"]
+
+def test_esperado_do_financiamento_e_o_do_lancamento_nao_o_do_banco():
+    """23/11/2026: com valor do contrato, o financiamento esperado = aquisição − sinal − entrada − FGTS (o que o lançamento
+    sobe); a parcela de 280 mil não vira 320 mil (VALOR FINANCIADO do banco)."""
+    pr = props(**{"VALOR NA MÃO": num(285000), "CONTRATO - ENTRADA VALOR": num(None), "VALOR FINANCIADO": num(320000)})
+    e = M.esperados(pr)
+    assert e["FINANCIAMENTO"] == 280000.0
+    v = venda_base()
+    v["tradeReceivable"]["installments"] = [parcela("p-sinal", R.TIPO_SINAL, 5000.0),
+                                            parcela("p-fin", R.TIPO_FINANCIAMENTO, 280000.0, "2026-12-21")]
+    pl = M.plano_alteracao(v, e)
+    assert pl["acao"] == "NADA" and pl["mudancas"] == []
+    # com FGTS, o financiamento esperado desconta
+    assert M.esperados(dict(pr, **{"VALOR DO FGTS": num(30000)}))["FINANCIAMENTO"] == 250000.0
+    # sem valor do contrato: como antes (VALOR FINANCIADO + subsídio)
+    assert M.esperados(props())["FINANCIAMENTO"] == 150000.0

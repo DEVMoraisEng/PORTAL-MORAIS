@@ -6,7 +6,8 @@ O que faz, com a venda já lançada (MC - VENDA ID):
     (aprovação do dono de 05/11/2026; fora disso continua valendo "o robô nunca altera venda", com a exceção da
     antecipação do condomínio). Antes de gravar guarda a venda INTEIRA (JSON do GET) fora do repositório; depois
     relê e confere centavo por centavo; se não bater, grava de volta o JSON guardado (desfaz) e avisa.
-    Financiamento = VALOR FINANCIADO + VALOR DO SUBSÍDIO (a mesma conta do lançamento, regras.parcelas).
+    Financiamento = a mesma conta do lançamento (regras.parcelas, 23/11/2026): aquisição − sinal − entrada − FGTS; sem
+    valor do contrato para calcular, VALOR FINANCIADO + VALOR DO SUBSÍDIO (como antes).
     Parcela que ainda não existe (ex.: FGTS novo) é criada; zerar uma parcela que existe fica para a mão.
  2. Dá BAIXA de cada pagamento do sinal e da entrada registrado no portal que ainda não está no Mais Controle
     (3 mil num dia e 2 mil no outro = duas baixas parciais), com o valor e a data do portal, e anexa o comprovante
@@ -123,6 +124,15 @@ def esperados(props: dict) -> dict:
         vals = [R._num(_valor(pc, c)) for c in ITENS[item]["esperado"]]
         vals = [v for v in vals if v is not None]
         out[item] = round(sum(vals), 2) if vals else None
+    # 23/11/2026: o financiamento esperado é o do lançamento (saldo do contrato − FGTS), não o VALOR FINANCIADO do banco —
+    # senão o robô "acertaria" a parcela de 280 mil para 320 mil
+    try:
+        fin = [p for p in R.parcelas(R.dados_da_pagina(props)) if p["tipo"] == R.TIPO_FINANCIAMENTO]
+        saldo = R._saldo_intermediaria(R.dados_da_pagina(props))
+    except Exception:
+        fin, saldo = [], None
+    if saldo:
+        out["FINANCIAMENTO"] = round(sum(p["valor"] for p in fin), 2)
     return out
 
 

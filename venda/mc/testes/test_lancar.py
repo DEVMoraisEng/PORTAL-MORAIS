@@ -107,14 +107,14 @@ def test_situacao_em_linhas_curtas_previa_e_criada():
     linhas = n.gravado["MC - SITUAÇÃO"].split("\n")
     assert linhas[0].startswith("PRÉVIA OK [#") and " | VENDA CASA 02" in linhas[0]
     assert linhas[1] == "Cliente: FULANO DE TAL (novo, será criado)"
-    assert any(x.startswith("Parcelas: 3 (") for x in linhas)   # 19/11: sinal, entrada e intermediária
+    assert any(x.startswith("Parcelas: 4 (") for x in linhas)   # 23/11: sinal, entrada, FGTS e financiamento
     assert any(x.startswith("- Sinal R$ ") for x in linhas)
     assert "Total: R$ 260.000,00" in linhas
     n2, e2 = NotionFake(pagina()), ErpFake()
     previa_e_lanca(n2, e2)
     assert n2.gravado["MC - SITUAÇÃO"].split("\n") == [
         "CRIADA | venda venda-nova", "Cliente: FULANO DE TAL (criado agora)",
-        "Parcelas: 3 (sinal, entrada, intermediária)", "Total: R$ 260.000,00",
+        "Parcelas: 4 (sinal, entrada, financiamento, FGTS)", "Total: R$ 260.000,00",
         "Contrato: não anexado (coluna CONTRATO ASSINADO vazia)"]
 
 
