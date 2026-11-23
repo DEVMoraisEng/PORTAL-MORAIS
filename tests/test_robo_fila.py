@@ -190,7 +190,7 @@ def test_robo_antigo_roda_os_scripts_do_workflow_em_ordem_e_guarda_a_saude(tmp_p
 
     monkeypatch.setattr(R, "rodar_com_prazo", lambda argv, prazo, **k: rodou.append(argv[1]) or Res())
     assert R.robo_antigo("contas") == 0
-    assert rodou == ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py"]
+    assert rodou == ["robo_mc_contas.py", "robo_mc_clientes.py", "robo_mc_obras.py", "robo_mc_distratos.py"]
     assert json.loads((tmp_path / "saude.json").read_text(encoding="utf-8"))["robos"]["contas"]["codigo"] == 0
     assert R.robo_antigo("nao-existe") == 2
 
