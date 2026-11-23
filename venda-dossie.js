@@ -668,13 +668,21 @@
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-rua-salvar"' + disRua + ">Salvar</button></div>";
     if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta e o e-mail dele.</div>';
     if (cc.duplicado) return h + '<div class="dz-aviso">O corretor tem cadastro duplicado em CORRETORES – CONTRATO — deixe uma linha só.</div>';
-    /* 19/11/2026 (dono): o contrato sempre imprime "PIX ou depósito bancário" (texto fixo); este rótulo mostra
-       só os dados cadastrados do corretor, de referência — não é mais literalmente "o que vai no contrato" */
-    h += '<div class="dz-linha"><span class="dz-rot">Dados cadastrados: ' + (cc.forma ? esc(cc.forma) : "<i>em branco (sem dados de pagamento)</i>") +
+    /* 23/11/2026 (dono): "deixa esses campos sempre recolhidos e se quem tiver preenchendo quiser preencher, preencha" —
+       os dados de pagamento do corretor são opcionais (o contrato da casa de rua sempre imprime "PIX ou depósito bancário",
+       19/11) e o aviso laranja de coluna faltando fez a equipe achar que o envio estava travado. O bloco abre sozinho só
+       quando a pessoa já abriu ou digitou algo nele (o redesenho não fecha na cara dela). */
+    var disB = dis || (u.ocupadoContrato === "comissao" ? " disabled" : "");
+    var mexeu = cc.campos.some(function (c) { var k = "com|" + c.coluna; return k in rasc && String(rasc[k]) !== String(c.valor || ""); });
+    var aberto = !!u.comissaoAberta || u.ocupadoContrato === "comissao" || mexeu;
+    h += '<details class="dz-linha dz-com-dados" data-com-dobra' + (aberto ? " open" : "") + '><summary class="dz-rot" style="cursor:pointer;padding:12px 0;min-height:44px;box-sizing:border-box">Dados de pagamento do corretor ' +
+      '<span class="dz-nota">(opcional — ' + (cc.forma ? "cadastrado" : "em branco") + "; não vai no contrato)</span></summary>";
+    h += '<div class="dz-msg dz-nota">O contrato sempre diz "PIX ou depósito bancário". Preencha só se quiser guardar a conta do corretor para o pagamento.</div>';
+    if (cc.forma) h += '<div class="dz-linha"><span class="dz-rot">Dados cadastrados: ' + esc(cc.forma) +
       (cc.formaLegada ? " <small>(da coluna antiga CONTRATO - COMISSÃO FORMA)</small>" : "") + "</span></div>";
     if (cc.colunasFaltando.length)
-      h += '<div class="dz-aviso">A base CORRETORES – CONTRATO não tem a coluna ' + esc(cc.colunasFaltando.join(", ")) + " — avise o desenvolvedor.</div>";
-    var disB = dis || (u.ocupadoContrato === "comissao" ? " disabled" : "");
+      h += '<div class="dz-msg dz-nota">Ainda não dá para guardar ' + esc(cc.colunasFaltando.join(", ")) +
+        " (o cadastro de corretores não tem esse campo). Isso não impede gerar nem enviar o contrato.</div>";
     cc.campos.forEach(function (c) {
       var k = "com|" + c.coluna, v = k in rasc ? rasc[k] : c.valor;
       h += '<div class="dz-linha"><label class="dz-rot">' + esc(c.rotulo) + '</label><input type="text" maxlength="300" data-com-campo="' +
@@ -682,8 +690,10 @@
     });
     if (!cc.temCadastro) h += '<div class="dz-msg dz-nota">' + esc(nome) + " ainda não tem cadastro: o salvar cria a linha em CORRETORES – CONTRATO.</div>";
     if (u.ocupadoContrato === "comissao") h += '<div class="dz-linha"><b>salvando no cadastro do corretor…</b></div>';
-    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-salvar"' + disB + ">Salvar no cadastro do corretor</button></div>";
-    h += '<div class="dz-msg dz-nota">Vale para todas as vendas deste corretor. Depois de salvar, gere o pré-contrato de novo.</div>';
+    if (cc.campos.some(function (c) { return c.existe; }))
+      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-salvar"' + disB + ">Salvar no cadastro do corretor</button></div>" +
+        '<div class="dz-msg dz-nota">Vale para todas as vendas deste corretor.</div>';
+    h += "</details>";
     return h;
   }
   /* caixas [{coluna, orig, valor}] -> { corretor: {COLUNA: valor} } só com o que mudou e não está vazio; null = nada mudou */
@@ -2909,6 +2919,7 @@
       raiz.querySelectorAll("[data-conta-campo]").forEach(function (x) { uiC.rascunho["conta|" + x.getAttribute("data-conta-campo")] = x.value; });
       raiz.querySelectorAll("[data-com-campo]").forEach(function (x) { uiC.rascunho["com|" + x.getAttribute("data-com-campo")] = x.value; });   /* 05/11/2026 */
       var elPP = raiz.querySelector("[data-com-pagapor]"); if (elPP) uiC.rascunho.pagaPor = elPP.value;   /* 19/11/2026 */
+      var elCD = raiz.querySelector("[data-com-dobra]"); if (elCD) uiC.comissaoAberta = !!elCD.open;   /* 23/11/2026 */
       rascunhoFia(uiC.rascunho, caixasFia());   /* 01/11: bloco Fiadores — só o que foi mexido */
     }
     function caixasFia() {

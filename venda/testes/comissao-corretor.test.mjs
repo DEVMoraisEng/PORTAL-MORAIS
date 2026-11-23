@@ -142,7 +142,21 @@ test("bloco Pagamento da comissão: paga por COMPRADOR fixo, caixas com o valor 
   assert.match(h, /<select data-com-pagapor><option value="COMPRADOR" selected>COMPRADOR<\/option><option value="VENDEDOR">VENDEDOR<\/option><\/select>/);
   assert.match(h, /data-acao="c-com-rua-salvar"/);
   assert.match(h, /Dados cadastrados: PIX, chave x/);
-  assert.match(h, /não tem a coluna TITULAR DA CONTA/);
+  /* 23/11/2026 (dono): bloco recolhido, opcional, sem aviso laranja de "avise o desenvolvedor" */
+  assert.match(h, /<details class="dz-linha dz-com-dados" data-com-dobra><summary[^>]*>Dados de pagamento/, "recolhido por padrão");
+  assert.match(h, /opcional/); assert.match(h, /PIX ou depósito bancário/);
+  assert.match(h, /Ainda não dá para guardar TITULAR DA CONTA/);
+  assert.match(h, /não impede gerar nem enviar o contrato/);
+  assert.ok(!/dz-aviso/.test(h), "nada laranja no bloco");
+  assert.ok(!/avise o desenvolvedor/.test(h));
+  /* abre sozinho se a pessoa já abriu ou digitou */
+  assert.match(D.htmlComissaoCorretor(cc, { rascunho: {}, comissaoAberta: true }, ""), /data-com-dobra open>/);
+  assert.match(D.htmlComissaoCorretor(cc, { rascunho: { "com|CHAVE PIX": "y" } }, ""), /data-com-dobra open>/);
+  assert.match(D.htmlComissaoCorretor(cc, { rascunho: { "com|CHAVE PIX": "x" } }, ""), /data-com-dobra><summary/, "valor igual ao cadastro não abre");
+  /* sem nenhuma coluna na base: sem botão de salvar que não grava nada */
+  const nada = D.htmlComissaoCorretor(D.comissaoDoEstado({ corretor: "C", temCadastro: true, colunasFaltando: ["CHAVE PIX"],
+    campos: [{ coluna: "CHAVE PIX", rotulo: "Chave PIX", valor: "", existe: false }] }), {}, "");
+  assert.ok(!/c-com-salvar/.test(nada)); assert.match(nada, /em branco; não vai no contrato/);
   assert.match(h, /data-com-campo="CHAVE PIX" data-com-orig="x" value="x">/);
   assert.match(h, /data-com-campo="TITULAR DA CONTA"[^>]* disabled>/);
   assert.match(h, /data-acao="c-com-salvar"/);
