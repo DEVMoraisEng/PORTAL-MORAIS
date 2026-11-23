@@ -981,8 +981,7 @@
         : "o da proposta (simulador).") + "</span>" + '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-ver">Ver fluxo</button></div>';
     }
     var c = e.condicoes;
-    if (c && c.coluna) h += '<div class="dz-grupo"><b>Condições especiais desta venda</b></div>' +
-      '<div class="dz-linha" style="white-space:pre-wrap;overflow-wrap:anywhere">' + esc(c.texto || "Não há.") + "</div>";
+    if (c && c.coluna) h += '<div class="dz-grupo"><b>Condições especiais desta venda</b></div>' + htmlCondicoesResumo(c.texto);
     var b = e.fiadores;
     if (b) {
       var linhas = function (campos) {
@@ -1017,6 +1016,26 @@
     return h + "</details>";
   }
 
+  /* 23/11/2026 (financeiro, unidade 30): "consegue colocar resumido?" — texto curto aparece inteiro; texto longo mostra só
+     os títulos dos subitens ("16.1 Financiamento após a conclusão da obra") e o texto inteiro fica em "Ver texto completo". */
+  var CONDESP_CURTO = 300;
+  function resumoCondicoes(texto) {
+    var t = String(texto || "").trim(), titulos = [];
+    t.split("\n").forEach(function (l) {
+      var m = /^\s*(\d+(?:\.\d+)+)\.?\s+([^.\n]{3,90})\./.exec(l);
+      if (m) titulos.push(m[1] + " " + m[2].trim());
+    });
+    return { texto: t, curto: t.length <= CONDESP_CURTO, titulos: titulos };
+  }
+  function htmlCondicoesResumo(texto) {
+    var r = resumoCondicoes(texto), pre = 'style="white-space:pre-wrap;overflow-wrap:anywhere"';
+    if (!r.texto || r.curto) return '<div class="dz-linha" ' + pre + ">" + esc(r.texto || "Não há.") + "</div>";
+    var res = r.titulos.length
+      ? '<ul class="dz-obs" style="margin:2px 0 4px;overflow-wrap:anywhere">' + r.titulos.map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul>"
+      : '<div class="dz-linha" style="overflow-wrap:anywhere">' + esc(r.texto.slice(0, CONDESP_CURTO).replace(/\s+\S*$/, "")) + "…</div>";
+    return res + '<details class="dz-linha"><summary style="cursor:pointer;padding:12px 0">Ver texto completo (' + r.texto.length.toLocaleString("pt-BR") + " caracteres)</summary>" +
+      "<div " + pre + ' class="dz-condesp-texto">' + esc(r.texto) + "</div></details>";
+  }
   /* 29/10: "Condições especiais desta venda" (item 16). O texto vai para o contrato só desta casa; vazio = "Não há.".
      "Redigir com IA" só sugere: põe a redação na caixa, e a pessoa lê e clica em Salvar. */
   function htmlCondicoes(c, u, dis) {
@@ -1727,7 +1746,7 @@
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
