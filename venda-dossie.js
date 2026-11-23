@@ -538,6 +538,8 @@
       o.reserva = { estado: String(r.reserva.estado || ""), geradoEm: String(r.reserva.geradoEm || ""), ate: String(r.reserva.ate) };
     /* 03/11/2026 (incidente): fluxo/condições gravados depois do contrato final — o Enviar fica travado (assinatura-ui) */
     if (r && typeof r.envioDesatualizado === "boolean") o.envioDesatualizado = r.envioDesatualizado;
+    /* 23/11/2026 (Gustavo): casa de rua — o tipo de casa gravado hoje (a pergunta do Gerar pré-contrato mostra qual vale) */
+    if (r && r.casaDeRua === true) { o.casaDeRua = true; o.tipoCasa = String(r.tipoCasa || ""); }
     /* 01/11/2026: bloco Fiadores / cônjuge do comprador (só vem no condomínio e quando falta algo) */
     var fb = fiadoresDoEstado(r && r.fiadores);
     if (fb) o.fiadores = fb;
@@ -871,6 +873,23 @@
       (p.registrada ? "" : '<button type="button" class="bt ghost bt-mini" data-acao="c-res-nao"' + dis + ">Ainda não — gerar</button> ") +
       '<button type="button" class="bt ghost bt-mini" data-acao="c-res-cancelar">Cancelar</button></div>';
   }
+  /* 23/11/2026 (Gustavo): casa de rua — gerar o pré-contrato pergunta antes se a casa está pronta ou em construção (o tipo
+     escolhe o modelo do contrato). Caso de 23/11: o tipo vinha sozinho do OBRA FINALIZADA? da obra, que estava desatualizado,
+     e o contrato saiu de casa em construção numa casa com habite-se. p = { atual } (TIPO DE CASA gravado hoje). */
+  function htmlPerguntaTipo(p, dis) {
+    var atual = semAcentoTipo(p && p.atual);
+    var h = '<div class="grp">Tipo de casa</div>' +
+      '<div class="dz-linha"><b>Esta casa está pronta ou em construção?</b></div>' +
+      '<div class="dz-msg dz-nota">O contrato sai no modelo escolhido. ' +
+      (p && p.atual ? "Hoje a venda está como <b>" + esc(p.atual) + "</b>." : "A venda ainda não tem tipo de casa.") + "</div>" +
+      '<div class="dz-linha dz-tipo-pre">';
+    TIPOS_CASA.forEach(function (t) {
+      h += '<button type="button" class="bt bt-mini' + (semAcentoTipo(t) === atual ? "" : " ghost") + '" data-acao="c-tipo-escolher" data-valor="' + esc(t) + '"' + dis +
+        ">" + (t === "CASA PRONTA" ? "Casa pronta" : "Casa em construção") + " — gerar</button> ";
+    });
+    return h + '<button type="button" class="bt ghost bt-mini" data-acao="c-tipo-cancelar">Cancelar</button></div>';
+  }
+  function semAcentoTipo(v) { return String(v || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim(); }
   function htmlContrato(e, u) {
     var ocupado = !!u.ocupadoContrato, testes = !!u.testes;
     var dis = (ocupado || testes) ? " disabled" : "";
@@ -926,6 +945,7 @@
     } else {
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato</button></div>";
     }
+    if (u.perguntaTipo) h += htmlPerguntaTipo(u.perguntaTipo, dis);   /* 23/11 */
     if (u.perguntaReserva) h += htmlPerguntaReserva(u.perguntaReserva, dis);   /* 08/11 */
     if (u.avisoReserva) h += '<div class="dz-aviso">' + esc(u.avisoReserva) + "</div>";
     h += htmlConta(e.conta, u, dis);
@@ -1763,7 +1783,7 @@
                    htmlSoltar: htmlSoltar, pessoasDoEnvio: pessoasDoEnvio, conferirEscolhas: conferirEscolhas,
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
-                   htmlContrato: htmlContrato, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
+                   htmlContrato: htmlContrato, htmlPerguntaTipo: htmlPerguntaTipo, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
@@ -3792,6 +3812,30 @@
         return;
       }
       /* 08/11/2026 (dono): reserva gerada = pergunta se já foi paga antes de gerar. Paga: o servidor põe no fluxo e a data do sinal não trava */
+      /* 23/11/2026 (Gustavo): casa de rua — antes de gerar o pré-contrato, pergunta pronta × em construção; a escolha grava o
+         TIPO DE CASA (se mudou) e segue para a geração */
+      if (acao === "c-tipo-cancelar") { uiC.perguntaTipo = null; pintar(); return; }
+      if (acao === "c-tipo-escolher") {
+        var pergT = uiC.perguntaTipo, valorT = b.getAttribute("data-valor") || ""; if (!pergT || !valorT) return;
+        if (semAcentoTipo(valorT) !== semAcentoTipo(pergT.atual)) {
+          uiC.ocupadoContrato = "pre"; uiC.msg = ""; pintar();
+          seq = ++seqC;
+          r = await chamarVenda({ action: "tipoCasa", pageId: pageId, valor: valorT });
+          if (seq !== seqC || !vivo()) return;
+          uiC.ocupadoContrato = null;
+          if (!r.ok) { uiC.msg = mensagemContrato(r); pintar(); return; }
+          if (estadoC) estadoC.tipoCasa = valorT;
+          avisarGravado(pageId, { ok: true, gravados: { "TIPO DE CASA": valorT } });   /* o bloco do dossiê acompanha */
+        }
+        acao = pergT.depois; uiC.perguntaTipo = null; uiC.tipoRespondido = true;
+      }
+      if ((acao === "c-pre" || acao === "c-salvar-campos") && estadoC && estadoC.casaDeRua && !uiC.tipoRespondido) {
+        if (acao === "c-salvar-campos") guardarRascunho();
+        uiC.perguntaTipo = { atual: estadoC.tipoCasa || "", depois: acao };
+        uiC.perguntaReserva = null; uiC.msg = ""; pintar();
+        return;
+      }
+      uiC.tipoRespondido = false;
       if (acao === "c-res-cancelar") { uiC.perguntaReserva = null; pintar(); return; }
       if (acao === "c-res-nao" || acao === "c-res-sim") {
         var pergR = uiC.perguntaReserva; if (!pergR) return;
