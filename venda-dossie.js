@@ -1446,7 +1446,7 @@
         ' title="Traz da proposta a reserva paga, o sinal, o FGTS e o subsídio; a diferença vai para as pré-chaves e os balões">Trazer reserva e sinal da proposta</button></div>';
     if (r.erros.some(function (x) { return /uma por mês|as parcelas terminam em outubro\/2028|pré-chaves sem parcela em/.test(x); }))
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-encaixar"' + dis +
-        ' title="Cada parte da pré-chaves termina antes da próxima e até outubro/2028; o total da linha não muda">Encaixar as pré-chaves</button></div>';
+        ' title="Cada parte da pré-chaves termina antes da próxima e até novembro/2028; o total da linha não muda">Encaixar as pré-chaves</button></div>';
     if (r.erros.some(function (x) { return /use Corrigir datas/.test(x); }))
       h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-fluxo-datas"' + dis +
         ' title="Leva cada parcela que venceria no passado para o 1º mês que pode, no mesmo dia, e o sinal para os prazos em ordem (ato, 30, 60 e 90 dias); o total da linha não muda">Corrigir datas</button></div>';

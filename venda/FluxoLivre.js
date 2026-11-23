@@ -29,9 +29,10 @@ var FluxoLivre = (function () {
   var POS_TETO = 788.33;
   var RE_ISO = /^\d{4}-\d{2}-\d{2}$/;
   var LIMITE_PRE_CHAVES = "2028-11-30";   /* 31/10/2026 (dono): fim das pré-chaves e balões do Reserva dos Ipês */
-  /* 07/11/2026 (dono): "não posso ter mais parcelas do que meses" — as PARCELAS mensais pré-chaves terminam em
-     outubro/2028 (o balão da entrega fica em novembro/2028, como no simulador), uma por mês e só mensais */
-  var FIM_PARCELAS_PRE = "2028-10-31";
+  /* 07/11/2026 (dono): "não posso ter mais parcelas do que meses" — as PARCELAS mensais pré-chaves são uma por mês
+     e só mensais. 23/11/2026 (financeiro, unidade 30): a última mensal pode cair no mesmo mês do balão da entrega —
+     terminam até 30/11/2028, como os balões (antes: outubro/2028) */
+  var FIM_PARCELAS_PRE = LIMITE_PRE_CHAVES;
 
   function c(v) { return Math.round((Number(v) || 0) * 100); }
   function positivo(v) { return typeof v === "number" && isFinite(v) && v > 0; }
@@ -411,7 +412,7 @@ var FluxoLivre = (function () {
   }
 
   /* ---- 07/11/2026 (dono): pré-chaves MÊS A MÊS — "se eu tenho 2 pré-chaves de 12, não pode deixar eu aumentar uma
-     para 13". Uma parcela por mês, só mensais, a última em outubro/2028. ---- */
+     para 13". Uma parcela por mês, só mensais, a última até novembro/2028. ---- */
   function mesNum(iso) { var p = String(iso).split("-").map(Number); return p[0] * 12 + (p[1] - 1); }
   function mesBR(n) { return ("0" + (n % 12 + 1)).slice(-2) + "/" + Math.floor(n / 12); }
   function ultimoMesPre() { return mesNum(FIM_PARCELAS_PRE); }
@@ -421,7 +422,7 @@ var FluxoLivre = (function () {
       .filter(function (k) { var l = linhas[k]; return l.t === "pre" && isoValida(l.d) && l.n >= 1 && (l.i || 1) === 1; })
       .sort(function (a, b) { return mesNum(linhas[a].d) - mesNum(linhas[b].d) || a - b; });
   }
-  /* quantas parcelas cabem na pré-chaves k: da 1ª data dela até a véspera da próxima parte (ou outubro/2028) */
+  /* quantas parcelas cabem na pré-chaves k: da 1ª data dela até a véspera da próxima parte (ou novembro/2028) */
   function cabemPre(f, k) {
     var linhas = normalizar(f).linhas, l = linhas[k];
     if (!l || l.t !== "pre" || !isoValida(l.d)) return null;
@@ -431,8 +432,8 @@ var FluxoLivre = (function () {
   }
   /* Encaixa as partes da pré-chaves mês a mês (o total de cada linha não muda; o centavo vai na última parcela).
      fixo = índice da linha que a pessoa mexeu: ela fica como está; as partes DEPOIS dela começam no mês seguinte ao fim
-     dela e encurtam até caber em outubro/2028; as de ANTES encurtam para terminar antes dela. Sem fixo: cada parte encurta
-     para não chegar na próxima nem passar de outubro/2028. { linhas, mudou: [índices] } */
+     dela e encurtam até caber em novembro/2028; as de ANTES encurtam para terminar antes dela. Sem fixo: cada parte encurta
+     para não chegar na próxima nem passar de novembro/2028. { linhas, mudou: [índices] } */
   function encaixarPre(f, fixo) {
     f = normalizar(f);
     var linhas = f.linhas.slice(), mudou = [], ord = presOrdenadas(linhas), fim = ultimoMesPre();
@@ -541,7 +542,7 @@ var FluxoLivre = (function () {
       /* 31/10/2026 (dono): pré-chaves e balões terminam SEMPRE até 30/11/2028 — passar disso trava */
       if (l.t === "pre" && l.i !== 1) erroLinha(k, "pré-chaves só mensais (intervalo 1): uma parcela por mês");
       else if (l.t === "pre" && ultima > FIM_PARCELAS_PRE)
-        erroLinha(k, "pré-chaves vence em " + dataBR(ultima) + ": as parcelas terminam em outubro/2028 (o balão da entrega fica em novembro/2028) — a partir de " +
+        erroLinha(k, "pré-chaves vence em " + dataBR(ultima) + ": as parcelas terminam até novembro/2028 — a partir de " +
           mesBR(mesNum(l.d)) + " cabem " + Math.max(0, ultimoMesPre() - mesNum(l.d) + 1));
       else if (l.t === "balao" && ultima > LIMITE_PRE_CHAVES)
         erroLinha(k, tp.nome.toLowerCase() + " vence em " + dataBR(ultima) + ": pré-chaves e balões terminam até " + dataBR(LIMITE_PRE_CHAVES));
