@@ -1016,7 +1016,8 @@ var ContratoVenda = (function () {
         exige(!vazio(v.rg), "Vendedor", "RG");
       }
       /* condomínio (contrato de 21/10): a conta da vendedora já vem escrita no texto (item 4.5) */
-      if (!d.condominio) {
+      /* 23/11/2026 (dono): só a chave Pix também vale (banco, agência e conta todos em branco) */
+      if (!d.condominio && !contaSoPix(v)) {
         exige(!vazio(v.banco), "Vendedor", "banco");
         exige(!vazio(v.agencia), "Vendedor", "agência");
         exige(!vazio(v.conta), "Vendedor", "conta");
@@ -1744,14 +1745,21 @@ var ContratoVenda = (function () {
   /* Conta de recebimento digitada (por venda; não vai para o Notion). { ok, conta: {banco, agencia, conta, pix[, operacao]} }
      ou { ok:false, erros }. Operação (entrega 14) é opcional: vazia, nem entra no JSON (as escolhas antigas não mudam)
      e o "– Operação:" sai do contrato (TRECHOS_SE_VAZIO). */
+  /* 23/11/2026 (dono): "se for por Pix, levar só a chave Pix" (vendedor pessoa física, preenchido na hora) —
+     banco, agência e conta ficam todos em branco e a chave Pix basta. Conta pela metade continua pedindo o resto. */
+  function contaSoPix(v) {
+    v = v || {};
+    return !!txt(v.pix).trim() && !txt(v.banco).trim() && !txt(v.agencia).trim() && !txt(v.conta).trim();
+  }
   function validarContaDigitada(c) {
     if (!c || typeof c !== "object" || Array.isArray(c)) return { ok: false, erros: ["Conta: formato inválido"] };
     var o = {}, erros = [];
+    var soPix = contaSoPix({ banco: c.banco, agencia: c.agencia, conta: c.conta, pix: c.pix }) && !txt(c.operacao).trim();
     [["banco", "Banco", true], ["agencia", "Agência", true], ["operacao", "Operação", false], ["conta", "Conta", true], ["pix", "Chave PIX", false]].forEach(function (x) {
       var b = c[x[0]];
       if (b !== null && b !== undefined && typeof b !== "string" && typeof b !== "number") { erros.push("Conta — " + x[1] + ": formato inválido"); return; }
       var v = txt(b).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
-      if (x[2] && !v) erros.push("Conta — " + x[1] + ": obrigatório");
+      if (x[2] && !v && !soPix) erros.push("Conta — " + x[1] + ": obrigatório");
       else if (v.length > 120) erros.push("Conta — " + x[1] + ": texto longo demais");
       if (x[0] !== "operacao" || v) o[x[0]] = v;
     });
@@ -1808,7 +1816,7 @@ var ContratoVenda = (function () {
     comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
     CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
     estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
-    validarContaDigitada: validarContaDigitada, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
+    validarContaDigitada: validarContaDigitada, contaSoPix: contaSoPix, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
     COL: COL, TIPOS: TIPOS, moedaBR: moedaBR, valorPorExtenso: valorPorExtenso,
     dataBR: dataBR, dataPorExtenso: dataPorExtenso, loteQuadra: loteQuadra,
     escolherModelo: escolherModelo, qualificacao: qualificacao, nomeComprador1: nomeComprador1,
@@ -1833,7 +1841,11 @@ var ContratoVenda = (function () {
        "Banco: {{BANCO}} – Agência: {{AGENCIA}} – Operação: {{OPERACAO}} – Conta {{CONTA}} – PIX: {{PIX}} - Titularidade…";
        sem Pix (ou sem operação, que a conta da obra não tem) o "– PIX: " / "– Operação: " some, em vez de ficar em branco.
        Valor = regex (sintaxe do findText do Docs) do rótulo que vem ANTES do marcador. */
-    TRECHOS_SE_VAZIO: { PIX: "\\s*[–-]\\s*PIX:\\s*", OPERACAO: "\\s*[–-]\\s*Operação:\\s*" }
+    TRECHOS_SE_VAZIO: { PIX: "\\s*[–-]\\s*PIX:\\s*", OPERACAO: "\\s*[–-]\\s*Operação:\\s*" },
+    /* 23/11/2026 (dono): conta só com a chave Pix (banco, agência e conta vazios) — sai de uma vez o trecho antes do
+       "PIX:" ("Banco: – Agência: – Operação: – Conta – ") e o 6.3 fica "PIX: <chave> - Titularidade…".
+       Regex (sintaxe do findText do Docs), aplicada antes dos TRECHOS_SE_VAZIO. */
+    TRECHO_SO_PIX: "Banco:\\s*\\{\\{BANCO\\}\\}\\s*[–-]\\s*Agência:\\s*\\{\\{AGENCIA\\}\\}(\\s*[–-]\\s*Operação:\\s*\\{\\{OPERACAO\\}\\})?\\s*[–-]\\s*Conta\\s*\\{\\{CONTA\\}\\}\\s*[–-]\\s*"
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   return api;
