@@ -476,6 +476,10 @@ const SISTEMAS=[
      Chave "DIÁRIO DO CURSO" na coluna ACESSOS do LOGINS (ADM/MASTER veem sempre).
      Servidor: apps-script/DiarioCurso.gs (PORTAL-LEITURA) + supabase/diario_curso.sql. */
   {chave:"DIÁRIO DO CURSO",nome:"Diário do Curso Revit",desc:"Avanço dos estagiários no curso — relatórios, prints e % da ementa",ico:"D",link:"diario-curso.html",grupo:"REUNIÕES"},
+  /* 23/11/26 — CONFIGURAÇÕES › LOGINS E ACESSOS: banco LOGINS pelo portal (nome no portal,
+     tipo, acessos, cargo, setor, aniversário, login novo e troca de senha). soAdmMaster: só
+     ADM e MASTER veem o botão (nem TESTES). Trava de verdade: apps-script/LoginsConfig.gs. */
+  {chave:"CONFIG LOGINS",nome:"Logins e Acessos",desc:"Quem entra no portal, o que vê e o nome que aparece",ico:"C",link:"logins.html",grupo:"CONFIGURAÇÕES",soAdmMaster:true},
 
   /* ---------- AUTOMAÇÕES ----------
      Mesma regra dos RAS: cada automação mora no PRÓPRIO repositório e entra
@@ -512,7 +516,7 @@ const SISTEMAS=[
      Público (todo usuário logado vê). */
   {chave:"ENTRETENIMENTO",nome:"Morais Royale",desc:"Jogo de tiro da obra — jogue com a equipe",ico:"J",link:"entretenimento.html",grupo:"ENTRETENIMENTO",publico:true}
 ];
-const GRUPOS_ORDEM=["SETORES","PROCESSOS E ARQUIVOS","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES","ENTRETENIMENTO"]; // setores, análises, mapas, reuniões, automações e entretenimento — nessa ordem
+const GRUPOS_ORDEM=["SETORES","PROCESSOS E ARQUIVOS","ANÁLISES","MAPAS","REUNIÕES","AUTOMAÇÕES","ENTRETENIMENTO","CONFIGURAÇÕES"]; // setores, análises, mapas, reuniões, automações e entretenimento — nessa ordem
 const S=exigirSessao(); atualizarStatus();
 
 function pintarUsuario(s){ document.getElementById("u-nome").textContent=s.nome||s.login; const tb=document.getElementById("u-tipo"); tb.textContent=s.tipo; tb.className="badge"+(s.tipo==="ADM"?" adm":""); }
@@ -521,7 +525,7 @@ function botaoSistemaHtml(x){
   return `<a class="nav-btn" href="${x.link}"${x.externo?' target="_blank" rel="noopener"':''}>${esc(x.nome)}${x.externo?' <span class="ext">↗</span>':''}${x.conta?`<span class="cnt" id="cnt-${x.chave}">·</span>`:``}</a>`;
 }
 function renderCards(s){
-  const vis=SISTEMAS.filter(x=>x.publico||podeAcessar(s,x.chave)||(x.chaves||[]).some(k=>podeAcessar(s,k))); const box=document.getElementById("cards");
+  const vis=SISTEMAS.filter(x=>x.soAdmMaster ? ["ADM","MASTER"].indexOf(tipoDe(s))>=0 : (x.publico||podeAcessar(s,x.chave)||(x.chaves||[]).some(k=>podeAcessar(s,k))));   /* 23/11/26: soAdmMaster = só ADM e MASTER */ const box=document.getElementById("cards");
   if(!vis.length){ box.innerHTML='<div class="vazio">Sem sistemas liberados. Fale com o ADM.</div>'; return; }
   // agrupa por "grupo" (SETORES / REUNIÕES), na ordem fixa de GRUPOS_ORDEM —
   // um sistema sem nenhum acesso liberado simplesmente não aparece, e um

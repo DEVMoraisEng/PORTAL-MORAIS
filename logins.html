@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Logins e Acessos · Morais Engenharia</title>
+<link rel="icon" href="img/logo-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--sombra:rgba(20,40,55,.16);
+  --ok:#1a6b40;--ok-bg:#e6f6ec;--at:#8a5a00;--at-bg:#fff4d6;--div:#b3261e;--div-bg:#fdecea;--na:#5a8099;--na-bg:#e4edf1;
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--sombra:rgba(0,0,0,.45);
+  --ok:#6fd49b;--ok-bg:#143325;--at:#f0c264;--at-bg:#3a2e12;--div:#f08a7e;--div-bg:#3b1c19;--na:#9db4c4;--na-bg:#1f3340;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+main{max-width:1200px;margin:0 auto;padding:18px 16px 56px;display:flex;flex-direction:column;gap:14px}
+main>*{min-width:0}
+.hide{display:none!important}
+.painel{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:14px 16px;min-width:0}
+.barra{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.barra input[type=search],.barra select{flex:1 1 200px;min-width:0}
+input,select{font:inherit;font-size:16px;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:0 11px;min-height:44px;width:100%}
+.btn{font:inherit;font-weight:700;font-size:13.5px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;white-space:nowrap}
+.btn:hover{border-color:var(--azul)}
+.btn.pri{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn:disabled{opacity:.55;cursor:default}
+.resumo{font-size:12.5px;color:var(--text3)}
+.lista{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px}
+.cart{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;cursor:pointer;text-align:left;font:inherit;color:inherit;display:flex;flex-direction:column;gap:6px;min-width:0}
+.cart:hover{border-color:var(--azul);box-shadow:0 4px 14px var(--sombra)}
+.cart .top{display:flex;gap:8px;align-items:center;min-width:0}
+.cart .nome{font-weight:700;font-size:15px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.cart .sub{font-size:12px;color:var(--text3);overflow-wrap:anywhere}
+.tipo{font-size:11px;font-weight:800;border-radius:99px;padding:3px 9px;background:var(--bg3);color:var(--text3);flex:0 0 auto}
+.tipo.ADM{background:var(--azul);color:#fff}.tipo.MASTER{background:var(--verde);color:#fff}.tipo.TESTES{background:var(--at-bg);color:var(--at)}
+.chips{display:flex;gap:4px;flex-wrap:wrap}
+.chip{font-size:11px;font-weight:600;border-radius:99px;padding:2px 8px;background:var(--bg3);color:var(--text3)}
+.aviso{border-radius:10px;padding:10px 13px;font-size:13px;font-weight:600}
+.aviso.erro{background:var(--div-bg);color:var(--div)}
+.aviso.at{background:var(--at-bg);color:var(--at)}
+.carregando{padding:40px 10px;text-align:center;color:var(--text3)}
+/* janela */
+.fundo{position:fixed;inset:0;background:rgba(10,20,28,.55);z-index:40;display:flex;align-items:flex-start;justify-content:center;padding:24px 12px;overflow-y:auto}
+.jan{background:var(--sup);border-radius:14px;width:100%;max-width:640px;box-shadow:0 20px 60px rgba(0,0,0,.35);display:flex;flex-direction:column;min-width:0}
+.jan h2{margin:0;font-family:'Barlow Condensed';font-size:22px;text-transform:uppercase;letter-spacing:.4px;padding:14px 16px;border-bottom:1px solid var(--border2);display:flex;gap:10px;align-items:center}
+.jan h2 span{flex:1;min-width:0;overflow-wrap:anywhere}
+.jan .corpo{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+.jan .rod{padding:12px 16px;border-top:1px solid var(--border2);display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}
+.f{display:flex;flex-direction:column;gap:5px;font-weight:600;font-size:12.5px;color:var(--text3);min-width:0}
+.grade{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:560px){.grade{grid-template-columns:1fr}}
+.acessos{display:flex;flex-wrap:wrap;gap:6px}
+.ac{display:inline-flex;align-items:center;gap:7px;border:1px solid var(--border);border-radius:99px;padding:0 12px;min-height:40px;font-size:13px;font-weight:600;cursor:pointer;color:var(--text);background:var(--bg2)}
+.ac input{width:18px;height:18px;min-height:0;accent-color:var(--verde)}
+.ac.on{border-color:var(--verde);background:var(--ok-bg)}
+.linha2{display:flex;gap:8px;flex-wrap:wrap}.linha2 input{flex:1 1 180px}
+.dica{font-size:12px;color:var(--text3);margin:0;font-weight:500}
+.sep{border:0;border-top:1px dashed var(--border2);margin:4px 0}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;font-size:13.5px;z-index:60;max-width:calc(100vw - 24px)}
+.toast.erro{background:var(--div)}
+footer{max-width:1200px;margin:0 auto;padding:0 16px 24px;color:var(--text4);font-size:11.5px}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle">Logins e Acessos</div>
+      <div class="hsub">Configurações · só ADM e MASTER</div>
+    </div>
+    <div class="hspace"></div>
+    <a class="hbtn" href="index.html">← Portal</a>
+    <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" aria-label="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+<main id="app"><div class="carregando">Carregando os logins…</div></main>
+<footer id="rodape"></footer>
+
+<script src="app.js?v=46"></script>
+<script>
+"use strict";
+/* ===== LOGINS E ACESSOS (23/11/26) ==========================================
+ * Configuração do banco LOGINS do Notion pelo portal: nome que aparece no
+ * portal (coluna NOME), tipo, acessos, cargo, setor, aniversário, pessoa do
+ * Notion, login novo e troca de senha. Só ADM e MASTER (a trava de verdade é
+ * o apps-script/LoginsConfig.gs). Acesso novo vale em até 5 minutos para quem
+ * já está logado (ou na hora, saindo e entrando de novo).
+ * ========================================================================== */
+const SESS = exigirSessao();
+const TIPO = tipoDe(SESS);
+const $ = s => document.querySelector(s);
+const APP = $("#app");
+const ST = { D:null, busca:"", filtroTipo:"", filtroAcesso:"", mostrarSoAniv:false };
+const ERROS = {
+  SEM_PERMISSAO:"Só ADM e MASTER mexem nos logins.",
+  NAO_MUDA_PROPRIO_TIPO:"Você não pode mudar o seu próprio tipo (para não se trancar fora).",
+  MASTER_NAO_MEXE_EM_ADM:"MASTER não cria ADM, não muda o tipo de um ADM e não troca a senha de um ADM.",
+  LOGIN_JA_EXISTE:"Já existe um login com esse nome.",
+  LOGIN_INVALIDO:"Login só com letras, números e . _ - @ (2 a 60 caracteres).",
+  SENHA_CURTA:"A senha precisa ter pelo menos 4 caracteres.",
+  DATA_INVALIDA:"Data de nascimento inválida.",
+  ACAO_DESCONHECIDA:"O Apps Script ainda não tem esta tela publicada."
+};
+const msg = c => { const b=String(c||"").split(":")[0].trim(); return ERROS[b] || (typeof erroTexto==="function"?erroTexto(c):c); };
+let _tt=null;
+function toast(t,erro){ let e=$(".toast"); if(!e){ e=document.createElement("div"); e.className="toast"; e.setAttribute("role","status"); document.body.appendChild(e);} e.textContent=t; e.classList.toggle("erro",!!erro); e.classList.remove("hide"); clearTimeout(_tt); _tt=setTimeout(()=>e.classList.add("hide"), erro?6000:2600); }
+async function api(p){ try{ const r=await chamar(p,90000,true); if(r&&r.ok===false&&/ACAO|DESCONHECIDA/i.test(String(r.erro||""))) r.erro="ACAO_DESCONHECIDA"; return r||{ok:false,erro:"resposta vazia"}; }catch(e){ return {ok:false,erro:"Sem conexão com o servidor — tente de novo."}; } }
+const nomeDe = l => l.nome || (l.pessoa&&l.pessoa.nome) || l.login;
+const nz = x => String(x||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();
+const fmtNasc = d => d ? d.slice(8,10)+"/"+d.slice(5,7) : "";
+
+async function carregar(){
+  if(TIPO!=="ADM" && TIPO!=="MASTER"){ APP.innerHTML=`<div class="aviso erro">${esc(ERROS.SEM_PERMISSAO)}</div>`; return; }
+  const c=(cacheGet("logins_cfg")||{}).v; if(c){ ST.D=c; pintar(); }
+  const r=await api({action:"loginsLista"});
+  if(!r.ok){ if(!c) APP.innerHTML=`<div class="aviso erro">${esc(msg(r.erro))}</div>`; else toast(msg(r.erro),true); return; }
+  ST.D=r; cacheSet("logins_cfg",r); pintar();
+  $("#rodape").textContent="Logins e Acessos · Apps Script "+(r.versao||"");
+}
+
+function pintar(){
+  const D=ST.D, b=nz(ST.busca);
+  const lista=D.linhas.filter(l=>{
+    if(!ST.mostrarSoAniv && l.soAniversario) return false;
+    if(ST.filtroTipo && l.tipo!==ST.filtroTipo) return false;
+    if(ST.filtroAcesso && l.acessos.indexOf(ST.filtroAcesso)<0) return false;
+    if(b && !nz([l.login,l.nome,l.pessoa&&l.pessoa.nome,l.cargo,l.setor,l.acessos.join(" ")].join(" ")).includes(b)) return false;
+    return true;
+  });
+  const soAniv=D.linhas.filter(l=>l.soAniversario).length;
+  APP.innerHTML=`
+  <section class="painel"><div class="barra">
+    <input type="search" id="busca" placeholder="Buscar por nome, login, acesso, setor…" value="${esc(ST.busca)}" autocomplete="off" aria-label="Buscar">
+    <select id="fTipo" aria-label="Filtrar por tipo"><option value="">Todos os tipos</option>${D.opcoes.tipo.map(t=>`<option${t===ST.filtroTipo?" selected":""}>${esc(t)}</option>`).join("")}</select>
+    <select id="fAc" aria-label="Filtrar por acesso"><option value="">Todos os acessos</option>${D.opcoes.acessos.map(t=>`<option${t===ST.filtroAcesso?" selected":""}>${esc(t)}</option>`).join("")}</select>
+    <button type="button" class="btn pri" id="novo">+ Novo login</button>
+  </div>
+  <div class="barra" style="margin-top:8px"><span class="resumo">${lista.length} de ${D.linhas.length} linhas</span>
+    ${soAniv?`<label class="resumo" style="display:inline-flex;gap:6px;align-items:center;min-height:44px"><input type="checkbox" id="fAniv" style="width:18px;min-height:0" ${ST.mostrarSoAniv?"checked":""}> mostrar ${soAniv} linha${soAniv===1?"":"s"} só de aniversário (sem acesso ao portal)</label>`:""}</div>
+  </section>
+  <div class="lista">${lista.map(l=>`<button type="button" class="cart" data-id="${esc(l.id)}">
+    <span class="top"><span class="nome">${esc(nomeDe(l))}</span>${l.tipo?`<span class="tipo ${esc(l.tipo)}">${esc(l.tipo)}</span>`:""}</span>
+    <span class="sub">login <b>${esc(l.login)}</b>${l.pessoa&&l.nome&&l.pessoa.nome!==l.nome?` · Notion: ${esc(l.pessoa.nome)}`:""}${l.cargo||l.setor?` · ${esc([l.cargo,l.setor].filter(Boolean).join(" · "))}`:""}${l.nasc?` · &#127874; ${fmtNasc(l.nasc)}`:""}</span>
+    ${l.soAniversario?`<span class="sub">só aniversário — sem acesso ao portal</span>`:(l.semSenha?`<span class="sub" style="color:var(--at)">sem senha</span>`:"")}
+    <span class="chips">${l.acessos.map(a=>`<span class="chip">${esc(a)}</span>`).join("")||(["ADM","MASTER"].indexOf(l.tipo)>=0?'<span class="chip">vê tudo</span>':"")}</span>
+  </button>`).join("")}</div>`;
+  const bu=$("#busca"); bu.oninput=()=>{ ST.busca=bu.value; const pos=bu.selectionStart; pintar(); const n=$("#busca"); n.focus(); n.setSelectionRange(pos,pos); };
+  $("#fTipo").onchange=e=>{ ST.filtroTipo=e.target.value; pintar(); };
+  $("#fAc").onchange=e=>{ ST.filtroAcesso=e.target.value; pintar(); };
+  const fa=$("#fAniv"); if(fa) fa.onchange=e=>{ ST.mostrarSoAniv=e.target.checked; pintar(); };
+  $("#novo").onclick=()=>abrir(null);
+  APP.querySelectorAll(".cart").forEach(c=>c.onclick=()=>abrir(D.linhas.find(l=>l.id===c.dataset.id)));
+}
+
+function opcoesSel(lista, atual, vazio){
+  const l=lista.slice(); if(atual && l.indexOf(atual)<0) l.push(atual);
+  return `<option value="">${vazio||"—"}</option>`+l.map(o=>`<option${o===atual?" selected":""}>${esc(o)}</option>`).join("")+`<option value="__novo">+ nova opção…</option>`;
+}
+function abrir(l){
+  const D=ST.D, novo=!l; l=l||{ login:"", nome:"", pessoa:null, tipo:"GERAL", acessos:[], cargo:"", setor:"", nasc:"" };
+  const eu = !novo && l.login.toLowerCase()===String(SESS.login||"").toLowerCase();
+  const tiposOk = D.opcoes.tipo.filter(t=> TIPO==="ADM" || t!=="ADM");
+  const travaTipo = eu || (TIPO==="MASTER" && l.tipo==="ADM");
+  const sel = new Set(l.acessos);
+  const fundo=document.createElement("div"); fundo.className="fundo";
+  fundo.innerHTML=`<div class="jan" role="dialog" aria-modal="true" aria-label="${novo?"Novo login":"Editar login"}">
+    <h2><span>${novo?"Novo login":esc(nomeDe(l))}</span><button type="button" class="btn" id="fechar" aria-label="Fechar">×</button></h2>
+    <div class="corpo">
+      <div class="grade">
+        <label class="f">Login${novo?"":" (não muda)"}<input id="iLogin" value="${esc(l.login)}" ${novo?"":"disabled"} autocomplete="off" autocapitalize="off"></label>
+        <label class="f">Nome no portal<input id="iNome" value="${esc(l.nome)}" placeholder="${esc((l.pessoa&&l.pessoa.nome)||"vazio = nome da pessoa do Notion")}" autocomplete="off"></label>
+        ${novo?`<label class="f">Senha inicial<input id="iSenha" type="text" autocomplete="new-password" placeholder="mínimo 4 caracteres"></label>`:""}
+        <label class="f">Tipo<select id="iTipo" ${travaTipo?"disabled":""}>${(travaTipo?[l.tipo]:tiposOk).map(t=>`<option${t===l.tipo?" selected":""}>${esc(t)}</option>`).join("")}</select>
+          ${eu?'<span class="dica">Você não muda o próprio tipo.</span>':""}</label>
+        <label class="f">Pessoa do Notion<select id="iPessoa"><option value="">— sem pessoa —</option>${D.pessoas.map(p=>`<option value="${esc(p.id)}"${l.pessoa&&l.pessoa.id===p.id?" selected":""}>${esc(p.nome)}</option>`).join("")}</select></label>
+        <label class="f">Cargo<select id="iCargo">${opcoesSel(D.opcoes.cargo,l.cargo)}</select></label>
+        <label class="f">Setor<select id="iSetor">${opcoesSel(D.opcoes.setor,l.setor)}</select></label>
+        <label class="f">Data de nascimento<input id="iNasc" type="date" value="${esc(l.nasc)}"></label>
+      </div>
+      <div class="f">Acessos <span class="dica">ADM e MASTER já veem tudo, sem precisar marcar.</span>
+        <div class="acessos" id="acs"></div>
+        <div class="linha2"><input id="iNovoAc" placeholder="Acesso novo (ex.: DIÁRIO DO CURSO)" autocomplete="off"><button type="button" class="btn" id="addAc">Adicionar</button></div>
+      </div>
+      ${novo?"":`<hr class="sep"><div class="f">Trocar senha${TIPO==="MASTER"&&l.tipo==="ADM"?' <span class="dica">MASTER não troca senha de ADM.</span>':""}
+        <div class="linha2"><input id="iNova" type="text" autocomplete="new-password" placeholder="nova senha (mínimo 4)" ${TIPO==="MASTER"&&l.tipo==="ADM"?"disabled":""}><button type="button" class="btn" id="trocar" ${TIPO==="MASTER"&&l.tipo==="ADM"?"disabled":""}>Trocar senha</button></div>
+        ${l.soAniversario?'<span class="dica">Esta linha hoje é só de aniversário: com uma senha ela passa a entrar no portal.</span>':""}</div>`}
+    </div>
+    <div class="rod"><button type="button" class="btn" id="cancelar">Cancelar</button><button type="button" class="btn pri" id="salvar">${novo?"Criar login":"Salvar"}</button></div>
+  </div>`;
+  document.body.appendChild(fundo);
+  const todos=()=>{ const s=new Set(D.opcoes.acessos); sel.forEach(a=>s.add(a)); return [...s].sort((a,b)=>a.localeCompare(b,"pt")); };
+  const pintarAc=()=>{ $("#acs").innerHTML=todos().map(a=>`<label class="ac${sel.has(a)?" on":""}"><input type="checkbox" value="${esc(a)}" ${sel.has(a)?"checked":""}>${esc(a)}</label>`).join("");
+    fundo.querySelectorAll("#acs input").forEach(cb=>cb.onchange=()=>{ if(cb.checked) sel.add(cb.value); else sel.delete(cb.value); pintarAc(); }); };
+  pintarAc();
+  const addAc=()=>{ const v=$("#iNovoAc").value.trim().toUpperCase(); if(!v) return; sel.add(v); $("#iNovoAc").value=""; pintarAc(); };
+  $("#addAc").onclick=addAc; $("#iNovoAc").onkeydown=e=>{ if(e.key==="Enter"){ e.preventDefault(); addAc(); } };
+  ["#iCargo","#iSetor"].forEach(id=>{ const s=$(id); s.onchange=()=>{ if(s.value==="__novo"){ const v=(prompt("Nome da nova opção:")||"").trim(); if(v){ const o=document.createElement("option"); o.textContent=v; s.insertBefore(o,s.lastElementChild); s.value=v; } else s.value=""; } }; });
+  const fechar=()=>{ fundo.remove(); document.removeEventListener("keydown",esc_); };
+  const esc_=e=>{ if(e.key==="Escape") fechar(); };
+  document.addEventListener("keydown",esc_);
+  $("#fechar").onclick=fechar; $("#cancelar").onclick=fechar;
+  fundo.addEventListener("click",e=>{ if(e.target===fundo) fechar(); });
+  $("#salvar").onclick=async()=>{
+    const p={ action:"loginSalvar", nome:$("#iNome").value.trim(), acessos:[...sel], cargo:$("#iCargo").value, setor:$("#iSetor").value, nasc:$("#iNasc").value, pessoaId:$("#iPessoa").value };
+    if(!travaTipo) p.tipo=$("#iTipo").value;
+    if(novo){ p.login=$("#iLogin").value.trim(); p.senha=$("#iSenha").value; } else p.id=l.id;
+    const bt=$("#salvar"); bt.disabled=true; bt.textContent="Salvando…";
+    const r=await api(p);
+    if(!r.ok){ bt.disabled=false; bt.textContent=novo?"Criar login":"Salvar"; toast(msg(r.erro),true); return; }
+    const i=D.linhas.findIndex(x=>x.id===r.linha.id); if(i>=0) D.linhas[i]=r.linha; else D.linhas.unshift(r.linha);
+    r.linha.acessos.forEach(a=>{ if(D.opcoes.acessos.indexOf(a)<0) D.opcoes.acessos.push(a); });
+    [["cargo","cargo"],["setor","setor"]].forEach(([k])=>{ if(r.linha[k]&&D.opcoes[k].indexOf(r.linha[k])<0) D.opcoes[k].push(r.linha[k]); });
+    cacheSet("logins_cfg",D); fechar(); pintar();
+    toast(novo?"Login criado.":"Salvo. Para quem já está logado, vale em até 5 minutos.");
+  };
+  const tr=$("#trocar"); if(tr) tr.onclick=async()=>{
+    const s=$("#iNova").value; if(s.length<4){ toast(ERROS.SENHA_CURTA,true); return; }
+    if(!confirm("Trocar a senha de "+nomeDe(l)+"? A senha antiga deixa de valer.")) return;
+    tr.disabled=true; const r=await api({action:"loginSenha", id:l.id, senha:s}); tr.disabled=false;
+    if(!r.ok){ toast(msg(r.erro),true); return; }
+    $("#iNova").value=""; l.semSenha=false; l.soAniversario=false; cacheSet("logins_cfg",D); toast("Senha trocada.");
+  };
+  (novo?$("#iLogin"):$("#iNome")).focus();
+}
+carregar();
+</script>
+</body>
+</html>
