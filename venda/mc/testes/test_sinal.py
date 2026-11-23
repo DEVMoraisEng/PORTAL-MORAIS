@@ -87,6 +87,13 @@ def test_venda_da_mesma_casa_no_erp_nao_cria():
     assert r["situacao"] == "JA_EXISTE" and e.criados == []
 
 
+def test_venda_distratada_da_mesma_casa_nao_impede_o_novo_comprador():
+    rec = [{"saleId": "v9", "workName": OBRA, "description": "VENDA CASA 02 - OUTRO NOME (Distrato)", "customerName": "X"}]
+    e = ErpFake(recebimentos=rec)
+    r = S.processar("p1", NotionSinal(pagina()), e, aplicar=True)
+    assert r["situacao"] == "CRIADA" and [t for t, _ in e.criados] == ["cliente", "venda"]
+
+
 def test_mesmo_cliente_com_venda_de_outra_casa_lanca():
     rec = [{"saleId": "v9", "workName": OBRA, "description": "VENDA CASA 05 - FULANO DE TAL", "customerName": "X"}]
     e = ErpFake(recebimentos=rec, clientes=[{"id": "cli-1", "cpf": "52998224725"}])
