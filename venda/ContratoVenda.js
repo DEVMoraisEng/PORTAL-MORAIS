@@ -697,6 +697,8 @@ var ContratoVenda = (function () {
     if (/^VI — /.test(t)) return t.length;
     if ((m = /^6\.1\. Preço total: [^)]*\),?/.exec(t))) return m[0].length;
     if ((m = /^FIADOR \d:/.exec(t))) return m[0].length;
+    /* 23/11/2026: linha de ciência expressa (item 16, como as do modelo) sai inteira em negrito — destaque do CDC, art. 54, § 4º */
+    if (/^\[?CIÊNCIA EXPRESSA/.test(t)) return t.length;
     /* 01/11 (plano 23 B): o papel de cada pessoa no bloco de assinaturas ({{ASSINATURAS_*}}) */
     if (ROTULO_ASSINATURA.test(t)) return t.length;
     return 0;

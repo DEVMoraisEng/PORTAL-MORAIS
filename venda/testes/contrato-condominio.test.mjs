@@ -495,3 +495,10 @@ test("23/11/2026: item 16 no contrato gerado — cada alínea num parágrafo; se
   assert.deepEqual(p.slice(k + 1, k + 5), ["FINANCIAMENTO PELO INTER. Observado o seguinte:", "a) prazo de 45 dias;",
     "b) INCC-M até a assinatura.", "As condições especiais deste item prevalecem."]);
 });
+
+test("23/11/2026: linha de ciência expressa no item 16 sai inteira em negrito; o resto não", () => {
+  const l = "[CIÊNCIA EXPRESSA DO COMPRADOR — ASSINATURA: ____________________]";
+  assert.equal(C.negritoDaLinha(l), l.length);
+  assert.equal(C.negritoDaLinha("CIÊNCIA EXPRESSA DO COMPRADOR SOBRE OS ITENS 16.8 A 16.10"), "CIÊNCIA EXPRESSA DO COMPRADOR SOBRE OS ITENS 16.8 A 16.10".length);
+  assert.equal(C.negritoDaLinha("16.7. Ciência expressa da garantia do financiamento à produção."), 0);
+});

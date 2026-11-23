@@ -1255,7 +1255,14 @@ function ctrTiposDaBase_(dbId) {
  * Texto livre por venda na coluna "CONTRATO - CONDIÇÕES ESPECIAIS" da linha do condomínio; vazio = "Não há.".
  * Quem gravou e quando ficam na Propriedade CONDESP_<página>. Mudar o texto muda o carimbo: o pré-contrato
  * gerado antes fica desatualizado e é preciso gerar de novo. */
-var CONDESP_COL = "CONTRATO - CONDIÇÕES ESPECIAIS", CONDESP_MAX = 1900;
+/* 23/11/2026: até 10.000 caracteres (a condição especial da unidade 30 passou de 6 mil). O Notion aceita no máximo
+   2.000 por pedaço de texto: grava em pedaços de 1.900 (ctrRichTextLongo_), e a leitura junta todos (valorProp_). */
+var CONDESP_COL = "CONTRATO - CONDIÇÕES ESPECIAIS", CONDESP_MAX = 10000;
+function ctrRichTextLongo_(texto) {
+  var s = String(texto || ""), out = [];
+  for (var i = 0; i < s.length; i += 1900) out.push({ type: "text", text: { content: s.slice(i, i + 1900) } });
+  return { rich_text: out };
+}
 function condEspEstado_(pageId, pg) {
   var texto = ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), CONDESP_COL)).trim(), meta = {};
   try { meta = JSON.parse(prop_("CONDESP_" + pageId) || "{}") || {}; } catch (e) { meta = {}; }
@@ -1273,7 +1280,7 @@ function salvarCondicoesEspeciais_(col, sess, p) {
   for (var n in pg.properties) if (RegrasVenda.chave(n) === RegrasVenda.chave(CONDESP_COL)) real = n;
   if (!real) return { ok: false, erro: "COLUNA_FALTANDO", coluna: CONDESP_COL };
   var props = {};
-  props[real] = propNotion_("rich_text", texto);
+  props[real] = ctrRichTextLongo_(texto);
   notion_("PATCH", "/pages/" + p.pageId, { properties: props });
   var meta = { por: ctrTxt_(sess && sess.u), em: new Date().toISOString() };
   PropertiesService.getScriptProperties().setProperty("CONDESP_" + p.pageId, JSON.stringify(meta));
