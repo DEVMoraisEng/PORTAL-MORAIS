@@ -148,6 +148,10 @@ def faltas(d: dict) -> list[str]:
     return f
 
 
+def _distratada(v: dict) -> bool:
+    return "(DISTRATO)" in R.chave(v.get("descricao"))
+
+
 def _vendedor(erp, d: dict) -> tuple[str | None, str]:
     """Só usa cadastro que JÁ existe com o nome do corretor; não cadastra (isso é do lançamento completo)."""
     nome = str(d.get("corretor") or "").strip()
@@ -214,6 +218,10 @@ def processar(page_id: str, notion, erp, aplicar: bool = False, bloqueado: bool 
         return fim("RECUSADA", "SINAL NÃO LANÇADO: a obra não tem conta padrão no Mais Controle", codigo="OBRA_SEM_CONTA")
 
     mesma, sem_casa = R.venda_da_casa(erp.recebimentos(), obra["name"], d["casa"])
+    # venda antiga distratada (o robô do distrato põe " (Distrato)" na descrição) não é desta venda: a casa foi
+    # revendida e o novo comprador precisa da venda dele
+    mesma = [v for v in mesma if not _distratada(v)]
+    sem_casa = [v for v in sem_casa if not _distratada(v)]
     if mesma:
         res["venda"] = {"id": mesma[0]["id"]}
         return fim("JA_EXISTE", "SINAL: já existe venda da CASA %02d no Mais Controle (%s) — nada foi criado."
