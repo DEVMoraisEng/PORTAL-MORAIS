@@ -89,7 +89,7 @@ var TermosVenda = (function () {
    *   "a data de assinatura (…) já passou", "<pré-chaves|balão|pós-chaves> vence em …: tem de vencer depois …" (livre) e
    *   "… vence em … — tem de vencer depois …" (padrão).
    * Continua barrando o que não é data contra hoje: soma que não fecha, quantidade de parcelas, valores, o limite de
-   * 30/11/2028 (e outubro/2028 das pré-chaves), fiadores, e-mails. → { faltas, ignoradas } */
+   * 30/11/2028 (pré-chaves e balões), fiadores, e-mails. → { faltas, ignoradas } */
   var RE_DATAS = new RegExp("^Fluxo de pagamento(?: \\(alterado\\))?: (?:" +
     "(?:Linha \\d+: )?[^:]{1,40}? vence em \\d{2}/\\d{2}/\\d{4}(?:, antes de hoje\\b|: tem de vencer depois\\b| — tem de vencer depois\\b|: o sinal é ato \\+ 30 \\+ 60 \\+ 90 dias, sem pular prazo\\b)" +
     "|a data de assinatura \\(\\d{2}/\\d{2}/\\d{4}\\) já passou\\b)");

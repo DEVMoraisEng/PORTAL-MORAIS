@@ -254,8 +254,8 @@ test("31/10/2026 (dono): pré-chaves e balões não passam de 30/11/2028 (trava,
   const tarde = Object.assign({}, f, { linhas: f.linhas.map((l, i) => i === k ? Object.assign({}, l, { d: "2028-01-10" }) : l) });
   const r = F.validar(tarde);
   assert.equal(r.ok, false);
-  /* 07/11: as parcelas pré-chaves terminam em out/2028 (o limite 30/11/2028 segue para os balões) */
-  assert.match(r.erros.join(";"), /pré-chaves vence em 10\/12\/2028: as parcelas terminam em outubro\/2028/);
+  /* 23/11/2026: as parcelas pré-chaves terminam até nov/2028, como os balões */
+  assert.match(r.erros.join(";"), /pré-chaves vence em 10\/12\/2028: as parcelas terminam até novembro\/2028/);
   const balao = Object.assign({}, f, { linhas: f.linhas.map((l) => l.t === "balao" && l.d === "2028-06-10" ? Object.assign({}, l, { d: "2028-12-01" }) : l) });
   assert.match(F.validar(balao).erros.join(";"), /balão vence em 01\/12\/2028/);
   const noLimite = Object.assign({}, f, { linhas: f.linhas.map((l) => l.t === "balao" && l.d === "2028-06-10" ? Object.assign({}, l, { d: "2028-11-30" }) : l) });
@@ -410,10 +410,10 @@ test("Corrigir datas: mesmo dia, 1º mês que pode, e pré-chaves que estouraria
   const f2 = F.doPadrao(g), t0 = F.soma(f2.linhas), c2 = F.corrigirDatas(f2);
   const p2 = c2.linhas.find((l) => l.t === "pre");
   assert.equal(p2.d, "2026-12-10");
-  assert.equal(p2.n, 23);                                    /* 07/11: parcelas até out/2028 — de dez/2026 cabem 23 */
+  assert.equal(p2.n, 24);                                    /* 23/11: parcelas até nov/2028 — de dez/2026 cabem 24 */
   const f3 = F.doPadrao(Object.assign({}, g, { pre1N: 25 })), t3 = F.soma(f3.linhas), c3 = F.corrigirDatas(f3);
   const p3 = c3.linhas.find((l) => l.t === "pre");
-  assert.equal(p3.n, 23);
+  assert.equal(p3.n, 24);
   assert.equal(F.soma(c3.linhas), t3);
   assert.ok(t0 > 0);
 });
@@ -439,10 +439,20 @@ test("2 pré-chaves de 12: a 1ª para 13 trava (duas parcelas em nov/2027)", () 
   assert.ok(r.erros.some((e) => /já tem parcela pré-chaves em 11\/2027 \(linha \d+\) — uma por mês/.test(e)), JSON.stringify(r.erros));
 });
 
-test("2 pré-chaves de 12: a 2ª para 13 trava (parcela em nov/2028, mês do balão da entrega)", () => {
+test("23/11/2026: 2 pré-chaves de 12 — a 2ª para 13 pode (última em nov/2028, mês do balão da entrega); para 14 trava", () => {
   const f = doze(), k1 = pres(f)[1][1];
   f.linhas[k1].n = 13;
-  assert.ok(F.validar(f).erros.some((e) => /pré-chaves vence em 10\/11\/2028: as parcelas terminam em outubro\/2028 .* cabem 12/.test(e)));
+  assert.ok(!F.validar(f).erros.some((e) => /pré-chaves vence em/.test(e)), JSON.stringify(F.validar(f).erros));
+  f.linhas[k1].n = 14;
+  assert.ok(F.validar(f).erros.some((e) => /pré-chaves vence em 10\/12\/2028: as parcelas terminam até novembro\/2028 .* cabem 13/.test(e)));
+});
+
+test("23/11/2026 (unidade 30): 24 pré-chaves a partir de 30/12/2026 terminam em 30/11/2028 e não travam", () => {
+  const f = doze(), [[l0, k0], [, k1]] = pres(f);
+  const linhas = f.linhas.filter((l, i) => i !== k1).map((l) => l === l0 ? Object.assign({}, l, { d: "2026-12-30", n: 24 }) : l);
+  const g = Object.assign({}, f, { linhas: linhas });
+  assert.ok(!F.validar(g).erros.some((e) => /pré-chaves vence em|cabem/.test(e)), JSON.stringify(F.validar(g).erros));
+  assert.equal(F.cabemPre(g, linhas.findIndex((l) => l.t === "pre")), 24);
 });
 
 test("pré-chaves só mensais; mês sem parcela trava; dois balões no mesmo mês travam", () => {
@@ -456,31 +466,31 @@ test("pré-chaves só mensais; mês sem parcela trava; dois balões no mesmo mê
   assert.ok(F.validar(f3).erros.some((e) => /já tem balão em 12\/2027/.test(e)));
 });
 
-test("cabemPre: quantas parcelas cabem até a próxima parte ou outubro/2028", () => {
+test("cabemPre: quantas parcelas cabem até a próxima parte ou novembro/2028", () => {
   const f = doze(), [[, k0], [, k1]] = pres(f);
   assert.equal(F.cabemPre(f, k0), 12);
-  assert.equal(F.cabemPre(f, k1), 12);
+  assert.equal(F.cabemPre(f, k1), 13);
   const so = Object.assign({}, f, { linhas: f.linhas.filter((l, i) => i !== k1) });
-  assert.equal(F.cabemPre(so, so.linhas.findIndex((l) => l.t === "pre")), 24);
+  assert.equal(F.cabemPre(so, so.linhas.findIndex((l) => l.t === "pre")), 25);
 });
 
-test("encaixarPre com a 1ª parte mexida (13): a 2ª anda um mês, fica com 11 e o total dela não muda", () => {
+test("encaixarPre com a 1ª parte mexida (13): a 2ª anda um mês, fica com 12 (até nov/2028) e o total dela não muda", () => {
   const f = doze(), [[, k0], [l1, k1]] = pres(f), tot1 = F.totalLinha(l1);
   f.linhas[k0].n = 13;
   const en = F.encaixarPre(f, k0), p2 = en.linhas[k1];
-  assert.deepEqual([p2.d, p2.n], ["2027-12-10", 11]);
+  assert.deepEqual([p2.d, p2.n], ["2027-12-10", 12]);
   assert.equal(F.totalLinha(p2), tot1);
   assert.deepEqual(en.mudou, [k1]);
-  assert.ok(!F.validar(Object.assign({}, f, { linhas: en.linhas })).erros.some((e) => /uma por mês|outubro\/2028/.test(e)));
+  assert.ok(!F.validar(Object.assign({}, f, { linhas: en.linhas })).erros.some((e) => /uma por mês|novembro\/2028/.test(e)));
 });
 
-test("encaixarPre sem linha fixa: a parte que invade a próxima encurta; a última não passa de outubro/2028", () => {
+test("encaixarPre sem linha fixa: a parte que invade a próxima encurta; a última não passa de novembro/2028", () => {
   const f = doze(), [[l0, k0], [, k1]] = pres(f), tot0 = F.totalLinha(l0);
   f.linhas[k0].n = 13; f.linhas[k1].n = 13;
   const en = F.encaixarPre(f, null);
   assert.equal(en.linhas[k0].n, 12);
   assert.equal(F.totalLinha(en.linhas[k0]), tot0 + 860);   /* 13 × 860 repartidos em 12 */
-  assert.equal(en.linhas[k1].n, 12);
+  assert.equal(en.linhas[k1].n, 13);
 });
 
 test("Corrigir datas com a 1ª parte empurrada: ela encurta para não cair no mês da 2ª", () => {
