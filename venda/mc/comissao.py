@@ -138,7 +138,8 @@ def corpo_titulo(parcelas, descricao_, obs, participante_id, categoria_id, forma
 
 
 def assinatura(plano: dict) -> str:
-    chave = json.dumps({k: plano.get(k) for k in ("parcelas", "favorecido_id", "comissao", "ja_lancado", "pix")},
+    chave = json.dumps({k: plano.get(k) for k in ("parcelas", "favorecido_id", "comissao", "ja_lancado", "pix",
+                                               "conta_id", "descricao")},
                        sort_keys=True, ensure_ascii=False)
     return hashlib.sha256(chave.encode("utf-8")).hexdigest()[:8]
 
@@ -156,10 +157,12 @@ TITULO_RECIBO = "RECIBO DE COMISSÃO DE CORRETAGEM"
 LIMITE_COLUNA = 1900          # Notion.gravar_textos corta em 1900; acima disso, gravar_texto_longo
 MAX_PAGINAS_DIA = 10          # payable-installments de UM dia: mais que isso = lista incompleta, recusa
 _RE_LANCADA = re.compile(r"^LANÇADA \| título (\S+) \| R\$ ([\d.]+,\d{2})")
-_RE_ROTULO_PIX = re.compile(r"^(CHAVE ALEAT[OÓ]RIA|ALEAT[OÓ]RIA|E-?MAIL|CPF|CNPJ|TELEFONE|CELULAR)(?:\s*:\s*|\s+)(.+)$",
-                            re.I)
-_ROTULOS = {"CHAVE ALEATORIA": "ALEATÓRIA", "ALEATORIA": "ALEATÓRIA", "EMAIL": "E-MAIL", "E-MAIL": "E-MAIL",
-            "CPF": "CPF", "CNPJ": "CNPJ", "TELEFONE": "TELEFONE", "CELULAR": "TELEFONE"}
+_RE_INCERTO = re.compile(r"^INCERTO \| .* \| datas ([\d,\-]+) \| R\$ [\d.]+,\d{2} \|")
+_PREFIXOS_HIST = ("LANÇADA |", "INCERTO |", "INCERTO CONFERIDO |")
+# tipo escrito antes da chave ("CPF 111…", "CNPJ: …", "E-MAIL - …"): sai, e o tipo vem da regra (dígitos/@)
+_RE_ROTULO_PIX = re.compile(r"^(?:CHAVE ALEAT[OÓ]RIA|ALEAT[OÓ]RIA|E-?MAIL|CPF|CNPJ|TELEFONE|CELULAR)"
+                            r"(?:\s*:\s*|\s+-\s+|\s+)(.+)$", re.I)
+_SO_ROTULO = {"CHAVE ALEATORIA", "ALEATORIA", "EMAIL", "E-MAIL", "CPF", "CNPJ", "TELEFONE", "CELULAR"}
 
 
 def _hoje() -> str:
@@ -171,15 +174,15 @@ def _agora() -> str:
 
 
 def pix_da_chave(texto) -> str | None:
-    """Chave solta (ou já com o tipo na frente) -> "<TIPO>: <chave>"; None se vazia.
+    """Chave solta (ou com o tipo escrito na frente, que é descartado) -> "<TIPO>: <chave>"; None se vazia.
     Tipo: @ = E-MAIL; + = TELEFONE; só dígitos: 14 = CNPJ, 11 = CPF se o CPF for válido (senão TELEFONE),
     10 = TELEFONE; o resto = ALEATÓRIA."""
-    s = " ".join(str(texto or "").split()).strip(" :")
-    if not s:
-        return None
+    s = " ".join(str(texto or "").split()).strip(" :-–")
     m = _RE_ROTULO_PIX.match(s)
     if m:
-        return "%s: %s" % (_ROTULOS[R.chave(m.group(1))], m.group(2).strip())
+        s = m.group(1).strip(" :-–")
+    if not s or R.chave(s) in _SO_ROTULO:
+        return None
     if "@" in s:
         tipo = "E-MAIL"
     elif s.startswith("+"):
@@ -202,8 +205,45 @@ def pix_do_banco(texto) -> str | None:
 
 
 def _historico(texto) -> list[str]:
-    """As linhas `LANÇADA | …` da coluna: nunca se apagam (são o que já foi lançado)."""
-    return [ln for ln in str(texto or "").split("\n") if ln.startswith("LANÇADA |")]
+    """As linhas `LANÇADA | …`, `INCERTO | …` e `INCERTO CONFERIDO | …` da coluna: nunca se apagam."""
+    return [ln for ln in str(texto or "").split("\n") if ln.startswith(_PREFIXOS_HIST)]
+
+
+def resolver_incertos(erp, casa: int, hist: list[str]) -> list[str]:
+    """Cada `INCERTO | … | datas D1,D2 | …` (POST sem resposta) é conferido no ERP nas datas DELE: título da unidade
+    que a coluna não conhece -> vira `LANÇADA | título <id> | R$ <valor do ERP> | … | confirmado depois do incerto`
+    (conta no já lançado); nenhum -> `INCERTO CONFERIDO | não criado | <datas> | …` (não conta). ERP fora do ar,
+    título sem id ou sem valor -> Recusa INCERTO_PENDENTE: nunca seguir com INCERTO aberto."""
+    out = []
+    for ln in hist:
+        if not ln.startswith("INCERTO |"):
+            out.append(ln)
+            continue
+        pendente = Recusa("INCERTO_PENDENTE", "um lançamento anterior ficou INCERTO e não deu para conferir no Mais "
+                          "Controle se o título foi criado — nada foi feito; peça de novo mais tarde ou confira à mão")
+        m = _RE_INCERTO.match(ln)
+        datas = [x for x in (m.group(1).split(",") if m else []) if x]
+        if not datas:
+            raise pendente
+        try:
+            novos = titulos_no_erp(erp, casa, datas) - ja_da_coluna(out + hist)[1]
+        except Exception:   # noqa: BLE001
+            raise pendente from None
+        if "" in novos:
+            raise pendente
+        achadas = []
+        for tid in sorted(novos):
+            try:
+                t = erp.pedir("GET", "/trade-payables/%s" % tid) or {}
+                valor = round(float(t.get("value") or 0), 2)
+            except Exception:   # noqa: BLE001
+                raise pendente from None
+            if valor <= 0:
+                raise pendente
+            achadas.append("LANÇADA | título %s | %s | %d parcela(s) | recibos: não conferidos | %s | confirmado "
+                           "depois do incerto" % (tid, reais(valor), len(t.get("installments") or []), _agora()))
+        out += achadas or ["INCERTO CONFERIDO | não criado | %s | %s" % (",".join(datas), _agora())]
+    return out
 
 
 def ja_da_coluna(hist: list[str]) -> tuple[float, set]:
@@ -348,25 +388,29 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
     aplicar = bool(aplicar) and not bloqueado
     ctx = {"props": {}, "hist": []}
 
-    def gravar(texto) -> None:
+    def gravar(texto) -> bool:
+        """True = gravou; False = a coluna não existe."""
         if len(texto) > LIMITE_COLUNA and hasattr(notion, "gravar_texto_longo"):
-            if not notion.gravar_texto_longo(page_id, ctx["props"], COL_ESTADO, texto):
-                res["avisos"].append("COLUNA_FALTANDO")
-        elif notion.gravar_textos(page_id, ctx["props"], {COL_ESTADO: texto}):
+            ok = notion.gravar_texto_longo(page_id, ctx["props"], COL_ESTADO, texto)
+        else:
+            ok = not notion.gravar_textos(page_id, ctx["props"], {COL_ESTADO: texto})
+        if not ok:
             res["avisos"].append("COLUNA_FALTANDO")
+        return bool(ok)
 
     def fim(situacao, bloco, codigo=None, depois=(), obrigatorio=False):
         texto = "\n".join(([bloco] if bloco else []) + ctx["hist"] + list(depois))
         res["situacao"], res["codigo"], res["texto"] = situacao, codigo or situacao, texto
         for tentativa in range(2 if obrigatorio else 1):
             try:
-                gravar(texto)
+                if not gravar(texto) and obrigatorio:
+                    res["codigo"] = "LANCADA_SEM_ANOTAR" if situacao == "LANCADA" else situacao + "_SEM_ANOTAR"
                 break
             except Exception:   # noqa: BLE001 — anotar é complemento; o resultado vai no código
                 if tentativa == (1 if obrigatorio else 0):
                     res["avisos"].append("NOTION_NAO_ANOTADO")
                     if obrigatorio:
-                        res["codigo"] = "LANCADA_SEM_ANOTAR"
+                        res["codigo"] = "LANCADA_SEM_ANOTAR" if situacao == "LANCADA" else situacao + "_SEM_ANOTAR"
         return res
 
     try:
@@ -409,6 +453,7 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
             raise Recusa("OBRA_SEM_CONTA", "a obra da venda não tem conta padrão no Mais Controle")
 
         # 3. já lançado: a coluna manda; título no ERP que a coluna não conhece = recusa
+        ctx["hist"] = resolver_incertos(erp, d["casa"], ctx["hist"])
         ja, ids_coluna = ja_da_coluna(ctx["hist"])
         fora = titulos_no_erp(erp, d["casa"], [p["data"] for p in parcelas]) - ids_coluna
         if fora:
@@ -477,7 +522,7 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
             raise Recusa("CATALOGO_FALTANDO", "a condição de pagamento do Mais Controle não bate com %d parcela(s)" % n)
 
         plano = {"parcelas": parcelas, "favorecido_id": str(fav["id"]), "comissao": comissao, "ja_lancado": ja,
-                 "pix": pix}
+                 "pix": pix, "conta_id": str(conta["id"]), "descricao": desc}
         assin = assinatura(plano)
 
         # 8. prévia
@@ -509,7 +554,7 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
     try:
         r = erp.pedir("POST", "/trade-payables", corpo=corpo, params={"userApprovesSaleCreation": "true"})
     except ErpErro as e:
-        if re.search(r"HTTP 4\d\d", str(e)):
+        if re.match(r"^[A-Z]+ \S+ -> HTTP 4\d\d:", str(e)):   # o status do próprio pedido, não um citado no corpo
             return fim("RECUSADO", "ERRO: o Mais Controle recusou o título (%s) — nada foi lançado; CONFIRA no Mais "
                        "Controle antes de pedir de novo" % str(e)[:250], "ERP_RECUSOU")
         r = None
@@ -517,8 +562,12 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
         r = None
     tpid = r.get("id") if isinstance(r, dict) else None
     if not tpid:
+        datas = ",".join(dict.fromkeys(p["data"] for p in parcelas))
+        marca = "INCERTO | %s | datas %s | %s | %s" % (desc, datas, reais(round(sum(p["valor"] for p in parcelas), 2)),
+                                                      _agora())
         return fim("INCERTO", "INCERTO: o Mais Controle não devolveu o id — CONFIRA antes de repetir (o título pode "
-                   "ter sido criado; procure \"%s\")" % desc, "INCERTO")
+                   "ter sido criado; procure \"%s\"). A próxima execução confere no Mais Controle." % desc, "INCERTO",
+                   depois=[marca], obrigatorio=True)
 
     total = round(sum(p["valor"] for p in parcelas), 2)
     k, bate = 0, False

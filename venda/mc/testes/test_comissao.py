@@ -473,3 +473,126 @@ def test_erp_anexar_titulo(monkeypatch):
     e.pedir_core = lambda *a, **k: {}
     with pytest.raises(ErpErro):
         e.anexar_titulo("tp-1", "a.pdf", b"%PDF-x")
+
+
+# ----------------------------------------------------------------- rodada de conserto 1 (revisão da Tarefa 3)
+
+class ErpListando(ErpFake):
+    """O título criado aparece na listagem do dia (como no ERP); `titulos` = títulos já existentes por id."""
+    def __init__(self, *a, titulos=None, lista_erro=False, conta_id="c-1", **k):
+        super().__init__(*a, **k)
+        self.titulos, self.lista_erro, self.conta_id = dict(titulos or {}), lista_erro, conta_id
+    def obra(self, _): return {"defaultAccount": {"id": self.conta_id, "name": "CONTA TESTE"}}
+    def pedir(self, metodo, caminho, corpo=None, params=None):
+        if caminho.startswith("/payable-installments/paginated-result"):
+            if self.lista_erro:
+                raise ErpErro("GET /payable-installments/paginated-result -> HTTP 503: fora")
+            self.consultas_dia.append((params or {}).get("startDate"))
+            criados = [{"id": "i-%d" % i, "description": c["description"], "paidTo": "X", "tradePayableId": "tp-1"}
+                       for i, c in enumerate(self.posts) if (params or {}).get("startDate") in
+                       [x["plannedDate"] for x in c["installments"]] and not self.post_sem_id and not self.post_erro]
+            return {"content": list(self.ja) + criados}
+        if metodo == "GET" and caminho.startswith("/trade-payables/") and caminho != "/trade-payables/tp-1":
+            return self.titulos[caminho.rsplit("/", 1)[1]]
+        return super().pedir(metodo, caminho, corpo, params)
+
+INCERTO_4MIL = "INCERTO | COMISSÃO CORRETOR UNIDADE 07 - COMPRADOR TESTE | datas 2026-11-24,2026-12-24 | R$ 4.000,00 | 24/11 10:00"
+DESC07 = "COMISSÃO CORRETOR UNIDADE 07 - COMPRADOR TESTE"
+
+def test_incerto_grava_linha_persistente():
+    n, e = NotionFake(pagina()), ErpListando(post_sem_id=True)
+    K.processar(PAGE, n, e, "1000.00@2026-11-24;2000.00@2026-12-24", hoje=HOJE)
+    r = K.processar(PAGE, n, e, "1000.00@2026-11-24;2000.00@2026-12-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "INCERTO"
+    assert ("INCERTO | %s | datas 2026-11-24,2026-12-24 | R$ 3.000,00 | " % DESC07) in coluna(n)
+
+def test_incerto_com_titulo_no_erp_vira_lancada_e_conta_no_saldo():
+    ja = [{"id": "i-9", "description": DESC07, "paidTo": "X", "tradePayableId": "tp-9"}]
+    n = NotionFake(pagina(INCERTO_4MIL))
+    e = ErpListando(ja=ja, titulos={"tp-9": {"id": "tp-9", "value": 4000.0}})
+    r = K.processar(PAGE, n, e, "6000.00@2026-11-24", hoje=HOJE)
+    assert r["situacao"] == "PREVIA", r
+    t = coluna(n)
+    assert "R$ 6.000,00 de R$ 10.000,00" in t and "INCERTO |" not in t
+    assert any(ln.startswith("LANÇADA | título tp-9 | R$ 4.000,00 |") and ln.endswith("confirmado depois do incerto")
+               for ln in t.split("\n"))
+    n2 = NotionFake(pagina(INCERTO_4MIL))
+    e2 = ErpListando(ja=ja, titulos={"tp-9": {"id": "tp-9", "value": 4000.0}})
+    assert K.processar(PAGE, n2, e2, "7000.00@2026-11-24", hoje=HOJE)["codigo"] == "ACIMA_DO_SALDO"
+
+def test_incerto_sem_titulo_no_erp_vira_conferido_e_segue():
+    n, e = NotionFake(pagina(INCERTO_4MIL)), ErpListando()
+    r = K.processar(PAGE, n, e, "10000.00@2026-11-24", hoje=HOJE)
+    assert r["situacao"] == "PREVIA", r
+    t = coluna(n)
+    assert "INCERTO |" not in t and "INCERTO CONFERIDO | não criado | 2026-11-24,2026-12-24 | " in t
+    assert "R$ 10.000,00 de R$ 10.000,00" in t
+    assert {"2026-11-24", "2026-12-24"} <= set(e.consultas_dia)
+    r = K.processar(PAGE, n, e, "10000.00@2026-11-24", hoje=HOJE)   # a linha conferida não volta a ser consultada nem conta
+    assert r["situacao"] == "PREVIA" and "INCERTO CONFERIDO" in coluna(n)
+
+def test_incerto_com_erp_fora_do_ar_recusa_e_nao_posta():
+    for aplicar in (False, True):
+        n, e = NotionFake(pagina(INCERTO_4MIL)), ErpListando(lista_erro=True)
+        r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=aplicar, hoje=HOJE)
+        assert r["codigo"] == "INCERTO_PENDENTE" and e.posts == []
+        assert INCERTO_4MIL in coluna(n)
+
+def test_incerto_com_titulo_sem_id_fica_pendente():
+    ja = [{"id": "i-9", "description": DESC07, "paidTo": "X"}]
+    n, e = NotionFake(pagina(INCERTO_4MIL)), ErpListando(ja=ja)
+    assert K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)["codigo"] == "INCERTO_PENDENTE"
+    assert INCERTO_4MIL in coluna(n)
+
+def test_5xx_que_cita_http_400_no_corpo_e_incerto():
+    exc = ErpErro('POST /trade-payables -> HTTP 500: {"erro": "upstream respondeu HTTP 400 -> HTTP 404: x"}')
+    n, e = NotionFake(pagina()), ErpListando(post_erro=exc)
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+    r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "INCERTO" and len(e.posts) == 1
+
+class NotionSemColunaNoLancamento(NotionFake):
+    def __init__(self, pg, modo):
+        super().__init__(pg); self.modo = modo
+    def gravar_textos(self, pid, props, valores):
+        if "LANÇADA | título tp-1" in valores.get("MC - COMISSÃO", ""):
+            if self.modo == "faltante":
+                return ["MC - COMISSÃO"]
+            raise RuntimeError("notion fora")
+        return super().gravar_textos(pid, props, valores)
+
+def test_lancada_com_coluna_faltando_e_sem_anotar():
+    n, e = NotionSemColunaNoLancamento(pagina(), "faltante"), ErpListando()
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+    r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["situacao"] == "LANCADA" and r["codigo"] == "LANCADA_SEM_ANOTAR" and len(e.posts) == 1
+
+def test_reaplicar_depois_de_lancada_sem_anotar_nao_duplica():
+    n, e = NotionSemColunaNoLancamento(pagina(), "erro"), ErpListando()
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+    r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "LANCADA_SEM_ANOTAR"
+    assert coluna(n).startswith("PRÉVIA OK [#")          # a prévia ficou: a linha LANÇADA não entrou
+    r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "TITULO_FORA_DA_COLUNA" and len(e.posts) == 1
+
+def test_assinatura_cobre_conta_e_descricao():
+    base = {"parcelas": [{"valor": 1.0, "data": HOJE}], "favorecido_id": "a", "comissao": 10.0, "ja_lancado": 0.0,
+            "pix": "CPF: 11144477735", "conta_id": "c-1", "descricao": "D"}
+    assert K.assinatura(base) != K.assinatura(dict(base, conta_id="c-2"))
+    assert K.assinatura(base) != K.assinatura(dict(base, descricao="E"))
+
+def test_conta_mudou_entre_previa_e_aplicar():
+    n, e = NotionFake(pagina()), ErpListando()
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+    e.conta_id = "c-2"
+    assert K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)["codigo"] == "PREVIA_DESATUALIZADA"
+    assert e.posts == []
+
+@pytest.mark.parametrize("entrada,saida", [
+    ("PIX - CPF 111.444.777-35", "CPF: 111.444.777-35"), ("PIX CPF: 11144477735", "CPF: 11144477735"),
+    ("PIX: CNPJ - 00.000.000/0001-91", "CNPJ: 00.000.000/0001-91"), ("PIX - E-MAIL a@b.example", "E-MAIL: a@b.example"),
+    ("PIX: cpf-x@y.example", "E-MAIL: cpf-x@y.example"), ("PIX - CPF 62999990000", "TELEFONE: 62999990000"),
+    ("PIX CNPJ: 11144477735", "CPF: 11144477735"), ("PIX - CPF", None)])
+def test_pix_com_tipo_escrito_classifica_pela_regra(entrada, saida):
+    assert K.pix_do_banco(entrada) == saida
