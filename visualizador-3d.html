@@ -515,7 +515,7 @@ async function montarPorDisciplina(obraId, r) {
     if (!el) return;
     const p = [];
     if (o.herdadas.length) p.push('<span class="o3 o3-b">' + nomes(o.herdadas) + ' <i>de ' + o.base.replace(/</g, "&lt;") + '</i></span>');
-    if (o.proprias.length) p.push('<span class="o3 o3-p">' + nomes(o.proprias) + ' <i>só desta obra</i></span>');
+    if (o.proprias.length) p.push('<span class="o3 o3-p">' + nomes(o.proprias) + ' <i>publicado nesta obra</i></span>');
     if (o.soDeLa.length) p.push('<span class="o3 o3-f" title="Em ' + o.base.replace(/"/g, "") + ' está marcado como só daquela obra. Publique o desta pelo Revit (MORAIS → Geral → Publicar 3D).">' + nomes(o.soDeLa) + ' <i>só de ' + o.base.replace(/</g, "&lt;") + ' — falta publicar o desta</i></span>');
     const h = p.join("");
     if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }

@@ -340,6 +340,10 @@ html[data-tema="escuro"] .tile>b{color:var(--text)}
 .d3-prop{border-color:#1baf7a;color:#13865d}
 .d3-falta{border-color:#e0a100;color:#a77600}
 .d3-chk{cursor:pointer;min-height:32px;color:var(--text)} .d3-chk input{margin:0;width:16px;height:16px}
+.d3-par{display:inline-flex;align-items:center;gap:2px}
+.d3-x{border:1px solid var(--border);background:var(--sup);color:var(--verm);border-radius:999px;width:28px;height:28px;font-weight:800;cursor:pointer;line-height:1}
+.d3-x:hover{background:var(--verm);color:#fff}
+@media(max-width:600px){.d3-x{width:44px;height:44px}}
 .d3-rm{font-size:11.5px;padding:6px 11px;background:var(--sup)!important;color:var(--verm)!important;border:1.5px solid var(--verm)!important;margin-left:auto}
 @media(max-width:600px){.d3-chk,.d3-rm{min-height:44px}.d3-rm{margin-left:0}}
 .orc-dados{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
@@ -1493,7 +1497,7 @@ function painelDisc3d(id,r){
   if(disc.length){
     const quando=r.atualizado?new Date(r.atualizado).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"";
     h+=`<div class="d3-linha"><span class="d3-rot">Publicado nesta obra${quando?" ("+esc(quando)+")":""} · marcado = passa para as obras de mesmo layout:</span>`+
-      disc.map(c=>`<label class="d3o d3-chk" title="Desmarque para ser só desta obra (cada obra publica o seu)"><input type="checkbox" data-d3="${esc(c)}" ${so.includes(c)?"":"checked"} onchange="gravarSo3d('${id}')"> ${esc(d3n(c))}${so.includes(c)?" · só desta obra":""}</label>`).join("")+
+      disc.map(c=>`<span class="d3-par"><label class="d3o d3-chk" title="Desmarque para ser só desta obra (cada obra publica o seu)"><input type="checkbox" data-d3="${esc(c)}" ${so.includes(c)?"":"checked"} onchange="gravarSo3d('${id}')"> ${esc(d3n(c))}${so.includes(c)?" · só desta obra":""}</label><button class="d3-x" onclick="removerDisc3d('${id}','${esc(c)}')" title="Tirar o ${esc(d3n(c))} publicado nesta obra${r.link?" — passa a vir de "+esc(r.linkTitulo):""}" aria-label="Tirar ${esc(d3n(c))} desta obra">✕</button></span>`).join("")+
       `<button class="bt d3-rm" onclick="removerProprio3d('${id}')" title="Tira desta obra os arquivos do 3D (coluna MODELO 3D). Para voltar, publique de novo pelo Revit.">🗑 Remover o 3D desta obra</button></div>`;
   }
   return h;
@@ -1505,6 +1509,15 @@ async function gravarSo3d(id){
   let r; try{ r=await chamar({action:"modelo3dSo",pageId:id,so:so},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
   if(r&&r.ok){ _LAY3D[id]=r; toast(so.length?"Só desta obra: "+so.map(d3n).join(", ")+" — as obras de mesmo layout não recebem.":"Todas as disciplinas passam para as obras de mesmo layout."); }
   else toast("Não gravou: "+((r&&r.erro)||"erro"));
+  carregarLayout3d(id,!(r&&r.ok));
+}
+/* 24/11 (dono, LT 22): tirar SÓ uma disciplina do 3D próprio — as outras continuam; a tirada passa a vir da obra de mesmo layout */
+async function removerDisc3d(id,c){
+  const r0=_LAY3D[id]||{};
+  if(!confirm("Tirar o "+d3n(c)+" publicado nesta obra?\n\n"+(r0.link?"Ele passa a vir de "+(r0.linkTitulo||"obra de mesmo layout")+((r0.linkSo||[]).includes(c)?" — mas lá ele está como só daquela obra, então esta fica sem "+d3n(c)+" até publicar o dela.":"."):"Esta obra fica sem "+d3n(c)+" no 3D.")+"\nAs outras disciplinas desta obra não mudam. Para voltar, é só publicar de novo pelo Revit.")) return;
+  let r; try{ r=await chamar({action:"modelo3dExcluir",pageId:id,disc:[c]},90000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ _LAY3D[id]=r; toast(d3n(c)+" tirado desta obra."); }
+  else toast("Não tirou: "+((r&&r.erro)||"erro"));
   carregarLayout3d(id,!(r&&r.ok));
 }
 async function removerProprio3d(id,jaPerguntou){
