@@ -9,6 +9,7 @@ from __future__ import annotations
 import datetime as _dt
 import json
 import os
+import re
 from urllib.parse import urlencode
 
 import requests
@@ -310,6 +311,28 @@ class Erp:
             raise ErpErro("a pasta de arquivos da venda está cheia")
         self.subir_arquivo(pasta["id"], nome, conteudo, mime)
         return "ANEXADO"
+
+    # -- comissão do corretor (24/11/2026, venda/mc/comissao.py) -------------
+    def condicao_por_tipo(self, tipo: str) -> dict | None:
+        """GET /payment-conditions/all — pelo TYPE (IN_CASH | FINANCING); o nome muda de instalação para instalação."""
+        for c in self.pedir("GET", "/payment-conditions/all") or []:
+            if c.get("type") == tipo:
+                return c
+        return None
+
+    def anexar_titulo(self, tp_id: str, nome: str, conteudo: bytes) -> int:
+        """Anexo de um título A PAGAR (receita provada em 17/11 e 24/11/2026 nos scripts de comissão):
+        POST {CORE}/attachments/v2/batch devolve a URL assinada do S3; PUT dos bytes nela. Devolve o status do PUT."""
+        bt = self.pedir_core("POST", "/attachments/v2/batch", corpo={
+            "entityOrigin": "TRADE_PAYABLE", "entityId": tp_id,
+            "attachmentsItem": [{"name": nome, "contentType": "application/pdf", "extension": "pdf",
+                                 "sizeInBytes": len(conteudo)}]})
+        urls = re.findall(r"https://[^\"' ]*amazonaws[^\"' ]*", json.dumps(bt))
+        if not urls:
+            raise ErpErro("anexo do título: o ERP não devolveu a URL de envio")
+        url = json.loads('"' + urls[0] + '"')
+        r = requests.put(url, data=conteudo, headers={"Content-Type": "application/pdf"}, timeout=120)
+        return r.status_code
 
     # -- gravação (só com --aplicar) ----------------------------------------
     def criar_cliente(self, corpo: dict) -> dict:
