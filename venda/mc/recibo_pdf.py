@@ -1,21 +1,43 @@
 # -*- coding: utf-8 -*-
 """Recibo (demonstrativo interno) de uma página em PDF, só com a biblioteca padrão: o servidor do escritório
-não tem reportlab garantido. Texto em WinAnsi (latin-1); o que não couber vira '?'."""
+não tem reportlab garantido. Texto em WinAnsi (latin-1); o que não couber vira '?'. Valor longo quebra em
+várias linhas; se o conteúdo não couber numa página, levanta ValueError."""
 from __future__ import annotations
+
+import textwrap
+
+_PE_DA_PAGINA = 50  # y mínimo (pt) da última linha de texto
+
+
+def _limpa(s: str) -> str:
+    return str(s).replace("\r", " ").replace("\n", " ").replace("\t", " ")
 
 
 def _esc(s: str) -> bytes:
-    b = str(s).encode("latin-1", "replace")
+    b = _limpa(s).encode("latin-1", "replace")
     return b.replace(b"\\", b"\\\\").replace(b"(", b"\\(").replace(b")", b"\\)")
 
 
+def _linha(y: int, x: int, fonte: str, tamanho: int, texto: str) -> bytes:
+    cabeca = "BT /%s %d Tf %d %d Td (" % (fonte, tamanho, x, y)
+    return cabeca.encode("ascii") + _esc(texto) + b") Tj ET"
+
+
 def recibo(linhas: list[tuple[str, str]], titulo: str) -> bytes:
-    y, partes = 780, [b"BT /F2 14 Tf 60 780 Td (" + _esc(titulo) + b") Tj ET"]
-    y -= 36
+    partes, y = [], 780
+    for pedaco in textwrap.wrap(_limpa(titulo), 70) or [""]:
+        partes.append(_linha(y, 60, "F2", 14, pedaco))
+        y -= 18
+    y -= 18
     for rot, val in linhas:
-        partes.append(b"BT /F2 11 Tf 60 %d Td (" % y + _esc(rot + ":") + b") Tj ET")
-        partes.append(b"BT /F1 11 Tf 210 %d Td (" % y + _esc(val) + b") Tj ET")
-        y -= 20
+        for i, pedaco in enumerate(textwrap.wrap(_limpa(val), 62) or [""]):
+            if y < _PE_DA_PAGINA:
+                raise ValueError("recibo não cabe em uma página")
+            if i == 0:
+                partes.append(_linha(y, 60, "F2", 11, _limpa(rot) + ":"))
+            partes.append(_linha(y, 210, "F1", 11, pedaco))
+            y -= 14
+        y -= 6
     conteudo = b"\n".join(partes)
     objs = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
