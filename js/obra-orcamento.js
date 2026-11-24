@@ -425,7 +425,7 @@
       s.envio = (p && p.previa && p.previa.envio) || null; s.desbloqueio = (p && p.desbloqueio) || "";
       if (p && p.ok && p.previa && p.previa.dados && Array.isArray(p.previa.dados.linhas)) {
         const d = p.previa.dados;
-        Object.assign(s, { linhas: d.linhas, mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, info: d.info || null, nomesEtapa: d.nomes_etapa || {}, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
+        Object.assign(s, { linhas: d.linhas, apagados: d.apagados || [], mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, info: d.info || null, nomesEtapa: d.nomes_etapa || {}, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
           salvoEm: p.previa.salvo_em, revitEm: d.revit_em || "", sujo: false, carregando: false, msg: "", origemTxt: "salva" });
         precificar(s); g.OrcObra.repintar(); return s;
       }
@@ -438,11 +438,52 @@
     s.contratos = gerarContratos(s);
     precificar(s); g.OrcObra.repintar(); return s;
   }
+  /* 24/11/26 (dono: "tem alguma forma de não perder o que já editei no orçamento?"). Puxa de novo os quantitativos do
+     Revit e só troca as linhas que você NÃO mexeu: quantidade/código editados na mão, linhas acrescentadas e o índice
+     que você deu ficam como estão; linha apagada não volta. Diferente do "Gerar de novo", que monta tudo do zero. */
+  function chaveLinha(l) {
+    if (!l || l.manual) return "";
+    if (l.extra) return "x|" + (l.refs || []).join(",");
+    const suf = String(l.nome || "").indexOf(" — CASA ") > 0 ? String(l.nome).slice(String(l.nome).indexOf(" — CASA ")) : "";
+    return l.orig ? "o|" + l.orig + "|" + suf : "";
+  }
+  async function atualizarRevit(o) {
+    const s = ST[sT(o.id)]; if (!s || s.carregando) return;
+    s.carregando = true; s.msg = "Lendo os quantitativos do Revit (suas edições ficam)…"; g.OrcObra.repintar();
+    try { await carregarModelo(); await carregarCatalogo(); } catch (e) {}
+    let rv; try { rv = await carregarRevit(o.id); } catch (e) { rv = { erro: String(e.message || e) }; }
+    if (!rv || rv.erro) { s.carregando = false; s.msg = ""; g.OrcObra.repintar(); g.toast && g.toast("Não li o Revit: " + ((rv && rv.erro) || "erro") + " — a planilha ficou como estava."); return; }
+    const gx = gerar(o, g.ctxOrcamento ? g.ctxOrcamento(o) : {}, rv);
+    const mu = s.mult || {};
+    gx.linhas.forEach(n => { const m = n.revit && mu[n.revit.disc]; if (m != null && m !== gx.mult[n.revit.disc]) {   // mantém o multiplicador que você mudou
+      n.q = arred(n.revit.base * m * (n.revit.fator || 1), n.revit.arred); n.origem = "Revit " + n.revit.disc + ": " + numBr(n.revit.base) + (m !== 1 ? " × " + m : "") + ((n.revit.fator || 1) !== 1 ? " × " + n.revit.fator : ""); } });
+    const novas = {}; gx.linhas.forEach(l => { const k = chaveLinha(l); if (k) novas[k] = l; });
+    const apagados = new Set(s.apagados || []), vistas = new Set();
+    let trocadas = 0, mantidas = 0;
+    s.linhas = s.linhas.map(l => {
+      const k = chaveLinha(l), n = k && novas[k];
+      if (!n) return l;
+      vistas.add(k);
+      if (l.editado) { mantidas++; return l; }
+      if ((Number(n.q) || 0) !== (Number(l.q) || 0)) trocadas++;
+      return Object.assign({}, n, { id: l.id, idx: l.idx, etapa: l.etapa, somaIds: l.somaIds });
+    });
+    // itens novos que vieram do Revit (não estavam na planilha e você não apagou): entram no fim da etapa, marcados
+    const faltam = Object.keys(novas).filter(k => !vistas.has(k) && !apagados.has(k));
+    let seq = Date.now();
+    faltam.forEach(k => { const n = novas[k]; s.linhas.push(Object.assign({}, n, { id: "r" + (seq++), idx: "", etapa: n.etapa || (n.idx ? paiDe(n.idx) : "_revit"), somaIds: null,
+      aviso: "Item novo trazido pelo ⟳ Atualizar do Revit — confira" + (n.aviso ? " · " + n.aviso : "") })); });
+    ordenar(s.linhas); recalcSomas(s.linhas); precificar(s); s.alertas = gx.alertas || s.alertas;
+    Object.assign(s, { revitEm: rv.em || s.revitEm || "", sujo: true, carregando: false, msg: "" });
+    g.OrcObra.repintar();
+    g.toast && g.toast("Revit atualizado: " + trocadas + " linha(s) com quantidade nova · " + mantidas + " editada(s) por você ficaram como estavam" +
+      (faltam.length ? " · " + faltam.length + " item(ns) novo(s) do Revit entrou(aram) marcado(s) no fim da etapa" : "") + ". Confira e salve (💾).");
+  }
   async function salvar(o) {
     const s = ST[sT(o.id)]; if (!s) return;
     s.salvando = true; g.OrcObra.repintar();
     const dados = { modelo: MODELO && MODELO.versao, linhas: s.linhas.map(l => { const c = Object.assign({}, l); delete c.semCat; delete c.inativo; return c; }),
-      mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", total: total(s), gerado_em: new Date().toISOString(),
+      mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", apagados: s.apagados || [], total: total(s), gerado_em: new Date().toISOString(),
       n_casas: s.nCasas || null, contratos: s.contratos || null, info: s.info || null, nomes_etapa: s.nomesEtapa || {} };
     let r; try { r = await g.chamar({ action: "orcPreviaSalvar", obra_id: o.id, obra: o.titulo || "", versao: s.versao == null ? null : s.versao, dados: dados }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     s.salvando = false;
@@ -617,6 +658,7 @@
       <div class="kp"><b>${moeda(tot)}</b><span>total previsto</span></div>
       <div class="kp st"><span>${s.salvoEm ? "Salva por <b>" + escH(s.salvoPor || "") + "</b> em " + escH(new Date(s.salvoEm).toLocaleString("pt-BR")) + (s.versao ? " · versão " + s.versao : "") : "Ainda não salva"}${s.sujo ? ` <i class="sujo">• alterações não salvas</i>` : ""}</span>
         <span>${CAT_LIDO ? "Catálogo do MC lido em " + escH(new Date(CAT_LIDO).toLocaleString("pt-BR")) : CAT_ERRO ? "⚠ catálogo do MC indisponível (" + escH(CAT_ERRO) + ") — sem custos" : ""}${s.revitEm ? " · Revit publicado em " + escH(new Date(s.revitEm).toLocaleString("pt-BR")) : ""}</span></div>
+      <button class="bt ghost" onclick="OrcObra.atualizarRevit()" title="Puxa de novo os quantitativos do Revit e troca só as linhas que você não editou — quantidade ou código mudados na mão, linhas acrescentadas e apagadas ficam como estão">⟳ Atualizar do Revit</button>
       <button class="bt ghost" onclick="OrcObra.regerar()" title="Monta a planilha de novo pelo modelo, pelos quantitativos do Revit e pelos dados da obra (descarta as edições não salvas)">↻ Gerar de novo</button>
       <button class="bt ghost" onclick="OrcObra.baixar()" title="Baixa a planilha em CSV (abre no Excel)">⬇ Baixar planilha</button>
       <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button>
@@ -771,7 +813,8 @@
     envioAtualizar: () => { const a = atual(); if (a.o) envioAtualizar(a.o); },
     fecharJanela: fecharJanela,
     baixar: () => { const a = atual(); if (a.o) baixar(a.o); },
-    regerar: () => { const a = atual(); if (!a.o) return; if (a.s && (a.s.sujo || a.s.salvoEm) && !confirm("Gerar a planilha de novo pelo modelo e pelo Revit? As edições feitas aqui somem (a versão salva só muda se você salvar depois).")) return; abrir(a.o, g.ctxOrcamento ? g.ctxOrcamento(a.o) : {}, { regerar: true }); },
+    atualizarRevit: () => { const a = atual(); if (a.o) atualizarRevit(a.o); },
+    regerar: () => { const a = atual(); if (!a.o) return; if (a.s && (a.s.sujo || a.s.salvoEm) && !confirm("Gerar a planilha de novo pelo modelo e pelo Revit? As edições feitas aqui somem (a versão salva só muda se você salvar depois).\n\nPara manter suas edições e só trazer os números novos do Revit, use ⟳ Atualizar do Revit.")) return; abrir(a.o, g.ctxOrcamento ? g.ctxOrcamento(a.o) : {}, { regerar: true }); },
     filtrar: v => { const a = atual(); if (!a.s) return; a.s.filtro = v; g.OrcObra.repintar(); setTimeout(() => { const i = document.querySelector(".orc-bar .busca"); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }, 0); },
     soAvisos: v => { const a = atual(); if (!a.s) return; a.s.soAvisos = !!v; g.OrcObra.repintar(); },
     alternar: k => { const a = atual(); if (!a.s) return; a.s.aberto[k] = a.s.aberto[k] === false; g.OrcObra.repintar(); },
@@ -781,7 +824,7 @@
     mult: (d, v) => { const a = atual(); if (!a.s) return; const m = Math.max(0, Number(v) || 0); a.s.mult[d] = m; a.s.sujo = true;
       a.s.linhas.forEach(l => { if (l.revit && l.revit.disc === d && !l.editado) { l.q = arred(l.revit.base * m * (l.revit.fator || 1), l.revit.arred); l.origem = "Revit " + d + ": " + numBr(l.revit.base) + (m !== 1 ? " × " + m : "") + ((l.revit.fator || 1) !== 1 ? " × " + l.revit.fator : ""); } });
       g.OrcObra.repintar(); },
-    apagar: id => { const a = atual(); if (!a.s) return; a.s.linhas = a.s.linhas.filter(x => x.id !== id); recalcSomas(a.s.linhas); a.s.sujo = true; g.OrcObra.repintar(); },
+    apagar: id => { const a = atual(); if (!a.s) return; const ap = a.s.linhas.find(x => x.id === id), kap = chaveLinha(ap); if (kap) a.s.apagados = (a.s.apagados || []).concat([kap]); a.s.linhas = a.s.linhas.filter(x => x.id !== id); recalcSomas(a.s.linhas); a.s.sujo = true; g.OrcObra.repintar(); },
     trocar: id => { const a = atual(); if (!a.s) return; const l = a.s.linhas.find(x => x.id === id); abrirBusca({ linha: id, q: l ? (l.cod ? "" : l.nome.split(" ").slice(0, 3).join(" ")) : "" }); },
     acrescentar: k => abrirBusca({ etapa: k }),
     buscar: buscar, escolher: escolher, fecharBusca: fecharBusca, chave: chave,
