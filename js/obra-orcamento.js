@@ -137,7 +137,9 @@
       if (t.tipo === "areas" || ehMO(t)) return;
       const cols = (t.colunas || []).map(NN);
       const iTipo = cols.findIndex(c => c === "TIPO");
-      const iDesc = cols.findIndex(c => /DESCRI|NOME PECA|^NOME$/.test(c));
+      /* 24/11/26: a TABELA DE MADEIRAMENTO traz a peça em "Comentários" — vale quando não há Descrição/Nome */
+      let iDesc = cols.findIndex(c => /DESCRI|NOME PECA|^NOME$/.test(c));
+      if (iDesc < 0) iDesc = cols.findIndex(c => /^COMENTARIO/.test(c));
       const iQ = cols.findIndex(c => /QUANTIDADE|CONTAGEM|COMPRIMENTO|AREA DA LAJE|^AREA/.test(c));
       const iUn = cols.findIndex(c => /^UNID/.test(c));
       const iDiam = cols.findIndex(c => /DIAMETRO/.test(c));
