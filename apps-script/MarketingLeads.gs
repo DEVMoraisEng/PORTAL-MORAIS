@@ -511,3 +511,6 @@ function mkDesfazer_(sess, p) {
     return { ok: true, avisoPlanilha: e.destino !== MK_HUDSON ? "A linha continua na planilha " + e.destino + " — apague lá se precisar." : "" };
   } finally { lock.releaseLock(); }
 }
+
+/* Rodar pelo menu Executar: confere se a conta do script abre as 6 planilhas (e pede a autorização de Planilhas na 1ª vez). */
+function mkTestarAcesso() { console.log(JSON.stringify(mkVersao_(), null, 1)); }
