@@ -151,6 +151,8 @@
         const q = Number(v[iQ]);
         const desc = String(v[iDesc] == null ? "" : v[iDesc]).trim();
         if (!desc && typeof v[0] === "string" && v[0].trim() && !(q > 0)) { secao = v[0].trim(); return; }
+        /* seção na própria coluna da descrição (ex.: "9 Mármores e granitos" na tabela de bancadas) */
+        if (!(q > 0) && /^\d+(\.\d+)*\s+\S/.test(desc) && v.every((c, i) => i === iDesc || c === "" || c == null)) { secao = desc; return; }
         if (!desc || !(q > 0)) return;
         if (iTipo >= 0 && v[iTipo] && NN(v[iTipo]) !== "ITEM") return;
         /* 24/11/26 (dono): bancada sem a medida ia para o MC errada — Profundidade × Largura entram no nome (em cm,
