@@ -29,7 +29,8 @@ test("cada campo vai para a aba certa", () => {
 test("Andamento em etapas na ordem da planilha; coluna nova cai em OUTROS CAMPOS", () => {
   assert.equal(P.etapa("MANDOU TODOS OS DOCS. P/ CORESSPONDENTE?"), "CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE");
   assert.equal(P.etapa("RECEBEU?"), "DEVOLUÇÃO E RECEBIMENTO DO BANCO", "RECEBEU? vem depois do cartório, como na planilha");
-  assert.equal(P.etapa("RECEBEU TAXA VISTORIA?"), "TAXA DE VISTORIA E AGÊNCIA");
+  assert.equal(P.etapa("RECEBEU TAXA VISTORIA?"), "TAXA DE VISTORIA", "24/11: a etapa 5 perdeu a AGÊNCIA e o nome");
+  assert.equal(P.etapa("AGÊNCIA"), "CONFORMIDADE E CONTRATO DO BANCO", "24/11: AGÊNCIA vai para a etapa 3, sob PROCESSO CONFORME?");
   assert.equal(P.etapa("ITBI GERADO"), "PREFEITURA, ITBI E CARTÓRIO");
   assert.equal(P.etapa("Nº DE CADASTRO PREFEITURA"), "PREFEITURA, ITBI E CARTÓRIO");
   assert.equal(P.etapa("ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?"), "VISTORIA E ENTREGA DA CASA");
@@ -48,7 +49,9 @@ test("Andamento em etapas na ordem da planilha; coluna nova cai em OUTROS CAMPOS
     "ENERGIA TRANSFERIDA", "ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?", "DATA DA ENTREGA", "PREENCHEU A PESQUISA?",
     "GEROU E ARMAZENOU GCAP?", "PAGOU GCAP?", "ENG. RESPONSÁEL", "MODELO?", "RESERVADA", "TIPO"];
   const g = P.porEtapa(planilha.concat(["HISTÓRICO DO CONTRATO"]));
-  assert.deepEqual(g.flatMap(x => x.campos).filter(n => planilha.includes(n)), planilha, "ler o Andamento = ler a planilha");
+  /* 24/11: AGÊNCIA mudou de etapa (da 5 para a 3, sob PROCESSO CONFORME?); o resto continua na ordem da planilha */
+  const semAg = planilha.filter(n => n !== "AGÊNCIA");
+  assert.deepEqual(g.flatMap(x => x.campos).filter(n => semAg.includes(n)), semAg, "ler o Andamento = ler a planilha");
   assert.equal(g[0].titulo, "1 · AVALIAÇÃO E VALORES");
   assert.equal(g[g.length - 1].etapa, "OUTROS CAMPOS");
   assert.deepEqual(P.porEtapa(["ITBI PAGO", "AGUA TRANSFERIDA", "ITBI GERADO"]).map(x => x.titulo),
@@ -231,11 +234,11 @@ test("layout, fotos e localização vão para a aba Links", () => {
 });
 test("resumo do processo acha as colunas pelo nome e pelo padrão", () => {
   const r = P.resolverProcesso(["SITUAÇÃO DO PROCESSO", "TITULARIDADES TRANSFERIDAS?", "RECEBEU?", "RECEBEU TAXA VISTORIA?",
-    "GEROU E ARMAZENOU GCAP?", "PAGOU GCAP?", "DATA PAGAMENTO GCAP", "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?"]);
+    "GEROU E ARMAZENOU GCAP?", "PAGOU GCAP?", "DATA DO GCAP", "DATA GEROU GCAP", "DATA PAGOU GCAP", "DATA PAGAMENTO GCAP", "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?"]);
   const m = Object.fromEntries(r.map(x => [x.chave, x.coluna]));
   assert.deepEqual(r.map(x => x.chave), ["vendida", "situacao", "ligacoes", "recebeu", "gerou_gcap", "pagou_gcap", "data_gcap", "entregue"]);
   assert.equal(m.recebeu, "RECEBEU?", "não pega RECEBEU TAXA VISTORIA?");
-  assert.equal(m.data_gcap, "DATA PAGAMENTO GCAP");
+  assert.equal(m.data_gcap, "DATA DO GCAP", "24/11: o cartão antigo só casa os nomes exatos, não duplica DATA GEROU/PAGOU GCAP");
   assert.equal(m.entregue, "ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?");
   assert.equal(r[0].calculado, true);
   const sem = P.resolverProcesso(["RECEBEU?"]);
@@ -265,5 +268,5 @@ test("pares: ASSINOU E ARMAZENOU + data da Caixa num bloco só, um em cima do ou
     ["EMITIU RCPM?", ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"], "VALOR DA PARCELA", "RECEBEU?"]);
   assert.deepEqual(P.agruparPares(["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "RECEBEU?"]), ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "RECEBEU?"], "sem a data, fica sozinho");
   assert.deepEqual(P.agruparPares(["DATA DE ASSINATURA DO CONTRATO "]), ["DATA DE ASSINATURA DO CONTRATO "]);
-  assert.match(vendas, /pnItens\(nomes\)\.map\(it=>Array\.isArray\(it\)\?`<div class="pn-par">`/);
+  assert.match(vendas, /pnItens\(nomes,etapa\)\.map\(it=>Array\.isArray\(it\)\?`<div class="pn-par">`/);
 });
