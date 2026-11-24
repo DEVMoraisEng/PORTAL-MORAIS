@@ -333,6 +333,15 @@ html[data-tema="escuro"] .tile>b{color:var(--text)}
 .m3d-bar .bt{text-decoration:none}
 .m3d-lay{display:flex;align-items:center;gap:8px;flex-wrap:wrap;font-size:12.5px;flex:1;min-width:260px}
 .m3d-lay .ajuda{margin:0}
+/* 24/11/26 — 3D por disciplina: de onde vem cada disciplina, o que é só desta obra, remover o 3D próprio */
+.m3d-lay .d3-linha{display:flex;flex-wrap:wrap;align-items:center;gap:6px;width:100%;margin-top:4px}
+.m3d-lay .d3-rot{font-size:11.5px;color:var(--text3);font-weight:700}
+.d3o{display:inline-flex;align-items:center;gap:5px;padding:3px 9px;border-radius:999px;font-size:11.5px;font-weight:700;border:1px solid var(--border);background:var(--sup);color:var(--text3)}
+.d3-prop{border-color:#1baf7a;color:#13865d}
+.d3-falta{border-color:#e0a100;color:#a77600}
+.d3-chk{cursor:pointer;min-height:32px;color:var(--text)} .d3-chk input{margin:0;width:16px;height:16px}
+.d3-rm{font-size:11.5px;padding:6px 11px;background:var(--sup)!important;color:var(--verm)!important;border:1.5px solid var(--verm)!important;margin-left:auto}
+@media(max-width:600px){.d3-chk,.d3-rm{min-height:44px}.d3-rm{margin-left:0}}
 .orc-dados{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}
 .od{display:flex;flex-direction:column;background:var(--sup);border:1px solid var(--border2);border-radius:9px;padding:5px 10px;min-width:96px}
 .od span{font-size:9.5px;font-weight:800;letter-spacing:.3px;text-transform:uppercase;color:var(--text4)}
@@ -1447,9 +1456,7 @@ async function carregarLayout3d(id,forcar){
   b.innerHTML=`<label style="font-weight:700;color:var(--text3);margin-right:6px">Mesmo layout de</label>
     <select id="m3d-sel" onchange="gravarLayout3d('${id}',this.value)" style="max-width:100%;padding:5px 8px;border:1px solid var(--border);border-radius:7px;font:inherit;font-size:12.5px;background:var(--sup);color:var(--text)">
       <option value="">— nenhuma (usa o 3D desta obra)</option>${ops.map(x=>`<option value="${esc(x.id)}"${lk&&sT(x.id)===lk?" selected":""}>${esc(x.titulo||"(sem endereço)")}</option>`).join("")}</select>
-    <div class="ajuda">${r.tem3d?"Esta obra tem o <b>próprio 3D</b> publicado — ele vale na frente do vínculo."
-      :r.link?(r.linkTem3d?"Abre o 3D e os quantitativos de <b>"+esc(r.linkTitulo)+"</b>.":"⚠ <b>"+esc(r.linkTitulo)+"</b> ainda não tem 3D publicado.")
-      :"Escolha a obra de mesmo layout que já tem o 3D publicado para esta abrir o dela."}</div>`;
+    ${painelDisc3d(id,r)}`;
   /* com busca: digita parte do nome da obra (mesma caixa dos outros campos) */
   const sel=document.getElementById("m3d-sel");
   if(sel&&typeof comboMontar==="function"){ sel.dataset.combo="1"; comboMontar(sel); if(sel._cb) sel._cb.inp.placeholder="Digite o nome da obra…"; }
@@ -1466,11 +1473,58 @@ async function puxarAreasDoLayout(id,baseId){
   if(ks.length) toast("Áreas puxadas de "+(b.titulo||"obra do mesmo layout")+": "+ks.map(k=>k==="area_averbada"?"averbada "+b[k]+" m²":"pós habite-se "+b[k]+" m²").join(" · "));
   return ks.length;
 }
+/* 24/11/26 (dono): "compartilhei todos os projetos do 9, mas o estrutural é só do 9 — cada um vai ter o dele".
+   O 3D passa a ser montado POR DISCIPLINA: a publicada nesta obra vale; da obra de mesmo layout entra o resto,
+   menos o que lá estiver marcado como só daquela obra (coluna 3D SÓ DESTA OBRA). E dá para tirar o 3D próprio de
+   uma obra (publicou pelo LT 22 e depois pelo 9 → os anexos do 22 ficavam divergentes). */
+const D3NOME={ARQ:"Arquitetura",HID:"Hidrossanitário",SAN:"Sanitário",ELE:"Elétrico",EST:"Estrutural",TEL:"Telhado"};
+const d3n=c=>D3NOME[c]||c;
+function painelDisc3d(id,r){
+  const disc=r.disc||[], so=r.so||[], ldisc=r.linkDisc||[], lso=r.linkSo||[];
+  let h="";
+  if(r.link){
+    if(!r.linkTem3d) h+=`<div class="ajuda">⚠ <b>${esc(r.linkTitulo)}</b> ainda não tem 3D publicado.</div>`;
+    const todas=[...new Set(ldisc.concat(disc))].sort();
+    const chips=todas.map(c=>disc.includes(c)?`<span class="d3o d3-prop" title="Publicado nesta obra — vale na frente do de ${esc(r.linkTitulo)}">${esc(d3n(c))} · desta obra</span>`
+      :lso.includes(c)?`<span class="d3o d3-falta" title="Em ${esc(r.linkTitulo)} está marcado como só daquela obra: publique o desta pelo Revit">${esc(d3n(c))} · só de ${esc(r.linkTitulo)} — falta o desta</span>`
+      :`<span class="d3o">${esc(d3n(c))} · de ${esc(r.linkTitulo)}</span>`).join("");
+    if(todas.length) h+=`<div class="d3-linha"><span class="d3-rot">No 3D desta obra:</span>${chips}</div>`;
+  } else if(!disc.length) h+=`<div class="ajuda">Escolha a obra de mesmo layout que já tem o 3D publicado para esta abrir o dela.</div>`;
+  if(disc.length){
+    const quando=r.atualizado?new Date(r.atualizado).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"";
+    h+=`<div class="d3-linha"><span class="d3-rot">Publicado nesta obra${quando?" ("+esc(quando)+")":""} · marcado = passa para as obras de mesmo layout:</span>`+
+      disc.map(c=>`<label class="d3o d3-chk" title="Desmarque para ser só desta obra (cada obra publica o seu)"><input type="checkbox" data-d3="${esc(c)}" ${so.includes(c)?"":"checked"} onchange="gravarSo3d('${id}')"> ${esc(d3n(c))}${so.includes(c)?" · só desta obra":""}</label>`).join("")+
+      `<button class="bt d3-rm" onclick="removerProprio3d('${id}')" title="Tira desta obra os arquivos do 3D (coluna MODELO 3D). Para voltar, publique de novo pelo Revit.">🗑 Remover o 3D desta obra</button></div>`;
+  }
+  return h;
+}
+async function gravarSo3d(id){
+  const box=document.getElementById("m3d-lay"); if(!box) return;
+  const ins=[...box.querySelectorAll("input[data-d3]")], so=ins.filter(i=>!i.checked).map(i=>i.dataset.d3);
+  ins.forEach(i=>i.disabled=true);
+  let r; try{ r=await chamar({action:"modelo3dSo",pageId:id,so:so},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ _LAY3D[id]=r; toast(so.length?"Só desta obra: "+so.map(d3n).join(", ")+" — as obras de mesmo layout não recebem.":"Todas as disciplinas passam para as obras de mesmo layout."); }
+  else toast("Não gravou: "+((r&&r.erro)||"erro"));
+  carregarLayout3d(id,!(r&&r.ok));
+}
+async function removerProprio3d(id,jaPerguntou){
+  const r0=_LAY3D[id]||{}, n=(r0.arquivos||[]).length;
+  if(!jaPerguntou&&!confirm("Remover o 3D publicado nesta obra?\n\n"+n+" arquivo(s) saem da coluna MODELO 3D ("+(r0.disc||[]).map(d3n).join(", ")+" e as pranchas).\n"+
+     (r0.link?"Depois disso o 3D vem de "+(r0.linkTitulo||"obra de mesmo layout")+" (menos o que lá for só daquela obra).":"A obra fica sem 3D até publicar de novo pelo Revit.")+
+     "\n\nPara voltar, é só publicar de novo pelo Revit.")) return;
+  let r; try{ r=await chamar({action:"modelo3dExcluir",pageId:id},60000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ _LAY3D[id]=r; toast(r.removidos?r.removidos+" arquivo(s) do 3D removidos desta obra.":"Esta obra já não tinha 3D próprio."); }
+  else toast("Não removeu: "+((r&&r.erro)||"erro"));
+  carregarLayout3d(id,!(r&&r.ok));
+}
 async function gravarLayout3d(id,base){
   const sel=document.getElementById("m3d-sel"); if(sel) sel.disabled=true;
   if(sel&&sel._cb) sel._cb.inp.disabled=true;
   let r; try{ r=await chamar({action:"modelo3dLayout",pageId:id,base:base||""},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
-  if(r&&r.ok){ _LAY3D[id]=r; toast(base?"Vínculo de layout gravado.":"Vínculo de layout removido."); if(base) puxarAreasDoLayout(id,base); }
+  if(r&&r.ok){ _LAY3D[id]=r; toast(base?"Vínculo de layout gravado.":"Vínculo de layout removido."); if(base) puxarAreasDoLayout(id,base);
+    /* 24/11: trocou a referência e esta obra tem 3D próprio — ele vale na frente nessas disciplinas; oferece tirar */
+    if(base&&r.tem3d&&confirm("Esta obra tem 3D próprio publicado ("+(r.disc||[]).map(d3n).join(", ")+"). Nessas disciplinas ele vale na frente do de "+(r.linkTitulo||"obra escolhida")+".\n\nRemover o 3D próprio desta obra e usar o de "+(r.linkTitulo||"lá")+"?"))
+      return removerProprio3d(id,true); }
   else toast("Não gravou o vínculo: "+((r&&r.erro)||"erro"));
   carregarLayout3d(id,!(r&&r.ok));
 }
