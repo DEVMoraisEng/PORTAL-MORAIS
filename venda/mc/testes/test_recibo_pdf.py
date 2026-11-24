@@ -2,7 +2,7 @@
 import os, re, sys
 import pytest
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", ".."))
-from venda.mc.recibo_pdf import recibo
+from venda.mc.recibo_pdf import recibo, LARGURA_VALOR
 
 def test_pdf_valido_com_acentos():
     b = recibo([("Unidade", "UNIDADE 07"), ("Comprador", "JOÃO DA SILVA TESTE"), ("Valor", "R$ 1.234,56")],
@@ -27,13 +27,14 @@ def _textos_do_conteudo(b):
         out.append(t.decode("latin-1"))
     return out
 
-def test_valor_longo_quebra_em_linhas_de_62():
-    valor = "0123456789" * 15  # 150 caracteres, sem espaço
+def test_valor_longo_quebra_em_linhas_de_largura_valor():
+    valor = "0123456789" * 15  # 150 caracteres, sem espaço: 48 + 48 + 48 + 6
     textos = _textos_do_conteudo(recibo([("Obs", valor)], "T"))
-    assert len(textos) == 5                      # título, rótulo e 3 linhas do valor
     assert textos[0] == "T" and textos[1] == "Obs:"
-    assert all(len(t) <= 62 for t in textos[2:])
-    assert "".join(textos[2:]) == valor
+    linhas_valor = textos[2:]
+    assert len(linhas_valor) == 4
+    assert all(len(t) <= LARGURA_VALOR for t in linhas_valor)
+    assert "".join(linhas_valor) == valor
 
 def test_quebra_de_linha_tab_e_cr_viram_espaco():
     textos = _textos_do_conteudo(recibo([("Obs", "a\nb\tc\rd")], "T\nX"))

@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import textwrap
 
-_PE_DA_PAGINA = 50  # y mínimo (pt) da última linha de texto
+LARGURA_VALOR = 48   # 48 × 11 pt × 0,67 ≈ 354 pt < 385 pt (de x=210 até a borda direita, 595)
+LARGURA_TITULO = 50  # 50 × 14 pt × 0,72 ≈ 504 pt < 535 pt (de x=60 até a borda direita, 595)
+_PE_DA_PAGINA = 50   # y mínimo (pt) da última linha de texto
 
 
 def _limpa(s: str) -> str:
@@ -25,12 +27,12 @@ def _linha(y: int, x: int, fonte: str, tamanho: int, texto: str) -> bytes:
 
 def recibo(linhas: list[tuple[str, str]], titulo: str) -> bytes:
     partes, y = [], 780
-    for pedaco in textwrap.wrap(_limpa(titulo), 70) or [""]:
+    for pedaco in textwrap.wrap(_limpa(titulo), LARGURA_TITULO) or [""]:
         partes.append(_linha(y, 60, "F2", 14, pedaco))
         y -= 18
     y -= 18
     for rot, val in linhas:
-        for i, pedaco in enumerate(textwrap.wrap(_limpa(val), 62) or [""]):
+        for i, pedaco in enumerate(textwrap.wrap(_limpa(val), LARGURA_VALOR) or [""]):
             if y < _PE_DA_PAGINA:
                 raise ValueError("recibo não cabe em uma página")
             if i == 0:
