@@ -1532,6 +1532,11 @@
     /* 03/11: Anexar contrato / Enviar ZIP (AnexosMC.gs) */
     MC_SEM_VENDA: "A venda ainda não foi lançada no Mais Controle — não há onde anexar o contrato.",
     MC_SEM_ZIP: "Ainda não há ZIP dos documentos assinados nesta venda (ele é montado quando todos assinam).",
+    SEM_PERMISSAO_LANCAR: "Só o perfil ADM ou MASTER lança a comissão. Você pode ver a prévia.",
+    PARCELAS_INVALIDAS: "Parcelas inválidas: confira valores (maiores que zero), datas e no máximo 6 parcelas.",
+    FAVORECIDO_INVALIDO: "O favorecido escolhido não é válido — escolha de novo e peça a prévia.",
+    COLUNA_FALTANDO: "A base de vendas não tem a coluna MC - COMISSÃO.",
+    SEM_VENDA_ID: "A venda ainda não está no Mais Controle — lance a venda primeiro.",
     MC_ANEXOS_SEM_FILA: "O robô do servidor não está configurado neste ambiente — anexe à mão no Mais Controle."
   };
   function mensagemMC(r) {
@@ -1566,6 +1571,160 @@
     if (quando > hoje) quando.setFullYear(quando.getFullYear() - 1);   /* virada de ano */
     return hoje - quando > 10 * 60 * 1000;
   }
+  /* ---- 24/11/2026: bloco "Comissão do corretor" (só condomínio, com venda no Mais Controle; ComissaoMC.gs) ---- */
+  function comCent(x) { return Math.round((typeof x === "number" ? x : lerNumBR(x)) * 100); }   /* centavos inteiros: nada de somar ponto flutuante */
+  function comReais(c) { return "R$ " + numBR(c / 100); }
+  function comValorTxt(c) { return Math.floor(c / 100) + "." + ("0" + (c % 100)).slice(-2); }
+  function comDataValida(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(s || "")); if (!m) return false;
+    var t = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+    return t.getUTCFullYear() === +m[1] && t.getUTCMonth() === +m[2] - 1 && t.getUTCDate() === +m[3];
+  }
+  function comSomaDias(iso, d) {
+    if (!comDataValida(iso)) return "";
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+    return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3] + d)).toISOString().slice(0, 10);
+  }
+  /* {modo, n, total, hoje, valores, datas, saldo} -> {ok, texto "V@D;V@D", erro, valores, datas, soma}.
+   * Sem `valores`, reparte `total` em n partes iguais (o resto de centavos na última); sem `datas`, de 30 em 30 dias. */
+  function parcelasDoForm(o) {
+    o = o || {};
+    var vista = o.modo !== "parcelado", hoje = o.hoje || hojeFluxo();
+    var vals = Array.isArray(o.valores) && o.valores.length ? o.valores : null;
+    var n = vista ? 1 : (vals ? vals.length : Number(o.n) || 0);
+    var falha = function (erro) { return { ok: false, texto: "", erro: erro, valores: [], datas: [], soma: 0 }; };
+    if (!vista && (n < 2 || n > 6)) return falha("Parcelado vai de 2 a 6 parcelas.");
+    var cent = [], i;
+    if (vals) { for (i = 0; i < n; i++) cent.push(comCent(vals[i])); }
+    else {
+      var total = comCent(o.total);
+      if (!(total > 0)) return falha("Informe o valor da comissão.");
+      var base = Math.floor(total / n);
+      for (i = 0; i < n; i++) cent.push(i < n - 1 ? base : total - base * (n - 1));
+    }
+    var datas = [], soma = 0;
+    for (i = 0; i < n; i++) {
+      if (!(cent[i] > 0)) return falha("Cada parcela precisa ter valor maior que zero.");
+      var d = Array.isArray(o.datas) && i < o.datas.length ? String(o.datas[i] || "") : comSomaDias(hoje, vista ? 0 : 30 * i);
+      if (!comDataValida(d)) return falha("Preencha o vencimento de todas as parcelas.");
+      if (o.hoje && (d < comSomaDias(o.hoje, -30) || d > comSomaDias(o.hoje, 400))) return falha("Vencimento fora do prazo (de 30 dias atrás até 400 dias à frente).");
+      datas.push(d); soma += cent[i];
+    }
+    var r = { ok: true, texto: cent.map(function (c, k) { return comValorTxt(c) + "@" + datas[k]; }).join(";"), erro: "",
+              valores: cent.map(function (c) { return c / 100; }), datas: datas, soma: soma / 100 };
+    if (o.saldo !== undefined && o.saldo !== null && soma > comCent(o.saldo))
+      return { ok: false, texto: "", erro: "A soma (" + comReais(soma) + ") passa do saldo (" + comReais(comCent(o.saldo)) + ").", valores: r.valores, datas: datas, soma: r.soma };
+    return r;
+  }
+  /* linhas "- id | nome | doc | pix" depois de "Candidatos:" (venda/mc/comissao.py::_linhas_candidatos) */
+  function comCandidatos(texto) {
+    var out = [], dentro = false;
+    String(texto || "").split(/\r?\n/).forEach(function (l) {
+      l = l.trim();
+      if (/^Candidatos:/i.test(l)) { dentro = true; return; }
+      if (!dentro) return;
+      var m = /^- (.+)$/.exec(l); if (!m) { dentro = false; return; }
+      var p = m[1].split(" | ");
+      if (p.length >= 4) out.push({ id: p[0].trim(), nome: p[1].trim(), doc: p[2].trim(), pix: p.slice(3).join(" | ").trim() });
+    });
+    return out;
+  }
+  function comSemCandidatos(texto) {
+    var dentro = false;
+    return String(texto || "").split(/\r?\n/).filter(function (l) {
+      var t = l.trim();
+      if (/^Candidatos:/i.test(t)) { dentro = true; return false; }
+      if (dentro && /^- /.test(t)) return false;
+      dentro = false; return true;
+    }).join("\n");
+  }
+  function comFavorecidoDoTexto(texto) {   /* "Favorecido: nome | doc" da prévia OK -> id do candidato (só se for único) */
+    var m = /^Favorecido: (.+?) \| (.+)$/m.exec(String(texto || "")); if (!m) return { nome: "", id: "" };
+    var ach = comCandidatos(texto).filter(function (c) { return c.nome === m[1].trim() && c.doc === m[2].trim(); });
+    return { nome: m[1].trim(), id: ach.length === 1 ? ach[0].id : "" };
+  }
+  /* valores e datas que a tela mostra: o que a pessoa digitou (se ainda vale) ou o padrão; ui = {modo, n, valores, datas, ...} */
+  function comForm(estado, ui) {
+    var saldoC = Math.max(0, comCent(Number(estado.comissao) || 0) - comCent(Number(estado.jaLancado) || 0));
+    var hoje = ui.hoje || hojeFluxo();
+    var modo = ui.modo === "parcelado" ? "parcelado" : "vista";
+    var n = modo === "vista" ? 1 : Math.min(6, Math.max(2, Number(ui.n) || 2));
+    var vals, datas;
+    if (Array.isArray(ui.valores) && ui.valores.length === n && Array.isArray(ui.datas) && ui.datas.length === n) { vals = ui.valores; datas = ui.datas; }
+    else {
+      var pad = parcelasDoForm({ modo: modo, n: n, total: saldoC / 100, hoje: hoje });
+      vals = pad.valores.map(function (v) { return numBR(v); }); datas = pad.datas;
+    }
+    return { saldoC: saldoC, modo: modo, n: n, valores: vals, datas: datas,
+             res: parcelasDoForm({ modo: modo, valores: vals, datas: datas, saldo: saldoC / 100, hoje: hoje }) };
+  }
+  function comCalculo(estado, ui) {
+    var f = comForm(estado, ui), texto = String(estado.texto || "");
+    var previaOk = /^PR[ÉE]VIA OK/i.test(texto.split("\n")[0]);
+    var cands = comCandidatos(texto), ft = comFavorecidoDoTexto(texto);
+    var favEf = ui.fav !== undefined ? String(ui.fav || "") : ft.id;
+    var ocupado = !!ui.ocupado || !!estado.processando;
+    var podePrevia = f.saldoC > 0 && !ocupado && !ui.testes && f.res.ok;
+    var favPrevia = ft.id || ui.favPrevia || "";
+    var favOk = cands.length < 2 || (!!favEf && favEf === favPrevia);
+    var mudou = !!ui.parcelasPrevia && f.res.texto !== ui.parcelasPrevia;
+    return { form: f, previaOk: previaOk, cands: cands, favEf: favEf, favNome: ft.nome, ocupado: ocupado, podePrevia: podePrevia,
+             podeLancar: podePrevia && previaOk && ui.adm !== false && favOk && !mudou, mudou: mudou,
+             soma: f.res.ok ? "Soma: " + comReais(comCent(f.res.soma)) + " de " + comReais(f.saldoC) + " de saldo"
+                            : (f.res.erro || "Confira os valores e as datas.") };
+  }
+  /* e = {comissao, jaLancado, texto, corretor, processando} (mcComissaoEstado) ou null; u = {adm, testes, ocupado, msg, modo, n, valores, datas, fav, ...} */
+  function htmlComissao(e, u) {
+    u = u || {};
+    var h = '<div class="grp">Comissão do corretor</div>';
+    if (!e) return h + '<div class="vazio">' + esc(u.msg || "carregando…") + "</div>";
+    var com = Number(e.comissao) || 0;
+    if (!(com > 0)) return h + '<div class="vazio">Sem comissão a lançar nesta venda (venda direta ou sem corretor).</div>';
+    var c = comCalculo(e, u), f = c.form, dis = function (x) { return x ? " disabled" : ""; };
+    h += '<div class="dz-linha com"><span class="dz-rot">Comissão: <b>' + esc(comReais(comCent(com))) + "</b> · Já lançado: <b>" + esc(comReais(comCent(Number(e.jaLancado) || 0))) +
+      "</b> · Saldo: <b>" + esc(comReais(f.saldoC)) + "</b></span></div>";
+    if (e.corretor) h += '<div class="dz-linha com"><span class="dz-rot">Corretor: ' + esc(e.corretor) + (e.imobiliaria ? " · " + esc(e.imobiliaria) : "") + "</span></div>";
+    var tp = topicosMC(comSemCandidatos(e.texto || "").replace(/\s*\[t=\d+\]/g, ""));
+    h += '<div class="dz-linha com"><span class="dz-rot">Situação: <b>' + esc(tp.titulo || "ainda sem prévia") + "</b></span></div>";
+    if (tp.itens.length) h += '<ul class="mc-topicos">' + tp.itens.map(function (it) { return "<li" + (it.sub ? ' class="mc-sub"' : "") + ">" + esc(it.texto) + "</li>"; }).join("") + "</ul>";
+    if (c.cands.length) {
+      h += '<div class="dz-linha com com-cands"><span class="dz-rot">Quem recebe (escolha um e peça a prévia de novo):</span>';
+      c.cands.forEach(function (k) {
+        var pix = /^sem pix$/i.test(k.pix) ? "sem Pix" : (/^pix/i.test(k.pix) ? k.pix : "Pix " + k.pix);
+        h += '<label class="com-cand"><input type="radio" data-com="fav" name="com-fav" value="' + esc(k.id) + '"' + (c.favEf === k.id ? " checked" : "") + dis(c.ocupado || u.testes) + "> " +
+          esc(k.nome) + " · " + esc(k.doc) + " · " + esc(pix) + "</label>";
+      });
+      h += "</div>";
+    }
+    if (e.processando) h += '<div class="dz-linha com"><b>o robô está trabalhando… (1 a 3 minutos)</b></div>';
+    if (f.saldoC > 0) {
+      var bloq = c.ocupado || u.testes;
+      h += '<div class="dz-linha com"><label class="com-op"><input type="radio" name="com-modo" data-com="modo" value="vista"' + (f.modo === "vista" ? " checked" : "") + dis(bloq) + "> À vista</label>" +
+        '<label class="com-op"><input type="radio" name="com-modo" data-com="modo" value="parcelado"' + (f.modo === "parcelado" ? " checked" : "") + dis(bloq) + "> Parcelado</label>";
+      if (f.modo === "parcelado") {
+        h += '<label class="com-op">Parcelas <select data-com="n"' + dis(bloq) + ">";
+        for (var k = 2; k <= 6; k++) h += '<option value="' + k + '"' + (f.n === k ? " selected" : "") + ">" + k + "</option>";
+        h += "</select></label>";
+      }
+      h += "</div>";
+      for (var i = 0; i < f.n; i++) {
+        h += '<div class="dz-linha com com-p"><span class="dz-rot">' + (f.n > 1 ? "Parcela " + (i + 1) + "/" + f.n : "Valor e vencimento") + "</span>" +
+          '<input type="text" inputmode="decimal" data-com="v" data-i="' + i + '" value="' + esc(f.valores[i]) + '" aria-label="Valor da parcela ' + (i + 1) + '"' + dis(bloq) + ">" +
+          '<input type="date" data-com="d" data-i="' + i + '" value="' + esc(f.datas[i]) + '" aria-label="Vencimento da parcela ' + (i + 1) + '"' + dis(bloq) + "></div>";
+      }
+      h += '<div class="dz-linha com"><span class="dz-rot com-soma">' + esc(c.soma) + "</span></div>";
+      if (c.mudou) h += '<div class="dz-nota com">Valores ou datas mudaram depois da prévia: peça a prévia de novo.</div>';
+      if (u.adm === false) h += '<div class="dz-nota com">Só perfil ADM ou MASTER lança a comissão; você pode ver a prévia.</div>';
+      h += '<div class="dz-linha com"><button type="button" class="bt ghost bt-mini" data-acao="com-previa"' + dis(!c.podePrevia) + ">Ver prévia</button> " +
+        '<button type="button" class="bt bt-mini" data-acao="com-lancar"' + dis(!c.podeLancar) + ">Lançar comissão</button> ";
+    } else {
+      h += '<div class="dz-linha com"><span class="dz-rot">Comissão já lançada por inteiro.</span></div><div class="dz-linha com">';
+    }
+    h += '<button type="button" class="bt ghost bt-mini" data-acao="com-atualizar"' + dis(u.ocupado) + ">Atualizar</button></div>";
+    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    return h;
+  }
+
   function htmlMC(e, u) {
     /* PROCESSANDO com mais de 15 min (carimbo [t=ms]) = o robô não respondeu: libera pedir de novo */
     var tProc = e && /\[t=(\d+)\]/.exec(e.situacao || "");
@@ -1606,6 +1765,11 @@
       h += '<button type="button" class="bt bt-mini" data-acao="mc-anexar-zip"' + d(ocupado) + ">Enviar ZIP ao Mais Controle</button> ";
     h += '<button type="button" class="bt ghost bt-mini" data-acao="mc-atualizar"' + (u.ocupado ? " disabled" : "") + ">Atualizar</button></div>";
     if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    if (u.condominio) {   /* 24/11: só a linha do condomínio; casa de rua não chama (SO_CONDOMINIO no servidor) */
+      var cm = u.comissao || {};
+      h += e.vendaId ? htmlComissao(cm.estado || null, Object.assign({}, cm.ui, { testes: testes, msg: cm.msg }))
+        : '<div class="grp">Comissão do corretor</div><div class="vazio">A comissão só é lançada depois que a venda estiver no Mais Controle.</div>';
+    }
     return h;
   }
 
@@ -1784,7 +1948,7 @@
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, htmlPerguntaTipo: htmlPerguntaTipo, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
+                   topicosMC: topicosMC, htmlComissao: htmlComissao, parcelasDoForm: parcelasDoForm, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
@@ -1831,6 +1995,10 @@
     ".vb-ass .ass-ok,.vb-pr-ass .ass-ok{color:#1E8E4E;font-weight:700}.vb-ass .ass-pend,.vb-pr-ass .ass-pend{color:#B7791F;font-weight:700}" +
     ".vb-ass .ass-rec,.vb-pr-ass .ass-rec{color:#C0392B;font-weight:700}.vb-ass .ass-data,.vb-pr-ass .ass-data{color:var(--text3,#555);font-size:12px}" +
     ".vb-mc a.mc-abrir{color:var(--azul,#1d4f63);font-weight:700}" +
+    /* 24/11: Comissão do corretor — campos empilham no celular, 16 px e alvo de 44 px */
+    ".vb-mc .com-op,.vb-mc .com-cand{display:inline-flex;gap:6px;align-items:center;margin-right:12px;min-height:32px}.vb-mc .com-cand{display:flex;margin-right:0;overflow-wrap:anywhere}" +
+    ".vb-mc .com-p{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.vb-mc .com-p input{min-width:0;max-width:100%}.vb-mc .com-p input[data-com=v]{width:130px}" +
+    "@media (max-width:600px){.vb-mc .com input,.vb-mc .com select{font-size:16px;min-height:44px}.vb-mc .com .bt{min-height:44px}.vb-mc .com-cand,.vb-mc .com-op{min-height:44px}.vb-mc .com-p input{flex:1 1 140px}}" +
     /* 01/11 (plano 23 A): Documentos assinados — nome e botões quebram de linha no celular */
     ".vb-ass .ass-docs,.vb-pr-ass .ass-docs{list-style:none;padding-left:0}" +
     /* 18/11/2026 (troca de fiadores): "Já assinado" — um documento por caixa, uma pessoa por linha */
@@ -2860,7 +3028,7 @@
   function criarBlocosVenda(pageId, ativo, opts) {
     var eu = { pageId: pageId }, comRec = !!(opts && opts.recebimentos);
     var raiz = null, seqC = 0, carregandoC = false, estadoC = null, uiC = novoUiC();
-    var estadoM = null, uiM = novoUiM(), esperaM = null, ctxA = novoCtxA();
+    var estadoM = null, uiM = novoUiM(), esperaM = null, esperaCom = null, ctxA = novoCtxA();
     var estadoR = null, uiR = novoUiR(), esperaR = null;
     var estadoF = null, uiF = { filtro: "todas", todas: false, msg: "", carregando: false };   /* 31/10: aba Financeiro */
     var estadoA = null, uiA = novoUiA(), esperaA = null;   /* 31/10: Antecipação de parcelas (aba Financeiro) */
@@ -2869,6 +3037,9 @@
     var soPR = !!(opts && opts.soPreReserva);
     var estadoD = null, uiD = { ocupado: null, msg: "", testes: perfilTestes() };   /* 28/10: conferência dos documentos */
     var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes(), rapido: !!(opts && opts.rapido) };
+    /* 24/11: Comissão do corretor — só no cartão do condomínio (comPR); ui.adm = perfil que pode lançar */
+    uiM.condominio = !!comPR;
+    uiM.comissao = { estado: null, msg: "", ui: { adm: /^(ADM|MASTER)$/.test(String(((typeof sessao === "function" ? sessao() : null) || {}).tipo || "").toUpperCase()), hoje: hojeFluxo(), modo: "vista", n: 2 } };
     var ctxP = novoCtxA(); ctxP.doc = "PRE_RESERVA";
     function vivo() { return !!ativo(eu); }
     function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
@@ -3666,7 +3837,74 @@
       if (r.ok) { estadoM = { situacao: r.situacao || "", vendaId: r.vendaId || "" }; }
       else uiM.msg = mensagemMC(r);
       pintarM();
+      if (r.ok && uiM.condominio && r.vendaId) carregarCom();
       return r;
+    }
+    /* 24/11: Comissão do corretor (ComissaoMC.gs) */
+    async function carregarCom() {
+      var cm = uiM.comissao;
+      var r = await chamarVenda({ action: "mcComissaoEstado", pageId: pageId });
+      if (!vivo()) return null;
+      if (r.ok) { cm.estado = r; cm.msg = ""; } else cm.msg = mensagemMC(r);
+      pintarM();
+      return r;
+    }
+    function acompanharCom(voltas) {
+      if (esperaCom) clearTimeout(esperaCom);
+      esperaCom = setTimeout(async function () {
+        esperaCom = null;
+        if (!vivo()) return;
+        var r = await carregarCom();
+        if (r && r.ok && r.processando && voltas > 1) acompanharCom(voltas - 1);
+      }, 10000);
+    }
+    /* o que está nos campos vira estado (sem repintar: repintar no blur engoliria o clique no botão) */
+    function lerFormCom() {
+      var cm = uiM.comissao, w = raiz; if (!w || !cm.estado) return;
+      var vs = w.querySelectorAll('.vb-mc [data-com="v"]'), ds = w.querySelectorAll('.vb-mc [data-com="d"]');
+      if (!vs.length || vs.length !== ds.length) return;
+      cm.ui.valores = Array.prototype.map.call(vs, function (x) { return x.value; });
+      cm.ui.datas = Array.prototype.map.call(ds, function (x) { return x.value; });
+    }
+    function comAoVivo() {
+      var cm = uiM.comissao, w = dentro(".vb-mc"); if (!w || !cm.estado) return;
+      lerFormCom();
+      var c = comCalculo(cm.estado, Object.assign({}, cm.ui, { testes: uiM.testes }));
+      var so = w.querySelector(".com-soma"); if (so) so.textContent = c.soma;
+      var bp = w.querySelector('[data-acao="com-previa"]'), bl = w.querySelector('[data-acao="com-lancar"]');
+      if (bp) bp.disabled = !c.podePrevia;
+      if (bl) bl.disabled = !c.podeLancar;
+    }
+    function aoMudarCom(el) {
+      var cm = uiM.comissao, k = el.getAttribute("data-com"); if (!cm.estado) return;
+      if (k === "v" || k === "d") { comAoVivo(); return; }
+      lerFormCom();
+      if (k === "modo") { cm.ui.modo = el.value === "parcelado" ? "parcelado" : "vista"; cm.ui.valores = null; cm.ui.datas = null; }
+      else if (k === "n") { cm.ui.n = Number(el.value) || 2; cm.ui.valores = null; cm.ui.datas = null; }
+      else if (k === "fav") cm.ui.fav = el.value;
+      pintarM();
+    }
+    async function aoClicarCom(acao) {
+      var cm = uiM.comissao;
+      if (cm.ui.ocupado || uiM.ocupado) return;
+      if (acao === "com-atualizar") { cm.msg = ""; await carregarCom(); return; }
+      if (!cm.estado) return;
+      lerFormCom();
+      var c = comCalculo(cm.estado, Object.assign({}, cm.ui, { testes: uiM.testes }));
+      var aplicar = acao === "com-lancar";
+      if (!c.podePrevia || (aplicar && !c.podeLancar)) return;
+      var n = c.form.res.valores.length;
+      if (aplicar && !window.confirm("Lançar " + comReais(comCent(c.form.res.soma)) + " em " + n + " parcela(s) para " + (c.favNome || "o favorecido da prévia") + " no Mais Controle?")) return;
+      cm.ui.ocupado = acao; cm.msg = ""; pintarM();
+      var r = await chamarVenda({ action: "mcComissao", pageId: pageId, parcelas: c.form.res.texto, favorecido: c.favEf || "", aplicar: aplicar }, 90000);
+      if (!vivo()) return;
+      cm.ui.ocupado = null;
+      if (r.ok) {
+        if (!aplicar) { cm.ui.favPrevia = c.favEf || ""; cm.ui.parcelasPrevia = c.form.res.texto; }
+        cm.msg = aplicar ? "Lançamento pedido ao robô — em 1 a 3 minutos clique em Atualizar." : "Prévia pedida ao robô.";
+      } else cm.msg = mensagemMC(r);
+      await carregarCom();
+      if (r.ok) acompanharCom(24);
     }
     function acompanharMC(voltas) {
       if (esperaM) clearTimeout(esperaM);
@@ -3720,6 +3958,7 @@
       var b = ev.target.closest("[data-acao]"); if (!b || b.disabled || !vivo()) return;
       var acao = b.getAttribute("data-acao"), r, seq;
       if (/^mc-/.test(acao)) return aoClicarMC(acao);
+      if (/^com-/.test(acao)) return aoClicarCom(acao);
       if (/^pr-/.test(acao)) return aoClicarPR(acao);
       if (acao === "c-fluxo-pdf") {   /* 04/11: o PDF do quadro do cartão, com o fluxo que está salvo */
         if (typeof window.condPdfFluxo === "function") window.condPdfFluxo(pageId);
@@ -4421,6 +4660,7 @@
         /* 29/10: o que se digita nas condições especiais sobrevive a um redesenho do bloco */
         el.addEventListener("input", function (ev) {
           if (raiz !== el || el.__vbLigado !== eu || !ev.target.classList) return;
+          if (ev.target.hasAttribute("data-com")) { aoMudarCom(ev.target); return; }   /* 24/11: só valores/datas chegam aqui como input */
           if (ev.target.hasAttribute("data-an")) { aoDigitarAnt(ev.target); return; }
           if (ev.target.hasAttribute("data-fxb")) { aoDigitarBem(ev.target); return; }   /* 03/11: formulário do bem */
           if (ev.target.hasAttribute("data-fx")) { aoDigitarFluxo(ev.target); return; }
@@ -4435,6 +4675,7 @@
         });
         el.addEventListener("change", function (ev) {
           if (raiz !== el || el.__vbLigado !== eu) return;
+          if (ev.target.hasAttribute("data-com")) { aoMudarCom(ev.target); return; }
           if (ev.target.getAttribute("data-pr-c") === "forma") { guardarContaPR(); pintarP(); return; }
           if (ev.target.hasAttribute("data-pr-conj")) { aoMarcarConjugePR(ev.target.checked); return; }
           /* 03/11 (dono): data limite para assinar sobrevive a um redesenho do bloco */
@@ -4492,7 +4733,7 @@
     };
     eu.raiz = function () { return raiz; };
     eu.pintarAssinatura = function () { pintarA(); if (comPR) { var a = dentro(".vb-pr-ass"); if (a) a.innerHTML = htmlAssPRVisivel(); } };
-    eu.parar = function () { if (esperaG) clearTimeout(esperaG); esperaG = null; if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; if (esperaR) clearTimeout(esperaR); esperaR = null; };
+    eu.parar = function () { if (esperaG) clearTimeout(esperaG); esperaG = null; if (esperaM) clearTimeout(esperaM); esperaM = null; if (esperaCom) clearTimeout(esperaCom); esperaCom = null; if (esperaA) clearTimeout(esperaA); esperaA = null; uiA.acompanhando = false; if (esperaR) clearTimeout(esperaR); esperaR = null; };
     /* 31/10: o Financeiro lê as parcelas só ao abrir; o Antecipar confere a data e, se a simulação já estava aberta, o estado */
     eu.abrirAba = function (aba) {
       if (aba !== "financeiro" || !comPR || soPR) return;
