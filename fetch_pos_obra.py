@@ -180,6 +180,14 @@ def nivel_de(nome):
     return m.group(1) if m else None
 
 
+def mesmo_nivel(nome, nivel):
+    """24/11: compara o NÚMERO do retorno, não um pedaço do texto. Com o
+    RETORNO 10 criado, "1" in "INFORMAÇÕES RETORNO 10" dava verdadeiro e o
+    retorno 1 podia pegar o texto/andamento do 10."""
+    n = nivel_de(nome)
+    return n is not None and int(n) == int(nivel)
+
+
 def eh_retorno(n_normalizado):
     """A base tem os dois nomes convivendo: REMARCAÇÃO (antigo) e RETORNO."""
     return "REMARCA" in n_normalizado or "RETORNO" in n_normalizado
@@ -194,7 +202,7 @@ def info_da_coluna(props, col):
     if eh_retorno(n) and nivel:
         for nome, pp in props.items():
             kn = norm(nome)
-            if "INFORMAC" in kn and eh_retorno(kn) and nivel in kn:
+            if "INFORMAC" in kn and eh_retorno(kn) and mesmo_nivel(nome, nivel):
                 return valor(pp) or ""
     return v_tol(props, "INFORMAÇÕES SERVIÇO") or ""
 
@@ -209,7 +217,7 @@ def andamento_da_coluna(props, col, geral):
     if eh_retorno(n) and nivel:
         for nome, pp in props.items():
             kn = norm(nome)
-            if "ANDAMENTO" in kn and eh_retorno(kn) and nivel in kn:
+            if "ANDAMENTO" in kn and eh_retorno(kn) and mesmo_nivel(nome, nivel):
                 return valor(pp)
         return None
     if n.startswith("DATA") and "SERVICO" in n:

@@ -1081,7 +1081,7 @@ function andamentoDoEvento(val, col, andamentoGeral){
   if(ehRetorno(n) && nivel){
     for(const k in val){
       const kn = normN(k);
-      if(kn.indexOf("ANDAMENTO")>=0 && ehRetorno(kn) && kn.indexOf(nivel)>=0) return val[k];
+      if(kn.indexOf("ANDAMENTO")>=0 && ehRetorno(kn) && numRetorno(kn)===Number(nivel)) return val[k];   // 24/11: número exato — com o RETORNO 10, "1" casava com "10"
     }
     return null;                       // coluna ainda não criada no Notion
   }
@@ -3244,7 +3244,7 @@ function renderHistorico(){
 function acharInfoRm(val, nivel){
   for(const col in val){
     const n = normN(col);
-    if(n.indexOf("INFORMAC")>=0 && ehRetorno(n) && n.indexOf(String(nivel))>=0) return val[col];
+    if(n.indexOf("INFORMAC")>=0 && ehRetorno(n) && numRetorno(n)===Number(nivel)) return val[col];   // 24/11: número exato (RETORNO 1 × RETORNO 10)
   }
   return "";
 }
