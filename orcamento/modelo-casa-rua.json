@@ -1,5 +1,5 @@
 {
- "versao": "2026-11-17",
+ "versao": "2026-11-24",
  "origem": "REF 127 do Mais Controle — PR 06 QD 07 LT 27 (Goiânia, 2 casas)",
  "casas_ref": 2,
  "multiplicadores": {
@@ -1524,7 +1524,8 @@
     "arred": "nenhum",
     "disc": "ARQ",
     "revit": [
-     "Revestimento detalhe da cozinha"
+     "Revestimento detalhe da cozinha",
+     "Revestimento detalhe da cozinha + MO"
     ],
     "padrao": {
      "t": "casa",
@@ -1578,7 +1579,8 @@
     "arred": "nenhum",
     "disc": "ARQ",
     "revit": [
-     "Revestimento no box do banheiro"
+     "Revestimento no box do banheiro",
+     "Revestimento no box do banheiro + MO"
     ],
     "padrao": {
      "t": "casa",
@@ -1595,14 +1597,12 @@
    "q_ref": 255.71,
    "obs": "soma de todos pisos e revestimentos",
    "regra": {
-    "t": "soma",
-    "de": [
-     "8.1",
-     "8.2",
-     "8.3",
-     "8.4",
-     "8.5",
-     "8.7"
+    "t": "revit",
+    "arred": "nenhum",
+    "disc": "ARQ",
+    "revit": [
+     "Argamassa de assentamento para ceramicas - AC",
+     "Argamassa de assentamento - ACI"
     ]
    }
   },

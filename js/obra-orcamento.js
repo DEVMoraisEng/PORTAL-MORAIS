@@ -48,7 +48,7 @@
   /* ---------------- carregamentos ---------------- */
   async function carregarModelo() {
     if (MODELO) return MODELO;
-    const r = await fetch("orcamento/modelo-casa-rua.json?v=1", { cache: "no-cache" });
+    const r = await fetch("orcamento/modelo-casa-rua.json?v=2", { cache: "no-cache" });
     if (!r.ok) throw new Error("não carregou o modelo do orçamento (HTTP " + r.status + ")");
     MODELO = await r.json(); return MODELO;
   }
@@ -138,6 +138,7 @@
       const iQ = cols.findIndex(c => /QUANTIDADE|CONTAGEM|COMPRIMENTO|AREA DA LAJE|^AREA/.test(c));
       const iUn = cols.findIndex(c => /^UNID/.test(c));
       const iDiam = cols.findIndex(c => /DIAMETRO/.test(c));
+      const iProf = cols.findIndex(c => /^PROFUNDIDADE/.test(c)), iLarg = cols.findIndex(c => /^LARGURA/.test(c));
       if (iDesc < 0 || iQ < 0) return;
       let secao = "";
       (t.linhas || []).forEach(l => {
@@ -147,8 +148,12 @@
         if (!desc && typeof v[0] === "string" && v[0].trim() && !(q > 0)) { secao = v[0].trim(); return; }
         if (!desc || !(q > 0)) return;
         if (iTipo >= 0 && v[iTipo] && NN(v[iTipo]) !== "ITEM") return;
-        const nome = desc + (iDiam >= 0 && v[iDiam] ? " " + v[iDiam] + " mm" : "");
-        out.push({ disc: t.disc, tabela: t.nome || "", secao: secao, arrimo: /ARRIMO/.test(NN(secao)), nome: nome, k: chave(nome), q: q, un: iUn >= 0 ? String(v[iUn] || "") : "", raw: l });
+        /* 24/11/26 (dono): bancada sem a medida ia para o MC errada — Profundidade × Largura entram no nome (em cm,
+           como no catálogo: "… - 50 x 120 cm") e o código sai do catálogo pela mesma medida */
+        const cm = x => { let n = typeof x === "number" ? x : parseFloat(String(x == null ? "" : x).replace(",", ".")); if (!(n > 0)) return 0; if (n <= 10) n *= 100; else if (n > 500) n /= 10; return Math.round(n); };
+        const dims = iProf >= 0 && iLarg >= 0 && cm(v[iProf]) && cm(v[iLarg]) ? [cm(v[iProf]), cm(v[iLarg])] : null;
+        const nome = desc + (iDiam >= 0 && v[iDiam] ? " " + v[iDiam] + " mm" : "") + (dims ? " - " + dims[0] + " x " + dims[1] + " cm" : "");
+        out.push({ disc: t.disc, tabela: t.nome || "", secao: secao, arrimo: /ARRIMO/.test(NN(secao)), nome: nome, desc: desc, dims: dims, k: chave(nome), q: q, un: iUn >= 0 ? String(v[iUn] || "") : "", raw: l });
       });
     });
     return out;
@@ -164,6 +169,23 @@
     return out;
   }
 
+  /* bancada do Revit (descrição + medida) -> código do catálogo com a MESMA descrição e a MESMA medida (a ordem
+     "50 x 120" / "120 x 50" não importa). Não acha a medida exata: fica sem código e diz as medidas mais perto. */
+  const MED_RE = /\s*-\s*(\d+(?:[.,]\d+)?)\s*X\s*(\d+(?:[.,]\d+)?)\s*CM\s*$/;
+  function bancadaCat(x) {
+    if (!x.dims || !CAT) return { cod: null, perto: [] };
+    const base = chave(x.desc), P = x.dims[0], W = x.dims[1], achados = [], perto = [];
+    CAT.forEach(c => {
+      const n = NN(c[2]), m = n.match(MED_RE); if (!m) return;
+      if (chave(n.replace(MED_RE, "")) !== base) return;
+      const a = Math.round(parseFloat(m[1].replace(",", "."))), b = Math.round(parseFloat(m[2].replace(",", ".")));
+      if ((a === P && b === W) || (a === W && b === P)) achados.push(c);
+      else perto.push({ c: c, d: Math.min(Math.abs(a - P) + Math.abs(b - W), Math.abs(a - W) + Math.abs(b - P)), t: a + " x " + b + " cm" });
+    });
+    const cod = achados.find(c => c[7]) || achados[0] || null;
+    return { cod: cod, perto: perto.sort((u, v) => u.d - v.d).slice(0, 2).map(p => p.t) };
+  }
+
   /* ---------------- motor: modelo + obra + formulário + Revit -> linhas ---------------- */
   function gerar(o, ctx, revit) {
     const M = MODELO, nC = Number(o.n_casas) || 0, canedo = /CANEDO/.test(NN(o.cidade)), f = ctx.form || {};
@@ -173,6 +195,7 @@
     const discsRevit = {}; (revit && revit.linhas || []).forEach(r => { discsRevit[r.disc] = 1; });
     const arrimoRevit = (revit && revit.linhas || []).some(r => r.arrimo);
     const usados = new Set(), L = [], alertas = [];
+    (revit && revit.linhas || []).forEach(x => { if (x.dims) { const b = bancadaCat(x); x.cat = b.cod; x.perto = b.perto; } });
     let seq = 0;
     const nova = (it, extra) => Object.assign({ id: "l" + (++seq), etapa: paiDe(it.idx), idx: it.idx, orig: it.idx, cod: it.cod, cat: it.cat, nome: it.nome, un: it.un, q: 0, origem: "", aviso: "",
       qref: it.q_ref ? Math.round(it.q_ref / (M.casas_ref || 2) * (nC || 1) * 100) / 100 : null }, extra);
@@ -184,28 +207,31 @@
       if (r.cond === "arrimo" && !(f.arrimoSim === true || arrimoRevit)) return;
       if (r.cond === "fossa" && !canedo && f.semEsgoto === false) return;
       const ln = nova(it);
-      if (r.variavel) ln.aviso = "item variável — conferir (Felipe)";
+      if (r.variavel && r.t === "revit") ln.aviso = "item variável — conferir (Felipe)";
       if (r.conferir) ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + r.conferir;
       if (r.cond === "fossa" && !canedo && !f.semEsgoto) ln.aviso = "conferir se tem rede de esgoto (formulário de obra, pergunta 10)";
       switch (r.t) {
         case "revit": {
           const ks = new Set([chave(it0.nome), chave(it.nome)].concat((r.revit || []).map(chave)));
-          const rows = (revit && revit.linhas || []).filter(x => ks.has(x.k) && (!r.disc || x.disc === r.disc) && (!!r.secao === x.arrimo));
+          const rows = (revit && revit.linhas || []).filter(x => (ks.has(x.k) || (x.cat && it.cod && String(x.cat[1]) === String(it.cod))) && (!r.disc || x.disc === r.disc) && (!!r.secao === x.arrimo));
           if (rows.length) {
             rows.forEach(x => usados.add(x));
             const base = rows.reduce((s, x) => s + x.q, 0), m = mult[r.disc] || 1, fa = r.fator || 1;
             Object.assign(ln, { q: arred(base * m * fa, r.arred), revit: { base: base, disc: r.disc, fator: fa, arred: r.arred }, refs: refsDe(rows), unRevit: rows[0].un,
               origem: "Revit " + r.disc + ": " + numBr(base) + (m !== 1 ? " × " + m : "") + (fa !== 1 ? " × " + fa : "") });
           } else {
-            const p = r.padrao || { t: "fixo", q: 0 };
-            ln.q = qtdSimples(p, nC); ln.origem = "não veio do Revit — " + descr(p, nC);
-            ln.semRevit = true;
-            if (!ln.aviso && ln.q > 0 && (discsRevit[r.disc] || !temRevit)) ln.aviso = temRevit ? "não achei no quantitativo do Revit" : "";
+            /* 24/11/26 (dono): sem correlação com o Revit NÃO se estima nada — fica zerado e avisa */
+            const esperado = (r.revit && r.revit.length ? r.revit : [it.nome]).join(" / ");
+            ln.q = 0; ln.semRevit = true;
+            ln.origem = "sem correlação no Revit — procurei «" + esperado + "»" + (r.disc ? " no " + r.disc : "");
+            ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + (!temRevit ? "sem quantitativo do Revit — preencha a quantidade"
+              : !discsRevit[r.disc] ? "o Revit desta obra não tem " + (r.disc || "essa disciplina") + " publicado — preencha a quantidade"
+              : "não achei correlação no quantitativo do Revit — preencha a quantidade");
           }
           break;
         }
         case "cada": {
-          for (let c = 1; c <= Math.max(nC, 1); c++) L.push(Object.assign(nova(it), { nome: it.nome + " — CASA " + c, q: r.f || 1, origem: "1 linha por casa", aviso: ln.aviso }));
+          for (let c = 1; c <= Math.max(nC, 1); c++) L.push(Object.assign(nova(it), { nome: it.nome + " — CASA " + c, q: r.f || 1, padrao: true, origem: "PADRÃO da base: " + numBr(r.f || 1) + " por casa (1 linha por casa)", aviso: ln.aviso }));
           return;
         }
         case "padrao": {
@@ -224,27 +250,37 @@
         case "area": {
           const re = new RegExp(r.re, "i"), as = (revit && revit.areas || []).filter(x => re.test(NN(x.nome)));
           if (as.length) { const s = as.reduce((t, x) => t + x.a, 0); ln.q = arred(s, r.arred); ln.origem = "Revit: áreas " + r.re.toLowerCase() + " " + numBr(s) + " m²"; }
-          else { ln.q = it.q_ref ? Math.round(it.q_ref / (M.casas_ref || 2) * nC * 100) / 100 : 0; ln.origem = "não veio do Revit — proporção do REF"; ln.semRevit = true; }
+          else { ln.q = 0; ln.origem = "sem correlação no Revit — nenhum ambiente com " + r.re.toLowerCase(); ln.semRevit = true; ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + "não achei no Revit — preencha a quantidade"; }
           break;
         }
         case "soma": ln.soma = r.de; ln.origem = "soma de " + r.de.join(" + "); break;
-        default: ln.q = qtdSimples(r, nC); ln.origem = descr(r, nC);
+        default:
+          if (r.variavel) { ln.q = 0; ln.origem = "item variável — não tem quantidade padrão na base"; ln.aviso = "item variável — preencha a quantidade"; break; }
+          ln.q = qtdSimples(r, nC); ln.origem = "PADRÃO da base: " + descr(r, nC); ln.padrao = true;
       }
       L.push(ln);
     });
     /* somas depois de tudo */
-    L.forEach(ln => { if (ln.soma) ln.q = Math.round(L.filter(x => ln.soma.indexOf(x.idx) >= 0).reduce((s, x) => s + (Number(x.q) || 0), 0) * 100) / 100; });
+    L.forEach(ln => {
+      if (!ln.soma) return;
+      const ps = L.filter(x => ln.soma.indexOf(x.idx) >= 0), sem = ps.filter(x => !(Number(x.q) > 0));
+      ln.q = Math.round(ps.reduce((s, x) => s + (Number(x.q) || 0), 0) * 100) / 100;
+      ln.origem = "soma de " + ps.filter(x => Number(x.q) > 0).map(x => x.idx + " (" + numBr(x.q) + ")").join(" + ");
+      if (sem.length) ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + "a soma está sem " + sem.map(x => x.idx).join(", ") + " (zerado) — confira";
+    });
     /* o que veio do Revit e não está no modelo: entra no fim da etapa pelo índice da seção do Revit */
     (revit && revit.linhas || []).filter(x => !usados.has(x)).forEach(x => {
-      const c = CAT_MAP && CAT_MAP.chave[x.k];
+      const c = x.dims ? x.cat : CAT_MAP && CAT_MAP.chave[x.k];
       const et = etapaDaSecao(x.secao);
       const m = mult[x.disc] || 1;
       L.push({ id: "l" + (++seq), etapa: et, idx: "", cod: c ? c[1] : "", cat: c ? c[0] : "", nome: c ? c[2] : x.nome, un: c ? c[3] : x.un,
         q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" }, refs: refsDe([x]), unRevit: x.un,
         origem: "Revit " + x.disc + " (" + x.tabela + "): " + numBr(x.q) + (m !== 1 ? " × " + m : ""), extra: true,
-        aviso: c ? "veio do Revit e não está no modelo — conferir" : "veio do Revit e não achei no catálogo do MC: escolha o código" });
+        nomeFixo: !!(x.dims && !c),
+        aviso: c ? "veio do Revit e não está no modelo — conferir" : x.dims ? "não achei no catálogo do MC «" + x.nome + "»" + (x.perto && x.perto.length ? " (mais perto: " + x.perto.join(", ") + ")" : "") + " — escolha o código"
+          : "veio do Revit e não achei no catálogo do MC: escolha o código" });
     });
-    if (!temRevit) alertas.push(revit && revit.erro ? "Quantitativos do Revit: " + revit.erro + " — as linhas do Revit saíram pela proporção do REF." : "Sem quantitativos do Revit — as linhas do Revit saíram pela proporção do REF.");
+    if (!temRevit) alertas.push((revit && revit.erro ? "Quantitativos do Revit: " + revit.erro : "Sem quantitativos do Revit") + " — as linhas que dependem do Revit ficaram zeradas.");
     /* a soma passa a apontar para as LINHAS (o índice pode mudar na mão depois) */
     L.forEach(ln => { if (ln.soma) { ln.somaIds = L.filter(x => ln.soma.indexOf(x.orig) >= 0).map(x => x.id); delete ln.soma; } });
     renumerar(L, false);
@@ -686,18 +722,32 @@
         ${gp.k !== "_revit" ? `<button class="gh-b" title="Renumerar os itens desta etapa" onclick="event.stopPropagation();OrcObra.renumerar('${gp.k}')">1·2·3</button>` : ""}${novaEt || (s.nomesEtapa || {})[gp.k] ? `<button class="gh-b" title="Dar nome a esta etapa" onclick="event.stopPropagation();OrcObra.nomeEtapa('${gp.k}')">✎ nome</button>` : ""}</td>
         <td class="n"><b>${moeda(st)}</b></td><td></td></tr></tbody>`;
       if (fechado) return;
+      /* 24/11/26 (dono: "como essas subetapas vão ser criadas?"): a subetapa (3.1, 3.3.4…) aparece como faixa dentro da
+         etapa — é ela que o envio ao Mais Controle cria (etapa → subetapa → itens, pelo índice) */
+      let subAtual = gp.k;
+      const subNome = idx => { const n = (s.nomesEtapa || {})[idx]; if (n) return n; const e = MODELO && MODELO.etapas.find(x => x.idx === idx); return e ? e.nome : ""; };
       h += `<tbody>` + gp.linhas.map(l => {
+        let sh = "";
+        const sub = l.etapa && l.etapa !== "_revit" ? String(l.etapa) : gp.k;
+        if (sub !== subAtual && sub.indexOf(".") > 0) {
+          const partes = sub.split("."), cad = [];
+          for (let i = 2; i <= partes.length; i++) { const ix = partes.slice(0, i).join("."); cad.push(ix + " · " + (subNome(ix) || "subetapa nova")); }
+          sh = `<tr class="sh"><td colspan="8">${escH(cad.join("  ›  "))}</td></tr>`;
+        }
+        subAtual = sub;
+        return sh + (() => {
         const av = [l.aviso, l.semCat ? "código não está no catálogo do MC" : "", l.inativo ? "código INATIVO no MC" : "", !l.cod ? "sem código do MC" : ""].filter(Boolean);
         const cf = (marca[l.id] || []).filter(x => x.txt.indexOf("sem código") < 0 && x.txt.indexOf("catálogo do MC") < 0 && x.txt.indexOf("INATIVO") < 0);
-        return `<tr class="${av.length || cf.length ? "av" : ""} ${cf.some(x => x.nivel === "alto") ? "erro" : ""} ${l.editado ? "ed" : ""}" data-id="${l.id}">
+        return `<tr class="${av.length || cf.length ? "av" : ""} ${cf.some(x => x.nivel === "alto") ? "erro" : ""} ${l.editado ? "ed" : ""} ${l.padrao && !l.editado ? "pd" : ""}" data-id="${l.id}">
           <td><input class="ix" value="${escH(l.idx)}" placeholder="${escH(l.etapa && l.etapa !== "_revit" ? l.etapa + ".?" : "?")}" onchange="OrcObra.indice('${l.id}',this.value)" title="Índice — ex.: 8.12 leva a linha para a etapa 8, item 12"></td>
           <td><button class="cod" onclick="OrcObra.trocar('${l.id}')" title="Trocar a composição/insumo">${l.cod ? escH(l.cod) : "escolher…"}</button></td>
-          <td><div class="nm">${escH(l.nome)}</div><div class="og">${escH(l.origem || "")}${av.length ? ` <span class="w">⚠ ${escH(av.join(" · "))}</span>` : ""}${cf.length ? ` <span class="w cf">🔎 ${escH(cf.map(x => x.txt.replace(/^[^:]*: /, "")).join(" · "))}</span>` : ""}</div></td>
+          <td><div class="nm">${l.padrao && !l.editado ? `<span class="pdb" title="Quantidade padrão da base (por casa / por lote / fixa) — não veio do Revit">PADRÃO</span> ` : ""}${escH(l.nome)}</div><div class="og">${escH(l.origem || "")}${av.length ? ` <span class="w">⚠ ${escH(av.join(" · "))}</span>` : ""}${cf.length ? ` <span class="w cf">🔎 ${escH(cf.map(x => x.txt.replace(/^[^:]*: /, "")).join(" · "))}</span>` : ""}</div></td>
           <td class="mu">${escH(l.un)}</td>
           <td class="n"><input type="number" step="any" min="0" value="${escH(l.q)}" onchange="OrcObra.qtd('${l.id}',this.value)"></td>
           <td class="n mu">${l.custo ? moeda(l.custo) : "—"}</td>
           <td class="n"><b>${l.custo ? moeda((l.q || 0) * l.custo) : "—"}</b></td>
           <td class="ac"><button title="Apagar a linha" onclick="OrcObra.apagar('${l.id}')">✕</button></td></tr>`;
+        })();
       }).join("") + `<tr class="add"><td></td><td colspan="7"><button onclick="OrcObra.acrescentar('${gp.k}')">+ acrescentar item nesta etapa</button></td></tr></tbody>`;
     });
     h += `<tfoot><tr><td colspan="6"><b>TOTAL PREVISTO</b></td><td class="n"><b>${moeda(tot)}</b></td><td></td></tr></tfoot></table></div>`;
