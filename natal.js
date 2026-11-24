@@ -3,7 +3,8 @@
  * Entra sozinho de 23/11 a 06/01 e some sozinho depois — não precisa tirar.
  *   · neve caindo por alguns segundos toda vez que a pessoa entra numa página;
  *   · pisca-pisca pendurado embaixo do cabeçalho e Papai Noel ao lado do título;
- *   · gorrinho no canto de cada cartão (KPIs, cartões das telas e botões do menu).
+ *   · gorrinho no canto de cada cartão — SÓ na página principal (index.html);
+ *     24/11: nas outras telas eram gorros demais (pedido do Morais).
  *
  * Tudo é desenhado aqui (canvas, SVG e CSS): sem imagem externa nem biblioteca.
  * Nada disto recebe clique (pointer-events:none) nem ocupa espaço no layout —
@@ -111,7 +112,10 @@
   }
 
   /* ── gorrinho nos cartões ───────────────────────────────── */
+  /* 24/11/26: gorro só na página principal do portal (index.html / raiz) */
+  var PRINCIPAL = /(^|\/)(index\.html)?$/i.test(location.pathname);
   function gorros(){
+    if(!PRINCIPAL) return;
     var lista;
     try{ lista = document.querySelectorAll(CARTOES); }catch(e){ return; }
     var feitos = 0;
