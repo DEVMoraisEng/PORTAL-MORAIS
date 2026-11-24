@@ -4848,7 +4848,7 @@ function pnProtocoloHtml(p,V,pageId,sensPendente){
   const anexar=est.anexar?`<label class="pn-proto-anexar">anexar protocolo<input type="file" hidden onchange='pnEnviarProtocolo(${jsArg(pageId)},${jsArg(ca.nome)},${jsArg(cs.nome)},this)'></label>`:"";
   const cd=p.data?campoPorNome(p.data):null;
   const data=(cd&&cd.editavel!==false&&!(cd.sensivel&&sensPendente))?`<div class="pn-proto-data"><label>Data do protocolo</label>${inputControl(cd,getV(V,cd.nome),pageId)}</div>`:"";
-  return `<div class="campo pn-proto"><label${dicaAttr(cs.nome)}>${esc(rotuloRua(cs.nome))}</label>`+
+  return `<div class="campo pn-proto"><label>${esc(rotuloRua(cs.nome))}</label>`+
     `<div class="pn-proto-linha"><span class="pn-proto-st ${est.nivel}">${esc(est.texto)}</span>${ver}${anexar}</div>${data}</div>`;
 }
 /* anexa o protocolo e, se subiu, grava SIM no select (a tela Ligações segue coerente) e a data de hoje na coluna de data
