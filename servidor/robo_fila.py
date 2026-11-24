@@ -57,6 +57,8 @@ LOGS = CENTRAL / "logs"
 PRAZO_PEGO_S = 15 * 60          # pedido PEGO há mais que isto (robô morreu no meio) volta a ser atendido
 PRAZO_ROBO_S = 600              # mesmo teto do GitHub (timeout-minutes: 10)
 RE_ID = re.compile(r"^[0-9a-fA-F-]{32,36}$")
+_PARC = r"\d{1,7}(?:\.\d{1,2})?@\d{4}-\d{2}-\d{2}"
+RE_PARCELAS = re.compile(_PARC + "(?:;" + _PARC + "){0,5}")   # 24/11: até 6 parcelas V@AAAA-MM-DD
 
 COL = {"titulo": "PEDIDO", "tipo": "TIPO", "payload": "PAYLOAD", "situacao": "SITUAÇÃO",
        "pedido_em": "PEDIDO EM", "resultado": "RESULTADO", "concluido_em": "CONCLUÍDO EM"}
@@ -155,6 +157,14 @@ def argumentos(tipo: str, p: dict, pode_gravar: bool) -> tuple[list, dict] | Non
                  "--valor", valor, "--data", data] + flag, {})
     if str(p.get("acao") or "lancar") == "sinal":   # 23/11: sinal confirmado no portal -> venda só com o sinal
         return (["-m", "venda.mc.sinal", "--page", pagina] + flag, {})
+    if str(p.get("acao") or "lancar") == "comissao":   # 24/11: comissão do corretor (venda/mc/comissao.py)
+        parcelas, fav = str(p.get("parcelas") or ""), str(p.get("favorecido") or "")
+        if not RE_PARCELAS.fullmatch(parcelas):
+            return None
+        if fav and not RE_ID.fullmatch(fav):
+            return None
+        return (["-m", "venda.mc.comissao", "--page", pagina, "--parcelas", parcelas] +
+                (["--favorecido", fav] if fav else []) + flag, {})
     if str(p.get("acao") or "lancar") != "lancar":
         return None
     if p.get("anexar") is True and flag == ["--aplicar"]:

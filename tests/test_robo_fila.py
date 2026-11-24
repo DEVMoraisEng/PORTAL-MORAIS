@@ -659,3 +659,22 @@ def test_encerrar_por_prazo_nao_depende_da_tela(monkeypatch, tmp_path):
     monkeypatch.setattr(R.os, "_exit", saiu.append)
     R._encerrar_por_prazo("fila", 30 * 60)
     assert saiu == [1]
+
+
+def test_comissao_monta_argv_e_recusa_lixo():
+    ok = {"pageId": PG, "acao": "comissao", "parcelas": "8750.00@2026-11-24;8750.00@2026-12-24",
+          "favorecido": "0f0f0f0f-0000-4000-8000-000000000000", "aplicar": True}
+    argv, env = R.argumentos("mc-venda", ok, True)
+    assert argv == ["-m", "venda.mc.comissao", "--page", PG, "--parcelas", ok["parcelas"],
+                    "--favorecido", ok["favorecido"], "--aplicar"] and env == {}
+    assert R.argumentos("mc-venda", dict(ok, aplicar=True), False)[0][-1] == "--bloqueado"
+    previa = R.argumentos("mc-venda", dict(ok, aplicar=False, favorecido=""), True)[0]
+    assert previa == ["-m", "venda.mc.comissao", "--page", PG, "--parcelas", ok["parcelas"]]
+    seis = ";".join(["1@2026-11-24"] * 6)
+    assert R.argumentos("mc-venda", dict(ok, parcelas=seis), True) is not None
+    for ruim in ({"parcelas": "1@2026-11-24 && rm"}, {"parcelas": ""}, {"favorecido": "x;y"},
+                 {"parcelas": "1@2026-11-24\n"}, {"parcelas": ";".join(["1@2026-11-24"] * 7)}, {"parcelas": "-5@2026-11-24"}):
+        assert R.argumentos("mc-venda", dict(ok, **ruim), True) is None
+    argv = R.argumentos("mc-venda", ok, True)[0]
+    assert R.apos_gravar(argv) is None
+    assert R.marcar_erro_argv(argv)[:5] == ["-m", "venda.mc.comissao", "--page", PG, "--marcar-erro"]
