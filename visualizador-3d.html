@@ -472,33 +472,45 @@ const NOMES_D3 = { ARQ: "Arquitetura", HID: "Hidrossanitário", SAN: "Sanitário
 const _ehIfc = n => /\.ifc(\.txt)?$/i.test(n);
 const _codD3 = n => { const m = String(n).split(/[\\/]/).pop().toUpperCase().match(/^([A-Z]{2,4})/); return m ? m[1] : ""; };
 async function montarPorDisciplina(obraId, r) {
-  const B = r.base2;
-  if (!B || !(B.arquivos || []).length) return null;
-  const prop = (r.proprios || []).map(a => Object.assign({}, a, { _obra: obraId }));
-  const daBase = B.arquivos.map(a => Object.assign({}, a, { _obra: B.id }));
-  const so = (B.so || []).map(x => String(x).toUpperCase());
+  /* 24/11 (dono): escolha por disciplina feita no portal (coluna 3D FONTES da obra):
+     obra = o publicado nesta obra · vinculo = o da obra de mesmo layout · nenhum = não mostra.
+     Sem escolha: automático (o desta obra vale; senão o do vínculo, menos o que lá é só daquela obra). */
+  const F = r.fontes || {}, B = r.base2 || null;
+  if (!B && !Object.keys(F).some(d => F[d] === "nenhum")) return null;
+  const prop = (r.proprios || r.arquivos || []).map(a => Object.assign({}, a, { _obra: obraId }));
+  const daBase = B ? (B.arquivos || []).map(a => Object.assign({}, a, { _obra: B.id })) : [];
+  const so = B ? (B.so || []).map(x => String(x).toUpperCase()) : [];
   const dProp = [...new Set(prop.filter(a => _ehIfc(a.nome)).map(a => _codD3(a.nome)))].filter(Boolean).sort();
   const dBase = [...new Set(daBase.filter(a => _ehIfc(a.nome)).map(a => _codD3(a.nome)))].filter(Boolean).sort();
-  const herdadas = dBase.filter(d => !dProp.includes(d) && !so.includes(d));
-  const soDeLa = dBase.filter(d => !dProp.includes(d) && so.includes(d));
+  const todas = [...new Set(dProp.concat(dBase))].sort(), de = {};
+  todas.forEach(d => {
+    const f = F[d];
+    de[d] = f === "nenhum" ? null : f === "obra" ? (dProp.includes(d) ? "obra" : null)
+      : f === "vinculo" ? (dBase.includes(d) ? "base" : null)
+      : dProp.includes(d) ? "obra" : (dBase.includes(d) && !so.includes(d) ? "base" : null);
+  });
+  const proprias = todas.filter(d => de[d] === "obra"), herdadas = todas.filter(d => de[d] === "base");
+  const soDeLa = todas.filter(d => !de[d] && !F[d] && dBase.includes(d) && so.includes(d));
+  const ocultas = todas.filter(d => !de[d] && F[d]);
   const jsonProp = prop.find(a => /\.json$/i.test(a.nome)), jsonBase = daBase.find(a => /\.json$/i.test(a.nome));
   const ler = async a => a ? JSON.parse(new TextDecoder().decode(await baixarModelo3d(a._obra, a))) : null;
-  /* o manifesto da base diz quais pranchas são de cada disciplina */
-  let manBase = null; try { manBase = await ler(jsonBase); } catch (e) { console.warn("[3D] manifesto da base:", e); }
-  const prBase = new Set(); herdadas.forEach(d => (((manBase && manBase.disciplinas) || {})[d] || {}).pranchas?.forEach(p => prBase.add(p.arquivo)));
+  let manProp = null, manBase = null;
+  try { manProp = await ler(jsonProp); } catch (e) { console.warn("[3D] manifesto desta obra:", e); }
+  try { manBase = await ler(jsonBase); } catch (e) { console.warn("[3D] manifesto da base:", e); }
+  const pranchasDe = (man, lista) => { const s = new Set(); lista.forEach(d => (((man && man.disciplinas) || {})[d] || {}).pranchas?.forEach(p => s.add(p.arquivo))); return s; };
+  const prProp = pranchasDe(manProp, proprias), prBase = pranchasDe(manBase, herdadas);
+  const escolhe = (lista, codigos, pr) => lista.filter(a => /\.json$/i.test(a.nome) ? false : _ehIfc(a.nome) ? codigos.includes(_codD3(a.nome)) : pr.has(a.nome));
   const arquivos = [{ nome: "modelo3d.json", url: "", _junta: true }]
-    .concat(prop.filter(a => !/\.json$/i.test(a.nome)))
-    .concat(daBase.filter(a => _ehIfc(a.nome) ? herdadas.includes(_codD3(a.nome)) : prBase.has(a.nome)));
-  window.ORIGEM_3D = { titulo: r.titulo, base: B.titulo, herdadas, proprias: dProp, soDeLa };
+    .concat(escolhe(prop, proprias, prProp)).concat(escolhe(daBase, herdadas, prBase));
+  window.ORIGEM_3D = { titulo: r.titulo, base: B ? B.titulo : "", herdadas, proprias, soDeLa, ocultas };
   return {
     ok: true, titulo: r.titulo, base: null, arquivos,
     obter: async (a, prog) => {
       if (!a._junta) return baixarModelo3d(a._obra || obraId, a, prog);
-      const mp = await ler(jsonProp).catch(() => null), mb = manBase || {};
-      const disc = {};
-      dProp.forEach(d => { if (mp && mp.disciplinas && mp.disciplinas[d]) disc[d] = mp.disciplinas[d]; });
+      const mp = manProp || {}, mb = manBase || {}, disc = {};
+      proprias.forEach(d => { if (mp.disciplinas && mp.disciplinas[d]) disc[d] = mp.disciplinas[d]; });
       herdadas.forEach(d => { if (mb.disciplinas && mb.disciplinas[d]) disc[d] = mb.disciplinas[d]; });
-      const datas = [mp && mp.atualizado_em, mb.atualizado_em].filter(Boolean).sort();
+      const datas = [mp.atualizado_em, mb.atualizado_em].filter(Boolean).sort();
       return new TextEncoder().encode(JSON.stringify({ obra: r.titulo, atualizado_em: datas[datas.length - 1] || null, disciplinas: disc }));
     }
   };
@@ -509,7 +521,7 @@ async function montarPorDisciplina(obraId, r) {
     const o = window.ORIGEM_3D; if (!o) return;
     const nomes = l => l.map(d => NOMES_D3[d] || d).join(", ");
     const sub = document.querySelector(".hsub");
-    if (sub) { const t = "Mesmo layout de " + o.base; if (sub.textContent !== t) sub.textContent = t; }
+    if (sub && o.base) { const t = "Mesmo layout de " + o.base; if (sub.textContent !== t) sub.textContent = t; }
     let el = document.getElementById("origem3d");
     if (!el && sub) { el = document.createElement("div"); el.id = "origem3d"; sub.insertAdjacentElement("afterend", el); }
     if (!el) return;
@@ -517,13 +529,14 @@ async function montarPorDisciplina(obraId, r) {
     if (o.herdadas.length) p.push('<span class="o3 o3-b">' + nomes(o.herdadas) + ' <i>de ' + o.base.replace(/</g, "&lt;") + '</i></span>');
     if (o.proprias.length) p.push('<span class="o3 o3-p">' + nomes(o.proprias) + ' <i>publicado nesta obra</i></span>');
     if (o.soDeLa.length) p.push('<span class="o3 o3-f" title="Em ' + o.base.replace(/"/g, "") + ' está marcado como só daquela obra. Publique o desta pelo Revit (MORAIS → Geral → Publicar 3D).">' + nomes(o.soDeLa) + ' <i>só de ' + o.base.replace(/</g, "&lt;") + ' — falta publicar o desta</i></span>');
+    if ((o.ocultas || []).length) p.push('<span class="o3 o3-x" title="Escolhido na aba 3D e Orçamento da obra">' + nomes(o.ocultas) + ' <i>não mostrado</i></span>');
     const h = p.join("");
     if (el.dataset.h !== h) { el.dataset.h = h; el.innerHTML = h; }
   }
   const css = document.createElement("style");
   css.textContent = "#origem3d{display:flex;flex-wrap:wrap;gap:6px;margin-top:4px}" +
     ".o3{font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;background:rgba(255,255,255,.12);color:#fff;white-space:nowrap}" +
-    ".o3 i{font-style:normal;font-weight:600;opacity:.8}.o3-p{background:rgba(27,175,122,.35)}.o3-f{background:rgba(224,161,0,.45)}" +
+    ".o3 i{font-style:normal;font-weight:600;opacity:.8}.o3-p{background:rgba(27,175,122,.35)}.o3-f{background:rgba(224,161,0,.45)}.o3-x{background:rgba(255,255,255,.06);opacity:.75}" +
     "@media(max-width:700px){#origem3d{display:none}}";
   document.head.appendChild(css);
   setInterval(pintar, 800);

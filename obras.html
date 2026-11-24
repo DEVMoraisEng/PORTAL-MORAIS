@@ -341,6 +341,13 @@ html[data-tema="escuro"] .tile>b{color:var(--text)}
 .d3-falta{border-color:#e0a100;color:#a77600}
 .d3-chk{cursor:pointer;min-height:32px;color:var(--text)} .d3-chk input{margin:0;width:16px;height:16px}
 .d3-par{display:inline-flex;align-items:center;gap:2px}
+.d3-cfg{font-size:11.5px;padding:6px 11px;background:var(--sup)!important;color:var(--azul)!important;border:1.5px solid var(--border)!important}
+.d3-tab{width:100%;display:grid;gap:4px;margin-top:6px;border:1px solid var(--border);border-radius:10px;padding:8px;background:var(--sup2)}
+.d3-tr{display:grid;grid-template-columns:150px minmax(220px,1fr) minmax(220px,1.2fr);gap:8px;align-items:center;font-size:12.5px}
+.d3-th{font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.4px}
+.d3-sel{font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border);border-radius:8px;background:var(--sup);color:var(--text);min-width:0}
+.d3-pub{display:flex;align-items:center;gap:4px;flex-wrap:wrap}.d3-nada{color:var(--text4)}
+@media(max-width:700px){.d3-tr{grid-template-columns:1fr}.d3-th{display:none}.d3-sel{font-size:16px;min-height:44px}.d3-cfg{min-height:44px}}
 .d3-x{border:1px solid var(--border);background:var(--sup);color:var(--verm);border-radius:999px;width:28px;height:28px;font-weight:800;cursor:pointer;line-height:1}
 .d3-x:hover{background:var(--verm);color:#fff}
 @media(max-width:600px){.d3-x{width:44px;height:44px}}
@@ -1483,24 +1490,54 @@ async function puxarAreasDoLayout(id,baseId){
    uma obra (publicou pelo LT 22 e depois pelo 9 → os anexos do 22 ficavam divergentes). */
 const D3NOME={ARQ:"Arquitetura",HID:"Hidrossanitário",SAN:"Sanitário",ELE:"Elétrico",EST:"Estrutural",TEL:"Telhado"};
 const d3n=c=>D3NOME[c]||c;
+/* 24/11 (dono): "abrir uma configuração e tirar a seleção dos projetos que vejo que estão errados, ou poder ou não
+   considerar um projeto já anexado em relação ao vínculo". Por disciplina: Automático / Desta obra / Da obra de mesmo
+   layout / Não mostrar (coluna 3D FONTES). Não apaga anexo nenhum — o ✕ é que tira o arquivo publicado aqui. */
+const _D3ABERTO={};
+function fonte3d(c,r){
+  const f=(r.fontes||{})[c], temP=(r.disc||[]).includes(c), temL=!!r.link&&(r.linkDisc||[]).includes(c), soL=(r.linkSo||[]).includes(c);
+  if(f==="nenhum") return "nenhum";
+  if(f==="obra") return temP?"obra":"nenhum";
+  if(f==="vinculo") return temL?"vinculo":"nenhum";
+  return temP?"obra":(temL&&!soL?"vinculo":"nenhum");
+}
 function painelDisc3d(id,r){
-  const disc=r.disc||[], so=r.so||[], ldisc=r.linkDisc||[], lso=r.linkSo||[];
+  const disc=r.disc||[], so=r.so||[], ldisc=r.link?(r.linkDisc||[]):[], lso=r.linkSo||[], F=r.fontes||{};
+  const L=esc(r.linkTitulo||"obra de mesmo layout");
+  const rot=(c,f)=>f==="obra"?"desta obra":f==="vinculo"?"de "+L:(!F[c]&&lso.includes(c)&&ldisc.includes(c)?"só de "+L+" — falta publicar o desta":"não aparece");
   let h="";
-  if(r.link){
-    if(!r.linkTem3d) h+=`<div class="ajuda">⚠ <b>${esc(r.linkTitulo)}</b> ainda não tem 3D publicado.</div>`;
-    const todas=[...new Set(ldisc.concat(disc))].sort();
-    const chips=todas.map(c=>disc.includes(c)?`<span class="d3o d3-prop" title="Publicado nesta obra — vale na frente do de ${esc(r.linkTitulo)}">${esc(d3n(c))} · desta obra</span>`
-      :lso.includes(c)?`<span class="d3o d3-falta" title="Em ${esc(r.linkTitulo)} está marcado como só daquela obra: publique o desta pelo Revit">${esc(d3n(c))} · só de ${esc(r.linkTitulo)} — falta o desta</span>`
-      :`<span class="d3o">${esc(d3n(c))} · de ${esc(r.linkTitulo)}</span>`).join("");
-    if(todas.length) h+=`<div class="d3-linha"><span class="d3-rot">No 3D desta obra:</span>${chips}</div>`;
-  } else if(!disc.length) h+=`<div class="ajuda">Escolha a obra de mesmo layout que já tem o 3D publicado para esta abrir o dela.</div>`;
-  if(disc.length){
-    const quando=r.atualizado?new Date(r.atualizado).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"";
-    h+=`<div class="d3-linha"><span class="d3-rot">Publicado nesta obra${quando?" ("+esc(quando)+")":""} · marcado = passa para as obras de mesmo layout:</span>`+
-      disc.map(c=>`<span class="d3-par"><label class="d3o d3-chk" title="Desmarque para ser só desta obra (cada obra publica o seu)"><input type="checkbox" data-d3="${esc(c)}" ${so.includes(c)?"":"checked"} onchange="gravarSo3d('${id}')"> ${esc(d3n(c))}${so.includes(c)?" · só desta obra":""}</label><button class="d3-x" onclick="removerDisc3d('${id}','${esc(c)}')" title="Tirar o ${esc(d3n(c))} publicado nesta obra${r.link?" — passa a vir de "+esc(r.linkTitulo):""}" aria-label="Tirar ${esc(d3n(c))} desta obra">✕</button></span>`).join("")+
-      `<button class="bt d3-rm" onclick="removerProprio3d('${id}')" title="Tira desta obra os arquivos do 3D (coluna MODELO 3D). Para voltar, publique de novo pelo Revit.">🗑 Remover o 3D desta obra</button></div>`;
-  }
+  if(r.link&&!r.linkTem3d) h+=`<div class="ajuda">⚠ <b>${L}</b> ainda não tem 3D publicado.</div>`;
+  const todas=[...new Set(ldisc.concat(disc))].sort();
+  if(!todas.length){ if(!r.link) h+=`<div class="ajuda">Escolha a obra de mesmo layout que já tem o 3D publicado para esta abrir o dela.</div>`; return h; }
+  const chips=todas.map(c=>{ const f=fonte3d(c,r); return `<span class="d3o ${f==="obra"?"d3-prop":f==="nenhum"?"d3-falta":""}">${esc(d3n(c))} · ${rot(c,f)}${F[c]?" ✎":""}</span>`; }).join("");
+  h+=`<div class="d3-linha"><span class="d3-rot">No 3D desta obra:</span>${chips}
+    <button class="bt d3-cfg" onclick="_D3ABERTO['${id}']=!_D3ABERTO['${id}'];carregarLayout3d('${id}')" aria-expanded="${!!_D3ABERTO[id]}">⚙ ${_D3ABERTO[id]?"Fechar":"Configurar projetos"}</button></div>`;
+  if(!_D3ABERTO[id]) return h;
+  const quando=r.atualizado?new Date(r.atualizado).toLocaleString("pt-BR",{dateStyle:"short",timeStyle:"short"}):"";
+  h+=`<div class="d3-tab" role="table">
+    <div class="d3-tr d3-th" role="row"><span>Projeto</span><span>Usar no 3D desta obra</span><span>Publicado nesta obra${quando?" ("+esc(quando)+")":""}</span></div>`+
+    todas.map(c=>{
+      const temP=disc.includes(c), temL=ldisc.includes(c), f=F[c]||"", auto=rot(c,fonte3d(c,Object.assign({},r,{fontes:{}})));
+      return `<div class="d3-tr" role="row"><b>${esc(d3n(c))}</b>
+        <select class="d3-sel" data-d3f="${esc(c)}" onchange="gravarFontes3d('${id}')" aria-label="Fonte do ${esc(d3n(c))}">
+          <option value=""${!f?" selected":""}>Automático — ${auto}</option>
+          <option value="obra"${f==="obra"?" selected":""}${temP?"":" disabled"}>Desta obra${temP?"":" (nada publicado aqui)"}</option>
+          <option value="vinculo"${f==="vinculo"?" selected":""}${temL?"":" disabled"}>De ${L}${temL?(lso.includes(c)?" (lá é só daquela obra)":""):" (não tem lá)"}</option>
+          <option value="nenhum"${f==="nenhum"?" selected":""}>Não mostrar</option>
+        </select>
+        <span class="d3-pub">${temP?`<label class="d3o d3-chk" title="Desmarque para ser só desta obra (cada obra publica o seu)"><input type="checkbox" data-d3="${esc(c)}" ${so.includes(c)?"":"checked"} onchange="gravarSo3d('${id}')"> passa para as de mesmo layout</label><button class="d3-x" onclick="removerDisc3d('${id}','${esc(c)}')" title="Tirar o arquivo do ${esc(d3n(c))} publicado nesta obra" aria-label="Tirar ${esc(d3n(c))} desta obra">✕</button>`:`<span class="d3-nada">—</span>`}</span>
+      </div>`; }).join("")+
+    `</div>${disc.length?`<div class="d3-linha"><button class="bt d3-rm" onclick="removerProprio3d('${id}')" title="Tira desta obra todos os arquivos do 3D (coluna MODELO 3D). Para voltar, publique de novo pelo Revit.">🗑 Remover o 3D desta obra</button></div>`:""}`;
   return h;
+}
+async function gravarFontes3d(id){
+  const box=document.getElementById("m3d-lay"); if(!box) return;
+  const sels=[...box.querySelectorAll("select[data-d3f]")], fontes={};
+  sels.forEach(s=>{ if(s.value) fontes[s.dataset.d3f]=s.value; s.disabled=true; });
+  let r; try{ r=await chamar({action:"modelo3dFontes",pageId:id,fontes:fontes},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
+  if(r&&r.ok){ _LAY3D[id]=r; toast("Projetos do 3D desta obra gravados."); }
+  else toast("Não gravou: "+((r&&r.erro)||"erro"));
+  carregarLayout3d(id,!(r&&r.ok));
 }
 async function gravarSo3d(id){
   const box=document.getElementById("m3d-lay"); if(!box) return;
