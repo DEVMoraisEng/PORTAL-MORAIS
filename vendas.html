@@ -493,7 +493,36 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 .proc-it.ir{cursor:pointer}
 .proc-it.ir:hover{border-color:var(--verde)}
 .proc-rot{font-size:10px;font-weight:700;letter-spacing:.4px;text-transform:uppercase;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.proc-val{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;margin-top:2px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.proc-val{font-family:'Barlow Condensed',sans-serif;font-size:16px;font-weight:800;margin-top:2px;color:var(--text);white-space:normal;overflow-wrap:anywhere;min-width:0}
+/* 24/11/2026: data embaixo do valor; Situação ocupa duas colunas (texto longo quebra dentro do cartão); cores 1 amarelo, 2 laranja, 3 vermelho */
+.proc-dt{font-size:12px;font-weight:600;color:var(--text3);margin-top:2px}
+.proc-it.larga{grid-column:span 2}
+.proc-it.amarelo{border-color:rgba(226,160,58,.6);background:rgba(226,160,58,.16)}
+.proc-it.amarelo .proc-val{color:#8a5a00}
+.proc-it.laranja,.proc-it.alerta{border-color:rgba(230,126,34,.55);background:rgba(230,126,34,.13)}
+.proc-it.laranja .proc-val,.proc-it.alerta .proc-val{color:#b45309}
+.proc-it.vermelho{border-color:rgba(192,57,43,.4);background:rgba(192,57,43,.09)}
+.proc-it.vermelho .proc-val{color:#c0392b}
+html[data-tema="escuro"] .proc-it.amarelo .proc-val{color:#f0c95f}
+html[data-tema="escuro"] .proc-it.laranja .proc-val,html[data-tema="escuro"] .proc-it.alerta .proc-val{color:#f0a868}
+html[data-tema="escuro"] .proc-it.vermelho .proc-val{color:#ff8a7a}
+/* 24/11/2026: protocolos de transferência (indicador do anexo) e bloco das ligações dentro da etapa de vistoria e entrega */
+.pn-proto{min-width:0}
+.pn-proto-linha{display:flex;flex-wrap:wrap;align-items:center;gap:8px;min-height:44px}
+.pn-proto-st{font-size:13px;font-weight:700;padding:6px 10px;border-radius:8px;border:1px solid var(--border2);color:var(--text3);min-width:0;overflow-wrap:anywhere}
+.pn-proto-st.ok{background:rgba(42,157,92,.12);border-color:rgba(42,157,92,.4);color:var(--verde-esc)}
+.pn-proto-st.nao{background:rgba(192,57,43,.07);border-color:rgba(192,57,43,.35);color:#c0392b}
+.pn-proto-st.alerta{background:rgba(230,126,34,.13);border-color:rgba(230,126,34,.55);color:#b45309}
+.pn-proto-ver,.pn-proto-anexar{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;font-size:13px;font-weight:700;color:var(--azul);cursor:pointer;text-decoration:underline}
+.pn-proto-data{margin-top:6px;min-width:0}
+.pn-proto-data label{font-size:12px}
+html[data-tema="escuro"] .pn-proto-st.ok{color:#8ce0a5}
+html[data-tema="escuro"] .pn-proto-st.nao{color:#ff8a7a}
+html[data-tema="escuro"] .pn-proto-st.alerta{color:#f0a868}
+.pn-ligs{padding:10px 22px 12px;min-width:0}
+.pn-ligs-t{font-size:13px;font-weight:700;color:var(--text);margin-bottom:6px}
+.pn-ligs-t span{font-weight:500;color:var(--text3)}
+.lig{flex-wrap:wrap}
 .proc-it.vazio .proc-val{color:var(--text3);font-weight:600}
 .proc-it.sim{border-color:rgba(42,157,92,.45);background:rgba(42,157,92,.10)}
 .proc-it.sim .proc-val{color:var(--verde-esc)}
@@ -1343,7 +1372,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=46"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="venda/painel-casa.js?v=9"></script>
+<script src="venda/painel-casa.js?v=10"></script>
 <script src="venda/FluxoLivre.js?v=25"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
@@ -4586,6 +4615,7 @@ async function editarToggle(pageId,prop,btn){
   aplicarLocal(pageId,prop,valor);
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:"select",valor:valor},"Editar "+prop);
   toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+r.erro));
+  if(r.ok) pnCarimbarGcap(pageId,prop,valor);
 }
 /* Enquanto o valor sensível não chega do Apps Script, mostra um campo travado.
    Travado de propósito: input vazio e editável convidaria a digitar por cima e
@@ -4612,7 +4642,7 @@ function campoResumoHtml(c,valor,pageId,sensPendente){
    data-espelho=<nome normalizado>; ao editar uma, pnEspelhar põe o valor novo nas outras — nunca duas caixas
    divergindo. Grava uma vez só (o editar de sempre, na coluna de sempre). */
 function pnMarcarEspelho(html,nome){
-  const ehEsp=(window.PainelCasa&&window.PainelCasa.ESPELHO_COMPRADOR1||[]).some(x=>normNome(x.coluna)===normNome(nome));
+  const ehEsp=normNome(nome)==="DATA DA VENDA"||(window.PainelCasa&&window.PainelCasa.ESPELHO_COMPRADOR1||[]).some(x=>normNome(x.coluna)===normNome(nome));
   return ehEsp ? String(html).replace(/^<div class="(ri|campo)"/,`<div class="$1" data-espelho="${esc(normNome(nome))}"`) : html;
 }
 function pnEspelhoComprador1(V,pageId,sensPendente){
@@ -4705,7 +4735,8 @@ function pnTrocarAba(aba){
 function pnAbaDoCampo(nome){ try{ return window.PainelCasa&&window.PainelCasa.abaDoCampo ? window.PainelCasa.abaDoCampo(nome) : "andamento"; }catch(e){ return "andamento"; } }
 /* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha da Secretaria de Vendas (venda/painel-casa.js, porEtapa) */
 function pnPorEtapa(nomes){
-  try{ if(window.PainelCasa&&window.PainelCasa.porEtapa) return window.PainelCasa.porEtapa(nomes); }catch(e){}
+  /* 24/11/2026 (dono): "Cadastro da casa" e "Outros campos" não são desenhadas (porEtapaPainel); numeração segue sequencial */
+  try{ if(window.PainelCasa&&window.PainelCasa.porEtapaPainel) return window.PainelCasa.porEtapaPainel(nomes); if(window.PainelCasa&&window.PainelCasa.porEtapa) return window.PainelCasa.porEtapa(nomes); }catch(e){}
   return nomes.length?[{titulo:"Preenchimento",campos:nomes}]:[];
 }
 /* 04/11/2026 (dono): o que falta para gerar o contrato da casa vira a caixa do campo dentro da aba Contrato
@@ -4726,9 +4757,11 @@ window.PainelFaltaCampo=function(pageId,falta){
    GEROU GCAP · PAGOU GCAP · DATA DO GCAP · ENTREGUE. As colunas são achadas pelo venda/painel-casa.js
    (resolverProcesso); VENDIDA é calculada (mesma régua da planilha: contrato assinado / tem cliente). */
 function pnResumoProcesso(V,pageId,sensPendente){
-  if(!window.PainelCasa||!window.PainelCasa.resolverProcesso) return "";
+  const PC=window.PainelCasa;
+  if(!PC||!PC.resolverProcesso) return "";
   if(painelListaBranca()) return "";        // painel enxuto (Gestor de Vendas): sem as colunas do processo
-  const itens=window.PainelCasa.resolverProcesso(SCHEMA.map(c=>c.nome));
+  const nomes=SCHEMA.map(c=>c.nome);
+  const itens=PC.resolverProcesso(nomes);
   const rec=(DADOS.hub.length?DADOS.hub:DADOS.set).find(v=>v.id===pageId)||{valores:V};
   const fmt=(c,v)=>{
     if(v==null||v===""||(Array.isArray(v)&&!v.length)) return "";
@@ -4737,21 +4770,118 @@ function pnResumoProcesso(V,pageId,sensPendente){
     if(v===true) return "SIM"; if(v===false) return "NÃO";
     return String(v);
   };
-  const html=itens.map(it=>{
+  const vendida=!!(vendidaDe(rec) || (!sensPendente && !!getV(V,"CLIENTES")));
+  /* 24/11/2026 (dono): data de quando o item foi feito, embaixo do valor (só se a coluna existir e estiver preenchida) */
+  const dataDe=chave=>{
+    const col=PC.colunaDataCartao(chave,nomes); if(!col) return "";
+    const c=campoPorNome(col); if(!c||(c.sensivel&&sensPendente)) return "";
+    return PC.formatarData(getV(V,col));
+  };
+  const CLS={ok:" sim",nao:" nao",alerta:" alerta",amarelo:" amarelo",laranja:" laranja",vermelho:" vermelho",vazio:" vazio",neutro:""};
+  const ir=` ir" onclick="pnTrocarAba('andamento')" title="Abrir nas etapas do processo`;
+  const card=(chave,rotulo,txt,cls,data,extra)=>({chave,html:
+    `<div class="proc-it${cls}${extra||""}"><div class="proc-rot">${esc(rotulo)}</div><div class="proc-val">${esc(txt||"—")}</div>`+
+    (data?`<div class="proc-dt">${esc(data)}</div>`:"")+`</div>`});
+  const cartoes=[]; let concluido=false;
+  itens.forEach(it=>{
+    if(it.chave==="situacao") return;          // desenhado abaixo, sempre em texto
     let txt="", c=null;
     if(it.calculado){
-      txt = (vendidaDe(rec) || (!sensPendente && !!getV(V,"CLIENTES"))) ? "SIM" : "NÃO";
+      txt = vendida ? "SIM" : "NÃO";
     }else{
-      c=campoPorNome(it.coluna); if(!c || nomeExcluido(c.nome,"painel")) return "";
+      c=campoPorNome(it.coluna); if(!c || nomeExcluido(c.nome,"painel")) return;
       txt = (c.sensivel&&sensPendente) ? "…" : fmt(c,getV(V,c.nome));
     }
     const n=normNome(txt);
     const cls = !txt ? " vazio" : (/^(SIM|TRANSFERID)/.test(n) ? " sim" : (/^(NAO|NÃO)/.test(n)||/NAO TRANSFERID|ATRASAD/.test(n) ? " nao" : ""));
-    const ir = it.calculado ? "" : ` ir" onclick="pnTrocarAba('andamento')" title="Abrir nas etapas do processo`;
-    return `<div class="proc-it${cls}${ir}"><div class="proc-rot">${esc(it.rotulo)}</div><div class="proc-val">${esc(txt||"—")}</div></div>`;
-  }).join("");
+    cartoes.push(card(it.chave,it.rotulo,txt,cls,dataDe(it.chave),it.calculado?"":ir));
+    if(it.chave==="ligacoes") cartoes.push("agua_energia");
+  });
+  /* Água e Energia: status que vem da tela Ligações; sem linha dela, o SIM/NÃO antigo da venda */
+  const ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
+  const valorVenda=alvo=>{ const c=SCHEMA.find(x=>normNome(x.nome)===alvo); return c&&!(c.sensivel&&sensPendente)?getV(V,c.nome):""; };
+  const aguaEnergia=["agua","energia"].map(tp=>{
+    const st=PC.statusAguaEnergia(ligs,tp,valorVenda(tp==="agua"?"AGUA TRANSFERIDA":"ENERGIA TRANSFERIDA"));
+    return card(tp,tp==="agua"?"Água":"Energia",st.texto,CLS[st.nivel]||"",""," ir\" onclick=\"pnTrocarAba('andamento')\" title=\"Abrir nas etapas do processo");
+  });
+  const i=cartoes.indexOf("agua_energia");
+  if(i>=0) cartoes.splice(i,1,...aguaEnergia); else cartoes.push(...aguaEnergia);
+  /* Situação do processo: texto, nunca número; primeiro enquanto não termina, último quando "Concluído" */
+  const sc=PC.resolverSituacao(nomes,SCHEMA.filter(c=>c.tipo==="formula").map(c=>c.nome));
+  if(sc.texto||sc.numero||sc.fim){
+    const val=col=>{ const c=col&&campoPorNome(col); return c&&!(c.sensivel&&sensPendente)?getV(V,c.nome):null; };
+    const st=PC.situacaoProcesso({fim:val(sc.fim),texto:val(sc.texto),numero:val(sc.numero),vendida});
+    concluido=st.concluido;
+    cartoes.push(card("situacao","Situação do processo",st.texto,CLS[st.nivel]||(st.vazio?" vazio":""),"",` larga ir" onclick="pnTrocarAba('andamento')" title="Abrir nas etapas do processo`));
+  }
+  const ordem=PC.ordemCartoes(cartoes.map(x=>x.chave),concluido);
+  const html=ordem.map(k=>cartoes.find(x=>x.chave===k).html).join("");
   /* .proc-wrap: no modo lista o mesmo HTML vai para o topo parado do painel (#pn-topo) e este some do Resumo */
   return html ? `<div class="proc-wrap"><div class="grp" style="margin-top:14px">Resumo do processo</div><div class="proc">${html}</div></div>` : "";
+}
+/* 24/11/2026 (dono): bloco só leitura com as ligações de água e energia da casa (vêm da tela Ligações; o cadastro segue lá) */
+function pnLigacoesHtml(V,pageId){
+  const PC=window.PainelCasa, ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
+  const t=`<div class="pn-ligs"><div class="pn-ligs-t">Água e energia <span>(vem da tela Ligações)</span></div>`;
+  if(!ligs.length) return t+`<div class="arq-vazio">`+(LIG_OK?"nenhuma ligação cadastrada para esta casa":"Base de ligações ainda não publicada — rode o workflow 'Publicar site'.")+`</div></div>`;
+  return t+`<div class="ligs">`+ligs.map(l=>{
+    const st=PC&&PC.statusLigacao?PC.statusLigacao(l.status):null;
+    const txt=st?st.texto:(l.status||"");
+    return `<div class="lig"><span class="lig-c">${esc(l.concessionaria||"—")}</span>`+
+      `<span class="lig-uc">${(l.uc&&String(l.uc).trim()&&l.uc!=="-")?("UC "+esc(l.uc)):"<i>sem UC</i>"}</span>`+
+      (txt?`<span class="lig-s ${st&&st.nivel==="ok"?"":"off"}">${esc(txt)}</span>`:"")+`</div>`;
+  }).join("")+`</div></div>`;
+}
+/* 24/11/2026 (dono): "TEM PROTOCOLO DE TRANS. ÁGUA/ENERGIA" deixa de ser botão SIM/NÃO: é um indicador automático conforme o
+   anexo da coluna de arquivo (com anexo = SIM · anexado + ver arquivo; sem anexo = NÃO · sem anexo + anexar protocolo; select
+   SIM sem anexo = caso legado em alerta). A data do protocolo (coluna nova, se existir) fica embaixo e é editável. */
+function pnProtocoloHtml(p,V,pageId,sensPendente){
+  const PC=window.PainelCasa, cs=campoPorNome(p.select), ca=campoPorNome(p.arquivo);
+  if(!cs||!ca) return "";
+  const carregando=!!(ca.sensivel&&sensPendente);
+  const lista=carregando?[]:(getV(V,ca.nome)||[]);
+  const est=PC.estadoProtocolo({carregando,temArquivo:Array.isArray(lista)&&lista.length>0,select:getV(V,cs.nome)});
+  const f=Array.isArray(lista)&&lista[0]?lista[0]:null;
+  const ver=(est.ver&&f&&f.url)?` <a class="pn-proto-ver" href="${esc(f.url)}" target="_blank" rel="noopener">ver arquivo</a>`:"";
+  const anexar=est.anexar?`<label class="pn-proto-anexar">anexar protocolo<input type="file" hidden onchange='pnEnviarProtocolo(${jsArg(pageId)},${jsArg(ca.nome)},${jsArg(cs.nome)},this)'></label>`:"";
+  const cd=p.data?campoPorNome(p.data):null;
+  const data=(cd&&cd.editavel!==false&&!(cd.sensivel&&sensPendente))?`<div class="pn-proto-data"><label>Data do protocolo</label>${inputControl(cd,getV(V,cd.nome),pageId)}</div>`:"";
+  return `<div class="campo pn-proto"><label${dicaAttr(cs.nome)}>${esc(rotuloRua(cs.nome))}</label>`+
+    `<div class="pn-proto-linha"><span class="pn-proto-st ${est.nivel}">${esc(est.texto)}</span>${ver}${anexar}</div>${data}</div>`;
+}
+/* anexa o protocolo e, se subiu, grava SIM no select (a tela Ligações segue coerente) e a data de hoje na coluna de data
+   (se existir e estiver vazia); depois recarrega a casa para o indicador mudar */
+async function pnEnviarProtocolo(pageId,arquivo,selectNome,input){
+  const ok=await enviarArquivo(pageId,arquivo,input);
+  if(!ok) return;
+  try{
+    const PC=window.PainelCasa, rec=vendaPorId(pageId), Vv=rec&&rec.valores?rec.valores:PN_V;
+    const cs=campoPorNome(selectNome);
+    await editar(pageId,selectNome,cs?cs.tipo:"select","SIM");
+    const p=PC.protocolos(SCHEMA.map(c=>c.nome)).find(x=>x.select&&normNome(x.select)===normNome(selectNome));
+    const car=PC.carimboProtocolo(p,n=>Vv?getV(Vv,n):"");
+    const cd=car&&campoPorNome(car.coluna);
+    if(car&&cd&&cd.tipo==="date"&&!(cd.sensivel&&PN_SENS)) await editar(pageId,car.coluna,"date",car.valor);
+  }catch(e){}
+  await recarregarCamposCasa(pageId);
+  if(!navigator.onLine&&OBRA_ABERTA===pageId&&PN_V) pnRedesenhar();
+}
+function pnRedesenhar(){
+  const body=document.getElementById("pn-body"); if(!body||!PN_V||!PN_PAGE) return;
+  const t=body.scrollTop; renderPainel(PN_V,PN_PAGE,PN_SENS); body.scrollTop=t;
+}
+/* 24/11/2026 (dono): marcar SIM em GEROU E ARMAZENOU GCAP? / PAGOU GCAP? carimba hoje na coluna de data (se existir e estiver
+   vazia; NÃO não apaga; nunca sobrescreve). Chamado por editar() e editarToggle(). */
+async function pnCarimbarGcap(pageId,prop,valor){
+  try{
+    const PC=window.PainelCasa; if(!PC||!PC.carimboGcap) return;
+    const rec=vendaPorId(pageId); if(!rec||!rec.valores) return;
+    const car=PC.carimboGcap(prop,valor,SCHEMA.map(c=>c.nome),n=>getV(rec.valores,n));
+    if(!car) return;
+    const c=campoPorNome(car.coluna); if(!c||c.tipo!=="date"||(c.sensivel&&PN_SENS)) return;
+    await editar(pageId,car.coluna,"date",car.valor);
+    if(OBRA_ABERTA===pageId){ await recarregarCamposCasa(pageId); if(!navigator.onLine&&PN_V) pnRedesenhar(); }
+  }catch(e){}
 }
 function renderPainel(V,pageId,sensPendente){
   const body=document.getElementById("pn-body");
@@ -4768,6 +4898,12 @@ function renderPainel(V,pageId,sensPendente){
 
   /* 09/11/2026 (dono): resumo do processo no topo — só leitura; clicar num item abre o Andamento (onde se edita) */
   sec.resumo+=pnResumoProcesso(V,pageId,sensPendente);
+  /* Fileira de chips de fórmula (cidade, prazo, alertas…) logo abaixo dos cartões do Resumo do processo (24/11/2026).
+     SITUAÇÃO, SITUAÇÃO DO PROCESSO e FIM DO PROCESSO agora são o cartão "Situação do processo"; água e energia viraram cartões.
+     No setor de painel enxuto (Gestor de Vendas) as etiquetas saem: vêm de colunas que ele não vê. */
+  const soLista=painelListaBranca();
+  const chips=[]; (soLista?[]:SCHEMA.filter(c=>c.tipo==="formula"&&!(window.PainelCasa&&window.PainelCasa.formulaDeCartao&&window.PainelCasa.formulaDeCartao(c.nome)))).forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
+  if(chips.length) sec.resumo+=`<div class="chips">${chips.join("")}</div>`;
 
   // resumo venda/cliente — agora editável/selecionável igual ao Notion (item 4)
   sec.resumo+='<div class="grp">Dados da Venda</div><div class="resumo">'+RESUMO.map(n=>{
@@ -4776,31 +4912,6 @@ function renderPainel(V,pageId,sensPendente){
     const val=getV(V,n);
     return pnMarcarEspelho(campoResumoHtml(c,val,pageId,sensPendente),c.nome);
   }).join("")+'</div>';
-
-  // alertas / situação
-  /* No setor de painel enxuto (Gestor de Vendas) as etiquetas do topo também
-     saem: elas são calculadas a partir de colunas que ele não vê (conformidade,
-     cartório, entrega, água/energia). Deixá-las seria mostrar pela etiqueta o
-     que a lista mandou esconder. */
-  const soLista=painelListaBranca();
-  const chips=[]; (soLista?[]:SCHEMA.filter(c=>c.tipo==="formula")).forEach(c=>{ const val=getV(V,c.nome); if(val==null||val===""||val==="-")return; const s=String(val); const al=/PREENCHER|⚠️|🔴|🚨/.test(s)||/^ALERTA|^ELERTA/.test(c.nome); chips.push(`<span class="chip${al?" alerta":""}">${esc(s)}</span>`); });
-  /* Transferência de titularidade nos informativos do topo.
-     Estas duas colunas não são fórmula, então não entravam no laço acima — e
-     o painel dizia "PROCESSO DE ENTREGA FINALIZADO" sem contar a água e a
-     energia, que continuam pendentes depois da entrega. Aqui elas aparecem
-     junto: verde quando transferida, laranja quando ainda não. Vazio não vira
-     etiqueta, senão toda obra antiga ganharia dois avisos do nada. */
-  (soLista?[]:[["AGUA TRANSFERIDA","ÁGUA"],["ENERGIA TRANSFERIDA","ENERGIA"]]).forEach(([alvo,rot])=>{
-    // acha a coluna pelo nome SEM acento: na base ela está como
-    // "AGUA TRANSFERIDA" (sem o Á), e o getV compara com acento
-    const campo=SCHEMA.find(c=>normNome(c.nome)===alvo);
-    if(!campo) return;
-    const val=getV(V,campo.nome);
-    if(val==null||val==="") return;
-    const sim=normNome(val)==="SIM";
-    chips.push(`<span class="chip${sim?" ok":" alerta"}">${esc(rot)} ${sim?"TRANSFERIDA":"NÃO TRANSFERIDA"}</span>`);
-  });
-  if(chips.length) sec.resumo+=`<div class="chips">${chips.join("")}</div>`;
 
   /* campos do formulário, cada um na aba dele. Compradores e Contrato mantêm os títulos da entrega 14
      (Comprador 1, Comprador 2, Contrato — …); o Andamento é separado em ETAPAS na ordem da planilha de casas de rua
@@ -4811,10 +4922,23 @@ function renderPainel(V,pageId,sensPendente){
     const aba=pnAbaDoCampo(nome);
     (porAba[aba]||porAba.andamento).push(nome);
   });
+  /* 24/11/2026 (dono): DATA DA VENDA continua no Resumo e ganha uma 2ª caixa no Andamento (etapa do contrato de compra e
+     venda), empilhada sob "ARMAZENOU CONTRATO COMPRA E VENDA?". É a mesma coluna: editar numa atualiza a outra (pnEspelhar). */
+  { const cdv=campoPorNome("DATA DA VENDA");
+    if(cdv && cdv.editavel!==false && cdv.tipo!=="files" && !nomeExcluido(cdv.nome,"painel") && !painelListaBranca() && !porAba.andamento.some(n=>normNome(n)==="DATA DA VENDA")) porAba.andamento.push(cdv.nome); }
   /* 12/11/2026 (dono): pares (ASSINOU E ARMAZENOU… + a data) ficam num bloco só, um em cima do outro (venda/painel-casa.js, PARES) */
-  const pnCampo=n=>campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente);
-  const pnItens=nomes=>{ try{ if(window.PainelCasa&&window.PainelCasa.agruparPares) return window.PainelCasa.agruparPares(nomes); }catch(e){} return nomes; };
-  const blocoTitulado=(nomes,titulo,antes)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+pnItens(nomes).map(it=>Array.isArray(it)?`<div class="pn-par">`+it.map(pnCampo).join("")+`</div>`:pnCampo(it)).join("")+`</div>`:"";
+  /* 24/11/2026 (dono): protocolos de transferência — o SIM/NÃO vira indicador automático do anexo (pnProtocoloHtml); a
+     data do protocolo (coluna nova, se existir) vai embaixo do indicador e não aparece solta */
+  const PROTOS=(window.PainelCasa&&window.PainelCasa.protocolos)?window.PainelCasa.protocolos(SCHEMA.map(c=>c.nome)).filter(p=>p.select&&p.arquivo):[];
+  const protoDoSelect=n=>PROTOS.find(p=>normNome(p.select)===normNome(n));
+  const ehDataProtocolo=n=>PROTOS.some(p=>p.data&&normNome(p.data)===normNome(n));
+  const pnCampo=n=>{
+    const p=protoDoSelect(n); if(p) return pnProtocoloHtml(p,V,pageId,sensPendente);
+    const h=campoHtml(campoPorNome(n),getV(V,n),pageId,sensPendente);
+    return normNome(n)==="DATA DA VENDA" ? pnMarcarEspelho(h,n) : h;   // 24/11: a mesma coluna no Resumo e no Andamento
+  };
+  const pnItens=(nomes,etapa)=>{ nomes=nomes.filter(n=>!ehDataProtocolo(n)); try{ if(window.PainelCasa&&window.PainelCasa.itensDaEtapa) return window.PainelCasa.itensDaEtapa(etapa||"",nomes); if(window.PainelCasa&&window.PainelCasa.agruparPares) return window.PainelCasa.agruparPares(nomes); }catch(e){} return nomes; };
+    const blocoTitulado=(nomes,titulo,antes,etapa,depois)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+pnItens(nomes,etapa).map(it=>Array.isArray(it)?`<div class="pn-par">`+it.map(pnCampo).join("")+`</div>`:pnCampo(it)).join("")+`</div>`+(depois||""):"";
   /* 05/11/2026 (dono): Comprador 1 mostra nome, CPF, WhatsApp e e-mail do Resumo — a MESMA coluna (venda/painel-casa.js,
      ESPELHO_COMPRADOR1); o COMPRADOR 1 - E-MAIL antigo só aparece se tiver algo diferente do Email */
   const espC1=pnEspelhoComprador1(V,pageId,sensPendente);
@@ -4833,32 +4957,18 @@ function renderPainel(V,pageId,sensPendente){
   sec.compradores+=porGrupo(porAba.compradores,"Compradores",true);
   sec.contrato+=porGrupo(porAba.contrato,"Contrato — outros dados");
   sec.documentos+=blocoTitulado(porAba.documentos,"Dossiê — observações");
-  sec.andamento+=pnPorEtapa(porAba.andamento).map(g=>blocoTitulado(g.campos,g.titulo)).join("");
+  /* 24/11/2026 (dono): ligações de água e energia (só leitura, vêm da tela Ligações) para TODOS os setores, dentro da etapa
+     "VISTORIA E ENTREGA DA CASA"; sem essa etapa no painel (setor enxuto), o bloco vem no fim do Andamento */
+  const ligsHtml=pnLigacoesHtml(V,pageId);
+  const grupos=pnPorEtapa(porAba.andamento), ETAPA_ENTREGA="VISTORIA E ENTREGA DA CASA";
+  sec.andamento+=grupos.map(g=>blocoTitulado(g.campos,g.titulo,"",g.etapa,g.etapa===ETAPA_ENTREGA?ligsHtml:"")).join("");
+  if(!grupos.some(g=>g.etapa===ETAPA_ENTREGA)) sec.andamento+=ligsHtml;
   /* 09/11/2026 (dono): aba Links — layout, fotos e localização da casa num lugar só */
   if(porAba.links.length){
     sec.links+=blocoTitulado(porAba.links,"Links da casa")+
       `<div class="pn-ajuda">Vazio = automático: no mapa de vendas a casa usa o layout e as fotos da casa modelo do tipo `+
       `(ou do cadastro do tipo, na aba Casas Modelo). Link preenchido aqui vale mais que o automático. `+
       `A localização mostrada no mapa é a da casa modelo (onde o cliente visita).</div>`;
-  }
-
-  // Ligações de água e energia: leitura, não edição — o cadastro continua
-  // sendo feito no Notion. Só na Secretaria de Vendas, que foi onde foi pedido.
-  if(SETOR_ATUAL==="Secretaria de Vendas"){
-    const ligs=ligacoesDaObra(pageId, getV(V,"ENDEREÇO"), getV(V,"CASA"));
-    if(ligs.length){
-      sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="ligs">`+
-        ligs.map(l=>`<div class="lig">`+
-          `<span class="lig-c">${esc(l.concessionaria||"—")}</span>`+
-          `<span class="lig-uc">${(l.uc&&String(l.uc).trim()&&l.uc!=="-")?("UC "+esc(l.uc)):"<i>sem UC</i>"}</span>`+
-          (l.status?`<span class="lig-s ${/NAO/.test(normNome(l.status))?"off":""}">${esc(l.status)}</span>`:"")+
-        `</div>`).join("")+`</div></div>`;
-    } else {
-      sec.andamento+=`<div class="grp">Ligações de água e energia</div><div class="campo"><div class="arq-vazio">`+
-        (LIG_OK ? "Nenhuma ligação cadastrada para esta casa."
-                : "Base de ligações ainda não publicada — rode o workflow 'Publicar site'.")+
-        `</div></div>`;
-    }
   }
 
   // arquivos — com opção de visualizar PDFs sem sair da página (item 2 do pedido extra)
@@ -5010,6 +5120,7 @@ async function editar(pageId,prop,tipo,valor,el){
   const r=await escrever({action:"updateVenda",pageId:pageId,prop:prop,tipo:tipo,valor:valor},"Editar "+prop);
   if(el)el.style.borderColor=r.ok?(r.enfileirado?"#E67E22":"#4cd964"):"#C0392B";
   toast(r.ok?(r.enfileirado?"Salvo aqui ✓ — sobe quando reconectar":"Salvo ✓"):("Erro: "+r.erro));
+  if(r.ok&&(tipo==="select"||tipo==="status")) pnCarimbarGcap(pageId,prop,valor);
 }
 async function editarMulti(pageId,prop,el){
   const box=el.closest(".campo,.campo-inline"); const marc=[...box.querySelectorAll("input[type=checkbox]:checked")].map(i=>i.parentNode.textContent.trim());
@@ -5022,7 +5133,8 @@ async function enviarArquivo(pageId,prop,input){
   try{ const b64=await new Promise((res,rej)=>{const rd=new FileReader();rd.onload=()=>res(rd.result.split(",")[1]);rd.onerror=rej;rd.readAsDataURL(f);});
     const r=await escrever({action:"upload",pageId:pageId,prop:prop,filename:f.name,mimeType:f.type||"application/octet-stream",dataBase64:b64},"Arquivo: "+f.name);
     toast(r.ok?(r.enfileirado?"Arquivo na fila ✓":"Arquivo enviado ✓"):("Erro: "+r.erro));
-  }catch(e){ toast("Falha ao ler o arquivo"); }
+    return !!(r.ok&&!r.enfileirado);   // 24/11: pnEnviarProtocolo só grava SIM/data quando o arquivo subiu de verdade
+  }catch(e){ toast("Falha ao ler o arquivo"); return false; }
 }
 async function excluirObra(pageId){
   if(!confirm("Excluir esta obra do Notion? (arquiva a página)"))return;
