@@ -427,7 +427,9 @@ def faltas_do_fluxo(fx: dict, casa: int | None) -> list[str]:
         f.append("Falta a DATA DE ASSINATURA DO CONTRATO na venda do condomínio")
     if not fx.get("dia"):
         f.append("Falta o DIA PAGAMENTO PARCELAS na venda do condomínio")
-    if fx.get("nP") and not fx.get("dP"):
+    # 24/11/2026 (UN30): com fluxo alterado as parcelas saem da lista; as colunas antigas do pós-chaves (da proposta)
+    # ficam paradas na linha e não valem — só cobrar a data quando o pós-chaves das colunas é de fato lançado
+    if not livre and fx.get("nP") and fx.get("vP") and not fx.get("dP"):
         f.append("Falta a DATA PÓS CHAVES (precisa da DATA DA ENTREGA) na venda do condomínio")
     if casa and fx.get("unidade") and fx["unidade"] != casa:
         f.append("A CASA da venda (%s) é diferente da UNIDADE do condomínio (%s)" % (casa, fx["unidade"]))
