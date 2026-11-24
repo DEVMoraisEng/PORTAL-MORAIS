@@ -20,9 +20,16 @@
                  /* 04/11/2026 (dono): o contrato tira o prazo de conclusão da DATA DA ENTREGA (decisão 08/10); esta coluna não é lida */
                  "CONTRATO - PRAZO DE CONCLUSÃO DAS OBRAS",
                  /* 04/11/2026 (dono): situação e observação do dossiê já aparecem no bloco do dossiê (etiqueta + histórico) */
-                 "DOSSIÊ", "DOSSIÊ IMÓVEL", "DOSSIÊ - OBSERVAÇÃO DO COMPRADOR"];
+                 "DOSSIÊ", "DOSSIÊ IMÓVEL", "DOSSIÊ - OBSERVAÇÃO DO COMPRADOR",
+                 /* 24/11/2026 (dono): água e energia vêm da tela Ligações (bloco só leitura + cartões do Resumo); a caixa SIM/NÃO sai */
+                 "AGUA TRANSFERIDA", "ENERGIA TRANSFERIDA",
+                 /* 24/11/2026 (dono): conferência semanal da transferência é da tela Ligações (ligacoes.html segue usando) */
+                 "CONFERIU NA SEMANA (TRANSFERÊNCIA)", "DATA DE VERIFICAÇÃO DAS CONTAS", "DATA DE ERIFICAÇÃO DAS CONTAS",
+                 "CONFERÊNCIA DA CONCLUSÃO", "DATA DA CONFERÊNCIA (TRANSFERÊNCIA)", "OBS. CONFERÊNCIA (TRANSFERÊNCIA)"];
   /* RECEBIMENTO - * (data, comprovante, quem confirmou): moram no bloco Recebimentos */
-  var PREFIXOS_OCULTOS = ["RECEBIMENTO - "];
+  /* + grafias do Notion que variam (comparação normalizada, começa com): conferência semanal da transferência */
+  var PREFIXOS_OCULTOS = ["RECEBIMENTO - ", "CONFERIU NA SEMANA", "DATA DA CONFERENCIA (TRANSF", "OBS. CONFERENCIA (TRANSF",
+                          "CONFERENCIA DA CONCLUSAO", "DATA DE VERIFICACAO DAS CONTAS", "DATA DE ERIFICACAO DAS CONTAS"];
   var OCULTOS_N = OCULTOS.map(norm), PREFIXOS_N = PREFIXOS_OCULTOS.map(norm);
   function ocultoNoPainel(nome) {
     var n = norm(nome);
@@ -98,10 +105,10 @@
    * não casar com nenhuma etapa cai em OUTROS CAMPOS, no fim. */
   var ETAPAS = [
     ["AVALIAÇÃO E VALORES", /^AVALIACAO|^VALIDADE|^VALOR NA MAO|^COMISSAO/],
-    ["CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE", /^ARMAZENOU CONTRATO COMPRA|^EMITIU RCPM|^MANDOU TODOS OS DOC|^DATA DE ENVIO DOS DOC/],
-    ["CONFORMIDADE E CONTRATO DO BANCO", /^MANDOU P\/ ?CONFORMIDADE|^PROCESSO CONFORME|^ASSINOU E ARMAZENOU CONTRATO DO BANCO|^DATA DE ASSINATURA DO CONTRATO|^VALOR DA PARCELA|^TEVE FGTS|^VALOR DO FGTS|^VALOR DA RENDA|^RENDA|^VALOR FINANCIADO|^VALOR DO SUBSIDIO/],
-    ["PROTOCOLOS DE TRANSFERÊNCIA (ÁGUA E ENERGIA)", /^(TEM )?PROTOCOLO DE TRANS/],
-    ["TAXA DE VISTORIA E AGÊNCIA", /^RECEBEU TAXA VISTORIA|^AGENCIA/],
+    ["CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE", /^ARMAZENOU CONTRATO COMPRA|^EMITIU RCPM|^MANDOU TODOS OS DOC|^DATA DE ENVIO DOS DOC|^DATA DA VENDA$/],
+    ["CONFORMIDADE E CONTRATO DO BANCO", /^MANDOU P\/ ?CONFORMIDADE|^PROCESSO CONFORME|^ASSINOU E ARMAZENOU CONTRATO DO BANCO|^DATA DE ASSINATURA DO CONTRATO|^VALOR DA PARCELA|^TEVE FGTS|^VALOR DO FGTS|^VALOR DA RENDA|^RENDA|^VALOR FINANCIADO|^VALOR DO SUBSIDIO|^AGENCIA/],
+    ["PROTOCOLOS DE TRANSFERÊNCIA (ÁGUA E ENERGIA)", /^(TEM |DATA )?PROTOCOLO DE TRANS/],
+    ["TAXA DE VISTORIA", /^RECEBEU TAXA VISTORIA/],
     ["PREFEITURA, ITBI E CARTÓRIO", /^TEM NUMERO DE CADASTRO|CADASTRO PREFEITURA|^ITBI|^DEU ENTRADA NO CARTORIO|^FICOU PRONTO O REGISTRO/],
     ["DEVOLUÇÃO E RECEBIMENTO DO BANCO", /^DEVOLVEU NO BANCO|^RECEBEU\??$/],
     ["VISTORIA E ENTREGA DA CASA", /^CASA APTA|^AGENDOU PRE.?VISTORIA|^DATA DA PRE.?VISTORIA|^TEM MANUAL|^AGUA TRANSFERIDA|^ENERGIA TRANSFERIDA|^ENTR?EGOU A CASA|^DATA DA ENTREGA|^PREENCHEU A PESQUISA|\(TRANSFERENCIA\)|VERIFICACAO DAS CONTAS|CONCLUSAO/],
@@ -130,20 +137,37 @@
    * do ASSINOU E ARMAZENOU CONTRATO DO BANCO? — antes caía em CONTRATO, no fim do Andamento, longe dele. */
   /* 12/11/2026 (dono): "tem que ficar na mesma lógica, um em cima do outro" — campos que andam juntos viram UM bloco da
    * grade (a pergunta em cima, a data embaixo, na mesma coluna). [pergunta, data]; o segundo sai de onde estiver. */
-  var PARES = [["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"]];
+  /* 24/11/2026 (dono): mais pares — a DATA DA VENDA e a DATA DE ENVIO DOS DOCUMENTOS ficam sob a pergunta da etapa 2; a
+   * AGÊNCIA sob "PROCESSO CONFORME?" (etapa 3); a data do GCAP (coluna nova, se existir) sob a pergunta do GCAP.
+   * O primeiro item pode ser RegExp (o Notion grafa "CORESSPONDENTE"). */
+  var PARES = [["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"],
+               ["ARMAZENOU CONTRATO COMPRA E VENDA?", "DATA DA VENDA"],
+               [/^MANDOU TODOS OS DOCS?.*\?$/, "DATA DE ENVIO DOS DOCUMENTOS"],
+               ["PROCESSO CONFORME?", "AGÊNCIA"],
+               ["GEROU E ARMAZENOU GCAP?", "DATA GEROU GCAP"],
+               ["PAGOU GCAP?", "DATA PAGOU GCAP"]];
+  function casaPrimeiro(par, chave) { return par instanceof RegExp ? par.test(chave) : chave === norm(par); }
   /* nomes -> itens da grade: string (campo sozinho) ou [a, b] (par); só junta quando os dois existem */
   function agruparPares(nomes) {
     var lista = (nomes || []).slice(), chaves = lista.map(norm), usado = {}, out = [];
     lista.forEach(function (nome, i) {
       if (usado[i]) return;
       for (var k = 0; k < PARES.length; k++) {
-        if (chaves[i] !== norm(PARES[k][0])) continue;
+        if (!casaPrimeiro(PARES[k][0], chaves[i])) continue;
         var j = chaves.indexOf(norm(PARES[k][1]));
         if (j >= 0 && !usado[j]) { usado[i] = usado[j] = true; out.push([nome, lista[j]]); return; }
       }
       usado[i] = true; out.push(nome);
     });
     return out;
+  }
+  /* itens da grade de uma etapa do painel: pares + campos soltos. Na etapa 2 (contrato de compra e venda) os pares vêm
+   * primeiro e o EMITIU RCPM? depois (dono, 24/11). Só no painel; a ordem da planilha não muda. */
+  var ETAPA_CONTRATO = "CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE";
+  function itensDaEtapa(titulo, nomes) {
+    var it = agruparPares(nomes);
+    if (titulo !== ETAPA_CONTRATO) return it;
+    return it.filter(Array.isArray).concat(it.filter(function (x) { return !Array.isArray(x); }));
   }
   /* 04/11/2026 (dono): "na hora de gerar contrato, os campos que tiverem faltando, deixe editar naquele mesmo lugar".
    * Frase do faltasContrato (venda/ContratoVenda.js, casa de rua) -> colunas da VENDAS que resolvem. As colunas são as
@@ -198,7 +222,7 @@
     { chave: "recebeu", rotulo: "Recebeu", exatos: ["RECEBEU?"], padrao: /^RECEBEU\??$/ },
     { chave: "gerou_gcap", rotulo: "Gerou GCAP", exatos: ["GEROU E ARMAZENOU GCAP?"], padrao: /^GEROU.*GCAP/ },
     { chave: "pagou_gcap", rotulo: "Pagou GCAP", exatos: ["PAGOU GCAP?"], padrao: /^PAGOU GCAP/ },
-    { chave: "data_gcap", rotulo: "Data do GCAP", exatos: ["DATA DO GCAP", "DATA GCAP"], padrao: /DATA.*GCAP|GCAP.*DATA/ },
+    { chave: "data_gcap", rotulo: "Data do GCAP", exatos: ["DATA DO GCAP", "DATA GCAP"] },  /* 24/11: só os nomes antigos; DATA GEROU/PAGOU GCAP viram a data dos cartões Gerou/Pagou */
     { chave: "entregue", rotulo: "Entregue", exatos: ["ENTEGOU A CASA E PEGOU TERMO DE ENTREGA?", "ENTREGOU A CASA E PEGOU TERMO DE ENTREGA?"],
       padrao: /^ENTR?EGOU A CASA/ }
   ];
@@ -214,13 +238,167 @@
     }).filter(Boolean);
   }
 
+  /* ===== 24/11/2026 (dono): painel da casa de rua mais organizado — regras puras (vendas.html só desenha) ===== */
+
+  /* Etapas que o painel NÃO desenha (continuam em ETAPAS: a planilha e colunasRua dependem delas). A numeração
+   * "N ·" das que sobram segue sequencial. */
+  var ETAPAS_FORA_DO_PAINEL = ["CADASTRO DA CASA", ETAPA_OUTROS];
+  function porEtapaPainel(nomes) {
+    var fora = (nomes || []).filter(function (n) { return ETAPAS_FORA_DO_PAINEL.indexOf(etapa(n)) < 0; });
+    return porEtapa(fora);
+  }
+
+  /* data "2026-11-05" (ou ISO com hora) -> "05/11/2026"; qualquer outra coisa -> "" (sem data = sem linha) */
+  function formatarData(v) {
+    if (v == null) return "";
+    if (typeof v === "object" && v.start) v = v.start;
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(v).trim());
+    return m ? m[3] + "/" + m[2] + "/" + m[1] : "";
+  }
+  /* hoje como AAAA-MM-DD (dia local, para gravar em coluna date) */
+  function hojeIso(d) {
+    d = d || new Date();
+    var z = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + z(d.getMonth() + 1) + "-" + z(d.getDate());
+  }
+
+  /* --- 1a/1b: situação do processo SEMPRE em texto --- */
+  var SITUACAO_TEXTOS = { 1: "⏳ TEMPO CORRIDO MAIOR QUE 20 DIAS", 2: "⚠️ TEMPO CORRIDO MAIOR QUE 45 DIAS",
+                          3: "🚨 TEMPO CORRIDO MAIOR QUE 45 DIAS E NÃO RECEBEU" };
+  /* "⏳ TEMPO CORRIDO ..." -> "⏳ Tempo corrido ..." (mantém o emoji, só a primeira letra em maiúscula) */
+  function textoAmigavel(t) {
+    return String(t || "").trim().toLowerCase().replace(/^([^\p{L}\p{N}]*)(\p{L})/u, function (m, a, b) { return a + b.toUpperCase(); });
+  }
+  /* d = { fim, texto, numero, vendida } -> { texto, nivel: ok|amarelo|laranja|vermelho|neutro, concluido } */
+  function situacaoProcesso(d) {
+    d = d || {};
+    if (norm(d.fim) === "FIM") return { texto: "Concluído", nivel: "ok", concluido: true };
+    var NIVEIS = { 1: "amarelo", 2: "laranja", 3: "vermelho" };
+    var t = String(d.texto == null ? "" : d.texto).trim();
+    var num = Number(d.numero);
+    if (t && t !== "-") {
+      var nt = norm(t), nivel = /NAO RECEBEU/.test(nt) ? 3 : (/45 DIAS/.test(nt) ? 2 : (/20 DIAS/.test(nt) ? 1 : (NIVEIS[num] ? num : 0)));
+      return { texto: textoAmigavel(t), nivel: NIVEIS[nivel] || "neutro", concluido: false };
+    }
+    if (NIVEIS[num]) return { texto: textoAmigavel(SITUACAO_TEXTOS[num]), nivel: NIVEIS[num], concluido: false };
+    if (d.vendida) return { texto: "Em andamento", nivel: "neutro", concluido: false };
+    return { texto: "—", nivel: "neutro", concluido: false, vazio: true };
+  }
+  /* colunas da situação: o texto (fórmula "SITUAÇÃO"), o número (fórmula "SITUAÇÃO DO PROCESSO") e o "FIM DO PROCESSO".
+   * formulas = nomes das colunas do tipo fórmula (a "SITUAÇÃO" de texto só vale se for fórmula). */
+  function resolverSituacao(nomes, formulas) {
+    var f = (formulas || []).map(function (x) { return { nome: x, n: norm(x) }; });
+    function acha(lista, re) { var a = lista.find(function (x) { return re.test(x.n); }); return a ? a.nome : null; }
+    var todos = (nomes || []).map(function (x) { return { nome: x, n: norm(x) }; });
+    return { texto: acha(f, /^SITUACAO$/), numero: acha(todos, /^SITUACAO DO PROCESSO/), fim: acha(f, /^FIM DO PROCESSO/) };
+  }
+  /* fórmulas que viram cartão e por isso saem da fileira de chips */
+  function formulaDeCartao(nome) { return /^(SITUACAO|SITUACAO DO PROCESSO|FIM DO PROCESSO)$/.test(norm(nome)); }
+  /* ordem dos cartões: Situação em PRIMEIRO enquanto o processo não terminou, ÚLTIMA quando "Concluído" */
+  function ordemCartoes(chaves, concluido) {
+    var resto = (chaves || []).filter(function (c) { return c !== "situacao"; });
+    if (!(chaves || []).some(function (c) { return c === "situacao"; })) return resto;
+    return concluido ? resto.concat(["situacao"]) : ["situacao"].concat(resto);
+  }
+
+  /* --- 1c (e 24/11): a data de cada cartão. Cada cartão casa só a SUA coluna; coluna inexistente = sem linha. --- */
+  function colunaDataCartao(chave, nomes) {
+    var lista = (nomes || []).map(function (x) { return { nome: x, n: norm(x) }; });
+    function exato(e) { var a = lista.find(function (x) { return x.n === norm(e); }); return a ? a.nome : null; }
+    function padrao(re) { var a = lista.find(function (x) { return re.test(x.n); }); return a ? a.nome : null; }
+    switch (chave) {
+      case "vendida": return exato("DATA DA VENDA");
+      case "recebeu": return exato("RECEBIMENTO - FINANCIAMENTO DATA");
+      case "entregue": return exato("DATA DA ENTREGA");
+      case "gerou_gcap": return padrao(/^DATA.*GEROU.*GCAP/);
+      case "pagou_gcap": return padrao(/^DATA.*PAGOU.*GCAP/);
+    }
+    return null;
+  }
+  /* GEROU/PAGOU GCAP marcado SIM -> { coluna, valor: hoje } se a coluna de data existir e estiver vazia; senão null.
+   * NÃO não apaga nada; data já preenchida nunca é sobrescrita. atualDe(nome) devolve o valor atual da coluna. */
+  function carimboGcap(prop, valor, nomes, atualDe, hoje) {
+    if (norm(valor) !== "SIM") return null;
+    var n = norm(prop), chave = /GEROU.*GCAP/.test(n) ? "gerou_gcap" : (/^PAGOU GCAP/.test(n) ? "pagou_gcap" : "");
+    if (!chave) return null;
+    var col = colunaDataCartao(chave, nomes);
+    if (!col || formatarData(atualDe(col))) return null;
+    return { coluna: col, valor: hoje || hojeIso() };
+  }
+
+  /* --- 1d: água e energia dos cartões (status vem da tela Ligações) --- */
+  function tipoConcessionaria(nome) {
+    var n = norm(nome);
+    if (/EQUATORIAL/.test(n)) return "energia";
+    if (/SANESC|SANEAGO/.test(n)) return "agua";
+    return "";
+  }
+  function statusLigacao(status) {
+    var n = norm(status);
+    if (!n || n === "-") return null;
+    if (/^TRANSFERID/.test(n)) return { texto: "Transferida", nivel: "ok", ordem: 3 };
+    if (/^ENTREGUE.*NAO TRANSFERID/.test(n)) return { texto: "Entregue, não transferida", nivel: "alerta", ordem: 0 };
+    if (/^NAO LIGAD/.test(n)) return { texto: "Não ligada", nivel: "nao", ordem: 1 };
+    if (/^LIGAD/.test(n)) return { texto: "Ligada, não transferida", nivel: "alerta", ordem: 2 };
+    if (/NAO TRANSFERID/.test(n)) return { texto: "Não transferida", nivel: "alerta", ordem: 0 };
+    return null;
+  }
+  /* ligs = linhas da tela Ligações da casa ({concessionaria, uc, status}); tipo "agua"|"energia"; valorVenda = o SIM/NÃO
+   * antigo da venda (AGUA/ENERGIA TRANSFERIDA). Havendo mais de uma ligação do tipo, vale a MENOS adiantada. */
+  function statusAguaEnergia(ligs, tipo, valorVenda) {
+    var achados = (ligs || []).filter(function (l) { return tipoConcessionaria(l && l.concessionaria) === tipo; })
+      .map(function (l) { return statusLigacao(l.status); }).filter(Boolean);
+    if (achados.length) {
+      achados.sort(function (a, b) { return a.ordem - b.ordem; });
+      return { texto: achados[0].texto, nivel: achados[0].nivel, origem: "ligacoes" };
+    }
+    var v = norm(valorVenda);
+    if (v === "SIM") return { texto: "Transferida", nivel: "ok", origem: "venda" };
+    if (v === "NAO") return { texto: "Não transferida", nivel: "nao", origem: "venda" };
+    return { texto: "—", nivel: "vazio", origem: "" };
+  }
+
+  /* --- 3: protocolos de transferência (água e energia): SIM/NÃO automático conforme o anexo --- */
+  /* nomes -> [{ tipo: "agua"|"energia", select, arquivo, data }] (cada um pode ser null se a coluna não existe) */
+  function protocolos(nomes) {
+    return ["agua", "energia"].map(function (tipo) {
+      var alvo = tipo === "agua" ? "AGUA" : "ENERGIA", r = { tipo: tipo, select: null, arquivo: null, data: null };
+      (nomes || []).forEach(function (nome) {
+        var n = norm(nome);
+        if (n.indexOf(alvo) < 0 || !/PROTOCOLO DE TRANS/.test(n)) return;
+        if (/^DATA\b/.test(n)) r.data = r.data || nome;
+        else if (/^TEM PROTOCOLO/.test(n)) r.select = r.select || nome;
+        else if (/^PROTOCOLO DE TRANS/.test(n)) r.arquivo = r.arquivo || nome;
+      });
+      return r;
+    });
+  }
+  /* d = { carregando, temArquivo, select } -> { texto, nivel: ok|nao|alerta|carregando, ver, anexar } */
+  function estadoProtocolo(d) {
+    d = d || {};
+    if (d.carregando) return { texto: "carregando…", nivel: "carregando", ver: false, anexar: false };
+    if (d.temArquivo) return { texto: "SIM · anexado", nivel: "ok", ver: true, anexar: false };
+    if (norm(d.select) === "SIM") return { texto: "SIM · sem anexo", nivel: "alerta", ver: false, anexar: true };
+    return { texto: "NÃO · sem anexo", nivel: "nao", ver: false, anexar: true };
+  }
+  /* anexo do protocolo enviado: grava hoje na coluna de data (se existir e estiver vazia) */
+  function carimboProtocolo(p, atualDe, hoje) {
+    if (!p || !p.data || formatarData(atualDe(p.data))) return null;
+    return { coluna: p.data, valor: hoje || hojeIso() };
+  }
+
   var api = { OCULTOS: OCULTOS, PROCESSO: PROCESSO, resolverProcesso: resolverProcesso, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
               emailAntigoVisivel: emailAntigoVisivel, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
               ABAS: ABAS, ABAS_LISTA: ABAS_LISTA, abaDoCampo: abaDoCampo, ETAPAS: ETAPAS, etapa: etapa, porEtapa: porEtapa,
               /* nomes antigos (antes de 13/11 eram departamentos): continuam respondendo, agora por etapa */
               departamento: etapa, porDepartamento: porEtapa, agruparPares: agruparPares, PARES: PARES,
-              colunasDaFalta: colunasDaFalta };
+              colunasDaFalta: colunasDaFalta,
+              ETAPAS_FORA_DO_PAINEL: ETAPAS_FORA_DO_PAINEL, porEtapaPainel: porEtapaPainel, itensDaEtapa: itensDaEtapa, formatarData: formatarData,
+              hojeIso: hojeIso, situacaoProcesso: situacaoProcesso, resolverSituacao: resolverSituacao, formulaDeCartao: formulaDeCartao,
+              ordemCartoes: ordemCartoes, colunaDataCartao: colunaDataCartao, carimboGcap: carimboGcap, tipoConcessionaria: tipoConcessionaria,
+              statusLigacao: statusLigacao, statusAguaEnergia: statusAguaEnergia, protocolos: protocolos, estadoProtocolo: estadoProtocolo,
+              carimboProtocolo: carimboProtocolo };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.PainelCasa = api;
 })(typeof window !== "undefined" ? window : this);

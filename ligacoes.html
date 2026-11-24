@@ -756,7 +756,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
-<script src="painel-abas.js?v=2"></script>
+<script src="painel-abas.js?v=3"></script>
 <script>
 /* =====================================================================
  * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
@@ -844,6 +844,7 @@ const V = {
   OBRA_CASA:     "ENDEREÇO + CASA",      // coluna montada aqui, não existe no Notion
   DT_ENTREGA:    "DATA DA ENTREGA",
   DT_ASSIN:      "DATA DE ASSINATURA DO CONTRATO",
+  DT_PREVIST:    "DATA DA PRÉ-VISTORIA",   // 24/11/2026 (Gustavo): só leitura, só na gaveta da casa vendida
   CLIENTES:      "CLIENTES ",
   WHATS:         "Nº Whatsapp",
   TEM_PROT_AGUA: "TEM PROTOCOLO DE TRANS. ÁGUA",
@@ -991,6 +992,8 @@ function ehCalculada(nome){ return !!CALC_DEF[nome]; }
    normalmente, só o texto mostrado ao usuário muda (pedido ago/26). */
 const RENOMEADAS_TELA = {};
 RENOMEADAS_TELA[normN(C.LIBERADO)] = "MEDIDOR COMPRADO";
+/* 24/11/2026 (dono): é a data de assinatura do contrato da CAIXA; só o rótulo da tela muda (a coluna do Notion não) */
+RENOMEADAS_TELA[normN(V.DT_ASSIN)] = "DATA DA ASSINATURA CONTRATO CAIXA";
 function tituloColuna(nome){
   if (ehCalculada(nome)) return CALC_DEF[nome].titulo;
   const cf = confDe(nome); if (cf) return cf.titulo;   // 21/10: sem o "(ETAPA)" — a aba já diz qual é
@@ -5433,12 +5436,18 @@ function abrirObraVenda(id){
 
 function corpoPainelVenda(v){
   const cols = colunasDaAba("vendidas").filter(c => normN(c) !== normN(V.OBRA_CASA));
+  /* 24/11/2026 (Gustavo): a data da pré-vistoria aparece aqui só para consulta (quem preenche é Vendas, na planilha
+     das casas de rua); entra logo depois da data da entrega e não vira coluna da tabela */
+  if (campoDe(V.DT_PREVIST, "vendas") && !cols.some(c => normN(c) === normN(V.DT_PREVIST))){
+    const i = cols.findIndex(c => normN(c) === normN(V.DT_ENTREGA));
+    cols.splice(i >= 0 ? i + 1 : 0, 0, V.DT_PREVIST);
+  }
   let html = "";
   cols.forEach(nome => {
     if (ehColunaUc(nome)) return;                    // as UCs vêm no bloco de ligações
     const campo = campoDe(nome, "vendas");
     if (!campo) return;
-    const editavel = ehEditavelVendas(nome) &&
+    const editavel = normN(nome) !== normN(V.DT_PREVIST) && ehEditavelVendas(nome) &&
       ["select","status","date","rich_text","title","url","number"].indexOf(campo.tipo) >= 0;
     const valor = getL(v, nome);
     html += `<div class="campo"><label>${esc(nome)}</label>`;
@@ -5685,7 +5694,7 @@ const ABAS_LIG_VENDA=[["lig","Ligações da casa",/^LIGACOES DESTA CASA/],["vend
 function abasLigacoes(){
   if(!window.PainelAbas) return;
   const body=document.getElementById("pn-body"); if(!body) return;
-  const venda = LINHA_ABERTA && typeof VEN!=="undefined" && VEN.indexOf(LINHA_ABERTA)>=0;
+  const venda = LINHA_ABERTA && typeof VEN!=="undefined" && VEN.some(x => x===LINHA_ABERTA || x.id===LINHA_ABERTA.id);   // por id: a releitura ao vivo troca os objetos
   if(venda) PainelAbas.aplicar(body,{chave:"lig-venda",item:LINHA_ABERTA&&LINHA_ABERTA.id,padrao:"venda",ordem:["venda","lig"],abas:ABAS_LIG_VENDA});
   else PainelAbas.aplicar(body,{chave:"ligacao",item:LINHA_ABERTA&&LINHA_ABERTA.id,padrao:"resumo",ordem:["resumo","solic","uc","conf"],abas:ABAS_LIGACAO});
 }
