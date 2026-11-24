@@ -98,6 +98,17 @@ def test_fluxo_ilegivel_recusa_e_lista_que_nao_fecha_recusa():
     assert any("não fecha" in x for x in C.faltas_do_fluxo(torto, torto["unidade"]))
 
 
+def test_fluxo_alterado_sem_pos_chaves_ignora_colunas_antigas_do_pos():
+    # UN30 (24/11/2026): a proposta tinha 24 pós-chaves; o fluxo alterado tirou o pós-chaves, mas as colunas
+    # Nº/VALOR PÓS CHAVES ficaram preenchidas sem data — o robô recusava a venda já assinada
+    sem_pos = [l for l in LIVRE if l["t"] != "pos"]
+    valor = round(sum(C._total_linha(l) for l in C.ler_livre(_livre(sem_pos)["FLUXO PERSONALIZADO"]["rich_text"][0]["plain_text"])["linhas"]), 2)
+    fx = C.fluxo(fluxo_props(**_livre(sem_pos, valor=valor), **{"DATA  PÓS CHAVES ": data(None)}))
+    assert fx["nP"] and fx["vP"] and not fx["dP"]
+    assert C.faltas_do_fluxo(fx, fx["unidade"]) == []
+    assert not any("Pós" in p["rotulo"] for p in C.parcelas(fx, {"data_venda": "2026-09-01"}, 30))
+
+
 def test_parcelas_do_fluxo_alterado_linha_a_linha():
     fx = C.fluxo(fluxo_props(**_livre(LIVRE)))
     assert C.faltas_do_fluxo(fx, fx["unidade"]) == []
