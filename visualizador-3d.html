@@ -570,20 +570,31 @@ async function montarPorDisciplina(obraId, r) {
     OrcObra.linhasRevit(j).forEach(x => { (porRef[OrcObra.refKey(x)] = porRef[OrcObra.refKey(x)] || []).push(x.raw); });
     const linhas = [], et = {}, nomes = pl.nomes || {};
     const raiz = l => String(l.etapa || l.idx || "").split(".")[0];
+    /* 24/11/26 (dono): no seletor do 3D aparecem as etapas e subetapas do orçamento, cada uma com as suas linhas */
+    const nomeEt = ix => { if (ix === "_revit") return "Do Revit, fora do modelo"; const e = (etapas || []).find(x => x.idx === ix); return nomes[ix] || (e ? e.nome : "etapa"); };
+    const pad = ix => ix === "_revit" ? "99" : String(ix).split(".").map((p, i) => i ? p : p.padStart(2, "0")).join(".");
+    const porEt = {}, add = (ix, v) => { (porEt[ix] = porEt[ix] || []).push(v); };
     pl.linhas.forEach(l => {
       const r = raiz(l);
-      if (!et[r]) { et[r] = 1; const e = (etapas || []).find(x => x.idx === r); linhas.push({ valores: [r === "_revit" ? "Do Revit, fora do modelo" : r + " " + (nomes[r] || (e ? e.nome : "etapa")), "", "", "", "", ""] }); }
+      if (!et[r]) { et[r] = 1; linhas.push({ valores: [r === "_revit" ? nomeEt(r) : r + " " + nomeEt(r), "", "", "", "", ""] }); }
       const raws = (l.refs || []).flatMap(k => porRef[k] || []);
       const guids = [...new Set(raws.flatMap(x => x.guids || []))];
       const q = Number(l.q) || 0, tot = Math.round(q * (Number(l.custo) || 0) * 100) / 100;
       const v = { valores: [l.idx || "", l.cod || "", l.nome || "", l.un || "", q, tot] };
       if (guids.length) v.guids = guids;
+      const cad = []; String(l.etapa && l.etapa !== "_revit" ? l.etapa : r).split(".").forEach((p, i, a) => cad.push(a.slice(0, i + 1).join(".")));
       const ids = [...new Set(raws.flatMap(x => x.ids || []))], mats = [...new Set(raws.flatMap(x => x.mats || []))];
       if (ids.length) v.ids = ids;
       if (mats.length) { v.mats = mats; if (raws.some(x => x.via === "material")) v.via = "material"; }
       linhas.push(v);
+      cad.forEach(ix => add(ix, v));
     });
-    return { nome: "ORÇAMENTO DA OBRA (" + pl.rotulo + ")", colunas: cols, linhas: linhas };
+    const tabs = [{ nome: "00 · ORÇAMENTO COMPLETO (" + pl.rotulo + ")", disciplina: "Orçamento da obra", colunas: cols, linhas: linhas }];
+    Object.keys(porEt).forEach(ix => {
+      const tot = porEt[ix].reduce((t, v) => t + (Number(v.valores[5]) || 0), 0);
+      tabs.push({ nome: pad(ix) + " · " + nomeEt(ix) + " — R$ " + tot.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 }), disciplina: "Orçamento da obra", colunas: cols, linhas: porEt[ix] });
+    });
+    return tabs;
   }
   /* pranchas: o manifesto traz disciplinas[cod].pranchas = [{numero, nome, arquivo}]; o arquivo está na mesma
      coluna MODELO 3D da obra, então baixa pelo mesmo caminho do IFC (r.obter) */
@@ -643,9 +654,9 @@ async function montarPorDisciplina(obraId, r) {
         let etapas = null; try { etapas = (await (await fetch("orcamento/modelo-casa-rua.json?v=3")).json()).etapas; } catch (e) {}
         /* 24/11/26 (dono): a tabela do 3D mostra só os itens do orçamento da obra (as tabelas do Revit continuam
            marcando os elementos por dentro); se a planilha não montar, ficam as do Revit */
-        const to = await tabelaOrcamento(obraId, j, await pv, etapas);
-        const ok = to && to.linhas && to.linhas.some(l => l.valores && l.valores[1]);
-        n.tabelas = ok ? [to] : [to].concat(n.tabelas);
+        let to = await tabelaOrcamento(obraId, j, await pv, etapas); if (!Array.isArray(to)) to = [to];
+        const ok = to[0] && to[0].linhas && to[0].linhas.some(l => l.valores && l.valores[1]);
+        n.tabelas = ok ? to : to.concat(n.tabelas);
         return new TextEncoder().encode(JSON.stringify(n));
       } catch (e) { console.warn("[3D] orçamento:", e); return u8; }
     };
