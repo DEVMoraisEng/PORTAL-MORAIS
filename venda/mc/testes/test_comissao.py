@@ -71,3 +71,45 @@ def test_assinatura_muda_com_parcela_e_favorecido():
     assert K.assinatura(base) != K.assinatura(outra)
     assert K.assinatura_do_texto("PRÉVIA OK [#1a2b3c4d] | x") == "1a2b3c4d"
     assert K.assinatura_do_texto("CRIADA") is None
+
+
+def test_observacao_parcelas_iguais():
+    ps = [{"valor": 8750.0, "data": "2026-11-24"}, {"valor": 8750.0, "data": "2026-12-24"}]
+    assert K.observacao("CNPJ: 00000000000191", " corretor  teste", 17500.0, ps) == \
+        "PIX CNPJ: 00000000000191. Corretor CORRETOR TESTE. Comissão total R$ 17.500,00 em 2 x R$ 8.750,00."
+
+def test_observacao_parcelas_diferentes():
+    ps = [{"valor": 10000.0, "data": "2026-11-24"}, {"valor": 7500.0, "data": "2026-12-24"}]
+    assert K.observacao("CPF: 11144477735", "CORRETOR TESTE", 17500.0, ps) == \
+        "PIX CPF: 11144477735. Corretor CORRETOR TESTE. Comissão total R$ 17.500,00 em R$ 10.000,00 + R$ 7.500,00."
+
+def test_condicao_que_nao_bate_com_parcelas():
+    ps2 = [{"valor": 1.0, "data": HOJE}, {"valor": 1.0, "data": "2026-12-24"}]
+    ps1 = ps2[:1]
+    args = ("D", "O", "p", "c", "f", {"id": "c-1"}, {"id": "w-1"})
+    with pytest.raises(ValueError):
+        K.corpo_titulo(ps2, *args[:5], args[5], args[6], {"id": "x", "type": "IN_CASH"}, "", HOJE)
+    with pytest.raises(ValueError):
+        K.corpo_titulo(ps1, *args[:5], args[5], args[6], {"id": "x", "type": "FINANCING"}, "", HOJE)
+
+def test_descricao_corta_em_150():
+    d = K.descricao(4, "X" * 400)
+    assert len(d) == 150 and d.startswith("COMISSÃO CORRETOR UNIDADE 04 - X")
+
+def test_fronteiras_de_data():
+    assert K.ler_parcelas("10@2026-10-25", HOJE)[0]["data"] == "2026-10-25"   # hoje-30
+    assert K.ler_parcelas("10@2027-12-29", HOJE)[0]["data"] == "2027-12-29"   # hoje+400
+    for t in ("10@2026-10-24", "10@2027-12-30"):                               # -31 e +401
+        with pytest.raises(K.Recusa) as e:
+            K.ler_parcelas(t, HOJE)
+        assert e.value.codigo == "PARCELAS_INVALIDAS"
+
+def test_um_centavo_acima_do_saldo():
+    with pytest.raises(K.Recusa) as e:
+        K.conferir_saldo([{"valor": 8750.01, "data": HOJE}], 17500.0, 8750.0)
+    assert e.value.codigo == "ACIMA_DO_SALDO"
+
+def test_ja_lancado_negativo():
+    with pytest.raises(K.Recusa) as e:
+        K.conferir_saldo([{"valor": 10.0, "data": HOJE}], 17500.0, -5.0)
+    assert e.value.codigo == "JA_LANCADO_INVALIDO"

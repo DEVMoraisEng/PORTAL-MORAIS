@@ -54,6 +54,8 @@ def ler_parcelas(texto: str, hoje: str) -> list[dict]:
 def conferir_saldo(parcelas: list[dict], comissao: float, ja_lancado: float) -> float:
     if not comissao or comissao <= 0:
         raise Recusa("SEM_COMISSAO", "a venda não tem comissão (coluna COMISSÃO vazia ou venda direta)")
+    if (ja_lancado or 0.0) < 0:
+        raise Recusa("JA_LANCADO_INVALIDO", "valor já lançado inválido (negativo)")
     saldo = round(comissao - (ja_lancado or 0.0), 2)
     pedido = round(sum(p["valor"] for p in parcelas), 2)
     if pedido > saldo + 0.005:
@@ -72,10 +74,10 @@ def descricao(unidade: int, cliente: str) -> str:
 
 
 def observacao(pix: str, corretor: str, comissao: float, parcelas: list[dict]) -> str:
+    """`pix` já vem como "<tipo>: <chave>" (ex.: "CNPJ: 00000000000191")."""
     vals = {p["valor"] for p in parcelas}
-    ps = ("%d x %s" % (len(parcelas), reais(parcelas[0]["valor"]))) if len(vals) == 1 else \
-        " + ".join(reais(p["valor"]) for p in parcelas)
-    return "PIX: %s. Corretor %s. Comissão total %s; este título: %s." % (
+    ps = ("%d x %s" % (len(parcelas), reais(parcelas[0]["valor"]))) if len(vals) == 1 else         " + ".join(reais(p["valor"]) for p in parcelas)
+    return "PIX %s. Corretor %s. Comissão total %s em %s." % (
         pix, " ".join(str(corretor or "").upper().split()), reais(comissao), ps)
 
 
@@ -91,6 +93,9 @@ def corpo_titulo(parcelas, descricao_, obs, participante_id, categoria_id, forma
                  responsavel_id, hoje) -> dict:
     total = round(sum(p["valor"] for p in parcelas), 2)
     n = len(parcelas)
+    tipo = condicao.get("type")
+    if tipo and tipo != ("FINANCING" if n > 1 else "IN_CASH"):
+        raise ValueError("condição de pagamento não bate com o número de parcelas")
     corpo = {
         "paymentCondition": {"id": condicao["id"], "type": "FINANCING" if n > 1 else "IN_CASH",
                              "financing": n > 1, "recurring": False},
