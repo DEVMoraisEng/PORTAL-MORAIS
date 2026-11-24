@@ -265,5 +265,5 @@ test("celular: cartões e linhas novas quebram dentro do cartão, sem estourar a
   assert.match(vendas, /\.pn-proto-ver,\.pn-proto-anexar\{[^}]*min-height:44px/);
   assert.match(vendas, /\.pn-proto-linha\{display:flex;flex-wrap:wrap/);
   assert.match(vendas, /\.lig\{flex-wrap:wrap\}/);
-  assert.match(vendas, /painel-casa\.js\?v=11/);
+  assert.match(vendas, /painel-casa\.js\?v=12/);
 });
