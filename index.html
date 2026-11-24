@@ -445,6 +445,12 @@ const SISTEMAS=[
      editável. Duas chaves na coluna ACESSOS do LOGINS: "FINANCEIRO" (vê tudo)
      e "GFINANCEIRO" (vê + valida + edita o manual). "chaves" = qualquer uma
      das duas mostra o botão; quem trava de verdade é o AuditoriaFin.gs. */
+  /* 24/11/26 — ANÁLISE DE MARKETING: dashboard das campanhas da Meta (planilha
+     LEADS RESERVA DOS IPES - CANEDO, uma aba por campanha) com cliente × corretor
+     da HyperFlow, e o redirecionamento dos leads para as imobiliárias / Hudson.
+     Chave "ANÁLISE DE MARKETING" na coluna ACESSOS do LOGINS (ADM/MASTER sempre).
+     Servidor: apps-script/MarketingLeads.gs (PORTAL-LEITURA). */
+  {chave:"ANÁLISE DE MARKETING",nome:"Análise de Marketing",desc:"Campanhas da Meta · clientes × corretores · envio dos leads",ico:"M",link:"analise-marketing.html",grupo:"ANÁLISES"},
   {chave:"FINANCEIRO",chaves:["FINANCEIRO","GFINANCEIRO"],nome:"Auditoria Financeira",desc:"Plano de contas · juros e atrasos · fiscalização · manual",ico:"F",link:"auditoria-financeira.html",grupo:"ANÁLISES"},
 
   /* "MAPA DE VENDAS" é público: publico:true faz o botão aparecer pra
