@@ -444,6 +444,12 @@ def _linhas_recibo(d: dict, venda: dict, cliente: str, fav: dict, pix: str, comi
             ("Vencimento", R.data_br(p["data"]))]
 
 
+def _sem_pdf(nome) -> str:
+    """Nome do anexo sem a extensão .pdf (a conferência do ERP devolve sem ela)."""
+    s = str(nome or "").strip()
+    return s[:-4] if s.lower().endswith(".pdf") else s
+
+
 def _assinatura_contrato(props: dict) -> str | None:
     """DATA DE ASSINATURA DO CONTRATO da linha (ISO) — início da janela onde se procuram títulos no ERP."""
     alvo = R.chave(C.COL_LINHA["assinatura"])
@@ -718,8 +724,10 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
             conf = erp.pedir_core("GET", "/attachments/v2", params={"entityIds": tpid, "entityOrigin": "TRADE_PAYABLE"})
             if not isinstance(conf, list):
                 raise ErpErro("lista de anexos em formato inesperado")
-            nomes = {str(x.get(c) or "") for x in conf if isinstance(x, dict) for c in ("name", "fileName")}
-            conferidos = sum(1 for nm in ok_nomes if nm in nomes)
+            # medido ao vivo (24/11): o nome vem em "filename", sem a extensão; name/fileName de reserva
+            nomes = {_sem_pdf(x.get(c)) for x in conf if isinstance(x, dict) for c in ("filename", "name", "fileName")}
+            nomes.discard("")
+            conferidos = sum(1 for nm in ok_nomes if _sem_pdf(nm) in nomes)
         except Exception:   # noqa: BLE001
             res["avisos"].append("ANEXOS_NAO_CONFERIDOS")
         bate = _releitura_bate(erp.pedir("GET", "/trade-payables/%s" % tpid) or {}, parcelas, total, fav["id"])

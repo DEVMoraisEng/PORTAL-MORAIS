@@ -175,7 +175,8 @@ class ErpFake:
     def pedir_core(self, metodo, caminho, corpo=None, params=None):
         # Ajuste ao brief: o passo 9 relê os anexos pelo CORE (GET /attachments/v2); o fake do brief não tinha pedir_core
         assert metodo == "GET" and caminho.startswith("/attachments/v2"), (metodo, caminho)
-        return [{"name": n} for n in self.anexos]
+        # formato medido ao vivo (24/11): o nome vem em "filename", SEM a extensão
+        return [{"filename": n[:-4] if n.lower().endswith(".pdf") else n} for n in self.anexos]
     def pedir(self, metodo, caminho, corpo=None, params=None):
         if caminho.startswith("/participants"): return self.fornecedores
         if caminho == "/categories/all": return [{"id": "cat-1", "name": "Comissão Venda de Casa"}]
@@ -901,3 +902,20 @@ def test_previa_avisa_chave_cpf_cnpj_diferente_do_documento():
         n = NotionFake(pagina())
         assert K.processar(PAGE, n, ErpFake(fornecedores=forn), "1.00@2026-11-24", hoje=HOJE)["situacao"] == "PREVIA"
         assert aviso not in coluna(n)
+
+def test_conferencia_le_filename_sem_extensao_e_aceita_reservas():
+    vistos = {}
+    class Real(ErpListando):
+        def pedir_core(self, metodo, caminho, corpo=None, params=None):
+            vistos["lista"] = [{"filename": "500,00 - COMISSAO UNIDADE 07 PARCELA 1-2 - 24-11-2026"},
+                               {"filename": "500,00 - COMISSAO UNIDADE 07 PARCELA 2-2 - 24-12-2026"}]
+            return vistos["lista"]
+    assert "recibos: 2/2" in _lancar(Real())
+    class Reserva(ErpListando):
+        def pedir_core(self, metodo, caminho, corpo=None, params=None):
+            return [{"name": self.anexos[0]}, {"fileName": self.anexos[1][:-4]}]
+    assert "recibos: 2/2" in _lancar(Reserva())
+    class OutroNome(ErpListando):
+        def pedir_core(self, metodo, caminho, corpo=None, params=None):
+            return [{"filename": "500,00 - COMISSAO UNIDADE 07 PARCELA 1-2 - 24-11-2026"}, {"filename": "OUTRO"}]
+    assert "recibos: 1/2" in _lancar(OutroNome())
