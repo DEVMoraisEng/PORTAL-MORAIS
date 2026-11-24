@@ -72,22 +72,55 @@
   async function carregarRevit(obraId) {
     const r = await g.chamar({ action: "modelo3d", pageId: obraId }, 60000, true);
     if (!r || !r.ok) return { erro: r && r.erro === "SEM_COLUNA_MODELO_3D" ? "sem 3D publicado" : ("não li o 3D: " + ((r && r.erro) || "erro")) };
-    const a = (r.arquivos || []).find(x => /\.json$/i.test(x.nome));
-    if (!a) return { erro: "o 3D desta obra não tem os quantitativos (publique de novo pelo Revit)" };
-    let txt = null;
-    try { const f = await fetch(a.url); if (f.ok) txt = await f.text(); } catch (e) {}
-    if (!txt) {
-      const partes = []; let ini = 0, total = 1;
-      while (ini < total) {
-        const p = await g.chamar({ action: "modelo3dParte", pageId: obraId, nome: a.nome, inicio: ini }, 120000, true);
-        if (!p || !p.ok) return { erro: "não baixei os quantitativos: " + ((p && p.erro) || "erro") };
-        partes.push(Uint8Array.from(atob(p.base64), c => c.charCodeAt(0))); total = p.total; ini += p.tamanho; if (!p.tamanho) break;
+    /* baixa um modelo3d.json (link direto do Notion; se o navegador bloquear, em pedaços pelo Apps Script) */
+    async function lerJson(pageId, a) {
+      let txt = null;
+      try { const f = await fetch(a.url); if (f.ok) txt = await f.text(); } catch (e) {}
+      if (!txt) {
+        const partes = []; let ini = 0, total = 1;
+        while (ini < total) {
+          const p = await g.chamar({ action: "modelo3dParte", pageId: pageId, nome: a.nome, inicio: ini }, 120000, true);
+          if (!p || !p.ok) throw new Error("não baixei os quantitativos: " + ((p && p.erro) || "erro"));
+          partes.push(Uint8Array.from(atob(p.base64), c => c.charCodeAt(0))); total = p.total; ini += p.tamanho; if (!p.tamanho) break;
+        }
+        const tam = partes.reduce((s, u) => s + u.length, 0), u8 = new Uint8Array(tam); let k = 0; partes.forEach(u => { u8.set(u, k); k += u.length; });
+        txt = new TextDecoder().decode(u8);
       }
-      const tam = partes.reduce((s, u) => s + u.length, 0), u8 = new Uint8Array(tam); let k = 0; partes.forEach(u => { u8.set(u, k); k += u.length; });
-      txt = new TextDecoder().decode(u8);
+      return JSON.parse(txt);
     }
-    let j; try { j = JSON.parse(txt); } catch (e) { return { erro: "quantitativos ilegíveis" }; }
-    return { linhas: lerTabelas(j), areas: lerAreas(j), em: j.atualizado_em || j.gerado_em || "", base: r.base || null, titulo: r.titulo || "" };
+    /* 24/11/26: o 3D é montado POR DISCIPLINA (igual ao visualizador): a disciplina publicada nesta obra vale; da obra
+       de mesmo layout entra o resto, menos o que lá é "só daquela obra"; e a escolha feita em Configurar projetos
+       (r.fontes: obra / vinculo / nenhum) manda. Antes, obra com só o Estrutural dela publicado perdia aqui os
+       quantitativos de Arquitetura, Elétrico e Hidro da obra de mesmo layout. */
+    const F = r.fontes || {}, B = r.base2 || null, eIfc = n => /\.ifc(\.txt)?$/i.test(n);
+    const cod = n => { const m = String(n).toUpperCase().match(/^([A-Z]{2,4})/); return m ? m[1] : ""; };
+    let j;
+    try {
+      if (B || Object.keys(F).some(d => F[d] === "nenhum")) {
+        const prop = r.proprios || r.arquivos || [], daBase = B ? (B.arquivos || []) : [], so = B ? (B.so || []).map(x => String(x).toUpperCase()) : [];
+        const dP = [...new Set(prop.filter(a => eIfc(a.nome)).map(a => cod(a.nome)))].filter(Boolean);
+        const dB = [...new Set(daBase.filter(a => eIfc(a.nome)).map(a => cod(a.nome)))].filter(Boolean);
+        const de = {};
+        [...new Set(dP.concat(dB))].forEach(d => {
+          const f = F[d];
+          de[d] = f === "nenhum" ? null : f === "obra" ? (dP.includes(d) ? "obra" : null) : f === "vinculo" ? (dB.includes(d) ? "base" : null)
+            : dP.includes(d) ? "obra" : (dB.includes(d) && !so.includes(d) ? "base" : null);
+        });
+        const aP = prop.find(a => /\.json$/i.test(a.nome)), aB = daBase.find(a => /\.json$/i.test(a.nome));
+        const usaP = Object.values(de).includes("obra"), usaB = Object.values(de).includes("base");
+        const mP = usaP && aP ? await lerJson(obraId, aP) : null, mB = usaB && aB ? await lerJson(B.id, aB) : null;
+        if (!mP && !mB) return { erro: "o 3D desta obra não tem os quantitativos (publique de novo pelo Revit)" };
+        const disc = {};
+        Object.keys(de).forEach(d => { const m = de[d] === "obra" ? mP : de[d] === "base" ? mB : null; if (m && m.disciplinas && m.disciplinas[d]) disc[d] = m.disciplinas[d]; });
+        const datas = [mP && mP.atualizado_em, mB && mB.atualizado_em].filter(Boolean).sort();
+        j = { obra: r.titulo, atualizado_em: datas[datas.length - 1] || "", disciplinas: disc };
+      } else {
+        const a = (r.arquivos || []).find(x => /\.json$/i.test(x.nome));
+        if (!a) return { erro: "o 3D desta obra não tem os quantitativos (publique de novo pelo Revit)" };
+        j = await lerJson(obraId, a);
+      }
+    } catch (e) { return { erro: /^não baixei/.test(String(e.message)) ? e.message : "quantitativos ilegíveis" }; }
+    return { linhas: lerTabelas(j), areas: lerAreas(j), em: j.atualizado_em || j.gerado_em || "", base: (B && { id: B.id, titulo: B.titulo }) || r.base || null, titulo: r.titulo || "" };
   }
   function tabelasDe(j) {
     const T = [];
