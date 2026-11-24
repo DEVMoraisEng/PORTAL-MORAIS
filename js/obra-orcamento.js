@@ -707,20 +707,29 @@
     const s = ST[sT(o.id)];
     const dados = ctx.dados || { lista: [], faltas: [] };
     let h = "";
-    /* dados da obra que o orçamento usa: uma faixa só, o que falta em laranja */
-    h += `<div class="orc-dados">${dados.lista.map(x => `<div class="od ${x.falta ? "falta" : ""}" title="${escH(x.orig + (x.obs ? " · " + x.obs : ""))}"><span>${escH(x.rot)}</span><b>${x.falta ? "falta" : escH(x.val)}</b></div>`).join("")}</div>`;
+    /* 24/11/26 (dono: "muito embolado, separa as informações das páginas"): os dados da obra viram uma guia própria;
+       o total, as datas e os botões da planilha ficam só na guia do orçamento */
+    const dadosHtml = () => `<div class="orc-pg-t"><b>Dados da obra usados no orçamento</b><span>Vêm da obra, do formulário de obra e do Revit. O que falta aparece em laranja — corrija na aba Dados da obra ou no formulário.</span></div>
+      <div class="orc-dados pg">${dados.lista.map(x => `<div class="od ${x.falta ? "falta" : ""}"><span>${escH(x.rot)}</span><b>${x.falta ? "falta" : escH(x.val)}</b>${x.orig || x.obs ? `<small>${escH((x.orig || "") + (x.obs ? " · " + x.obs : ""))}</small>` : ""}</div>`).join("")}</div>`;
     if (!s || (s.carregando && !s.linhas.length)) {
       return h + `<div class="orc-vazio"><span class="load"></span> ${escH(s && s.msg || "Preparando a planilha do orçamento…")}</div>`;
     }
     if (s.erro) return h + `<div class="orc-vazio">⚠ ${escH(s.erro)}</div>`;
     if (!s.contratos) s.contratos = gerarContratos(s);
-    const tot = total(s), CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length, sub = s.sub || "orc";
+    const tot = total(s), CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length, sub = s.sub || "orc", nFalta = dados.lista.filter(x => x.falta).length;
     /* 17/11: guias — o orçamento da obra, a conferência e um contrato por guia */
     h += `<div class="orc-guias">
       <button class="og-g ${sub === "orc" ? "on" : ""}" onclick="OrcObra.guia('orc')"><b>Orçamento da obra${travado(s, "orcamento") ? " 🔒" : ""}</b><span>${moeda(tot)} · ${s.linhas.length} linhas</span></button>
       <button class="og-g ${sub === "conf" ? "on" : ""} ${nAlto ? "rd" : ""}" onclick="OrcObra.guia('conf')"><b>Conferência ${CF.length ? "⚠ " + CF.length : "✓"}</b><span>${nAlto ? nAlto + " possíveis erros" : CF.length ? "pontos para olhar" : "nada estranho"}</span></button>
       ${s.contratos.map((k, ki) => `<button class="og-g ct ${sub === "ct" + ki ? "on" : ""}" onclick="OrcObra.guia('ct${ki}')"><b>Contrato ${escH(k.id)} · ${escH(k.nome.split(" — ")[0])}${travado(s, "ct:" + k.id) ? " 🔒" : ""}</b><span>${moeda(totalContrato(k))}</span></button>`).join("")}
+      <button class="og-g dd ${sub === "dados" ? "on" : ""} ${nFalta ? "rd" : ""}" onclick="OrcObra.guia('dados')"><b>Dados da obra${nFalta ? " ⚠ " + nFalta : ""}</b><span>${nFalta ? nFalta + " dado(s) faltando" : dados.lista.length + " dados usados"}</span></button>
     </div>`;
+    /* guias que não são a planilha: só o conteúdo delas + salvar (quando há o que salvar) */
+    const salvarMini = () => `<div class="orc-mini"><span>${s.salvoEm ? "Salva em " + escH(new Date(s.salvoEm).toLocaleString("pt-BR")) : "Ainda não salva"}${s.sujo ? ` <i class="sujo">• alterações não salvas</i>` : ""}</span><span class="sp"></span>
+      <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button></div>`;
+    if (sub === "dados") return h + dadosHtml();
+    if (sub === "conf") return h + conferenciaHtml(s, CF);
+    if (/^ct\d+$/.test(sub)) { const k = s.contratos[Number(sub.slice(2))]; return h + salvarMini() + (k ? envioBloco(s, "ct:" + k.id) : "") + contratoHtml(s, Number(sub.slice(2))); }
     h += `<div class="orc-kpis">
       <div class="kp"><b>${moeda(tot)}</b><span>total previsto</span></div>
       <div class="kp st"><span>${s.salvoEm ? "Salva por <b>" + escH(s.salvoPor || "") + "</b> em " + escH(new Date(s.salvoEm).toLocaleString("pt-BR")) + (s.versao ? " · versão " + s.versao : "") : "Ainda não salva"}${s.sujo ? ` <i class="sujo">• alterações não salvas</i>` : ""}</span>
@@ -730,8 +739,6 @@
       <button class="bt ghost" onclick="OrcObra.baixar()" title="Baixa a planilha em CSV (abre no Excel)">⬇ Baixar planilha</button>
       <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button>
     </div>`;
-    if (sub === "conf") return h + conferenciaHtml(s, CF);
-    if (/^ct\d+$/.test(sub)) { const k = s.contratos[Number(sub.slice(2))]; return h + (k ? envioBloco(s, "ct:" + k.id) : "") + contratoHtml(s, Number(sub.slice(2))); }
     h += envioBloco(s, "orcamento");
     const marca = {}; CF.forEach(x => { if (x.id) (marca[x.id] = marca[x.id] || []).push(x); });
     h += `<div class="orc-bar">

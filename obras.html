@@ -441,6 +441,13 @@ html[data-tema="escuro"] .ct-v{color:var(--text)}
 .og-g.on{border-color:var(--azul);border-bottom-color:var(--verde);box-shadow:0 0 0 1px var(--azul) inset}
 .og-g.rd b{color:var(--verm)}
 .og-g.ct b::before{content:"📄 "}
+.og-g.dd b::before{content:"🏠 "}
+.orc-guias{padding-bottom:12px;border-bottom:1px solid var(--border2);margin-bottom:14px}
+.orc-dados.pg{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px}
+.orc-dados.pg .od{padding:9px 12px;min-width:0}.orc-dados.pg .od b{white-space:normal;max-width:none;font-size:13.5px}
+.od small{font-size:10.5px;color:var(--text4);margin-top:3px;line-height:1.3}
+.orc-pg-t{display:flex;flex-direction:column;gap:2px;margin:0 0 10px}.orc-pg-t b{font-size:14px;color:var(--text)}.orc-pg-t span{font-size:11.5px;color:var(--text3)}
+.orc-mini{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:11.5px;font-weight:600;color:var(--text3)}.orc-mini .sp{flex:1}.orc-mini .sujo{color:#B45309;font-style:normal;font-weight:700}
 .orc-kpis .bt{align-self:center}
 /* 17/11: Enviar ao Mais Controle — botão em destaque, faixa do envio travado e as janelas de confirmar/desbloquear */
 .bt.envmc{background:var(--verde-btn);color:#0c3f22;font-weight:800;box-shadow:0 3px 10px rgba(76,217,100,.35)}
@@ -726,7 +733,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 
 <script src="app.js?v=46"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="js/obra-orcamento.js?v=9"></script>
+<script src="js/obra-orcamento.js?v=10"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
