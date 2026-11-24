@@ -756,7 +756,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
   <div class="toast" id="toast"></div>
 
 <script src="app.js?v=46"></script>
-<script src="painel-abas.js?v=2"></script>
+<script src="painel-abas.js?v=3"></script>
 <script>
 /* =====================================================================
  * LIGAÇÕES DE ÁGUA E ENERGIA — Morais Engenharia
@@ -5687,7 +5687,7 @@ const ABAS_LIG_VENDA=[["lig","Ligações da casa",/^LIGACOES DESTA CASA/],["vend
 function abasLigacoes(){
   if(!window.PainelAbas) return;
   const body=document.getElementById("pn-body"); if(!body) return;
-  const venda = LINHA_ABERTA && typeof VEN!=="undefined" && VEN.indexOf(LINHA_ABERTA)>=0;
+  const venda = LINHA_ABERTA && typeof VEN!=="undefined" && VEN.some(x => x===LINHA_ABERTA || x.id===LINHA_ABERTA.id);   // por id: a releitura ao vivo troca os objetos
   if(venda) PainelAbas.aplicar(body,{chave:"lig-venda",item:LINHA_ABERTA&&LINHA_ABERTA.id,padrao:"venda",ordem:["venda","lig"],abas:ABAS_LIG_VENDA});
   else PainelAbas.aplicar(body,{chave:"ligacao",item:LINHA_ABERTA&&LINHA_ABERTA.id,padrao:"resumo",ordem:["resumo","solic","uc","conf"],abas:ABAS_LIGACAO});
 }

@@ -35,10 +35,11 @@
       ".pa-tab .n{font-weight:700;opacity:.65;margin-left:3px}" +
       ".pa-sec[hidden]{display:none!important}" +
       /* como o painel da casa de Vendas: título da parte com a linha verde e as caixas em 2 colunas
-         (1 coluna quando o painel é estreito); texto longo ocupa a linha toda */
+         (1 coluna quando o painel é estreito); texto longo ocupa a linha toda.
+         24/11/2026 (Gustavo): mínimo 190 px — com 230 a gaveta de 520 px caía para 1 coluna toda vez que aparecia a barra de rolagem */
       ":where(.pa-tit){font-family:'Barlow Condensed',sans-serif;font-size:15px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--verde-txt,var(--verde,#2e9e57))}" +
       ".pa-tit{margin:4px var(--pa-lado,0px) 12px;padding:0 0 8px;border-bottom:2px solid var(--verde-btn,#4CD964)}" +
-      ".pa-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(max(230px,calc(50% - 20px)),1fr));column-gap:var(--pa-gap,16px);align-items:end}" +
+      ".pa-grade{display:grid;grid-template-columns:repeat(auto-fit,minmax(max(190px,calc(50% - 20px)),1fr));column-gap:var(--pa-gap,16px);align-items:end}" +
       ".pa-grade>.campo{min-width:0}" +
       ".pa-grade>.campo:has(textarea),.pa-grade>.campo:has(.msgrid),.pa-grade>.campo:has(.hist),.pa-grade>.campo:has(table),.pa-grade>.campo.largo{grid-column:1/-1}" +
       "@media (max-width:600px){.pa-tab{padding:7px 8px;font-size:11.5px;letter-spacing:.03em}}";
