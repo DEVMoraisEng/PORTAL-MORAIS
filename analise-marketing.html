@@ -1,0 +1,559 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#295778">
+<script>(function(){try{var t=localStorage.getItem("morais_tema");
+  if(t!=="claro"&&t!=="escuro") t="claro";
+  document.documentElement.dataset.tema=t;}catch(e){}})();</script>
+<title>Análise de Marketing · Morais Engenharia</title>
+<link rel="icon" href="img/logo-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --azul:#295778;--azul-esc:#1e3f58;--teal:#8FDCD2;--verde:#2a9d5c;--verde-btn:#4cd964;--verde-esc:#1a6b40;
+  --bg:#EAF1F3;--bg2:#F5F9FA;--bg3:#dceaef;--border:#b8d0da;--border2:#d0e4ec;
+  --text:#1a3347;--text3:#5a8099;--text4:#8aacbb;--sup:#fff;--sombra:rgba(20,40,55,.16);
+  --ok:#1a6b40;--ok-bg:#e6f6ec;--at:#8a5a00;--at-bg:#fff4d6;--div:#b3261e;--div-bg:#fdecea;--na:#5a8099;--na-bg:#e4edf1;
+  /* séries (paleta validada: dataviz/validate_palette.js — light) */
+  --c-cli:#2a78d6;--c-cor:#eb6834;--c-par:#1baf7a;--c-sr:#b9b8b0;--c-sc:#e1e0d9;--c-nc:#f0efec;
+  --grade:#e1e0d9;--eixo:#c3c2b7;
+}
+html[data-tema="escuro"]{
+  color-scheme:dark;
+  --azul:#2f6e93;--azul-esc:#122430;--teal:#79c8bf;--verde:#2f9e63;--verde-btn:#3cbf5d;--verde-esc:#17603a;
+  --bg:#0e1920;--bg2:#15222c;--bg3:#1a2c38;--border:#2d4757;--border2:#243a4a;
+  --text:#e7eff5;--text3:#9db4c4;--text4:#7794a6;--sup:#15222c;--sombra:rgba(0,0,0,.45);
+  --ok:#6fd49b;--ok-bg:#143325;--at:#f0c264;--at-bg:#3a2e12;--div:#f08a7e;--div-bg:#3b1c19;--na:#9db4c4;--na-bg:#1f3340;
+  --c-cli:#3987e5;--c-cor:#d95926;--c-par:#199e70;--c-sr:#6b6a65;--c-sc:#45443f;--c-nc:#2c2c2a;
+  --grade:#2c2c2a;--eixo:#383835;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--text);font-family:Inter,-apple-system,"Segoe UI",Roboto,sans-serif;font-size:14px;line-height:1.45;min-height:100vh}
+.cond{font-family:'Barlow Condensed',Inter,sans-serif}
+header{background:linear-gradient(120deg,var(--azul-esc),var(--azul))}
+header::after{content:"";display:block;height:4px;background:linear-gradient(90deg,var(--verde-btn),var(--teal))}
+.hbar{display:flex;align-items:center;gap:13px;padding:10px 16px;flex-wrap:wrap}
+.logo{background:#fff;border-radius:9px;padding:4px 9px;display:inline-flex}.logo img{height:32px;display:block}
+.htitle{font-family:'Barlow Condensed';font-weight:800;font-size:22px;color:#fff;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.hsub{color:var(--teal);font-size:11px;font-weight:700;letter-spacing:1.1px;text-transform:uppercase;margin-top:2px}
+.hspace{flex:1}
+.hbtn{border:1px solid rgba(255,255,255,.45);background:rgba(255,255,255,.12);color:#fff;border-radius:8px;padding:0 12px;min-height:44px;display:inline-flex;align-items:center;font:inherit;font-weight:700;font-size:12.5px;cursor:pointer;text-decoration:none}
+.hbtn:hover{background:rgba(255,255,255,.22)}
+main{max-width:1480px;margin:0 auto;padding:18px 16px 56px;display:flex;flex-direction:column;gap:16px}
+main>*{min-width:0}
+.hide{display:none!important}
+.painel{background:var(--sup);border:1px solid var(--border2);border-radius:12px;padding:16px 18px;min-width:0}
+.tit{display:flex;align-items:center;gap:10px;flex-wrap:wrap;background:var(--bg3);border-left:4px solid var(--verde);border-radius:8px;padding:8px 13px;margin-bottom:12px}
+.tit .cond{font-size:17px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--azul-esc)}
+html[data-tema="escuro"] .tit .cond{color:var(--text)}
+.tit em{font-style:normal;margin-left:auto;font-size:12px;color:var(--text3)}
+.dica{font-size:12.5px;color:var(--text3);margin:0}
+.btn{font:inherit;font-weight:700;font-size:13.5px;border-radius:9px;border:1px solid var(--border);background:var(--bg2);color:var(--text);padding:0 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;justify-content:center;gap:6px;text-decoration:none;white-space:nowrap}
+.btn:hover{border-color:var(--azul)}
+.btn.pri{background:var(--verde);border-color:var(--verde);color:#fff}
+.btn.pri:hover{background:var(--verde-esc)}
+.btn.conf{background:var(--at-bg);border-color:var(--at);color:var(--at)}
+.btn.zap{background:#1f8f4e;border-color:#1f8f4e;color:#fff}
+.btn:disabled{opacity:.55;cursor:default}
+.btn.peq{font-size:12.5px;padding:0 11px}
+:focus-visible{outline:2px solid var(--verde);outline-offset:2px}
+.carregando{padding:40px 10px;text-align:center;color:var(--text3)}
+.aviso{border-radius:10px;padding:11px 14px;font-size:13.5px;font-weight:600}
+.aviso.erro{background:var(--div-bg);color:var(--div)}
+.aviso.at{background:var(--at-bg);color:var(--at)}
+
+/* abas */
+.abas{display:flex;gap:4px;border-bottom:2px solid var(--border2);flex-wrap:wrap}
+.aba{font:inherit;font-weight:700;font-size:14px;background:none;border:0;border-bottom:3px solid transparent;margin-bottom:-2px;color:var(--text3);padding:0 16px;min-height:44px;cursor:pointer}
+.aba[aria-selected="true"]{color:var(--text);border-bottom-color:var(--verde)}
+.abas.grandes .aba{font-family:'Barlow Condensed';font-size:19px;font-weight:800;text-transform:uppercase;letter-spacing:.4px}
+.sub{display:flex;gap:6px;flex-wrap:wrap}
+.chipb{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:99px;padding:0 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
+.chipb[aria-pressed="true"]{border-color:var(--verde);background:var(--ok-bg);color:var(--ok)}
+.chipb small{font-weight:600;color:var(--text3)}
+.filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.filtros .hspace{flex:1}
+input[type=search],select{font:inherit;font-size:16px;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
+input[type=search]{min-width:0;width:240px}
+
+/* KPIs */
+.kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.kpi{background:var(--bg2);border:1px solid var(--border2);border-radius:11px;padding:11px 13px;min-width:0;position:relative}
+.kpi .n{font-family:'Barlow Condensed';font-weight:800;font-size:32px;line-height:1}
+.kpi .r{font-size:12px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:.3px;margin-top:4px}
+.kpi .p{font-size:12px;color:var(--text3)}
+.kpi i.sw{position:absolute;top:12px;right:12px;width:12px;height:12px;border-radius:4px}
+.dois{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media(max-width:900px){.dois{grid-template-columns:1fr}}
+
+/* legenda + barras empilhadas */
+.leg{display:flex;gap:14px;flex-wrap:wrap;font-size:12.5px;color:var(--text3);margin:4px 0 10px}
+.leg span{display:inline-flex;align-items:center;gap:6px}
+.leg i{width:12px;height:12px;border-radius:4px;display:inline-block}
+.pilha{display:flex;height:16px;gap:2px;border-radius:4px;overflow:hidden;min-width:60px}
+.pilha i{display:block;height:100%}
+.pilha.alta{height:26px}
+.sw-cli{background:var(--c-cli)}.sw-cor{background:var(--c-cor)}.sw-par{background:var(--c-par)}.sw-sr{background:var(--c-sr)}.sw-sc{background:var(--c-sc)}.sw-nc{background:var(--c-nc);box-shadow:inset 0 0 0 1px var(--eixo)}
+
+/* tabelas */
+.tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border2);border-radius:10px;max-width:100%}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--border2);vertical-align:middle}
+th{background:var(--bg3);font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);white-space:nowrap;position:sticky;top:0}
+th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+th.ord{cursor:pointer}
+th.ord:hover{color:var(--text)}
+tr:last-child td{border-bottom:0}
+td .muted{color:var(--text3);font-size:12px}
+td.nome{font-weight:600;min-width:150px}
+.tbl-wrap.alta{max-height:560px;overflow:auto}
+
+/* gráfico por dia */
+.dias-wrap{display:flex;gap:6px;align-items:stretch}
+.dias-eixo{position:relative;width:28px;flex:0 0 28px;height:170px;margin-bottom:20px}
+.dias-eixo span{position:absolute;right:0;transform:translateY(50%);font-size:11px;color:var(--text3)}
+.dias-rol{flex:1;min-width:0;overflow-x:auto;-webkit-overflow-scrolling:touch}
+.dias{display:flex;gap:2px;height:190px;align-items:stretch;background:linear-gradient(to top,var(--eixo) 1px,transparent 1px) bottom 20px left/100% calc(100% - 20px) no-repeat,repeating-linear-gradient(to top,var(--grade) 0 1px,transparent 1px calc(170px / var(--linhas))) bottom 20px left/100% 170px no-repeat}
+.dia{flex:1 1 0;min-width:8px;display:flex;flex-direction:column;justify-content:flex-end;position:relative;cursor:default}
+.dia .col{display:flex;flex-direction:column-reverse;gap:1px;border-radius:4px 4px 0 0;overflow:hidden;margin-bottom:20px;max-height:170px}
+.dia .col i{display:block;min-height:1px}
+.dia .rot{position:absolute;bottom:0;left:50%;transform:translateX(-50%);font-size:11px;color:var(--text3);white-space:nowrap}
+.dia:hover .col{filter:brightness(1.08)}
+.tip{position:fixed;z-index:70;background:var(--azul-esc);color:#fff;border-radius:9px;padding:8px 11px;font-size:12.5px;pointer-events:none;box-shadow:0 6px 20px var(--sombra);max-width:260px}
+.tip b{display:block;margin-bottom:3px}
+.tip .l{display:flex;align-items:center;gap:6px}
+.tip .l i{width:10px;height:10px;border-radius:3px;display:inline-block}
+
+/* redirecionamento */
+.st{display:inline-flex;flex-direction:column;gap:2px;border-radius:9px;padding:6px 9px;font-size:12px;font-weight:700;min-width:150px;line-height:1.25}
+.st small{font-weight:500;font-size:11.5px}
+.st.ok{background:var(--ok-bg);color:var(--ok)}
+.st.at{background:var(--at-bg);color:var(--at)}
+.st.div{background:var(--div-bg);color:var(--div)}
+.st.na{background:var(--na-bg);color:var(--na)}
+.envio{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.envio select{min-width:150px}
+.ret{max-width:280px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px}
+.origem{display:inline-block;border-radius:99px;padding:2px 9px;font-size:11.5px;font-weight:700;background:var(--bg3);color:var(--text3);white-space:nowrap}
+.origem.site{background:var(--at-bg);color:var(--at)}
+.toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;font-size:13.5px;z-index:60;max-width:calc(100vw - 24px);box-shadow:0 6px 20px var(--sombra)}
+.toast.erro{background:var(--div)}
+.cls-sel{font-size:16px;min-height:44px}
+details.lista>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:8px;min-height:44px;font-weight:700}
+details.lista>summary::-webkit-details-marker{display:none}
+footer{max-width:1480px;margin:0 auto;padding:0 16px 24px;color:var(--text4);font-size:11.5px}
+@media(max-width:600px){
+  .hbar{padding:8px 12px}.htitle{font-size:19px}
+  main{padding:14px 10px 48px}
+  .painel{padding:13px 12px}
+  input[type=search]{width:100%}
+  .filtros>*{flex:1 1 auto}
+  .kpi .n{font-size:28px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="hbar">
+    <span class="logo"><img src="img/logo.png" alt="Morais" onerror="this.parentNode.style.display='none'"></span>
+    <div style="min-width:0">
+      <div class="htitle">Análise de Marketing</div>
+      <div class="hsub">Campanhas da Meta · redirecionamento de leads</div>
+    </div>
+    <div class="hspace"></div>
+    <a class="hbtn" href="index.html" title="Voltar para o portal">← Portal</a>
+    <button class="hbtn" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){}})()" title="Alternar claro/escuro" aria-label="Alternar claro/escuro">◐</button>
+  </div>
+</header>
+
+<main id="app">
+  <div class="abas grandes" role="tablist">
+    <button class="aba" role="tab" id="aba-camp" aria-selected="true" onclick="irPara('camp')">Campanhas</button>
+    <button class="aba" role="tab" id="aba-red" aria-selected="false" onclick="irPara('red')">Redirecionamento de leads</button>
+  </div>
+  <section id="sec-camp"><div class="carregando">Lendo as planilhas de campanha…</div></section>
+  <section id="sec-red" class="hide"><div class="carregando">Lendo os leads…</div></section>
+</main>
+<footer id="rodape"></footer>
+<div class="tip hide" id="tip" role="tooltip"></div>
+
+<script src="app.js?v=46"></script>
+<script>
+"use strict";
+/* ===== ANÁLISE DE MARKETING (24/11/26) =======================================
+ * Grupo ANÁLISES do portal. Duas abas:
+ *  - CAMPANHAS: cada aba de campanha da planilha "LEADS RESERVA DOS IPES -
+ *    CANEDO" (da 3ª em diante, com ad_name/adset_name) vira uma aba aqui, mais
+ *    o Comparativo. Captação por anúncio (ad_name) e por conjunto (adset_name),
+ *    qualificado × desqualificado (lead_status da Meta) e cliente × corretor ×
+ *    respondeu e parou × sem resposta (conversas/Oportunidades da HyperFlow).
+ *  - REDIRECIONAMENTO: leads clientes que a HyperFlow grava na planilha
+ *    ATENDIMENTOS → botão de envio para a planilha da imobiliária, com alerta
+ *    de quanto tempo está sem retorno; leads novos do site → só Hudson.
+ * Servidor: apps-script/MarketingLeads.gs (PORTAL-LEITURA). Acesso:
+ * "ANÁLISE DE MARKETING" na coluna ACESSOS do LOGINS (ADM/MASTER sempre).
+ * ============================================================================ */
+const PAGINA_VERSAO = "v1";
+const SESS = exigirSessao();
+const $ = s => document.querySelector(s);
+const escA = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const ERROS = {
+  NAO_AUTORIZADO:"Sessão vencida — entre de novo no portal.",
+  SEM_PERMISSAO:"Seu login não tem o acesso ANÁLISE DE MARKETING (peça ao ADM).",
+  MODO_TESTE:"Login de TESTES não grava nada.",
+  APENAS_ADM:"Só ADM/MASTER pode fazer isso.",
+  ACAO_DESCONHECIDA:"O servidor ainda não tem a Análise de Marketing (Apps Script sem o MarketingLeads.gs ou sem publicar nova versão).",
+  JA_ENVIADO:"Esse lead já foi enviado",
+  JA_ESTA_NA_PLANILHA:"Esse telefone já está na planilha",
+  LEAD_NAO_ENCONTRADO:"Lead não encontrado na planilha de atendimentos (a planilha mudou?) — atualize a tela.",
+  DESTINO_INVALIDO:"Escolha a imobiliária."
+};
+function msgErro(c){ const s=String(c||""); const b=s.split(":")[0].trim(); const resto=s.slice(b.length+1).trim(); return (ERROS[b]? ERROS[b]+(resto?" ("+resto+")":"") : (typeof erroTexto==="function"?erroTexto(s):s)) || "erro desconhecido"; }
+let _toastT=null;
+function toast(msg, erro){
+  let t=$(".toast"); if(!t){ t=document.createElement("div"); t.className="toast"; t.setAttribute("role","status"); document.body.appendChild(t); }
+  t.textContent=msg; t.classList.toggle("erro",!!erro); t.classList.remove("hide");
+  clearTimeout(_toastT); _toastT=setTimeout(()=>t.classList.add("hide"), erro?6500:2800);
+}
+async function api(payload){
+  let r;
+  try{ r = await chamar(payload, 120000, true); }
+  catch(e){ return { ok:false, erro:"Sem conexão com o servidor — tente de novo." }; }
+  if(!r) return { ok:false, erro:"resposta vazia do servidor" };
+  if(r.ok===false && /ACAO_DESCONHECIDA|nao encontrada|não encontrada/i.test(String(r.erro||""))) r.erro="ACAO_DESCONHECIDA";
+  return r;
+}
+
+/* ===================== CLASSES ===================== */
+const CLS = [
+  {id:"CLIENTE",           rot:"Clientes",            sw:"sw-cli", cor:"var(--c-cli)"},
+  {id:"CORRETOR",          rot:"Corretores",          sw:"sw-cor", cor:"var(--c-cor)"},
+  {id:"RESPONDEU E PAROU", rot:"Respondeu e parou",   sw:"sw-par", cor:"var(--c-par)"},
+  {id:"SEM RESPOSTA",      rot:"Sem resposta",        sw:"sw-sr",  cor:"var(--c-sr)"},
+  {id:"SEM CONVERSA",      rot:"Sem conversa na HyperFlow", sw:"sw-sc", cor:"var(--c-sc)"},
+  {id:"",                  rot:"Sem classificação",   sw:"sw-nc",  cor:"var(--c-nc)"}
+];
+const CLS_DE = Object.fromEntries(CLS.map(c=>[c.id,c]));
+function clsDe(l){ return CLS_DE[l.cls] ? l.cls : ""; }
+function statusMeta(st){ const s=String(st||"").toLowerCase(); if(s==="qualifiedlead") return "Q"; if(s==="disqualifiedlead") return "D"; return "N"; }
+
+/* ===================== ESTADO ===================== */
+const ST = { sec:"camp", C:null, aba:"__comp", periodo:"tudo", L:null, fEnv:"nao", fOri:"todos", busca:"", conf:null, enviando:false, copiouHudson:false, ordem:{} };
+
+function irPara(s){
+  ST.sec=s;
+  $("#aba-camp").setAttribute("aria-selected", s==="camp"); $("#aba-red").setAttribute("aria-selected", s==="red");
+  $("#sec-camp").classList.toggle("hide", s!=="camp"); $("#sec-red").classList.toggle("hide", s!=="red");
+  try{ history.replaceState(null,"","#"+s); }catch(e){}
+  if(s==="red" && !ST.L) carregarLeads();
+  if(s==="camp" && !ST.C) carregarCampanhas();
+}
+
+/* ===================== CAMPANHAS ===================== */
+async function carregarCampanhas(){
+  $("#sec-camp").innerHTML='<div class="carregando">Lendo as planilhas de campanha…</div>';
+  const r = await api({ action:"mkCampanhas" });
+  if(!r.ok){ $("#sec-camp").innerHTML='<div class="aviso erro">'+escA(msgErro(r.erro))+'</div>'; return; }
+  ST.C=r;
+  if(ST.aba!=="__comp" && !r.abas.some(a=>a.nome===ST.aba)) ST.aba="__comp";
+  rodape(r);
+  desenharCampanhas();
+}
+function rodape(r){ $("#rodape").textContent = "Página "+PAGINA_VERSAO+" · Apps Script "+(r&&r.versao||"?")+" · lido em "+fmtDH(r&&r.geradoEm); }
+function fmtDH(iso){ if(!iso) return "—"; const m=String(iso).match(/(\d{4})-(\d\d)-(\d\d)T?(\d\d)?:?(\d\d)?/); if(!m) return iso; return m[3]+"/"+m[2]+(m[4]?" "+m[4]+":"+m[5]:""); }
+function fmtD(iso){ const m=String(iso||"").match(/(\d{4})-(\d\d)-(\d\d)/); return m? m[3]+"/"+m[2]+"/"+m[1] : "—"; }
+function hojeIso(){ const d=new Date(); return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,10); }
+function noPeriodo(l){
+  if(ST.periodo==="tudo") return true;
+  const dias={ "7":7, "15":15, "30":30 }[ST.periodo]||0;
+  const lim=new Date(Date.now()-dias*86400000); const iso=new Date(lim.getTime()-lim.getTimezoneOffset()*60000).toISOString().slice(0,10);
+  return (l.t||"").slice(0,10) >= iso;
+}
+function contar(leads){
+  const c={ n:leads.length, Q:0, D:0, N:0 }; CLS.forEach(x=>c[x.id]=0);
+  leads.forEach(l=>{ c[clsDe(l)]++; c[statusMeta(l.st)]++; });
+  return c;
+}
+function pct(a,b){ return b? Math.round(a*1000/b)/10 : 0; }
+function pilha(c, alta){
+  if(!c.n) return '<div class="pilha'+(alta?' alta':'')+'"><i class="sw-nc" style="flex:1"></i></div>';
+  return '<div class="pilha'+(alta?' alta':'')+'" data-tip="'+escA(JSON.stringify(c))+'">'+CLS.filter(x=>c[x.id]).map(x=>'<i class="'+x.sw+'" style="flex:'+c[x.id]+'"></i>').join("")+'</div>';
+}
+function legenda(){ return '<div class="leg">'+CLS.map(x=>'<span><i class="'+x.sw+'"></i>'+escA(x.rot)+'</span>').join("")+'</div>'; }
+function kpis(c){
+  const k=(n,r,p,sw)=>'<div class="kpi">'+(sw?'<i class="sw '+sw+'"></i>':'')+'<div class="n">'+n+'</div><div class="r">'+r+'</div>'+(p!=null?'<div class="p">'+p+'% dos leads</div>':'')+'</div>';
+  return '<div class="kpis">'+
+    k(c.n,"Leads captados")+
+    k(c.Q,"Qualificados (Meta)",pct(c.Q,c.n))+
+    k(c.D,"Desqualificados (Meta)",pct(c.D,c.n))+
+    k(c.N,"Sem status na Meta",pct(c.N,c.n))+
+    CLS.filter(x=>x.id!=="" || c[""]).map(x=>k(c[x.id],x.rot,pct(c[x.id],c.n),x.sw)).join("")+
+  '</div>';
+}
+function agrupar(leads, campo){
+  const g={}; leads.forEach(l=>{ const k=l[campo]||"(vazio)"; (g[k]=g[k]||[]).push(l); });
+  return Object.entries(g).map(([k,ls])=>Object.assign({ nome:k }, contar(ls)));
+}
+function tabelaGrupo(id, linhas, titulo){
+  const ord = (id in ST.ordem) ? ST.ordem[id] : "n";
+  linhas.sort((a,b)=> (b[ord]-a[ord]) || (b.n-a.n) || a.nome.localeCompare(b.nome));
+  const th=(k,r)=>'<th class="num ord" onclick="ordenar(\''+id+'\',\''+k+'\')" title="Ordenar">'+r+(ord===k?' ▾':'')+'</th>';
+  return '<div class="tbl-wrap"><table><thead><tr><th>'+titulo+'</th>'+th("n","Leads")+
+    '<th style="min-width:140px">Composição</th>'+th("CLIENTE","Clientes")+th("CORRETOR","Corretores")+th("RESPONDEU E PAROU","Parou")+th("SEM RESPOSTA","Sem resp.")+
+    th("SEM CONVERSA","Sem conversa")+th("","Sem class.")+th("Q","Qualif.")+th("D","Desqualif.")+'</tr></thead><tbody>'+
+    linhas.map(g=>'<tr><td class="nome">'+escA(g.nome)+'</td><td class="num"><b>'+g.n+'</b></td><td>'+pilha(g)+'</td>'+
+      ["CLIENTE","CORRETOR","RESPONDEU E PAROU","SEM RESPOSTA","SEM CONVERSA",""].map(k=>'<td class="num">'+(g[k]||'<span class="muted">0</span>')+(g[k]?' <span class="muted">'+pct(g[k],g.n)+'%</span>':'')+'</td>').join("")+
+      '<td class="num">'+g.Q+'</td><td class="num">'+g.D+'</td></tr>').join("")+
+  '</tbody></table></div>';
+}
+function ordenar(id,k){ ST.ordem[id]=k; desenharCampanhas(); }
+function graficoDias(leads){
+  const por={}; leads.forEach(l=>{ const d=(l.t||"").slice(0,10); if(!d) return; (por[d]=por[d]||[]).push(l); });
+  const dias=Object.keys(por).sort(); if(!dias.length) return '<p class="dica">Sem datas.</p>';
+  /* preenche os dias sem lead */
+  const todos=[]; let d=new Date(dias[0]+"T12:00:00"); const fim=new Date(dias[dias.length-1]+"T12:00:00");
+  while(d<=fim && todos.length<400){ todos.push(d.toISOString().slice(0,10)); d=new Date(d.getTime()+86400000); }
+  const max=Math.max(...todos.map(x=>(por[x]||[]).length),1);
+  const passo = max<=5?1: max<=10?2: max<=25?5: max<=60?10: 25;
+  const topo = Math.ceil(max/passo)*passo;
+  const marca = (i,dia)=> i===0 || i===todos.length-1 || (todos.length>24 ? /-(01|08|15|22)$/.test(dia) : todos.length>10 ? i%2===0 : true);
+  let h='<div class="dias-wrap"><div class="dias-eixo">'+Array.from({length:topo/passo+1},(_,k)=>'<span style="bottom:'+(k*passo*100/topo)+'%">'+(k*passo)+'</span>').join("")+'</div>'+
+    '<div class="dias-rol"><div class="dias" style="min-width:'+(todos.length*12)+'px;--linhas:'+(topo/passo)+'">';
+  todos.forEach((dia,i)=>{
+    const c=contar(por[dia]||[]);
+    h+='<div class="dia" data-tip="'+escA(JSON.stringify(Object.assign({dia},c)))+'"><div class="col" style="height:'+(c.n*100/topo)+'%">'+
+      CLS.filter(x=>c[x.id]).map(x=>'<i class="'+x.sw+'" style="flex:'+c[x.id]+'"></i>').join("")+'</div>'+
+      '<span class="rot">'+(marca(i,dia)? dia.slice(8,10)+'/'+dia.slice(5,7) : '')+'</span></div>';
+  });
+  return h+'</div></div></div><p class="dica">Pico: '+max+' leads/dia · passe o mouse (ou toque) na barra para ver o dia.</p>';
+}
+function listaLeads(leads, aba){
+  const opc = c=> CLS.filter(x=>x.id).map(x=>'<option value="'+escA(x.id)+'"'+(c===x.id?' selected':'')+'>'+escA(x.rot)+'</option>').join("");
+  const linhas = leads.slice().sort((a,b)=>(b.t||"").localeCompare(a.t||""));
+  return '<details class="lista"><summary>▸ Ver os '+leads.length+' leads (corrigir classificação)</summary>'+
+    '<div class="tbl-wrap alta" style="margin-top:8px"><table><thead><tr><th>Data</th><th>Nome</th><th>Telefone</th><th>Anúncio</th><th>Conjunto</th><th>Meta</th><th>Classificação</th><th>Etapa / fonte</th></tr></thead><tbody>'+
+    linhas.map(l=>'<tr><td>'+fmtDH(l.t)+'</td><td class="nome">'+escA(l.nome||"—")+'</td><td style="white-space:nowrap">'+escA(l.tel)+'</td><td>'+escA(l.ad)+'</td><td>'+escA(l.adset)+'</td><td>'+escA(l.st||"—")+'</td>'+
+      '<td><select class="cls-sel" aria-label="Classificação de '+escA(l.nome)+'" onchange="classificar(\''+escA(l.k)+'\',this.value,\''+escA((l.nome||"").replace(/'/g,""))+'\',this)"'+(l.k?'':' disabled')+'><option value=""'+(clsDe(l)?'':' selected')+'>Sem classificação</option>'+opc(clsDe(l))+'</select></td>'+
+      '<td class="muted">'+escA([l.etapa,l.fonte].filter(Boolean).join(" · ")||"—")+'</td></tr>').join("")+
+    '</tbody></table></div></details>';
+}
+async function classificar(k, tipo, nome, el){
+  if(!tipo){ toast("Escolha uma classificação.", true); return; }
+  el.disabled=true;
+  const r=await api({ action:"mkClassificar", k, tipo, nome });
+  el.disabled=false;
+  if(!r.ok){ toast(msgErro(r.erro), true); return; }
+  ST.C.abas.forEach(a=>a.leads.forEach(l=>{ if(l.k===k){ l.cls=tipo; l.fonte="MANUAL"; l.etapa="Corrigido no portal"; } }));
+  toast("Classificação gravada.");
+  const aberto = el.closest("details") && el.closest("details").open;
+  desenharCampanhas(aberto);
+}
+function filtroPeriodo(){
+  const op=[["tudo","Tudo"],["30","30 dias"],["15","15 dias"],["7","7 dias"]];
+  return '<div class="filtros"><div class="sub" role="group" aria-label="Período">'+op.map(([v,r])=>'<button class="chipb" aria-pressed="'+(ST.periodo===v)+'" onclick="ST.periodo=\''+v+'\';desenharCampanhas()">'+r+'</button>').join("")+'</div>'+
+    '<span class="hspace"></span><a class="btn peq" href="'+escA(ST.C.planilha)+'" target="_blank" rel="noopener">Abrir planilha ↗</a><button class="btn peq" onclick="carregarCampanhas()">↻ Atualizar</button></div>';
+}
+function desenharCampanhas(listaAberta){
+  const C=ST.C; if(!C) return;
+  const abas=[{nome:"__comp",rot:"Comparativo"}].concat(C.abas.map(a=>({nome:a.nome,rot:a.nome})));
+  ST._abas=abas.map(a=>a.nome);
+  let h='<div class="abas" role="tablist" style="margin-bottom:12px">'+abas.map((a,i)=>'<button class="aba" role="tab" aria-selected="'+(ST.aba===a.nome)+'" onclick="ST.aba=ST._abas['+i+'];desenharCampanhas()">'+escA(a.rot)+'</button>').join("")+'</div>';
+  h+='<div class="painel" style="margin-bottom:16px">'+filtroPeriodo()+'</div>';
+  if(ST.aba==="__comp") h+=comparativo();
+  else{
+    const A=C.abas.find(a=>a.nome===ST.aba); const leads=A.leads.filter(noPeriodo); const c=contar(leads);
+    const ini=leads.map(l=>l.t).filter(Boolean).sort();
+    h+='<div class="painel"><div class="tit"><span class="cond">'+escA(A.nome)+'</span><em>'+(ini.length? fmtD(ini[0])+' a '+fmtD(ini[ini.length-1]):"")+'</em></div>'+kpis(c)+
+      '<div style="margin-top:14px">'+legenda()+pilha(c,true)+'</div>'+
+      (c[""]? '<p class="dica" style="margin-top:8px">"Sem classificação" = lead que ainda não tem leitura da HyperFlow nem está na planilha de atendimentos (normalmente ainda em Prospecção). Corrija na lista do fim da página.</p>':'')+'</div>';
+    h+='<div class="painel"><div class="tit"><span class="cond">Captação por anúncio (ad_name)</span><em>clique no título da coluna para ordenar</em></div>'+legenda()+tabelaGrupo("ad",agrupar(leads,"ad"),"Anúncio")+'</div>';
+    h+='<div class="painel"><div class="tit"><span class="cond">Captação por conjunto (adset_name)</span></div>'+tabelaGrupo("set",agrupar(leads,"adset"),"Conjunto")+'</div>';
+    h+='<div class="painel"><div class="tit"><span class="cond">Leads por dia</span></div>'+legenda()+graficoDias(leads)+'</div>';
+    h+='<div class="painel">'+listaLeads(leads,A.nome)+'</div>';
+  }
+  $("#sec-camp").innerHTML=h;
+  if(listaAberta){ const d=$("#sec-camp details.lista"); if(d) d.open=true; }
+}
+function comparativo(){
+  const C=ST.C;
+  const porAba=C.abas.map(a=>Object.assign({nome:a.nome}, contar(a.leads.filter(noPeriodo))));
+  const todos=[]; C.abas.forEach(a=>a.leads.filter(noPeriodo).forEach(l=>todos.push(Object.assign({aba:a.nome},l))));
+  const tot=contar(todos);
+  const rank=(cls)=>{
+    const g=agrupar(todos,"ad").filter(x=>x[cls]).sort((a,b)=>b[cls]-a[cls]||pct(b[cls],b.n)-pct(a[cls],a.n)).slice(0,8);
+    if(!g.length) return '<p class="dica">Nenhum ainda.</p>';
+    const max=g[0][cls];
+    return '<div class="tbl-wrap"><table><thead><tr><th>Anúncio</th><th class="num">'+(cls==="CLIENTE"?"Clientes":"Corretores")+'</th><th style="min-width:120px"></th><th class="num">% dos leads do anúncio</th></tr></thead><tbody>'+
+      g.map(x=>'<tr><td class="nome">'+escA(x.nome)+'</td><td class="num"><b>'+x[cls]+'</b></td><td><div class="pilha"><i class="'+(cls==="CLIENTE"?"sw-cli":"sw-cor")+'" style="flex:'+x[cls]+'"></i><i style="flex:'+(max-x[cls])+';background:transparent"></i></div></td><td class="num">'+pct(x[cls],x.n)+'% <span class="muted">de '+x.n+'</span></td></tr>').join("")+'</tbody></table></div>';
+  };
+  return '<div class="painel"><div class="tit"><span class="cond">Todas as campanhas</span><em>'+C.abas.length+' abas de campanha</em></div>'+kpis(tot)+'</div>'+
+    '<div class="painel"><div class="tit"><span class="cond">Campanha × resultado</span></div>'+legenda()+tabelaGrupo("aba",porAba,"Campanha (aba da planilha)")+
+      '<p class="dica" style="margin-top:8px">Cada aba da planilha de marketing (da 3ª em diante, com ad_name e adset_name) é uma campanha. Aba nova aparece aqui sozinha.</p></div>'+
+    '<div class="dois"><div class="painel"><div class="tit"><span class="cond">Anúncios que mais geram clientes</span></div>'+rank("CLIENTE")+'</div>'+
+    '<div class="painel"><div class="tit"><span class="cond">Anúncios que mais geram corretores</span></div>'+rank("CORRETOR")+'</div></div>'+
+    '<div class="painel"><div class="tit"><span class="cond">Anúncio × resultado (todas as campanhas)</span></div>'+tabelaGrupo("adall",agrupar(todos,"ad"),"Anúncio")+'</div>'+
+    '<div class="painel"><div class="tit"><span class="cond">Como cada lead é classificado</span></div><ul class="dica" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">'+
+      '<li><b>Qualificado / desqualificado</b>: coluna lead_status da Meta (QualifiedLead / DisqualifiedLead; CREATED = sem status).</li>'+
+      '<li><b>Cliente / corretor / respondeu e parou / sem resposta</b>: leitura das conversas da HyperFlow (campanha do lançamento) e da tela Oportunidades (Prospecção = sem resposta; Ativo/Pendente cliente = cliente; Ativo/Pendente corretor = corretor). Lead que a HyperFlow gravou na planilha de atendimentos conta como cliente.</li>'+
+      '<li><b>Sem conversa na HyperFlow</b>: o telefone não tem conversa na HyperFlow (atendido antes, por outro canal).</li>'+
+      '<li>Correção feita na lista de leads vale acima da leitura automática (fica na aba HYPERFLOW da planilha de marketing).</li></ul></div>';
+}
+
+/* tooltip das barras */
+document.addEventListener("pointerover", e=>{
+  const el=e.target.closest("[data-tip]"); const tip=$("#tip");
+  if(!el){ tip.classList.add("hide"); return; }
+  let c; try{ c=JSON.parse(el.dataset.tip); }catch(x){ return; }
+  tip.innerHTML='<b>'+(c.dia? fmtD(c.dia) : c.n+" leads")+'</b>'+(c.dia?'<div>'+c.n+' leads</div>':'')+CLS.filter(x=>c[x.id]).map(x=>'<div class="l"><i class="'+x.sw+'"></i>'+escA(x.rot)+': '+c[x.id]+'</div>').join("");
+  tip.classList.remove("hide");
+});
+document.addEventListener("pointermove", e=>{ const tip=$("#tip"); if(tip.classList.contains("hide")) return; const x=Math.min(e.clientX+14, window.innerWidth-tip.offsetWidth-8), y=Math.min(e.clientY+14, window.innerHeight-tip.offsetHeight-8); tip.style.left=x+"px"; tip.style.top=y+"px"; });
+document.addEventListener("scroll", ()=>$("#tip").classList.add("hide"), true);
+
+/* ===================== REDIRECIONAMENTO ===================== */
+async function carregarLeads(forcar){
+  if(!ST.L) $("#sec-red").innerHTML='<div class="carregando">Lendo os leads e as planilhas das imobiliárias…</div>';
+  const r = await api({ action:"mkLeads", forcar: !!forcar });
+  if(!r.ok){ $("#sec-red").innerHTML='<div class="aviso erro">'+escA(msgErro(r.erro))+'</div>'; return; }
+  ST.L=r; rodape(r); desenharLeads();
+}
+function horas(iso){ if(!iso) return null; const d=new Date(String(iso).replace(" ","T")); return isNaN(d)? null : Math.max(0,(Date.now()-d.getTime())/3600000); }
+function tempo(h){ if(h==null) return ""; if(h<1) return "menos de 1 h"; if(h<24) return Math.round(h)+" h"; const d=Math.floor(h/24); return d+(d===1?" dia":" dias"); }
+function statusLead(l){
+  if(l.tipo==="hudson"){
+    if(l.enviado) return '<span class="st ok">Enviado ao Hudson<small>'+fmtDH(l.enviadoEm)+(l.enviadoPor?' · '+escA(l.enviadoPor):'')+'</small></span>';
+    const h=horas(l.t); return '<span class="st '+(h>24?'div':'at')+'">Falta enviar ao Hudson<small>chegou há '+tempo(h)+'</small></span>';
+  }
+  if(!l.enviado){ const h=horas(l.t); return '<span class="st '+(h>24?'div':'at')+'">Aguardando envio<small>chegou há '+tempo(h)+'</small></span>'; }
+  if(l.retorno) return '<span class="st ok">Com retorno da imobiliária<small>'+escA(l.destino||"")+(l.atualizacao?' · '+escA(l.atualizacao):'')+'</small></span>';
+  const h = l.semRetornoHoras!=null ? l.semRetornoHoras : horas(l.enviadoEm||l.t);
+  const cls = h==null? 'na' : h>=72? 'div' : h>=24? 'at' : 'na';
+  return '<span class="st '+cls+'">⚠ Sem retorno há '+(h==null?'?':tempo(h))+'<small>'+escA(l.destino||"destino não identificado")+(l.foraDoPortal?' · enviado fora do portal':'')+'</small></span>';
+}
+function textoLead(l){
+  const linhas=[ "*"+(l.nome||"Lead")+"*", "📞 "+(l.tel||""), l.email?"✉ "+l.email:"", "🗓 "+fmtDH(l.t), "Origem: "+l.origem ];
+  if(l.tipo==="hudson"){ if(l.objetivo) linhas.push("Objetivo: "+l.objetivo); if(l.entrada) linhas.push("Entrada: "+l.entrada); if(l.parcela) linhas.push("Parcela: "+l.parcela); }
+  else { if(l.renda) linhas.push("Renda: "+l.renda); if(l.prof) linhas.push("Profissão: "+l.prof); if(l.pref) linhas.push("Prefere: "+l.pref); }
+  return linhas.filter(Boolean).join("\n");
+}
+function celulaEnvio(l, i){
+  if(l.tipo==="hudson"){
+    const zap='<a class="btn zap peq" href="https://wa.me/?text='+encodeURIComponent(textoLead(l))+'" target="_blank" rel="noopener" title="Abre o WhatsApp com os dados do lead para mandar ao Hudson">WhatsApp</a>';
+    if(l.enviado) return '<div class="envio">'+zap+(ehAdmTela()?'<button class="btn peq" onclick="desfazer('+i+')" title="Apagar o registro do envio (ADM)">Desfazer</button>':'')+'</div>';
+    return '<div class="envio">'+zap+'<button class="btn pri peq" onclick="confirmarHudson(['+i+'])">Confirmar envio</button></div>';
+  }
+  if(l.enviado){
+    const c=(ST.L.corretores||[]).find(x=>x.nome===l.destino);
+    return '<div class="envio"><span class="muted">→ <b>'+escA(l.destino||"?")+'</b>'+(l.enviadoEm?'<br>'+fmtDH(l.enviadoEm)+(l.enviadoPor?' · '+escA(l.enviadoPor):''):'')+'</span>'+(c?'<a class="btn peq" href="'+escA(c.url)+'" target="_blank" rel="noopener" title="Abrir a planilha da imobiliária">↗</a>':'')+'</div>';
+  }
+  const conf = ST.conf && ST.conf.i===i;
+  return '<div class="envio"><select id="dest-'+i+'" aria-label="Imobiliária para '+escA(l.nome)+'" onchange="ST.conf=null;desenharLeads()">'+
+    '<option value="">Imobiliária…</option>'+(ST.L.corretores||[]).map(c=>'<option'+(conf&&ST.conf.destino===c.nome?' selected':'')+'>'+escA(c.nome)+'</option>').join("")+'</select>'+
+    (conf? '<button class="btn conf peq" onclick="enviar('+i+')"'+(ST.enviando?' disabled':'')+'>Confirmar → '+escA(ST.conf.destino)+'</button>' : '<button class="btn pri peq" onclick="preEnviar('+i+')">Enviar</button>')+'</div>';
+}
+function ehAdmTela(){ const t=String(SESS&&SESS.tipo||SESS&&SESS.t||"").toUpperCase(); return t==="ADM"||t==="MASTER"; }
+function filtrados(){
+  const b=ST.busca.trim().toLowerCase(), bd=b.replace(/\D/g,"");
+  return ST.L.itens.map((l,i)=>Object.assign({i},l)).filter(l=>{
+    if(ST.fEnv==="nao" && l.enviado) return false;
+    if(ST.fEnv==="sim" && !l.enviado) return false;
+    if(ST.fOri==="atend" && l.tipo!=="corretor") return false;
+    if(ST.fOri==="hudson" && l.tipo!=="hudson") return false;
+    if(b && !((l.nome||"").toLowerCase().includes(b) || (bd.length>=4 && String(l.telCru||"").includes(bd)) || (l.destino||"").toLowerCase().includes(b))) return false;
+    return true;
+  });
+}
+function desenharLeads(){
+  const L=ST.L; if(!L) return;
+  const it=L.itens;
+  const n=(f)=>it.filter(f).length;
+  const semRet=n(l=>l.tipo==="corretor"&&l.enviado&&!l.retorno);
+  const hudsonPend=it.filter(l=>l.tipo==="hudson"&&!l.enviado);
+  const chip=(grp,v,r,c)=>'<button class="chipb" aria-pressed="'+(ST[grp]===v)+'" onclick="ST.'+grp+'=\''+v+'\';desenharLeads()">'+r+' <small>'+c+'</small></button>';
+  const lista=filtrados();
+  let h='<div class="painel"><div class="kpis">'+
+    '<div class="kpi"><div class="n">'+n(l=>!l.enviado&&l.tipo==="corretor")+'</div><div class="r">Clientes aguardando envio</div></div>'+
+    '<div class="kpi"><div class="n">'+semRet+'</div><div class="r">Enviados sem retorno da imobiliária</div></div>'+
+    '<div class="kpi"><div class="n">'+hudsonPend.length+'</div><div class="r">Site · falta enviar ao Hudson</div></div>'+
+    '<div class="kpi"><div class="n">'+n(l=>l.enviado)+'</div><div class="r">Enviados</div></div></div></div>';
+  h+='<div class="painel"><div class="filtros" style="margin-bottom:10px">'+
+      '<div class="sub" role="group" aria-label="Envio">'+chip("fEnv","nao","Não enviados",n(l=>!l.enviado))+chip("fEnv","sim","Enviados",n(l=>l.enviado))+chip("fEnv","geral","Geral",it.length)+'</div>'+
+      '<div class="sub" role="group" aria-label="Origem">'+chip("fOri","todos","Todas as origens",it.length)+chip("fOri","atend","Atendimento (corretores)",n(l=>l.tipo==="corretor"))+chip("fOri","hudson","Site → Hudson",n(l=>l.tipo==="hudson"))+'</div></div>'+
+    '<div class="filtros" style="margin-bottom:12px"><input type="search" placeholder="Buscar nome, telefone ou imobiliária" value="'+escA(ST.busca)+'" oninput="ST.busca=this.value;desenharTabela()" aria-label="Buscar">'+
+      '<span class="hspace"></span>'+
+      '<button class="btn peq" onclick="copiarHudson()"'+(hudsonPend.length?'':' disabled')+'>Copiar todos do Hudson não enviados ('+hudsonPend.length+')</button>'+
+      (ST.copiouHudson&&hudsonPend.length?'<button class="btn pri peq" onclick="confirmarHudson(ST.L.itens.map((l,i)=>i).filter(i=>ST.L.itens[i].tipo===\'hudson\'&&!ST.L.itens[i].enviado))">Marcar os '+hudsonPend.length+' como enviados ao Hudson</button>':'')+
+      '<a class="btn peq" href="'+escA(L.planilhaAtendimentos)+'" target="_blank" rel="noopener">Planilha de atendimentos ↗</a>'+
+      '<button class="btn peq" onclick="carregarLeads(true)">↻ Atualizar</button></div>'+
+    (L.erros&&L.erros.length?'<div class="aviso at" style="margin-bottom:10px">Não consegui ler: '+escA(L.erros.join(" · "))+'</div>':'')+
+    '<div id="tabela-leads"></div>'+
+    '<p class="dica" style="margin-top:10px">Clientes que a HyperFlow grava na planilha de atendimentos vão para a imobiliária escolhida (a linha entra na planilha dela com data, cliente, telefone, e-mail e observações; aqui marca "MANDOU PRA TABELA DE CORRETORES?" = SIM). O alerta da 1ª coluna conta o tempo desde o envio enquanto a coluna RETORNO DA IMOBILIÁRIA estiver vazia: amarelo depois de 1 dia, vermelho depois de 3. Leads novos da aba Site (desde '+fmtD("2026-11-24")+') vão só para o Hudson.</p></div>';
+  $("#sec-red").innerHTML=h;
+  desenharTabela();
+}
+function desenharTabela(){
+  const lista=filtrados();
+  const el=$("#tabela-leads"); if(!el) return;
+  if(!lista.length){ el.innerHTML='<p class="vazio dica" style="padding:12px 2px">Nenhum lead neste filtro.</p>'; return; }
+  el.innerHTML='<div class="tbl-wrap alta"><table><thead><tr><th>Situação</th><th>Data/hora</th><th>Origem</th><th>Nome</th><th>Consent.</th><th>WhatsApp</th><th>E-mail</th><th>Faixa de renda / entrada</th><th>Profissão / objetivo</th><th>Preferência / parcela</th><th>Mandou p/ tabela?</th><th>Envio</th><th>Retorno da imobiliária</th></tr></thead><tbody>'+
+    lista.map(l=>'<tr>'+
+      '<td>'+statusLead(l)+'</td>'+
+      '<td style="white-space:nowrap">'+fmtDH(l.t)+'</td>'+
+      '<td><span class="origem'+(l.tipo==="hudson"?' site':'')+'" title="'+escA(l.origem)+'">'+escA(String(l.origem||"").replace(/\s*-\s*Reserva dos Ip[êe]s/i,""))+'</span></td>'+
+      '<td class="nome">'+escA(l.nome||"—")+'</td>'+
+      '<td>'+escA(l.cons||"—")+'</td>'+
+      '<td style="white-space:nowrap">'+(l.telCru?'<a href="https://wa.me/'+escA((l.telCru.length<=11?"55":"")+l.telCru)+'" target="_blank" rel="noopener">'+escA(l.tel)+'</a>':escA(l.tel||"—"))+'</td>'+
+      '<td>'+escA(l.email||"—")+'</td>'+
+      '<td>'+escA(l.tipo==="hudson"? (l.entrada?"Entrada "+l.entrada:"—") : (l.renda||"—"))+'</td>'+
+      '<td>'+escA(l.tipo==="hudson"? (l.objetivo||"—") : (l.prof||"—"))+'</td>'+
+      '<td>'+escA(l.tipo==="hudson"? (l.parcela?"Parcela "+l.parcela:"—") : (l.pref||"—"))+'</td>'+
+      '<td>'+(l.tipo==="hudson"? '<span class="muted">só Hudson</span>' : escA(l.mandou||(l.enviado?"SIM":"—")))+'</td>'+
+      '<td>'+celulaEnvio(l,l.i)+'</td>'+
+      '<td><div class="ret">'+(l.tipo==="hudson"?'<span class="muted">—</span>':escA(l.retorno||"")||'<span class="muted">vazio</span>')+'</div></td>'+
+    '</tr>').join("")+'</tbody></table></div>';
+}
+function preEnviar(i){
+  const sel=$("#dest-"+i); const destino=sel&&sel.value;
+  if(!destino){ toast("Escolha a imobiliária.", true); sel&&sel.focus(); return; }
+  ST.conf={i,destino}; desenharTabela();
+}
+async function enviar(i){
+  if(ST.enviando||!ST.conf) return;
+  const l=ST.L.itens[i]; ST.enviando=true; desenharTabela();
+  const r=await api({ action:"mkEnviar", chave:l.chave, destino:ST.conf.destino });
+  ST.enviando=false;
+  if(!r.ok){ ST.conf=null; toast(msgErro(r.erro), true); desenharTabela(); return; }
+  toast(l.nome+" enviado para "+r.destino+".");
+  ST.conf=null; await carregarLeads(true);
+}
+async function confirmarHudson(idx){
+  const chaves=idx.map(i=>ST.L.itens[i].chave);
+  const r=await api({ action:"mkHudson", chaves });
+  if(!r.ok){ toast(msgErro(r.erro), true); return; }
+  toast(r.confirmados+(r.confirmados===1?" lead confirmado":" leads confirmados")+" como enviado ao Hudson.");
+  ST.copiouHudson=false; await carregarLeads(true);
+}
+async function copiarHudson(){
+  const pend=ST.L.itens.filter(l=>l.tipo==="hudson"&&!l.enviado);
+  const txt="Leads do site — "+pend.length+"\n\n"+pend.map(textoLead).join("\n\n");
+  try{ await navigator.clipboard.writeText(txt); }
+  catch(e){ const ta=document.createElement("textarea"); ta.value=txt; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy");}catch(x){} ta.remove(); }
+  ST.copiouHudson=true; toast("Copiado: "+pend.length+" leads. Cole no WhatsApp do Hudson e depois marque como enviados."); desenharLeads();
+}
+async function desfazer(i){
+  const l=ST.L.itens[i];
+  const r=await api({ action:"mkDesfazer", chave:l.chave });
+  if(!r.ok){ toast(msgErro(r.erro), true); return; }
+  toast(r.avisoPlanilha||"Registro apagado."); await carregarLeads(true);
+}
+
+/* ===================== início ===================== */
+irPara(location.hash==="#red"?"red":"camp");
+</script>
+<script src="natal.js?v=1" defer></script>
+</body>
+</html>

@@ -66,6 +66,8 @@ function melhoriasRotear_(action, sess, p) {
   if (typeof bfRotear_ === "function") { var rBf = bfRotear_(action, sess, p); if (rBf) return rBf; }
   /* 17/11/26 — ANALISTA DE PROJETOS (apps-script/AnalistaProjetos.gs): confere o PDF do projeto pela IA */
   if (typeof anaRotear_ === "function") { var rAna = anaRotear_(action, sess, p); if (rAna) return rAna; }
+  /* 24/11/26 — ANÁLISE DE MARKETING (apps-script/MarketingLeads.gs): campanhas da Meta + redirecionamento de leads */
+  if (typeof mkRotear_ === "function") { var rMk = mkRotear_(action, sess, p); if (rMk) return rMk; }
   var cfg = MEL_ACOES[action];
   if (!cfg) return null;
   if (cfg.acesso && !temAcesso_(sess, cfg.acesso)) {
