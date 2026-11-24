@@ -991,6 +991,8 @@ function ehCalculada(nome){ return !!CALC_DEF[nome]; }
    normalmente, só o texto mostrado ao usuário muda (pedido ago/26). */
 const RENOMEADAS_TELA = {};
 RENOMEADAS_TELA[normN(C.LIBERADO)] = "MEDIDOR COMPRADO";
+/* 24/11/2026 (dono): é a data de assinatura do contrato da CAIXA; só o rótulo da tela muda (a coluna do Notion não) */
+RENOMEADAS_TELA[normN(V.DT_ASSIN)] = "DATA DA ASSINATURA CONTRATO CAIXA";
 function tituloColuna(nome){
   if (ehCalculada(nome)) return CALC_DEF[nome].titulo;
   const cf = confDe(nome); if (cf) return cf.titulo;   // 21/10: sem o "(ETAPA)" — a aba já diz qual é
