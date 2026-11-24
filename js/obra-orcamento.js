@@ -216,7 +216,10 @@
     const temRevit = !!(revit && revit.linhas && revit.linhas.length);
     const discsRevit = {}; (revit && revit.linhas || []).forEach(r => { discsRevit[r.disc] = 1; });
     const arrimoRevit = (revit && revit.linhas || []).some(r => r.arrimo);
-    const usados = new Set(), L = [], alertas = [];
+    const usados = new Set(), L = [], alertas = [], faltando = [];
+    /* 24/11/26 (dono: "para de trazer os itens do modelo"): item do modelo que depende do Revit e não veio NÃO entra na
+       planilha — fica só na lista "não vieram do Revit" da etapa, para conferir se faltou modelar/publicar */
+    const falta = (it, motivo) => faltando.push({ idx: it.idx, etapa: paiDe(it.idx), cod: it.cod || "", nome: it.nome, motivo: motivo });
     (revit && revit.linhas || []).forEach(x => { if (x.dims) { const b = bancadaCat(x); x.cat = b.cod; x.perto = b.perto; } });
     let seq = 0;
     const nova = (it, extra) => Object.assign({ id: "l" + (++seq), etapa: paiDe(it.idx), idx: it.idx, orig: it.idx, cod: it.cod, cat: it.cat, nome: it.nome, un: it.un, q: 0, origem: "", aviso: "",
@@ -242,13 +245,8 @@
             Object.assign(ln, { q: arred(base * m * fa, r.arred), revit: { base: base, disc: r.disc, fator: fa, arred: r.arred }, refs: refsDe(rows), unRevit: rows[0].un,
               origem: "Revit " + r.disc + ": " + numBr(base) + (m !== 1 ? " × " + m : "") + (fa !== 1 ? " × " + fa : "") });
           } else {
-            /* 24/11/26 (dono): sem correlação com o Revit NÃO se estima nada — fica zerado e avisa */
-            const esperado = (r.revit && r.revit.length ? r.revit : [it.nome]).join(" / ");
-            ln.q = 0; ln.semRevit = true;
-            ln.origem = "sem correlação no Revit — procurei «" + esperado + "»" + (r.disc ? " no " + r.disc : "");
-            ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + (!temRevit ? "sem quantitativo do Revit — preencha a quantidade"
-              : !discsRevit[r.disc] ? "o Revit desta obra não tem " + (r.disc || "essa disciplina") + " publicado — preencha a quantidade"
-              : "não achei correlação no quantitativo do Revit — preencha a quantidade");
+            falta(it, !temRevit ? "sem quantitativo do Revit" : !discsRevit[r.disc] ? (r.disc || "disciplina") + " não publicado" : "não está no quantitativo do Revit");
+            return;
           }
           break;
         }
@@ -272,12 +270,12 @@
         case "area": {
           const re = new RegExp(r.re, "i"), as = (revit && revit.areas || []).filter(x => re.test(NN(x.nome)));
           if (as.length) { const s = as.reduce((t, x) => t + x.a, 0); ln.q = arred(s, r.arred); ln.origem = "Revit: áreas " + r.re.toLowerCase() + " " + numBr(s) + " m²"; }
-          else { ln.q = 0; ln.origem = "sem correlação no Revit — nenhum ambiente com " + r.re.toLowerCase(); ln.semRevit = true; ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + "não achei no Revit — preencha a quantidade"; }
+          else { falta(it, "nenhum ambiente " + r.re.toLowerCase() + " no Revit"); return; }
           break;
         }
         case "soma": ln.soma = r.de; ln.origem = "soma de " + r.de.join(" + "); break;
         default:
-          if (r.variavel) { ln.q = 0; ln.origem = "item variável — não tem quantidade padrão na base"; ln.aviso = "item variável — preencha a quantidade"; break; }
+          if (r.variavel) { falta(it, "item variável, sem quantidade padrão"); return; }
           ln.q = qtdSimples(r, nC); ln.origem = "PADRÃO da base: " + descr(r, nC); ln.padrao = true;
       }
       L.push(ln);
@@ -287,6 +285,7 @@
       if (!ln.soma) return;
       const ps = L.filter(x => ln.soma.indexOf(x.idx) >= 0), sem = ps.filter(x => !(Number(x.q) > 0));
       ln.q = Math.round(ps.reduce((s, x) => s + (Number(x.q) || 0), 0) * 100) / 100;
+      if (!ln.q) { ln._sai = 1; falta({ idx: ln.orig, cod: ln.cod, nome: ln.nome }, "soma sem as linhas de " + ln.soma.join(", ")); return; }
       ln.origem = "soma de " + ps.filter(x => Number(x.q) > 0).map(x => x.idx + " (" + numBr(x.q) + ")").join(" + ");
       if (sem.length) ln.aviso = (ln.aviso ? ln.aviso + " · " : "") + "a soma está sem " + sem.map(x => x.idx).join(", ") + " (zerado) — confira";
     });
@@ -299,19 +298,20 @@
         q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" }, refs: refsDe([x]), unRevit: x.un,
         origem: "Revit " + x.disc + " (" + x.tabela + "): " + numBr(x.q) + (m !== 1 ? " × " + m : ""), extra: true,
         nomeFixo: !!(x.dims && !c),
-        aviso: c ? "veio do Revit e não está no modelo — conferir" : x.dims ? "não achei no catálogo do MC «" + x.nome + "»" + (x.perto && x.perto.length ? " (mais perto: " + x.perto.join(", ") + ")" : "") + " — escolha o código"
-          : "veio do Revit e não achei no catálogo do MC: escolha o código" });
+        aviso: c ? "" : "não achei equivalente no MC" + (x.dims && x.perto && x.perto.length ? " (mais perto: " + x.perto.join(", ") + ")" : "") + " — clique em «escolher…» e indique o item do MC" });
     });
     if (!temRevit) alertas.push((revit && revit.erro ? "Quantitativos do Revit: " + revit.erro : "Sem quantitativos do Revit") + " — as linhas que dependem do Revit ficaram zeradas.");
     /* a soma passa a apontar para as LINHAS (o índice pode mudar na mão depois) */
+    for (let i = L.length - 1; i >= 0; i--) if (L[i]._sai) L.splice(i, 1);
     L.forEach(ln => { if (ln.soma) { ln.somaIds = L.filter(x => ln.soma.indexOf(x.orig) >= 0).map(x => x.id); delete ln.soma; } });
-    renumerar(L, false);
+    renumerar(L, false); ordenar(L);   // 24/11/26: o que veio do Revit fica junto da subetapa dele, não no fim da etapa
     const R = revit && revit.linhas || [];
     const info = { temRevit: temRevit, arrimoRevit: arrimoRevit, discs: Object.keys(discsRevit),
       inexistentes: R.filter(x => /INEXISTENTE|VERIFICAR/.test(NN(x.nome))).map(x => x.disc + " · " + x.tabela + ": " + x.nome + " (" + numBr(x.q) + ")"),
       hidCaixa: R.filter(x => x.disc === "HID" && /CAIXA D.?AGUA/.test(NN(x.nome))).reduce((t, x) => t + x.q, 0),
       p5: f.p5 == null ? null : f.p5, p7: f.p7 == null ? null : f.p7, arrimoForm: f.arrimoSim == null ? null : f.arrimoSim, nC: nC };
-    return { linhas: L, mult: mult, alertas: alertas, info: info };
+    if (temRevit) ["ARQ", "EST", "ELE", "HID"].filter(d => !discsRevit[d] && M.itens.some(i => (i.regra || {}).disc === d)).forEach(d => alertas.push("O Revit desta obra não tem " + d + " publicado — os itens de " + d + " estão em \"não vieram do Revit\" em cada etapa."));
+    return { linhas: L, mult: mult, alertas: alertas, info: info, faltando: faltando };
   }
   /* ---------------- índices (17/11: editáveis e reorganizáveis) ----------------
      Índice "8.10" = etapa 8, item 10. Mudar o índice de uma linha leva ela para a etapa e a posição do novo índice;
@@ -491,7 +491,7 @@
       s.envio = (p && p.previa && p.previa.envio) || null; s.desbloqueio = (p && p.desbloqueio) || "";
       if (p && p.ok && p.previa && p.previa.dados && Array.isArray(p.previa.dados.linhas)) {
         const d = p.previa.dados;
-        Object.assign(s, { linhas: d.linhas, apagados: d.apagados || [], mo: d.mo || [], mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, info: d.info || null, nomesEtapa: d.nomes_etapa || {}, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
+        Object.assign(s, { linhas: d.linhas, apagados: d.apagados || [], mo: d.mo || [], faltando: d.faltando || [], mult: d.mult || {}, alertas: d.alertas || [], contratos: d.contratos || null, info: d.info || null, nomesEtapa: d.nomes_etapa || {}, nCasas: d.n_casas || Number(o.n_casas) || 1, versao: p.previa.versao, salvoPor: p.previa.salvo_por,
           salvoEm: p.previa.salvo_em, revitEm: d.revit_em || "", sujo: false, carregando: false, msg: "", origemTxt: "salva" });
         precificar(s); g.OrcObra.repintar(); return s;
       }
@@ -500,7 +500,7 @@
     s.msg = "Lendo os quantitativos do Revit…"; g.OrcObra.repintar();
     let rv; try { rv = await carregarRevit(o.id); } catch (e) { rv = { erro: String(e.message || e) }; }
     const gx = gerar(o, ctx, rv && !rv.erro ? rv : { erro: rv && rv.erro });
-    Object.assign(s, { linhas: gx.linhas, mult: gx.mult, alertas: gx.alertas, info: gx.info, nomesEtapa: {}, mo: rv && rv.mo || [], revitEm: rv && rv.em || "", sujo: true, carregando: false, msg: "", origemTxt: "gerada", nCasas: Number(o.n_casas) || 1 });
+    Object.assign(s, { linhas: gx.linhas, mult: gx.mult, alertas: gx.alertas, info: gx.info, nomesEtapa: {}, mo: rv && rv.mo || [], faltando: gx.faltando || [], revitEm: rv && rv.em || "", sujo: true, carregando: false, msg: "", origemTxt: "gerada", nCasas: Number(o.n_casas) || 1 });
     s.contratos = gerarContratos(s);
     precificar(s); g.OrcObra.repintar(); return s;
   }
@@ -526,33 +526,34 @@
     const novas = {}; gx.linhas.forEach(l => { const k = chaveLinha(l); if (k) novas[k] = l; });
     const apagados = new Set(s.apagados || []), vistas = new Set();
     let trocadas = 0, mantidas = 0;
+    let tiradas = 0;
     s.linhas = s.linhas.map(l => {
       const k = chaveLinha(l), n = k && novas[k];
-      if (!n) return l;
+      if (!n) { if (k && !l.editado) { tiradas++; return null; } return l; }   // gerada, não editada e que o Revit não traz mais: sai
       vistas.add(k);
       if (l.editado) { mantidas++; return l; }
       if ((Number(n.q) || 0) !== (Number(l.q) || 0)) trocadas++;
       return Object.assign({}, n, { id: l.id, idx: l.idx, etapa: l.etapa, somaIds: l.somaIds });
-    });
+    }).filter(Boolean);
     // itens novos que vieram do Revit (não estavam na planilha e você não apagou): entram no fim da etapa, marcados
     const faltam = Object.keys(novas).filter(k => !vistas.has(k) && !apagados.has(k));
     let seq = Date.now();
     faltam.forEach(k => { const n = novas[k]; s.linhas.push(Object.assign({}, n, { id: "r" + (seq++), idx: "", etapa: n.etapa || (n.idx ? paiDe(n.idx) : "_revit"), somaIds: null,
       aviso: "Item novo trazido pelo ⟳ Atualizar do Revit — confira" + (n.aviso ? " · " + n.aviso : "") })); });
     ordenar(s.linhas); recalcSomas(s.linhas); precificar(s); s.alertas = gx.alertas || s.alertas;
-    s.mo = rv.mo || [];
+    s.mo = rv.mo || []; s.faltando = gx.faltando || [];
     if (s.contratos) { const nv = gerarContratos(s); s.contratos = s.contratos.map(k => { const n = nv.find(x => x.id === k.id); if (!n || k.id !== "412") return k;
       n.linhas.forEach(l => { const v = k.linhas.find(x => x.casa === l.casa && x.item === l.item); if (v) l.preco = v.preco; }); return Object.assign({}, k, { linhas: n.linhas }); }); }
     Object.assign(s, { revitEm: rv.em || s.revitEm || "", sujo: true, carregando: false, msg: "" });
     g.OrcObra.repintar();
-    g.toast && g.toast("Revit atualizado: " + trocadas + " linha(s) com quantidade nova · " + mantidas + " editada(s) por você ficaram como estavam" +
+    g.toast && g.toast("Revit atualizado: " + trocadas + " linha(s) com quantidade nova · " + mantidas + " editada(s) por você ficaram como estavam" + (tiradas ? " · " + tiradas + " linha(s) que não vêm mais do Revit saíram" : "") +
       (faltam.length ? " · " + faltam.length + " item(ns) novo(s) do Revit entrou(aram) marcado(s) no fim da etapa" : "") + ". Confira e salve (💾).");
   }
   async function salvar(o) {
     const s = ST[sT(o.id)]; if (!s) return;
     s.salvando = true; g.OrcObra.repintar();
     const dados = { modelo: MODELO && MODELO.versao, linhas: s.linhas.map(l => { const c = Object.assign({}, l); delete c.semCat; delete c.inativo; return c; }),
-      mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", apagados: s.apagados || [], mo: s.mo || [], total: total(s), gerado_em: new Date().toISOString(),
+      mult: s.mult, alertas: s.alertas, revit_em: s.revitEm || "", apagados: s.apagados || [], mo: s.mo || [], faltando: s.faltando || [], total: total(s), gerado_em: new Date().toISOString(),
       n_casas: s.nCasas || null, contratos: s.contratos || null, info: s.info || null, nomes_etapa: s.nomesEtapa || {} };
     let r; try { r = await g.chamar({ action: "orcPreviaSalvar", obra_id: o.id, obra: o.titulo || "", versao: s.versao == null ? null : s.versao, dados: dados }, 60000); } catch (e) { r = { ok: false, erro: "sem conexão" }; }
     s.salvando = false;
@@ -758,10 +759,12 @@
     grupos(s).forEach(gp => {
       const fechado = s.aberto[gp.k] === false, st = gp.linhas.reduce((t, l) => t + (l.q || 0) * (l.custo || 0), 0), na = gp.linhas.filter(l => l.aviso || l.semCat || !l.cod || marca[l.id]).length;
       const novaEt = gp.k !== "_revit" && !(MODELO && MODELO.etapas.some(x => x.idx === gp.k));
-      h += `<tbody class="g"><tr class="gh"><td colspan="6" onclick="OrcObra.alternar('${gp.k}')"><span class="car">${fechado ? "▸" : "▾"}</span> <b>${escH(gp.k === "_revit" ? "" : gp.k + " · ")}${escH(gp.nome)}</b> <span class="cnt">${gp.linhas.length} ${gp.linhas.length === 1 ? "linha" : "linhas"}${na ? ` · <i>⚠ ${na}</i>` : ""}</span>
+      const ft = (s.faltando || []).filter(x => String(x.etapa || x.idx).split(".")[0] === gp.k && !s.linhas.some(l => l.orig === x.idx)), ftAb = s.ftAberto && s.ftAberto[gp.k];
+      h += `<tbody class="g"><tr class="gh"><td colspan="6" onclick="OrcObra.alternar('${gp.k}')"><span class="car">${fechado ? "▸" : "▾"}</span> <b>${escH(gp.k === "_revit" ? "" : gp.k + " · ")}${escH(gp.nome)}</b> <span class="cnt">${gp.linhas.length} ${gp.linhas.length === 1 ? "linha" : "linhas"}${na ? ` · <i>⚠ ${na}</i>` : ""}</span>${ft.length ? `<button class="gh-b ft" title="Itens do modelo REF 127 desta etapa que não vieram do Revit — não estão na planilha. Confira se faltou modelar ou publicar a tabela." onclick="event.stopPropagation();OrcObra.verFaltando('${gp.k}')">${ftAb ? "▾" : "▸"} ${ft.length} não vieram do Revit</button>` : ""}
         ${gp.k !== "_revit" ? `<button class="gh-b" title="Renumerar os itens desta etapa" onclick="event.stopPropagation();OrcObra.renumerar('${gp.k}')">1·2·3</button>` : ""}${novaEt || (s.nomesEtapa || {})[gp.k] ? `<button class="gh-b" title="Dar nome a esta etapa" onclick="event.stopPropagation();OrcObra.nomeEtapa('${gp.k}')">✎ nome</button>` : ""}</td>
         <td class="n"><b>${moeda(st)}</b></td><td></td></tr></tbody>`;
       if (fechado) return;
+      if (ft.length && ftAb) h += `<tbody class="ftb">${ft.map(x => `<tr class="ft"><td>${escH(x.idx)}</td><td class="mu">${escH(x.cod)}</td><td colspan="5"><b>${escH(x.nome)}</b> <small>— ${escH(x.motivo || "não veio do Revit")}</small></td><td></td></tr>`).join("")}</tbody>`;
       /* 24/11/26 (dono: "como essas subetapas vão ser criadas?"): a subetapa (3.1, 3.3.4…) aparece como faixa dentro da
          etapa — é ela que o envio ao Mais Controle cria (etapa → subetapa → itens, pelo índice) */
       let subAtual = gp.k;
@@ -903,6 +906,7 @@
     envioAtualizar: () => { const a = atual(); if (a.o) envioAtualizar(a.o); },
     fecharJanela: fecharJanela,
     baixar: () => { const a = atual(); if (a.o) baixar(a.o); },
+    verFaltando: k => { const a = atual(); if (!a.s) return; a.s.ftAberto = a.s.ftAberto || {}; a.s.ftAberto[k] = !a.s.ftAberto[k]; g.OrcObra.repintar(); },
     atualizarRevit: () => { const a = atual(); if (a.o) atualizarRevit(a.o); },
     regerar: () => { const a = atual(); if (!a.o) return; if (a.s && (a.s.sujo || a.s.salvoEm) && !confirm("Gerar a planilha de novo pelo modelo e pelo Revit? As edições feitas aqui somem (a versão salva só muda se você salvar depois).\n\nPara manter suas edições e só trazer os números novos do Revit, use ⟳ Atualizar do Revit.")) return; abrir(a.o, g.ctxOrcamento ? g.ctxOrcamento(a.o) : {}, { regerar: true }); },
     filtrar: v => { const a = atual(); if (!a.s) return; a.s.filtro = v; g.OrcObra.repintar(); setTimeout(() => { const i = document.querySelector(".orc-bar .busca"); if (i) { i.focus(); i.setSelectionRange(v.length, v.length); } }, 0); },
