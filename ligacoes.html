@@ -844,6 +844,7 @@ const V = {
   OBRA_CASA:     "ENDEREÇO + CASA",      // coluna montada aqui, não existe no Notion
   DT_ENTREGA:    "DATA DA ENTREGA",
   DT_ASSIN:      "DATA DE ASSINATURA DO CONTRATO",
+  DT_PREVIST:    "DATA DA PRÉ-VISTORIA",   // 24/11/2026 (Gustavo): só leitura, só na gaveta da casa vendida
   CLIENTES:      "CLIENTES ",
   WHATS:         "Nº Whatsapp",
   TEM_PROT_AGUA: "TEM PROTOCOLO DE TRANS. ÁGUA",
@@ -5435,12 +5436,18 @@ function abrirObraVenda(id){
 
 function corpoPainelVenda(v){
   const cols = colunasDaAba("vendidas").filter(c => normN(c) !== normN(V.OBRA_CASA));
+  /* 24/11/2026 (Gustavo): a data da pré-vistoria aparece aqui só para consulta (quem preenche é Vendas, na planilha
+     das casas de rua); entra logo depois da data da entrega e não vira coluna da tabela */
+  if (campoDe(V.DT_PREVIST, "vendas") && !cols.some(c => normN(c) === normN(V.DT_PREVIST))){
+    const i = cols.findIndex(c => normN(c) === normN(V.DT_ENTREGA));
+    cols.splice(i >= 0 ? i + 1 : 0, 0, V.DT_PREVIST);
+  }
   let html = "";
   cols.forEach(nome => {
     if (ehColunaUc(nome)) return;                    // as UCs vêm no bloco de ligações
     const campo = campoDe(nome, "vendas");
     if (!campo) return;
-    const editavel = ehEditavelVendas(nome) &&
+    const editavel = normN(nome) !== normN(V.DT_PREVIST) && ehEditavelVendas(nome) &&
       ["select","status","date","rich_text","title","url","number"].indexOf(campo.tipo) >= 0;
     const valor = getL(v, nome);
     html += `<div class="campo"><label>${esc(nome)}</label>`;
