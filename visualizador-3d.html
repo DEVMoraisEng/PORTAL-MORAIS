@@ -640,7 +640,7 @@ async function montarPorDisciplina(obraId, r) {
         const j = JSON.parse(new TextDecoder().decode(u8)), n = normalizar(j);
         try { registrarPranchas(j, r); } catch (e) { console.warn("[3D] pranchas:", e); }
         if (!n || !Array.isArray(n.tabelas)) return u8;
-        let etapas = null; try { etapas = (await (await fetch("orcamento/modelo-casa-rua.json?v=2")).json()).etapas; } catch (e) {}
+        let etapas = null; try { etapas = (await (await fetch("orcamento/modelo-casa-rua.json?v=3")).json()).etapas; } catch (e) {}
         /* 24/11/26 (dono): a tabela do 3D mostra só os itens do orçamento da obra (as tabelas do Revit continuam
            marcando os elementos por dentro); se a planilha não montar, ficam as do Revit */
         const to = await tabelaOrcamento(obraId, j, await pv, etapas);
@@ -688,7 +688,7 @@ window.REUNIAO_CFG = (function () {
   };
 })();
 </script>
-<script src="js/obra-orcamento.js?v=11"></script>
+<script src="js/obra-orcamento.js?v=12"></script>
 <script src="js/visualizador-3d.js?v=16"></script>
 <script src="natal.js?v=1" defer></script>
 </body>

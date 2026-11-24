@@ -48,7 +48,7 @@
   /* ---------------- carregamentos ---------------- */
   async function carregarModelo() {
     if (MODELO) return MODELO;
-    const r = await fetch("orcamento/modelo-casa-rua.json?v=2", { cache: "no-cache" });
+    const r = await fetch("orcamento/modelo-casa-rua.json?v=3", { cache: "no-cache" });
     if (!r.ok) throw new Error("não carregou o modelo do orçamento (HTTP " + r.status + ")");
     MODELO = await r.json(); return MODELO;
   }
