@@ -90,7 +90,7 @@ test("1d: status de ligação em texto; tipo pela concessionária", () => {
   assert.equal(P.tipoConcessionaria("SANEAGO"), "agua");
   assert.equal(P.tipoConcessionaria("OUTRA"), "");
   assert.deepEqual(["TRANSFERIDO", "LIGADO", "NÃO LIGADO", "ENTREGUE NÃO TRANSFERIDO"].map(s => { const r = P.statusLigacao(s); return [r.texto, r.nivel]; }),
-    [["Transferida", "ok"], ["Ligada, não transferida", "neutro"], ["Não ligada", "nao"], ["Entregue, não transferida", "alerta"]]);
+    [["Transferida", "ok"], ["Ligada, não transferida", "alerta"], ["Não ligada", "nao"], ["Entregue, não transferida", "alerta"]]);
   assert.equal(P.statusLigacao(""), null);
 });
 test("1d: Água/Energia vêm da tela Ligações; sem linha, cai no SIM/NÃO da venda", () => {

@@ -4802,7 +4802,9 @@ function pnResumoProcesso(V,pageId,sensPendente){
   const valorVenda=alvo=>{ const c=SCHEMA.find(x=>normNome(x.nome)===alvo); return c&&!(c.sensivel&&sensPendente)?getV(V,c.nome):""; };
   const aguaEnergia=["agua","energia"].map(tp=>{
     const st=PC.statusAguaEnergia(ligs,tp,valorVenda(tp==="agua"?"AGUA TRANSFERIDA":"ENERGIA TRANSFERIDA"));
-    return card(tp,tp==="agua"?"Água":"Energia",st.texto,CLS[st.nivel]||"",""," ir\" onclick=\"pnTrocarAba('andamento')\" title=\"Abrir nas etapas do processo");
+    /* 24/11/2026 (Gustavo): pendência de água/energia em destaque de alerta, como eram os avisos antigos */
+    const pend=st.nivel==="alerta"||st.nivel==="nao";
+    return card(tp,tp==="agua"?"Água":"Energia",(pend?"⚠️ ":"")+st.texto,CLS[st.nivel]||"",""," ir\" onclick=\"pnTrocarAba('andamento')\" title=\"Abrir nas etapas do processo");
   });
   const i=cartoes.indexOf("agua_energia");
   if(i>=0) cartoes.splice(i,1,...aguaEnergia); else cartoes.push(...aguaEnergia);

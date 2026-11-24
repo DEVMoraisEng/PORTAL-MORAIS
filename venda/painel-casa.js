@@ -339,7 +339,7 @@
     if (/^TRANSFERID/.test(n)) return { texto: "Transferida", nivel: "ok", ordem: 3 };
     if (/^ENTREGUE.*NAO TRANSFERID/.test(n)) return { texto: "Entregue, não transferida", nivel: "alerta", ordem: 0 };
     if (/^NAO LIGAD/.test(n)) return { texto: "Não ligada", nivel: "nao", ordem: 1 };
-    if (/^LIGAD/.test(n)) return { texto: "Ligada, não transferida", nivel: "neutro", ordem: 2 };
+    if (/^LIGAD/.test(n)) return { texto: "Ligada, não transferida", nivel: "alerta", ordem: 2 };
     if (/NAO TRANSFERID/.test(n)) return { texto: "Não transferida", nivel: "alerta", ordem: 0 };
     return null;
   }
