@@ -600,7 +600,8 @@ def test_reaplicar_depois_de_lancada_sem_anotar_nao_duplica():
     assert r["codigo"] == "LANCADA_SEM_ANOTAR"
     assert "INCERTO | %s | datas 2026-11-24 | R$ 1.000,00 |" % DESC07 in coluna(n)   # o rastro de antes do POST ficou
     r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
-    assert r["codigo"] == "PREVIA_DESATUALIZADA" and len(e.posts) == 1
+    # o INCERTO que ficou é conferido e vira LANÇADA; pela regra nova a recusa pede prévia nova (antes: PREVIA_DESATUALIZADA)
+    assert r["codigo"] == "INCERTO_RESOLVIDO_PECA_PREVIA" and len(e.posts) == 1
 
 def test_assinatura_cobre_conta_e_descricao():
     base = {"parcelas": [{"valor": 1.0, "data": HOJE}], "favorecido_id": "a", "comissao": 10.0, "ja_lancado": 0.0,
@@ -919,3 +920,81 @@ def test_conferencia_le_filename_sem_extensao_e_aceita_reservas():
         def pedir_core(self, metodo, caminho, corpo=None, params=None):
             return [{"filename": "500,00 - COMISSAO UNIDADE 07 PARCELA 1-2 - 24-11-2026"}, {"filename": "OUTRO"}]
     assert "recibos: 1/2" in _lancar(OutroNome())
+
+
+# ----------------------------------------------------------------- consertos residuais (24/11)
+
+class ErpPaginas(ErpFake):
+    """Listagem com o aviso `hasNextPage` (ou sem ele); `paginas` = lista de listas de itens, uma por página."""
+    def __init__(self, paginas, com_aviso=True, sempre_proxima=False, **k):
+        super().__init__(**k)
+        self.paginas, self.com_aviso, self.sempre_proxima = paginas, com_aviso, sempre_proxima
+        self.lidas = []
+    def _listar(self, p):
+        pg = int(p.get("page") or 0)
+        self.lidas.append((p["startDate"], pg))
+        itens = self.paginas[pg] if pg < len(self.paginas) else []
+        r = {"content": itens}
+        if self.com_aviso:
+            r["hasNextPage"] = True if self.sempre_proxima else pg + 1 < len(self.paginas)
+        return r
+
+def _outros(n, base=0):
+    return [_item("tp-o%d" % (base + i), 10.0, "2026-12-01", unidade="%02d" % (10 + i % 50)) for i in range(n)]
+
+def test_has_next_page_true_le_a_segunda_pagina_com_100_itens():
+    e = ErpPaginas([_outros(100), [_item("tp-8", 2000.0, "2026-12-01")]])
+    n = NotionFake(pagina())
+    K.processar(PAGE, n, e, "8000.00@2026-11-24", hoje=HOJE)
+    assert any(pg == 1 for _d, pg in e.lidas)
+    assert "LANÇADA | título tp-8 | R$ 2.000,00" in coluna(n)
+
+def test_sem_o_campo_vale_a_regra_antiga_200_le_a_proxima_150_para():
+    e = ErpPaginas([_outros(200), [_item("tp-8", 2000.0, "2026-12-01")]], com_aviso=False)
+    n = NotionFake(pagina())
+    K.processar(PAGE, n, e, "8000.00@2026-11-24", hoje=HOJE)
+    assert any(pg == 1 for _d, pg in e.lidas) and "título tp-8" in coluna(n)
+    e2 = ErpPaginas([_outros(150), [_item("tp-8", 2000.0, "2026-12-01")]], com_aviso=False)
+    K.processar(PAGE, NotionFake(pagina()), e2, "8000.00@2026-11-24", hoje=HOJE)
+    assert not any(pg == 1 for _d, pg in e2.lidas)
+
+def test_teto_de_paginas_com_has_next_page_true_recusa_e_nao_posta(monkeypatch):
+    monkeypatch.setattr(K, "MAX_PAGINAS", 3)
+    e = ErpPaginas([_outros(1)] * 10, sempre_proxima=True)
+    n = NotionFake(pagina())
+    r = K.processar(PAGE, n, e, "10000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "ERP_RECUSOU" and e.posts == []
+
+def _com_previa(n, e, parcelas="4000.00@2026-11-24"):
+    K.processar(PAGE, n, e, parcelas, hoje=HOJE)
+
+def _junta_incerto(n):
+    n.pg["properties"]["MC - COMISSÃO"] = txt(coluna(n) + "\n" + INCERTO_4MIL)
+
+def test_incerto_aberto_mais_aplicar_sem_titulo_recusa_peca_previa_e_nao_posta():
+    n, e = NotionFake(pagina()), ErpListando()
+    _com_previa(n, e)
+    _junta_incerto(n)
+    r = K.processar(PAGE, n, e, "4000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "INCERTO_RESOLVIDO_PECA_PREVIA" and e.posts == []
+    assert "INCERTO CONFERIDO | não criado" in coluna(n) and "INCERTO |" not in coluna(n)
+    assert "prévia nova" in r["texto"]
+
+def test_incerto_aberto_mais_aplicar_com_titulo_recusa_e_vira_lancada():
+    ja = [{"id": "i-9", "description": DESC07, "paidTo": "X", "plannedDate": "2026-11-24", "tradePayableId": "tp-9"}]
+    n = NotionFake(pagina())
+    e = ErpListando(ja=ja, titulos={"tp-9": {"id": "tp-9", "value": 4000.0}})
+    _com_previa(n, e)
+    _junta_incerto(n)
+    r = K.processar(PAGE, n, e, "4000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["codigo"] == "INCERTO_RESOLVIDO_PECA_PREVIA" and e.posts == []
+    assert "LANÇADA | título tp-9 | R$ 4.000,00" in coluna(n) and "INCERTO |" not in coluna(n)
+
+def test_depois_da_recusa_previa_nova_e_aplicar_lanca_uma_vez():
+    n, e = NotionFake(pagina()), ErpListando()
+    _com_previa(n, e)
+    _junta_incerto(n)
+    assert K.processar(PAGE, n, e, "4000.00@2026-11-24", aplicar=True, hoje=HOJE)["codigo"] == "INCERTO_RESOLVIDO_PECA_PREVIA"
+    _com_previa(n, e)
+    r = K.processar(PAGE, n, e, "4000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["situacao"] == "LANCADA" and len(e.posts) == 1

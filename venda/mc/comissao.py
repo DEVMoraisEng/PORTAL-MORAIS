@@ -347,7 +347,8 @@ def titulos_no_erp(erp, casa: int, work_id, pedacos) -> dict:
                 t["valor"] = round(t["valor"] + _valor_parcela(x), 2)
                 t["n"] += 1
                 t["datas"].add(str(x.get("plannedDate") or "")[:10])
-            if len(itens) < TAMANHO_PAGINA:
+            tem_proxima = j.get("hasNextPage")   # o aviso do ERP manda; sem ele vale a página cheia
+            if tem_proxima is not True and (tem_proxima is not None or len(itens) < TAMANHO_PAGINA):
                 break
             pagina += 1
             if pagina >= MAX_PAGINAS:
@@ -551,7 +552,14 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
             if any(ln.startswith("INCERTO |") for ln in ctx["hist"]):
                 raise _pendente() from None
             raise
+        havia_incerto = any(ln.startswith("INCERTO |") for ln in ctx["hist"])
         ctx["hist"] = resolver_incertos(erp, ctx["hist"], titulos)
+        if havia_incerto and aplicar:
+            # o saldo mudou (ou o incerto foi descartado) depois da prévia que o dono viu: nunca lançar na sequência
+            ultima = next((ln for ln in reversed(ctx["hist"]) if ln.startswith(("LANÇADA |", "INCERTO CONFERIDO |"))), "")
+            achou = "LANÇADA" if ultima.startswith("LANÇADA |") else "INCERTO CONFERIDO"
+            raise Recusa("INCERTO_RESOLVIDO_PECA_PREVIA", "havia um lançamento com resultado incerto; ele foi conferido "
+                         "no Mais Controle (%s). Peça uma prévia nova antes de lançar." % achou)
         if "" in titulos:
             raise Recusa("TITULO_SEM_ID", "o Mais Controle tem parcela de comissão desta unidade sem o id do título "
                          "— nada foi feito; confira no Mais Controle")

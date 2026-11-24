@@ -1595,6 +1595,11 @@ cada parcela anexado. Antes, sempre, uma **prévia** com carimbo `[#…]`; o lan
   ASSINATURA DO CONTRATO até hoje + 400 dias); título que a coluna não conhece (lançado à mão, anotação perdida)
   entra como `LANÇADA | … | encontrado no ERP` e desconta do saldo. A prévia mostra a linha "Já lançado no Mais
   Controle: …".
+- **Incerto aberto exige prévia nova:** se a coluna tinha um `INCERTO | …` aberto quando o pedido de lançar chegou,
+  o robô o confere no Mais Controle (vira `LANÇADA` ou `INCERTO CONFERIDO`), grava a coluna e **recusa** com o código
+  `INCERTO_RESOLVIDO_PECA_PREVIA` — nenhum título é criado nessa execução; peça uma prévia nova e lance de novo.
+  A lista de títulos do Mais Controle é lida página a página enquanto o ERP avisa `hasNextPage`; com o teto de
+  páginas estourado a execução é recusada (nunca decide com leitura incompleta).
 - **Variáveis que o robô lê** (na fila do servidor, `_central\robos-portal.json`, bloco `vars` de cada fila; nada
   disso no repositório): `DB_VENDAS_COND` (id da VENDAS CONDOMÍNIO daquela fila; sem ela o robô recusa),
   `DB_CORRETORES` (CORRETORES – CONTRATO, de onde vem a CHAVE PIX quando o cadastro do ERP não tem) e o
