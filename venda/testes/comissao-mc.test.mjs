@@ -173,7 +173,7 @@ test("parcelasDoForm: centavos somam sem erro de ponto flutuante, limites e sald
 test("bloco: sem comissão não mostra botão; prévia OK + ADM mostra Lançar", () => {
   assert.ok(!/data-acao="com-/.test(D.htmlComissao({ comissao: 0 }, {})));
   assert.ok(!/data-acao="com-/.test(D.htmlComissao({ comissao: null }, {})));
-  const h = D.htmlComissao({ comissao: 17500, jaLancado: 0, texto: "PRÉVIA OK [#1a2b3c4d]\nFavorecido: X" }, { adm: true });
+  const h = D.htmlComissao({ comissao: 17500, jaLancado: 0, texto: "PRÉVIA OK [#1a2b3c4d]\nFavorecido: X\nParcelas: 1/1 R$ 17.500,00 em " + "25/11/2026" }, { adm: true, hoje: "2026-11-25" });
   assert.ok(/data-acao="com-lancar"(?![^>]*disabled)/.test(h));
   const h2 = D.htmlComissao({ comissao: 17500, jaLancado: 0, texto: "PRÉVIA OK [#1a2b3c4d]" }, { adm: false });
   assert.ok(/data-acao="com-lancar"[^>]*disabled/.test(h2) || !/com-lancar/.test(h2));
@@ -198,7 +198,7 @@ test("prévia com candidatos desenha a escolha", () => {
   assert.ok(/name="com-fav" value="f-1"/.test(h) && /name="com-fav" value="f-2"/.test(h));
   assert.ok(!/data-acao="com-lancar"(?![^>]*disabled)/.test(h));
   assert.ok(!/<li[^>]*>f-1 \|/.test(h));
-  const ok = "PRÉVIA OK [#1a2b3c4d] | d\nFavorecido: IMOBILIARIA TESTE | 00.000.000/0001-91\nPix: 00000000000191\n" + t.split("\n").slice(2).join("\n");
+  const ok = "PRÉVIA OK [#1a2b3c4d] | d\nFavorecido: IMOBILIARIA TESTE | 00.000.000/0001-91\nPix: 00000000000191\n" + t.split("\n").slice(1).join("\n");
   const h2 = D.htmlComissao({ comissao: 1000, jaLancado: 0, texto: ok }, { adm: true, fav: "f-2" });
   assert.ok(/value="f-2"[^>]*checked/.test(h2));
   assert.ok(/data-acao="com-lancar"(?![^>]*disabled)/.test(h2));
@@ -229,4 +229,75 @@ test("mensagemMC traduz os erros da comissão", () => {
   for (const c of ["SEM_PERMISSAO_LANCAR", "PARCELAS_INVALIDAS", "FAVORECIDO_INVALIDO", "SEM_VENDA_ID", "COLUNA_FALTANDO", "MC_SEM_PREVIA"])
     assert.ok(D.mensagemMC({ erro: c }) !== c, c);
   assert.match(D.mensagemMC({ erro: "SEM_PERMISSAO_LANCAR" }), /ADM|MASTER/);
+});
+
+/* 25/11/2026: depois de recarregar a página o Lançar só liga se o formulário bate com as parcelas da prévia */
+const PAR2 = "PRÉVIA OK [#1a2b3c4d]\nParcelas: 1/2 R$ 8.750,00 em 2026-11-25".replace("2026-11-25", "25/11/2026") + "; 2/2 R$ 8.750,00 em 25/12/2026";
+const estPrev = (texto) => ({ comissao: 17500, jaLancado: 0, texto });
+
+test("comParcelasDaPrevia lê a linha Parcelas do robô", () => {
+  const um = D.comParcelasDaPrevia("PRÉVIA OK\nParcelas: 1/1 R$ 17.500,00 em 25/11/2026");
+  assert.equal(um.texto, "17500.00@2026-11-25");
+  assert.equal(um.n, 1);
+  const dois = D.comParcelasDaPrevia(PAR2);
+  assert.equal(dois.texto, "8750.00@2026-11-25;8750.00@2026-12-25");
+  assert.deepEqual(dois.datas, ["2026-11-25", "2026-12-25"]);
+  assert.deepEqual(dois.valores, [8750, 8750]);
+  const tres = D.comParcelasDaPrevia("Parcelas: 1/3 R$ 5.833,33 em 25/11/2026; 2/3 R$ 5.833,33 em 25/12/2026; 3/3 R$ 5.833,34 em 24/01/2027");
+  assert.equal(tres.texto, "5833.33@2026-11-25;5833.33@2026-12-25;5833.34@2027-01-24");
+  assert.equal(tres.n, 3);
+  assert.equal(D.comParcelasDaPrevia("PRÉVIA OK\nFavorecido: X | 1"), null);
+  assert.equal(D.comParcelasDaPrevia("Parcelas: 1/2 R$ 8.750,00 em 25/11/2026; lixo"), null);
+  assert.equal(D.comParcelasDaPrevia("Parcelas: 1/2 R$ 8.750,00 em 31/02/2026; 2/2 R$ 8.750,00 em 25/12/2026"), null);
+});
+
+test("página recarregada: o formulário vem da prévia e o Lançar liga; mudar para à vista desliga", () => {
+  const e = estPrev(PAR2), ui = { adm: true, hoje: "2026-11-25" };
+  const c = D.comCalculo(e, ui);
+  assert.equal(c.form.modo, "parcelado");
+  assert.equal(c.form.n, 2);
+  assert.deepEqual(c.form.valores, ["8.750,00", "8.750,00"]);
+  assert.deepEqual(c.form.datas, ["2026-11-25", "2026-12-25"]);
+  assert.equal(c.mudou, false);
+  assert.equal(c.podeLancar, true);
+  assert.match(botaoCom(D.htmlComissao(e, ui), "com-lancar"), /^(?!.*disabled)/);
+  const c2 = D.comCalculo(e, { adm: true, hoje: "2026-11-25", modo: "vista" });
+  assert.equal(c2.mudou, true);
+  assert.equal(c2.podeLancar, false);
+  assert.match(D.htmlComissao(e, { adm: true, hoje: "2026-11-25", modo: "vista" }), /peça a prévia de novo/);
+});
+
+test("prévia OK sem linha Parcelas e sem parcelasPrevia: não lança às cegas", () => {
+  const e = estPrev("PRÉVIA OK [#1a2b3c4d]\nFavorecido: X");
+  assert.equal(D.comCalculo(e, { adm: true, hoje: "2026-11-25" }).podeLancar, false);
+  const ok = D.comCalculo(e, { adm: true, hoje: "2026-11-25", parcelasPrevia: "17500.00@2026-11-25" });
+  assert.equal(ok.podeLancar, true);
+});
+
+test("recarregou (prévia de 2 parcelas) e mudou o select para 3: não volta para a prévia, trava o Lançar", () => {
+  const e = estPrev(PAR2), ui = { adm: true, hoje: "2026-11-25", modo: "parcelado", n: 3, valores: null, datas: null };
+  const c = D.comCalculo(e, ui);
+  assert.equal(c.form.n, 3);
+  assert.equal(c.mudou, true);
+  assert.equal(c.podeLancar, false);
+});
+
+test("a linha da prévia atual vale mais que o parcelasPrevia velho da sessão", () => {
+  const e = estPrev(PAR2);
+  const c = D.comCalculo(e, { adm: true, hoje: "2026-11-25", parcelasPrevia: "1.00@2026-11-25" });
+  assert.equal(c.mudou, false);
+  assert.equal(c.podeLancar, true);
+});
+
+test("estado inicial REAL da tela (novoUiCom) conta como intocado: a página recarregada mostra a prévia", () => {
+  /* 25/11: a tela criava o ui com modo "vista" e n 2 e o preenchimento pela prévia nunca acontecia — o teste acima
+     usava um ui vazio e não pegava. Aqui o ui é o mesmo que a tela monta. */
+  const ui = D.novoUiCom(true, "2026-11-25");
+  const c = D.comCalculo(estPrev(PAR2), ui);
+  assert.equal(c.form.modo, "parcelado");
+  assert.deepEqual(c.form.valores, ["8.750,00", "8.750,00"]);
+  assert.equal(c.podeLancar, true);
+  const sem = D.comCalculo({ comissao: 17500, jaLancado: 0, texto: "" }, D.novoUiCom(true, "2026-11-25"));
+  assert.equal(sem.form.modo, "vista");
+  assert.deepEqual(sem.form.valores, ["17.500,00"]);
 });
