@@ -1643,14 +1643,33 @@
     var ach = comCandidatos(texto).filter(function (c) { return c.nome === m[1].trim() && c.doc === m[2].trim(); });
     return { nome: m[1].trim(), id: ach.length === 1 ? ach[0].id : "" };
   }
+  /* 25/11/2026: "Parcelas: 1/2 R$ 8.750,00 em 25/11/2026; 2/2 ..." (venda/mc/comissao.py::_parcelas_txt) -> {texto "V@D;V@D", valores, datas, n} ou null */
+  function comParcelasDaPrevia(texto) {
+    var m = /^Parcelas: (.+)$/m.exec(String(texto || "")); if (!m) return null;
+    var partes = m[1].trim().split("; "), cent = [], datas = [];
+    for (var i = 0; i < partes.length; i++) {
+      var p = /^(\d+)\/(\d+) R\$ (\d{1,3}(?:\.\d{3})*,\d{2}) em (\d{2})\/(\d{2})\/(\d{4})$/.exec(partes[i].trim());
+      if (!p || Number(p[1]) !== i + 1 || Number(p[2]) !== partes.length) return null;
+      var iso = p[6] + "-" + p[5] + "-" + p[4];
+      if (!comDataValida(iso)) return null;
+      var c = comCent(p[3]); if (!(c > 0)) return null;
+      cent.push(c); datas.push(iso);
+    }
+    if (cent.length < 1 || cent.length > 6) return null;
+    return { texto: cent.map(function (c, k) { return comValorTxt(c) + "@" + datas[k]; }).join(";"),
+             valores: cent.map(function (c) { return c / 100; }), datas: datas, n: cent.length };
+  }
   /* valores e datas que a tela mostra: o que a pessoa digitou (se ainda vale) ou o padrão; ui = {modo, n, valores, datas, ...} */
   function comForm(estado, ui) {
     var saldoC = Math.max(0, comCent(Number(estado.comissao) || 0) - comCent(Number(estado.jaLancado) || 0));
     var hoje = ui.hoje || hojeFluxo();
-    var modo = ui.modo === "parcelado" ? "parcelado" : "vista";
-    var n = modo === "vista" ? 1 : Math.min(6, Math.max(2, Number(ui.n) || 2));
+    /* página recarregada com PRÉVIA OK e o formulário ainda intocado: mostra as parcelas da própria prévia */
+    var prev = !ui.modo && !ui.valores && /^PR[ÉE]VIA OK/i.test(String(estado.texto || "").split("\n")[0]) ? comParcelasDaPrevia(estado.texto) : null;
+    var modo = prev ? (prev.n > 1 ? "parcelado" : "vista") : (ui.modo === "parcelado" ? "parcelado" : "vista");
+    var n = prev ? prev.n : (modo === "vista" ? 1 : Math.min(6, Math.max(2, Number(ui.n) || 2)));
     var vals, datas;
-    if (Array.isArray(ui.valores) && ui.valores.length === n && Array.isArray(ui.datas) && ui.datas.length === n) { vals = ui.valores; datas = ui.datas; }
+    if (prev) { vals = prev.valores.map(function (v) { return numBR(v); }); datas = prev.datas; }
+    else if (Array.isArray(ui.valores) && ui.valores.length === n && Array.isArray(ui.datas) && ui.datas.length === n) { vals = ui.valores; datas = ui.datas; }
     else {
       var pad = parcelasDoForm({ modo: modo, n: n, total: saldoC / 100, hoje: hoje });
       vals = pad.valores.map(function (v) { return numBR(v); }); datas = pad.datas;
@@ -1667,9 +1686,11 @@
     var podePrevia = f.saldoC > 0 && !ocupado && !ui.testes && f.res.ok;
     var favPrevia = ft.id || ui.favPrevia || "";
     var favOk = cands.length < 2 || (!!favEf && favEf === favPrevia);
-    var mudou = !!ui.parcelasPrevia && f.res.texto !== ui.parcelasPrevia;
+    var pPrev = ui.parcelasPrevia || ((previaOk && comParcelasDaPrevia(texto)) || {}).texto || "";
+    var mudou = !!pPrev && f.res.texto !== pPrev;
+    var semParcelasPrevia = previaOk && !pPrev;   /* sem saber o que a prévia mostrou, não lança às cegas */
     return { form: f, previaOk: previaOk, cands: cands, favEf: favEf, favNome: ft.nome, ocupado: ocupado, podePrevia: podePrevia,
-             podeLancar: podePrevia && previaOk && ui.adm !== false && favOk && !mudou, mudou: mudou,
+             podeLancar: podePrevia && previaOk && ui.adm !== false && favOk && !mudou && !semParcelasPrevia, mudou: mudou, semParcelasPrevia: semParcelasPrevia,
              soma: f.res.ok ? "Soma: " + comReais(comCent(f.res.soma)) + " de " + comReais(f.saldoC) + " de saldo"
                             : (f.res.erro || "Confira os valores e as datas.") };
   }
@@ -1714,6 +1735,7 @@
       }
       h += '<div class="dz-linha com"><span class="dz-rot com-soma">' + esc(c.soma) + "</span></div>";
       if (c.mudou) h += '<div class="dz-nota com">Valores ou datas mudaram depois da prévia: peça a prévia de novo.</div>';
+      else if (c.semParcelasPrevia) h += '<div class="dz-nota com">Não dá para conferir as parcelas da prévia: peça a prévia de novo.</div>';
       if (u.adm === false) h += '<div class="dz-nota com">Só perfil ADM ou MASTER lança a comissão; você pode ver a prévia.</div>';
       h += '<div class="dz-linha com"><button type="button" class="bt ghost bt-mini" data-acao="com-previa"' + dis(!c.podePrevia) + ">Ver prévia</button> " +
         '<button type="button" class="bt bt-mini" data-acao="com-lancar"' + dis(!c.podeLancar) + ">Lançar comissão</button> ";
@@ -1948,7 +1970,7 @@
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, htmlPerguntaTipo: htmlPerguntaTipo, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, htmlComissao: htmlComissao, parcelasDoForm: parcelasDoForm, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
+                   topicosMC: topicosMC, htmlComissao: htmlComissao, parcelasDoForm: parcelasDoForm, comParcelasDaPrevia: comParcelasDaPrevia, comCalculo: comCalculo, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
