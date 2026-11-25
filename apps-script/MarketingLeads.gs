@@ -73,7 +73,7 @@
  *      ACESSOS e marcar em quem usa (Hudson, marketing).
  *************************************************************************/
 
-var MK_VERSAO = "mk3";
+var MK_VERSAO = "mk4";
 var MK_ACESSO = "ANÁLISE DE MARKETING";
 var MK_FUSO = "America/Sao_Paulo";
 
@@ -97,7 +97,7 @@ var MK_ABA_SITE = "Site";
 var MK_TIPOS = ["CLIENTE", "CORRETOR", "RESPONDEU E PAROU", "SEM RESPOSTA", "SEM CONVERSA"];
 var MK_HYPER_CAB = ["TELEFONE", "NOME", "TIPO", "ETAPA", "COMPLETO", "FONTE", "ATUALIZADO EM", "POR"];
 var MK_ENVIOS_CAB = ["CHAVE", "ORIGEM", "NOME", "TELEFONE", "DESTINO", "ENVIADO EM", "ENVIADO POR"];
-var MK_CACHE_LEADS = "mk_leads_v2";
+var MK_CACHE_LEADS = "mk_leads_v3";
 var MK_ABA_CLIENTES = "LEADS CLIENTES";
 /* nome do portal → como a LEADS CLIENTES escreve a imobiliária */
 var MK_CURTO = { "JESSICA": "JESSICA", "LUXURY IMÓVEIS": "LUXURY", "MY BROKER CANEDO": "MY BROKER CANEDO", "GERLIANE": "GERLIANE" };
@@ -154,6 +154,14 @@ function mkProp_(n) {
 }
 function mkLogin_(sess) { return String(sess.n || sess.p || sess.u || ""); }
 /* chave do telefone: DDD + 8 últimos dígitos (o 9º dígito some) — mesma da HyperFlow */
+/* 25/11: "sem retorno", "aguardando retorno" ou vazio na RETORNO e na ATUALIZAÇÃO = a imobiliária não deu retorno */
+function mkTemRetorno_(ret, atu) {
+  var vazio = function (x) {
+    x = mkTxt_(x).replace(/\s+/g, " ").trim();
+    return !x || /^[-–.\s]*$/.test(x) || /^(cliente\s+)?(ainda\s+)?(sem retorno|aguardando retorno)(\s+do mesmo)?\.?$/i.test(x);
+  };
+  return !(vazio(ret) && vazio(atu));
+}
 function mkChaveTel_(t) {
   var d = String(t == null ? "" : t).replace(/\D/g, "");
   if (d.length > 11 && d.indexOf("55") === 0) d = d.slice(2);
@@ -294,9 +302,9 @@ function mkCampanhas_() {
     }
   } catch (e) { console.warn("mkCampanhas: ATENDIMENTOS " + e); }
 
-  var envio = {};
+  var envio = {}, envLinhas = 0, envSemTel = 0;
   MK_CORRETORES.forEach(function (c) {
-    try { mkLerCorretor_(c).linhas.forEach(function (l) { if (l.k && !envio[l.k]) envio[l.k] = { d: c.nome, r: l.ret ? 1 : 0 }; }); }
+    try { mkLerCorretor_(c).linhas.forEach(function (l) { envLinhas++; if (!l.k) { envSemTel++; return; } if (!envio[l.k]) envio[l.k] = { d: c.nome, r: l.tem ? 1 : 0 }; }); }
     catch (e) { console.warn("mkCampanhas: " + c.nome + " " + e); }
   });
   var abas = [];
@@ -333,7 +341,9 @@ function mkCampanhas_() {
   });
   var ult = ""; Object.keys(hyper).forEach(function (k) { if ((hyper[k].at || "") > ult && hyper[k].fonte !== "MANUAL") ult = hyper[k].at; });
   var robo = null; try { robo = JSON.parse(PropertiesService.getScriptProperties().getProperty("MK_ROBO_ULTIMA") || "null"); } catch (e) {}
-  return { ok: true, versao: MK_VERSAO, geradoEm: mkAgora_(), planilha: ss.getUrl(), abas: abas, hyperAtualizado: ult, robo: robo };
+  var envTot = Object.keys(envio).length, envRet = 0; Object.keys(envio).forEach(function (k) { if (envio[k].r) envRet++; });
+  return { ok: true, versao: MK_VERSAO, geradoEm: mkAgora_(), planilha: ss.getUrl(), abas: abas, hyperAtualizado: ult, robo: robo,
+    envio: { clientes: envTot, comRetorno: envRet, linhas: envLinhas, semTelefone: envSemTel } };
 }
 function mkColTelefone_(v) {
   var cab = v[0].map(String);
@@ -366,7 +376,8 @@ function mkLerCorretor_(c) {
   for (var i = h + 1; i < v.length; i++) {
     var k = mkChaveTel_(v[i][ix.tel]);
     if (!k && !mkTxt_(v[i][ix.cli])) continue;
-    linhas.push({ linha: i + 1, k: k, ret: ix.ret >= 0 ? mkTxt_(v[i][ix.ret]) : "", atu: ix.atu >= 0 ? mkTxt_(v[i][ix.atu]) : "" });
+    var ret = ix.ret >= 0 ? mkTxt_(v[i][ix.ret]) : "", atu = ix.atu >= 0 ? mkTxt_(v[i][ix.atu]) : "";
+    linhas.push({ linha: i + 1, k: k, ret: ret, atu: atu, tem: mkTemRetorno_(ret, atu) });
   }
   return { sh: sh, cab: cab, ix: ix, h: h, linhas: linhas };
 }
@@ -442,7 +453,7 @@ function mkLeads_(forcar) {
   var achado = {}, erros = [];
   MK_CORRETORES.forEach(function (c) {
     try {
-      mkLerCorretor_(c).linhas.forEach(function (l) { if (l.k && !achado[l.k]) achado[l.k] = { destino: c.nome, ret: l.ret, atu: l.atu, linha: l.linha }; });
+      mkLerCorretor_(c).linhas.forEach(function (l) { if (l.k && !achado[l.k]) achado[l.k] = { destino: c.nome, ret: l.ret, atu: l.atu, linha: l.linha, tem: l.tem }; });
     } catch (e) { erros.push(c.nome + ": " + (e && e.message || e)); }
   });
   var agora = new Date().getTime();
@@ -453,9 +464,9 @@ function mkLeads_(forcar) {
     it.enviadoEm = e ? e.em : "";
     it.enviadoPor = e ? e.por : "";
     it.foraDoPortal = it.enviado && !e;
-    if (na && it.tipo === "corretor") { it.retorno = na.ret; it.atualizacao = na.atu; it.linhaDestino = na.linha; }
+    if (na && it.tipo === "corretor") { it.retorno = na.ret; it.atualizacao = na.atu; it.linhaDestino = na.linha; it.temRetorno = na.tem; }
     if (it.tipo === "corretor" && it.k && lc[it.k]) { it.sugestao = mkDoCurto_(lc[it.k].imob); it.linhaClientes = lc[it.k].linha; }
-    if (it.tipo === "corretor" && it.enviado && !it.retorno) {
+    if (it.tipo === "corretor" && it.enviado && !it.temRetorno) {
       var base = it.enviadoEm || it.t;
       var d = base ? new Date(base.replace("T", " ").replace(/-/g, "/")).getTime() : 0;
       it.semRetornoHoras = d ? Math.max(0, Math.round((agora - d) / 3600000)) : null;
