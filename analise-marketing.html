@@ -116,6 +116,8 @@ html[data-tema="escuro"] .lnk{color:var(--teal)}
 .funil .f b{font-family:'Barlow Condensed';font-size:20px}
 .funil .fg{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:6px;padding-bottom:3px;border-bottom:1px solid var(--border2);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
 .funil .fg:first-child{margin-top:0}
+.semclass{margin-top:10px;font-size:12.5px;line-height:1.5;color:var(--text2);background:var(--bg2);border:1px solid var(--border2);border-left:3px solid var(--text3);border-radius:8px;padding:9px 12px}
+.semclass ul{margin:4px 0;padding-left:18px}
 .funil .fg small{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}
 @media(max-width:600px){.funil .f{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}.funil .bar{grid-column:1/-1;grid-row:2}.funil .f>span:last-child .muted{font-size:12px}}
 .destaques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
@@ -247,7 +249,7 @@ footer{max-width:1480px;margin:0 auto;padding:0 16px 24px;color:var(--text4);fon
  * Servidor: apps-script/MarketingLeads.gs (PORTAL-LEITURA). Acesso:
  * "ANÁLISE DE MARKETING" na coluna ACESSOS do LOGINS (ADM/MASTER sempre).
  * ============================================================================ */
-const PAGINA_VERSAO = "v3";
+const PAGINA_VERSAO = "v5";
 const SESS = exigirSessao();
 const $ = s => document.querySelector(s);
 const escA = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -308,11 +310,20 @@ async function carregarCampanhas(){
   $("#sec-camp").innerHTML='<div class="carregando">Lendo as planilhas de campanha…</div>';
   const r = await api({ action:"mkCampanhas" });
   if(!r.ok){ $("#sec-camp").innerHTML='<div class="aviso erro">'+escA(msgErro(r.erro))+'</div>'; return; }
-  ST.C=r;
+  ST.C=r; rotularCampanhas(r);
   if(!/^__/.test(ST.aba) && !r.abas.some(a=>a.nome===ST.aba)) ST.aba="__dec";
   rodape(r);
   desenharCampanhas();
 }
+/* 25/11: a aba com o lead mais novo é a CAMPANHA ATUAL; as outras, CAMPANHA ANTIGA (só o nome na tela; as abas da planilha não mudam) */
+function rotularCampanhas(r){
+  const ult=a=>a.leads.reduce((m,l)=>(l.t||"")>m?(l.t||""):m,"");
+  r.abas.sort((a,b)=>ult(b).localeCompare(ult(a)));
+  const ant=r.abas.length-1;
+  r.abas.forEach((a,i)=>{ a.rot = i===0 ? "CAMPANHA ATUAL" : "CAMPANHA ANTIGA"+(ant>1? " "+i : ""); });
+  ST.rot=Object.fromEntries(r.abas.map(a=>[a.nome,a.rot]));
+}
+function rotCamp(nome){ return (ST.rot&&ST.rot[nome])||nome; }
 function rodape(r){ $("#rodape").textContent = "Página "+PAGINA_VERSAO+" · Apps Script "+(r&&r.versao||"?")+" · lido em "+fmtDH(r&&r.geradoEm); }
 function fmtDH(iso){ if(!iso) return "—"; const m=String(iso).match(/(\d{4})-(\d\d)-(\d\d)T?(\d\d)?:?(\d\d)?/); if(!m) return iso; return m[3]+"/"+m[2]+(m[4]?" "+m[4]+":"+m[5]:""); }
 function fmtD(iso){ const m=String(iso||"").match(/(\d{4})-(\d\d)-(\d\d)/); return m? m[3]+"/"+m[2]+"/"+m[1] : "—"; }
@@ -335,19 +346,19 @@ function pilha(c, alta){
 }
 function legenda(){ return '<div class="leg">'+CLS.map(x=>'<span><i class="'+x.sw+'"></i>'+escA(x.rot)+'</span>').join("")+'</div>'; }
 function kpis(c){
-  const k=(n,r,p,sw)=>'<div class="kpi">'+(sw?'<i class="sw '+sw+'"></i>':'')+'<div class="n">'+n+'</div><div class="r">'+r+'</div>'+(p!=null?'<div class="p">'+p+'% dos leads</div>':'')+'</div>';
+  const k=(n,r,p,sw,ex)=>'<div class="kpi"'+(ex?' title="'+escA(ex)+'"':'')+'>'+(sw?'<i class="sw '+sw+'"></i>':'')+'<div class="n">'+n+'</div><div class="r">'+r+'</div>'+(p!=null?'<div class="p">'+p+'% dos leads</div>':'')+(ex?'<div class="p" style="font-size:11px">'+escA(ex)+'</div>':'')+'</div>';
   return '<div class="kpis">'+
     k(c.n,"Leads captados")+
-    k(c.Q,"Qualificados (Meta)",pct(c.Q,c.n))+
-    k(c.D,"Desqualificados (Meta)",pct(c.D,c.n))+
-    k(c.N,"Sem status na Meta",pct(c.N,c.n))+
+    k(c.Q,"Qualificados (Meta)",pct(c.Q,c.n),null,"Marcado como QualifiedLead na Central de leads da Meta")+
+    k(c.D,"Desqualificados (Meta)",pct(c.D,c.n),null,"Marcado como DisqualifiedLead na Central de leads da Meta")+
+    k(c.N,"Sem status na Meta",pct(c.N,c.n),null,"Ninguém marcou o lead na Central de leads da Meta (CREATED)")+
     CLS.filter(x=>x.id!=="" || c[""]).map(x=>k(c[x.id],x.rot,pct(c[x.id],c.n),x.sw)).join("")+
   '</div>';
 }
 function agrupar(leads, campo){
   const g={}; leads.forEach(l=>{ const k=l[campo]||"(vazio)"; (g[k]=g[k]||[]).push(l); });
   return Object.entries(g).map(([k,ls])=>{ const c=contar(ls), base=c.n-c["SEM CONVERSA"]-c[""], resp=c.CLIENTE+c.CORRETOR+c["RESPONDEU E PAROU"];
-    return Object.assign({ nome:k }, c, { base, resp, tResp: base? resp/base : -1 }); });
+    return Object.assign({ nome:k }, c, { base, resp, tResp: c.n? resp/c.n : -1 }); });
 }
 function tabelaGrupo(id, linhas, titulo){
   const ord = (id in ST.ordem) ? ST.ordem[id] : "n";
@@ -357,7 +368,7 @@ function tabelaGrupo(id, linhas, titulo){
     '<th style="min-width:140px">Composição</th>'+th("CLIENTE","Clientes")+th("CORRETOR","Corretores")+th("RESPONDEU E PAROU","Parou")+th("SEM RESPOSTA","Sem resp.")+
     th("SEM CONVERSA","Sem conversa")+th("","Sem class.")+th("Q","Qualif.")+th("D","Desqualif.")+'</tr></thead><tbody>'+
     linhas.map(g=>'<tr><td class="nome">'+(id==="ad"||id==="adall"? linkAnuncio(g.nome, id==="ad"? ST.aba : "") : escA(g.nome))+'</td>'+
-      '<td class="num" title="Responderam na HyperFlow (cliente + corretor + respondeu e parou) ÷ leads com leitura">'+(g.base? '<b>'+pctT(g.tResp)+'</b><br><span class="muted" style="font-size:11px">'+g.resp+' de '+g.base+'</span>' : '<span class="muted">—</span>')+'</td>'+
+      '<td class="num" title="Responderam na HyperFlow (cliente + corretor + respondeu e parou) ÷ leads">'+(g.n? '<b>'+pctT(g.resp/g.n)+'</b><br><span class="muted" style="font-size:11px">'+g.resp+' de '+g.n+'</span>' : '<span class="muted">—</span>')+'</td>'+
       '<td class="num"><b>'+g.n+'</b></td><td>'+pilha(g)+'</td>'+
       ["CLIENTE","CORRETOR","RESPONDEU E PAROU","SEM RESPOSTA","SEM CONVERSA",""].map(k=>'<td class="num">'+(g[k]||'<span class="muted">0</span>')+(g[k]?' <span class="muted">'+pct(g[k],g.n)+'%</span>':'')+'</td>').join("")+
       '<td class="num">'+g.Q+'</td><td class="num">'+g.D+'</td></tr>').join("")+
@@ -412,7 +423,7 @@ function filtroPeriodo(){
 }
 function desenharCampanhas(listaAberta){
   const C=ST.C; if(!C) return; ST._cards=[];
-  const abas=[{nome:"__dec",rot:"★ Decisões",cls:"dec"},{nome:"__comp",rot:"Comparativo"}].concat(C.abas.map(a=>({nome:a.nome,rot:a.nome})));
+  const abas=[{nome:"__dec",rot:"★ Decisões",cls:"dec"},{nome:"__comp",rot:"Comparativo"}].concat(C.abas.map(a=>({nome:a.nome,rot:a.rot||a.nome})));
   ST._abas=abas.map(a=>a.nome);
   let h='<div class="subabas" role="tablist" aria-label="Sub-abas de Campanhas"><span class="rot">Campanhas ›</span>'+abas.map((a,i)=>'<button class="subaba '+(a.cls||"")+'" role="tab" aria-selected="'+(ST.aba===a.nome)+'" onclick="ST.aba=ST._abas['+i+'];desenharCampanhas()">'+escA(a.rot)+'</button>').join("")+'</div>';
   h+='<div class="painel" style="margin-bottom:16px">'+filtroPeriodo()+infoHyper()+'</div>';
@@ -421,9 +432,9 @@ function desenharCampanhas(listaAberta){
   else{
     const A=C.abas.find(a=>a.nome===ST.aba); const leads=A.leads.filter(noPeriodo); const c=contar(leads);
     const ini=leads.map(l=>l.t).filter(Boolean).sort();
-    h+='<div class="painel"><div class="tit"><span class="cond">'+escA(A.nome)+'</span><em>'+(ini.length? fmtD(ini[0])+' a '+fmtD(ini[ini.length-1]):"")+'</em></div>'+kpis(c)+
+    h+='<div class="painel"><div class="tit"><span class="cond">'+escA(rotCamp(A.nome))+'</span><em>aba da planilha: '+escA(A.nome)+(ini.length?' · ':'')+(ini.length? fmtD(ini[0])+' a '+fmtD(ini[ini.length-1]):"")+'</em></div>'+kpis(c)+
       '<div style="margin-top:14px">'+legenda()+pilha(c,true)+'</div>'+
-      (c[""]? '<p class="dica" style="margin-top:8px">"Sem classificação" = lead que ainda não tem leitura da HyperFlow nem está na planilha de atendimentos (normalmente ainda em Prospecção). Corrija na lista do fim da página.</p>':'')+'</div>';
+      semClassInfo(leads)+'</div>';
     h+='<div class="painel"><div class="tit"><span class="cond">Captação por anúncio (ad_name)</span><em>clique no anúncio para ver a captação dia a dia · no título da coluna para ordenar</em></div>'+legenda()+tabelaGrupo("ad",agrupar(leads,"ad"),"Anúncio")+'</div>';
     h+='<div class="painel"><div class="tit"><span class="cond">Captação por conjunto (adset_name)</span></div>'+tabelaGrupo("set",agrupar(leads,"adset"),"Conjunto")+'</div>';
     h+='<div class="painel"><div class="tit"><span class="cond">Leads por dia</span></div>'+legenda()+graficoDias(leads)+'</div>';
@@ -432,6 +443,20 @@ function desenharCampanhas(listaAberta){
   $("#sec-camp").innerHTML=h;
   if(listaAberta){ const d=$("#sec-camp details.lista"); if(d) d.open=true; }
 }
+/* 25/11: por que o lead está "sem classificação" — sem telefone válido × telefone que a leitura da HyperFlow ainda não pegou */
+function semClassInfo(leads){
+  const sc=leads.filter(l=>clsDe(l)==="");
+  if(!sc.length) return "";
+  const semTel=sc.filter(l=>!l.k), comTel=sc.filter(l=>l.k);
+  const lido=ST.C&&ST.C.hyperAtualizado? new Date(String(ST.C.hyperAtualizado).replace(" ","T")) : null;
+  const depois=lido? comTel.filter(l=>l.t && new Date(l.t)>lido).length : 0;
+  const nomes=a=>a.slice(0,6).map(l=>escA(l.nome||"(sem nome)")+(l.tel?' <span class="muted">'+escA(l.tel)+'</span>':'')).join(", ")+(a.length>6?" e mais "+(a.length-6):"");
+  return '<div class="semclass"><b>'+sc.length+' '+(sc.length===1?'lead está':'leads estão')+' "sem classificação"</b> — a leitura da HyperFlow não tem como dizer o que '+(sc.length===1?'ele é':'eles são')+':<ul>'+
+    (semTel.length? '<li><b>'+semTel.length+' sem telefone válido</b> no formulário da Meta (veio vazio, "p:0", "p:-" ou sem DDD). Não dá para achar na HyperFlow; só a equipe consegue, pelo nome ou e-mail. '+nomes(semTel)+'.</li>':'')+
+    (comTel.length? '<li><b>'+comTel.length+' com telefone, ainda não lidos</b>: '+(depois? depois+' '+(depois===1?'chegou':'chegaram')+' depois da última leitura ('+fmtDH(ST.C.hyperAtualizado)+') e '+(depois===1?'entra':'entram')+' na próxima rodada' : 'a leitura da HyperFlow não pegou a conversa')+
+      (comTel.length-depois>0 && depois? '; '+(comTel.length-depois)+' a leitura não pegou e '+((comTel.length-depois)===1?'é relido':'são relidos')+' na próxima rodada' : '')+'. '+nomes(comTel)+'.</li>':'')+
+  '</ul>Dá para classificar à mão na lista de leads da campanha.</div>';
+}
 function infoHyper(){
   const C=ST.C, r=C.robo;
   let t='Classificação da HyperFlow atualizada em <b>'+fmtDH(C.hyperAtualizado)+'</b>';
@@ -439,19 +464,19 @@ function infoHyper(){
   return '<p class="dica" style="margin-top:10px">'+t+'</p>';
 }
 /* ===================== DECISÕES (25/11) =====================
-   Base = leads COM LEITURA (cliente, corretor, respondeu e parou, sem resposta). "Sem conversa na HyperFlow" e "sem
-   classificação" ficam fora das taxas: não dá para saber o que aconteceu com eles. */
+   Só a campanha atual. Taxas sobre o TOTAL de leads (pedido do Morais em 25/11). */
 const DEC = { min:10, escalar:1.3, rever:0.7, pausar:15 };
 function metricas(ls){
   const c=contar(ls); const base=c.n-c["SEM CONVERSA"]-c[""];
   const resp=c.CLIENTE+c.CORRETOR+c["RESPONDEU E PAROU"];
   const comp=ls.filter(l=>clsDe(l)==="CLIENTE"&&l.completo).length;
   const env=ls.filter(l=>l.env).length, ret=ls.filter(l=>l.env&&l.ret).length, atend=ls.filter(l=>l.atend).length;
-  return Object.assign(c,{ base, resp, comp, env, ret, atend, tCli: base? c.CLIENTE/base : 0, tResp: base? resp/base : 0, tCor: base? c.CORRETOR/base : 0 });
+  const n=c.n;
+  return Object.assign(c,{ base, resp, comp, env, ret, atend, tCli: n? c.CLIENTE/n : 0, tResp: n? resp/n : 0, tCor: n? c.CORRETOR/n : 0 });
 }
 function veredito(m, media){
-  if(m.base < DEC.min) return {id:"poc", rot:"Pouca amostra", ord:4, por:"menos de "+DEC.min+" leads com leitura"};
-  if(m.CLIENTE===0 && m.base>=DEC.pausar) return {id:"pau", rot:"Pausar", ord:3, por:"nenhum cliente em "+m.base+" leads com leitura"};
+  if(m.n < DEC.min) return {id:"poc", rot:"Pouca amostra", ord:4, por:"menos de "+DEC.min+" leads"};
+  if(m.CLIENTE===0 && m.n>=DEC.pausar) return {id:"pau", rot:"Pausar", ord:3, por:"nenhum cliente em "+m.n+" leads"};
   if(media>0 && m.tCli>=media*DEC.escalar && m.CLIENTE>=2) return {id:"esc", rot:"Escalar", ord:0, por:"taxa de cliente "+pctT(m.tCli)+" (média "+pctT(media)+")"};
   if(media>0 && m.tCli<media*DEC.rever) return {id:"rev", rot:"Rever", ord:2, por:"taxa de cliente "+pctT(m.tCli)+" abaixo da média "+pctT(media)};
   return {id:"man", rot:"Manter", ord:1, por:"taxa de cliente perto da média ("+pctT(media)+")"};
@@ -460,51 +485,49 @@ function pctT(x){ return (Math.round(x*1000)/10).toLocaleString("pt-BR")+"%"; }
 function tabelaDecisao(grupos, media, titulo, anuncio){
   grupos.forEach(g=>g.v=veredito(g,media));
   grupos.sort((a,b)=>a.v.ord-b.v.ord || b.tCli-a.tCli || b.n-a.n);
-  return '<div class="tbl-wrap"><table><thead><tr><th>Decisão</th><th>'+titulo+'</th><th>Leads</th><th>Com leitura</th><th>Responderam</th><th>Clientes</th><th>Taxa de cliente</th><th>Corretores</th><th>Qualif. completa</th><th>Enviados à imobiliária</th><th>Com retorno</th><th>Por quê</th></tr></thead><tbody>'+
+  return '<div class="tbl-wrap"><table><thead><tr><th>Decisão</th><th>'+titulo+'</th><th>Leads</th><th>Responderam</th><th>Clientes</th><th>Taxa de cliente</th><th>Corretores</th><th>Qualif. completa</th><th>Enviados à imobiliária</th><th>Com retorno</th><th>Por quê</th></tr></thead><tbody>'+
     grupos.map(g=>'<tr><td><span class="vered v-'+g.v.id+'">'+g.v.rot+'</span>'+(g.CORRETOR>g.CLIENTE&&g.CORRETOR>=3?'<br><span class="tag-cor">atrai mais corretor</span>':'')+'</td>'+
-      '<td class="nome">'+(anuncio? linkAnuncio(g.nome,"") : escA(g.nome))+'</td><td class="num">'+g.n+'</td><td class="num">'+g.base+'</td>'+
+      '<td class="nome">'+(anuncio? linkAnuncio(g.nome,"") : escA(g.nome))+'</td><td class="num">'+g.n+'</td>'+
       '<td class="num">'+g.resp+' <span class="muted">'+pctT(g.tResp)+'</span></td>'+
       '<td class="num"><b>'+g.CLIENTE+'</b></td><td class="num"><b>'+pctT(g.tCli)+'</b></td>'+
       '<td class="num">'+g.CORRETOR+'</td><td class="num">'+g.comp+'</td><td class="num">'+g.env+'</td><td class="num">'+g.ret+'</td>'+
       '<td class="muted" style="min-width:180px">'+escA(g.v.por)+'</td></tr>').join("")+'</tbody></table></div>';
 }
 function decisoes(){
-  const C=ST.C; const todos=[]; C.abas.forEach(a=>a.leads.filter(noPeriodo).forEach(l=>todos.push(Object.assign({aba:a.nome},l))));
+  const C=ST.C; const atual=C.abas[0]; const todos=[]; (atual? [atual]:[]).forEach(a=>a.leads.filter(noPeriodo).forEach(l=>todos.push(Object.assign({aba:a.nome},l))));
   const M=metricas(todos), media=M.tCli;
   const porAd=Object.entries(todos.reduce((g,l)=>{(g[l.ad]=g[l.ad]||[]).push(l);return g},{})).map(([k,ls])=>Object.assign({nome:k},metricas(ls)));
   const porSet=Object.entries(todos.reduce((g,l)=>{(g[l.adset]=g[l.adset]||[]).push(l);return g},{})).map(([k,ls])=>Object.assign({nome:k},metricas(ls)));
-  const porAba=C.abas.map(a=>Object.assign({nome:a.nome},metricas(a.leads.filter(noPeriodo))));
-  const comAmostra=porAd.filter(g=>g.base>=DEC.min);
+  const comAmostra=porAd.filter(g=>g.n>=DEC.min);
   const melhor=comAmostra.slice().sort((a,b)=>b.tCli-a.tCli||b.CLIENTE-a.CLIENTE)[0];
-  const pior=comAmostra.slice().sort((a,b)=>a.tCli-b.tCli||b.base-a.base)[0];
+  const pior=comAmostra.slice().sort((a,b)=>a.tCli-b.tCli||b.n-a.n)[0];
   const ultSem=semanas(todos);
   const dest=(cls,r,n,p)=>'<div class="dest '+cls+'"><div class="r">'+r+'</div><div class="n">'+n+'</div><div class="p">'+p+'</div></div>';
-  let h='<div class="painel"><div class="tit"><span class="cond">O que está dando retorno</span><em>todas as campanhas · '+(ST.periodo==="tudo"?"todo o período":"últimos "+ST.periodo+" dias")+'</em></div><div class="destaques">'+
-    dest("", "Taxa de cliente", pctT(M.tCli), M.CLIENTE+" clientes em "+M.base+" leads com leitura")+
+  let h='<div class="painel"><div class="tit"><span class="cond">O que está dando retorno</span><em>só a campanha atual'+(atual?' (aba '+escA(atual.nome)+')':'')+' · '+(ST.periodo==="tudo"?"todo o período":"últimos "+ST.periodo+" dias")+'</em></div><div class="destaques">'+
+    dest("", "Taxa de cliente", pctT(M.tCli), M.CLIENTE+" clientes em "+M.n+" leads")+
     dest("", "Taxa de resposta", pctT(M.tResp), M.resp+" responderam a HyperFlow")+
-    (melhor? dest("bom","Melhor anúncio",escA(melhor.nome),pctT(melhor.tCli)+" viram cliente ("+melhor.CLIENTE+" de "+melhor.base+")") : dest("","Melhor anúncio","—","nenhum anúncio com "+DEC.min+"+ leads com leitura"))+
-    (pior&&pior!==melhor? dest("ruim","Pior anúncio",escA(pior.nome),pctT(pior.tCli)+" viram cliente ("+pior.CLIENTE+" de "+pior.base+")") : "")+
+    (melhor? dest("bom","Melhor anúncio",escA(melhor.nome),pctT(melhor.tCli)+" viram cliente ("+melhor.CLIENTE+" de "+melhor.n+")") : dest("","Melhor anúncio","—","nenhum anúncio com "+DEC.min+"+ leads"))+
+    (pior&&pior!==melhor? dest("ruim","Pior anúncio",escA(pior.nome),pctT(pior.tCli)+" viram cliente ("+pior.CLIENTE+" de "+pior.n+")") : "")+
     dest("", "Enviados às imobiliárias", M.env, M.ret+" com retorno da imobiliária ("+pctT(M.env? M.ret/M.env : 0)+" dos enviados)")+
   '</div></div>';
-  h+='<div class="painel"><div class="tit"><span class="cond">Funil — do anúncio à imobiliária</span></div>'+funil(M)+'</div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Funil — do anúncio à imobiliária</span></div>'+funil(M)+semClassInfo(todos)+'</div>';
   h+='<div class="painel"><div class="tit"><span class="cond">Decisão por anúncio</span><em>média de cliente: '+pctT(media)+'</em></div>'+tabelaDecisao(porAd,media,"Anúncio",true)+'</div>';
   h+='<div class="painel"><div class="tit"><span class="cond">Decisão por conjunto (público)</span></div>'+tabelaDecisao(porSet,media,"Conjunto")+'</div>';
-  h+='<div class="painel"><div class="tit"><span class="cond">Campanha a campanha</span></div>'+tabelaDecisao(porAba,media,"Campanha")+'</div>';
   h+='<div class="painel"><div class="tit"><span class="cond">Semana a semana</span><em>a campanha está melhorando ou piorando?</em></div>'+ultSem+'</div>';
   h+='<div class="painel"><div class="tit"><span class="cond">Como a decisão é calculada</span></div><ul class="dica" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">'+
-    '<li><b>Leads com leitura</b> = cliente + corretor + respondeu e parou + sem resposta. "Sem conversa na HyperFlow" e "sem classificação" ficam fora das taxas.</li>'+
-    '<li><b>Taxa de cliente</b> = clientes ÷ leads com leitura. A média é a de todas as campanhas no período escolhido.</li>'+
-    '<li><span class="vered v-esc">Escalar</span> taxa de cliente ≥ '+Math.round(DEC.escalar*100)+'% da média e pelo menos 2 clientes · <span class="vered v-man">Manter</span> perto da média · <span class="vered v-rev">Rever</span> abaixo de '+Math.round(DEC.rever*100)+'% da média · <span class="vered v-pau">Pausar</span> nenhum cliente em '+DEC.pausar+'+ leads com leitura · <span class="vered v-poc">Pouca amostra</span> menos de '+DEC.min+' leads com leitura.</li>'+
+    '<li>As decisões olham só a <b>campanha atual</b> (a aba da planilha com o lead mais novo). A campanha antiga fica na sub-aba dela e no Comparativo.</li>'+
+    '<li><b>Taxa de cliente</b> = clientes ÷ total de leads da campanha. A média é a da campanha atual no período escolhido.</li>'+
+    '<li><span class="vered v-esc">Escalar</span> taxa de cliente ≥ '+Math.round(DEC.escalar*100)+'% da média e pelo menos 2 clientes · <span class="vered v-man">Manter</span> perto da média · <span class="vered v-rev">Rever</span> abaixo de '+Math.round(DEC.rever*100)+'% da média · <span class="vered v-pau">Pausar</span> nenhum cliente em '+DEC.pausar+'+ leads · <span class="vered v-poc">Pouca amostra</span> menos de '+DEC.min+' leads.</li>'+
     '<li><b>Atrai mais corretor</b>: o anúncio trouxe mais corretores que clientes (3 ou mais).</li>'+
-    '<li><b>Enviados à imobiliária / com retorno</b>: o telefone do lead está na planilha de uma das imobiliárias / com retorno de verdade na coluna RETORNO ou ATUALIZAÇÃO ("sem retorno" e "aguardando retorno" não contam). Responderam, clientes e qualificação completa são sobre os leads com leitura na HyperFlow; com retorno é sobre os enviados.</li>'+
+    '<li><b>Enviados à imobiliária / com retorno</b>: o telefone do lead está na planilha de uma das imobiliárias / com retorno de verdade na coluna RETORNO ou ATUALIZAÇÃO ("sem retorno" e "aguardando retorno" não contam). Responderam, clientes e qualificação completa são sobre o total de leads; com retorno é sobre os enviados.</li>'+
     '<li>Sem o valor investido por anúncio não dá para calcular custo por cliente. Se a planilha da Meta ganhar a coluna de gasto, entra aqui.</li></ul></div>';
   return h;
 }
 /* 25/11: cada etapa sobre a sua base — HyperFlow sobre quem tem leitura, retorno sobre os enviados */
 function funil(M){
   const grupos=[
-    ["Captação",null,[["Leads captados",M.n,M.n,""],["Com leitura na HyperFlow",M.base,M.n,"dos leads"]],true],
-    ["Na HyperFlow","sobre os "+M.base+" leads com leitura",[["Responderam",M.resp,M.base,"dos com leitura"],["Clientes",M.CLIENTE,M.base,"dos com leitura"],["Qualificação completa",M.comp,M.base,"dos com leitura"]]],
+    ["Captação",null,[["Leads captados",M.n,M.n,""]],true],
+    ["Na HyperFlow","sobre os "+M.n+" leads",[["Responderam",M.resp,M.n,"dos leads"],["Clientes",M.CLIENTE,M.n,"dos leads"],["Qualificação completa",M.comp,M.n,"dos leads"]]],
     ["Imobiliárias",null,[["Enviados à imobiliária",M.env,M.n,"dos leads"],["Com retorno da imobiliária",M.ret,M.env,"dos enviados"]]]
   ];
   return '<div class="funil">'+grupos.map(([g,sub,et,cinza])=>'<div class="fg"><span>'+g+'</span>'+(sub?'<small>'+sub+'</small>':'')+'</div>'+
@@ -517,7 +540,7 @@ function notaEnvio(){
   const ks=new Set(); ST.C.abas.forEach(a=>a.leads.forEach(l=>{ if(l.env&&l.k) ks.add(l.k); }));
   const fora=Math.max(0,e.clientes-ks.size);
   return '<p class="dica" style="margin:10px 0 0">Nas planilhas das 4 imobiliárias há <b>'+e.clientes+' clientes</b> ('+e.comRetorno+' com retorno). '+
-    '<b>'+ks.size+'</b> vieram destes anúncios e entram no funil; os outros <b>'+fora+'</b> vieram do site, do WhatsApp direto ou de campanhas antigas'+
+    '<b>'+ks.size+'</b> vieram das campanhas da Meta (atual e antiga); os outros <b>'+fora+'</b> vieram do site, do WhatsApp direto ou de campanhas antigas'+
     (e.semTelefone? ', e '+e.semTelefone+' '+(e.semTelefone===1?'linha está':'linhas estão')+' sem telefone na planilha da imobiliária (não dá para ligar ao anúncio)':'')+'. Todo o período.</p>';
 }
 function semanas(ls){
@@ -525,10 +548,10 @@ function semanas(ls){
   const g={}; ls.forEach(l=>{ if(!l.t) return; const k=sem(l.t); (g[k]=g[k]||[]).push(l); });
   const ks=Object.keys(g).sort(); if(!ks.length) return '<p class="dica">Sem datas.</p>';
   let ant=null;
-  return '<div class="tbl-wrap"><table><thead><tr><th>Semana (seg)</th><th>Leads</th><th>Com leitura</th><th>Clientes</th><th>Taxa de cliente</th><th>Corretores</th><th>Taxa de resposta</th><th>vs. semana anterior</th></tr></thead><tbody>'+
+  return '<div class="tbl-wrap"><table><thead><tr><th>Semana (seg)</th><th>Leads</th><th>Clientes</th><th>Taxa de cliente</th><th>Corretores</th><th>Taxa de resposta</th><th>vs. semana anterior</th></tr></thead><tbody>'+
     ks.map(k=>{ const m=metricas(g[k]); let vs='<span class="muted">—</span>';
-      if(ant && ant.base>=5 && m.base>=5){ const d=(m.tCli-ant.tCli)*100; vs=Math.abs(d)<1?'<span class="muted">igual</span>':(d>0?'<span style="color:var(--ok);font-weight:700">▲ '+d.toFixed(1).replace(".",",")+' p.p.</span>':'<span style="color:var(--div);font-weight:700">▼ '+(-d).toFixed(1).replace(".",",")+' p.p.</span>'); }
-      ant=m; return '<tr><td>'+fmtD(k)+'</td><td class="num">'+m.n+'</td><td class="num">'+m.base+'</td><td class="num"><b>'+m.CLIENTE+'</b></td><td class="num"><b>'+pctT(m.tCli)+'</b></td><td class="num">'+m.CORRETOR+'</td><td class="num">'+pctT(m.tResp)+'</td><td>'+vs+'</td></tr>'; }).join("")+'</tbody></table></div>';
+      if(ant && ant.n>=5 && m.n>=5){ const d=(m.tCli-ant.tCli)*100; vs=Math.abs(d)<1?'<span class="muted">igual</span>':(d>0?'<span style="color:var(--ok);font-weight:700">▲ '+d.toFixed(1).replace(".",",")+' p.p.</span>':'<span style="color:var(--div);font-weight:700">▼ '+(-d).toFixed(1).replace(".",",")+' p.p.</span>'); }
+      ant=m; return '<tr><td>'+fmtD(k)+'</td><td class="num">'+m.n+'</td><td class="num"><b>'+m.CLIENTE+'</b></td><td class="num"><b>'+pctT(m.tCli)+'</b></td><td class="num">'+m.CORRETOR+'</td><td class="num">'+pctT(m.tResp)+'</td><td>'+vs+'</td></tr>'; }).join("")+'</tbody></table></div>';
 }
 /* ===================== CARD DO ANÚNCIO (25/11) ===================== */
 function linkAnuncio(nome, aba){
@@ -542,12 +565,12 @@ function cardAnuncio(i){
   const sets=agrupar(leads,"adset"); const abas=[...new Set(leads.map(l=>l.aba))];
   let h='<div class="modal-fundo" onclick="if(event.target===this)fecharCard()"><div class="modal" role="dialog" aria-modal="true" aria-label="Anúncio '+escA(c.nome)+'">'+
     '<div class="modal-cab"><div style="min-width:0"><div class="cond" style="font-size:22px;font-weight:800;line-height:1.1">'+escA(c.nome)+'</div>'+
-    '<div class="dica">'+escA(c.aba||abas.join(" · "))+(ts.length?' · '+fmtD(ts[0])+' a '+fmtD(ts[ts.length-1]):'')+' · '+(ST.periodo==="tudo"?"todo o período":"últimos "+ST.periodo+" dias")+'</div></div>'+
+    '<div class="dica">'+escA(c.aba? rotCamp(c.aba) : abas.map(rotCamp).join(" · "))+(ts.length?' · '+fmtD(ts[0])+' a '+fmtD(ts[ts.length-1]):'')+' · '+(ST.periodo==="tudo"?"todo o período":"últimos "+ST.periodo+" dias")+'</div></div>'+
     '<button class="btn" onclick="fecharCard()" aria-label="Fechar">✕</button></div>'+
     '<div class="destaques" style="margin:12px 0">'+
       '<div class="dest"><div class="r">Leads</div><div class="n">'+m.n+'</div><div class="p">'+(ts.length? (m.n/Math.max(1,diasEntre(ts[0],ts[ts.length-1]))).toFixed(1).replace(".",",")+' por dia em média':'')+'</div></div>'+
-      '<div class="dest"><div class="r">Clientes</div><div class="n">'+m.CLIENTE+'</div><div class="p">'+pctT(m.tCli)+' dos leads com leitura</div></div>'+
-      '<div class="dest"><div class="r">Corretores</div><div class="n">'+m.CORRETOR+'</div><div class="p">'+pctT(m.tCor)+' dos leads com leitura</div></div>'+
+      '<div class="dest"><div class="r">Clientes</div><div class="n">'+m.CLIENTE+'</div><div class="p">'+pctT(m.tCli)+' dos leads</div></div>'+
+      '<div class="dest"><div class="r">Corretores</div><div class="n">'+m.CORRETOR+'</div><div class="p">'+pctT(m.tCor)+' dos leads</div></div>'+
       '<div class="dest"><div class="r">Enviados à imobiliária</div><div class="n">'+m.env+'</div><div class="p">'+m.ret+' com retorno</div></div>'+
     '</div>'+legenda()+pilha(m,true)+
     '<h3 class="cond" style="margin:16px 0 6px;font-size:17px;text-transform:uppercase">Captação diária</h3>'+graficoDias(leads)+
@@ -569,7 +592,7 @@ function tabelaDias(leads){
 }
 function comparativo(){
   const C=ST.C;
-  const porAba=C.abas.map(a=>Object.assign({nome:a.nome}, metricas(a.leads.filter(noPeriodo))));
+  const porAba=C.abas.map(a=>Object.assign({nome:rotCamp(a.nome)}, metricas(a.leads.filter(noPeriodo))));
   const todos=[]; C.abas.forEach(a=>a.leads.filter(noPeriodo).forEach(l=>todos.push(Object.assign({aba:a.nome},l))));
   const tot=contar(todos);
   const rank=(cls)=>{
@@ -580,8 +603,8 @@ function comparativo(){
       g.map(x=>'<tr><td class="nome">'+escA(x.nome)+'</td><td class="num"><b>'+x[cls]+'</b></td><td><div class="pilha"><i class="'+(cls==="CLIENTE"?"sw-cli":"sw-cor")+'" style="flex:'+x[cls]+'"></i><i style="flex:'+(max-x[cls])+';background:transparent"></i></div></td><td class="num">'+pct(x[cls],x.n)+'% <span class="muted">de '+x.n+'</span></td></tr>').join("")+'</tbody></table></div>';
   };
   return '<div class="painel"><div class="tit"><span class="cond">Todas as campanhas</span><em>'+C.abas.length+' abas de campanha</em></div>'+kpis(tot)+'</div>'+
-    '<div class="painel"><div class="tit"><span class="cond">Campanha × resultado</span></div>'+legenda()+tabelaGrupo("aba",porAba,"Campanha (aba da planilha)")+
-      '<p class="dica" style="margin-top:8px">Cada aba da planilha de marketing (da 3ª em diante, com ad_name e adset_name) é uma campanha. Aba nova aparece aqui sozinha.</p></div>'+
+    '<div class="painel"><div class="tit"><span class="cond">Campanha × resultado</span></div>'+legenda()+tabelaGrupo("aba",porAba,"Campanha")+
+      '<p class="dica" style="margin-top:8px">Cada aba da planilha de marketing com ad_name e adset_name é uma campanha: '+C.abas.map(a=>'<b>'+escA(rotCamp(a.nome))+'</b> = aba '+escA(a.nome)).join(" · ")+'. A aba com o lead mais novo é a campanha atual; aba nova aparece aqui sozinha.</p></div>'+
     '<div class="dois"><div class="painel"><div class="tit"><span class="cond">Anúncios que mais geram clientes</span></div>'+rank("CLIENTE")+'</div>'+
     '<div class="painel"><div class="tit"><span class="cond">Anúncios que mais geram corretores</span></div>'+rank("CORRETOR")+'</div></div>'+
     '<div class="painel"><div class="tit"><span class="cond">Anúncio × resultado (todas as campanhas)</span></div>'+tabelaGrupo("adall",agrupar(todos,"ad"),"Anúncio")+'</div>'+
