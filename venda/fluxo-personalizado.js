@@ -343,7 +343,10 @@ var FluxoPersonalizado = (function () {
       var k = Number(tr.getAttribute("data-k")), l = fluxo.linhas[k];
       if (cc === "v") { l.v = num(a.value); delete l.u; if (l.t !== "sinal" && l.t !== "entrada") travas[k] = true; }
       else if (cc === "n") { l.n = Math.max(1, Math.round(Number(a.value) || 1)); delete l.u; if (l.t !== "sinal" && l.t !== "entrada") travas[k] = true; if (l.t === "pre") encaixar(k); }
-      else if (cc === "d") { l.d = a.value; if (l.t === "pre") encaixar(k); }
+      else if (cc === "d") {
+        /* 25/11: pré-chaves com data nova termina no mesmo mês de antes — a quantidade e o valor de cada se ajustam */
+        if (l.t === "pre") { var nd = F.novaDataPre(fluxo, k, a.value); fluxo.linhas = nd.linhas; } else l.d = a.value;
+      }
       else if (cc === "t") { l.t = a.value; delete travas[k]; }
       else if (cc === "x") l.x = a.value;
       editado = true;

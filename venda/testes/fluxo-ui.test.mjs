@@ -418,3 +418,22 @@ test("editor: coluna Última mostra o vencimento da última parcela (14/11, dono
   assert.equal(linhasTab.length, 3);
   for (const t of linhasTab) assert.equal((t.match(/<td[\s>]/g) || []).length, 10, t.slice(0, 60));
 });
+
+/* 25/11/2026 (financeiro): data da pré-chaves para frente no cartão da casa = mesmo último mês, menos parcelas */
+test("cartão: pré-chaves de 20 (dez/2026–jul/2028) para mar/2027 fica com 17 até jul/2028, total igual e mensagem", () => {
+  const ed = editor(), tot = F.totalLinha(ed.linhas[1]);
+  D.guardarDataAntes(ed, 1); ed.linhas[1].d = "2027-0";   /* digitando aos poucos (evento input) */
+  D.guardarDataAntes(ed, 1); ed.linhas[1].d = "2027-03-10";
+  const msg = D.preMexida(ed, 1, "d", "2027-03-10");
+  assert.deepEqual([ed.linhas[1].d, ed.linhas[1].n], ["2027-03-10", 17]);
+  assert.equal(F.totalLinha(ed.linhas[1]), tot);
+  assert.match(msg, /linha 2 ficou com 17 parcelas até o mesmo último mês/);
+  assert.equal(ed.dAntes[1], undefined);
+  assert.equal(F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }).diferenca, 0);
+});
+
+test("cartão: quantidade mexida continua só encaixando (sem data guardada nada muda na linha)", () => {
+  const ed = editor();
+  assert.equal(D.preMexida(ed, 1, "n", "20"), "");
+  assert.equal(ed.linhas[1].n, 20);
+});

@@ -554,3 +554,33 @@ test("sinal mínimo autorizado na venda vale no lugar do mínimo da casa; sem au
   assert.ok(!al.erro, al.erro);
   assert.equal(al.linhas.filter((l) => l.t === "sinal").reduce((s, l) => s + l.v * l.n, 0), 12000);
 });
+
+/* 25/11/2026 (financeiro): data da pré-chaves para frente = mesma última parcela, menos meses, parcela maior */
+test("novaDataPre: 1ª parte de nov/2026 para fev/2027 termina em out/2027 com 9 parcelas e o mesmo total", () => {
+  const f = doze(), [[l0, k0], [l1, k1]] = pres(f), tot0 = F.totalLinha(l0);
+  const r = F.novaDataPre(f, k0, "2027-02-10"), p = r.linhas[k0];
+  assert.deepEqual([p.d, p.n, r.n], ["2027-02-10", 9, 9]);
+  assert.equal(F.totalLinha(p), tot0);
+  assert.equal(p.v, 1146.66); assert.equal(p.u, 1146.72);   /* 10.320 / 9, centavo na última */
+  assert.deepEqual([r.linhas[k1].d, r.linhas[k1].n], [l1.d, l1.n]);   /* a 2ª parte não mexe */
+  assert.deepEqual(r.mudou, []);
+  assert.equal(F.validar(Object.assign({}, f, { linhas: r.linhas })).diferenca, 0);
+});
+
+test("novaDataPre: 2ª parte para jan/2028 fica com 10 até out/2028; a 1ª estica até dez/2027 (sem mês vazio)", () => {
+  const f = doze(), [[l0, k0], [l1, k1]] = pres(f), tot0 = F.totalLinha(l0), tot1 = F.totalLinha(l1);
+  const r = F.novaDataPre(f, k1, "2028-01-10");
+  assert.deepEqual([r.linhas[k1].n, F.totalLinha(r.linhas[k1])], [10, tot1]);
+  assert.deepEqual([r.linhas[k0].n, F.totalLinha(r.linhas[k0])], [14, tot0]);
+  assert.deepEqual(r.mudou, [k0]);
+});
+
+test("novaDataPre: para trás ganha parcelas; depois do último mês ou mesmo mês, só a data muda", () => {
+  const f = doze(), [[, k0], [, k1]] = pres(f);
+  const atras = F.novaDataPre(f, k1, "2027-10-10");
+  assert.equal(atras.linhas[k1].n, 13);
+  assert.equal(atras.linhas[k0].n, 11);   /* a 1ª termina antes dela */
+  assert.equal(F.novaDataPre(f, k0, "2026-11-25").linhas[k0].n, 12);
+  const longe = F.novaDataPre(f, k0, "2028-01-10");
+  assert.equal(longe.linhas[k0].d, "2028-01-10");
+});
