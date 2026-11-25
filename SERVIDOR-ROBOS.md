@@ -597,3 +597,54 @@ cd "C:\AUTOMAÇÕES MAIS CONTROLE\_central"
 ```
 O nome **tem** que ser "MoraisEng - Conferencia de OCs" (é o que o SIM do mapa pede para rodar na hora). O Escritório de
 Robôs mostra a mesa "Conferência de compras (OC)".
+
+---
+
+# ROBÔ DA HYPERFLOW (25/11/2026) — classificação dos leads da Análise de Marketing
+
+O que faz: às 07:00 e 13:00 lê a HyperFlow (tela Oportunidades + conversas novas) e grava cliente / corretor /
+respondeu e parou / sem resposta de cada lead das campanhas na aba HYPERFLOW da planilha de marketing, pelo Apps
+Script (ação `mkRobo`). **Não mexe no Mais Controle nem no Notion.** Código: `servidor/robo_hyperflow.py` +
+`servidor/hyperflow_extrator.js`; roda pelo `robo_fila.py --robo hyperflow` (relatório, e-mail e Escritório de Robôs).
+
+## 1. (servidor) Atualizar o clone e testar
+```powershell
+cd "C:\AUTOMAÇÕES MAIS CONTROLE\_portal"
+git pull https://github.com/DEVMoraisEng/PORTAL-MORAIS.git main
+python -m pytest -q tests/test_robo_hyperflow.py
+```
+
+## 2. (dono) Chave do robô
+Apps Script **PORTAL-LEITURA** › arquivo MarketingLeads › Executar **mkGerarChaveRobo** › copiar do registro o
+texto depois de `MK_ROBO_CHAVE=` e colar sozinho no arquivo `C:\AUTOMAÇÕES MAIS CONTROLE\_chaves\mk-robo.txt`.
+O Claude não abre esse arquivo.
+
+## 3. (dono, no servidor) Login da HyperFlow — uma vez só
+```powershell
+python servidor\robo_hyperflow.py --login
+```
+Abre um Chrome do robô (perfil em `_central\chrome-hyperflow`). Entrar com o login ADM
+(adm@moraisengenhariaeconstrucao.com). A janela fecha sozinha quando o Histórico de chats aparece.
+
+## 4. (servidor) Rodada de conferência, sem gravar
+```powershell
+python servidor\robo_hyperflow.py --simular
+```
+Esperado: "planilha: N leads…", "oportunidades: N lidas…", "conversas: N contato(s) lidos" e
+"SIMULAR: gravaria N mudança(s)". Se aparecer "a HyperFlow pediu login", repetir o passo 3.
+
+## 5. (servidor, com o ok do dono) Tarefas agendadas
+Mesmo Python (`pythonw.exe`, caminho completo), mesma conta e "só com o usuário conectado" das outras tarefas:
+```powershell
+schtasks /Create /TN "MoraisEng - HyperFlow leads" /SC DAILY /ST 07:00 /F `
+  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo hyperflow"
+schtasks /Create /TN "MoraisEng - HyperFlow leads (tarde)" /SC DAILY /ST 13:00 /F `
+  /TR "\"C:\Users\<usuario>\AppData\Local\Programs\Python\Python312\pythonw.exe\" \"C:\AUTOMAÇÕES MAIS CONTROLE\_portal\servidor\robo_fila.py\" --robo hyperflow"
+schtasks /Run /TN "MoraisEng - HyperFlow leads"
+```
+Esperado: `Last Result: 0`; na Análise de Marketing (Campanhas) aparece "robô do servidor: última rodada …".
+O Escritório de Robôs mostra a mesa "HyperFlow leads".
+
+## 6. Devolver ao dono
+Resultado do teste, do `--simular` e da tarefa (`Last Result`), com a última linha do log
+(`_central\logs\saida-hyperflow.txt`).

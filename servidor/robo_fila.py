@@ -777,6 +777,10 @@ ROBOS = {
     # Fabio (2ª parcela para o próximo dia útil) depois do SIM do engenheiro. Tabela oc_conferencia no Supabase
     # (supabase_key_arquivo + vars.SUPABASE_URL). Grava no ERP SÓ com _central\OCS_APLICAR.txt (trava própria, o dono cria).
     "ocs": ["robo_mc_ocs.py"],
+    # 25/11: Análise de Marketing — lê a HyperFlow (Oportunidades + conversas novas) e grava a classificação dos leads
+    # na aba HYPERFLOW da planilha de marketing pelo Apps Script (chave _chaves\mk-robo.txt). Não mexe no Mais
+    # Controle. 07:00 e 13:00. Login da HyperFlow: python servidor\robo_hyperflow.py --login (uma vez, o dono).
+    "hyperflow": ["servidor/robo_hyperflow.py"],
 }
 REPO_GH = "DEVMoraisEng/PORTAL-MORAIS"
 ARQ_MEDICOES = "dist/mc_medicoes/contratos.json"

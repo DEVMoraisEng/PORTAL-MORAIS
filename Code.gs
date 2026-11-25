@@ -381,6 +381,8 @@ function handle_(e) {
        engenheiro abrem no celular SEM login, pela chave do link. O escopo
        dela é mínimo — ver docsDemandas_, no fim do arquivo. */
     if (action === "docsDemandas") return out_(docsDemandas_(p));
+    /* 25/11/26 — robô da HyperFlow do servidor (MarketingLeads.gs): entra com a chave do robô, sem login. */
+    if (action === "mkRobo" && typeof mkRobo_ === "function") return out_(mkRobo_(p));
 
     var sess = verificar_(p.token);
     if (sess) _QUEM_ = sess.u || "-";        // r30: telemetria (ver out_)
