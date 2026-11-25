@@ -173,7 +173,7 @@ test("parcelasDoForm: centavos somam sem erro de ponto flutuante, limites e sald
 test("bloco: sem comissão não mostra botão; prévia OK + ADM mostra Lançar", () => {
   assert.ok(!/data-acao="com-/.test(D.htmlComissao({ comissao: 0 }, {})));
   assert.ok(!/data-acao="com-/.test(D.htmlComissao({ comissao: null }, {})));
-  const h = D.htmlComissao({ comissao: 17500, jaLancado: 0, texto: "PRÉVIA OK [#1a2b3c4d]\nFavorecido: X\nParcelas: 1/1 R$ 17.500,00 em " + D.parcelasDoForm({ modo: "vista", total: 17500 }).datas[0].split("-").reverse().join("/") }, { adm: true });
+  const h = D.htmlComissao({ comissao: 17500, jaLancado: 0, texto: "PRÉVIA OK [#1a2b3c4d]\nFavorecido: X\nParcelas: 1/1 R$ 17.500,00 em " + "25/11/2026" }, { adm: true, hoje: "2026-11-25" });
   assert.ok(/data-acao="com-lancar"(?![^>]*disabled)/.test(h));
   const h2 = D.htmlComissao({ comissao: 17500, jaLancado: 0, texto: "PRÉVIA OK [#1a2b3c4d]" }, { adm: false });
   assert.ok(/data-acao="com-lancar"[^>]*disabled/.test(h2) || !/com-lancar/.test(h2));
@@ -272,4 +272,19 @@ test("prévia OK sem linha Parcelas e sem parcelasPrevia: não lança às cegas"
   assert.equal(D.comCalculo(e, { adm: true, hoje: "2026-11-25" }).podeLancar, false);
   const ok = D.comCalculo(e, { adm: true, hoje: "2026-11-25", parcelasPrevia: "17500.00@2026-11-25" });
   assert.equal(ok.podeLancar, true);
+});
+
+test("recarregou (prévia de 2 parcelas) e mudou o select para 3: não volta para a prévia, trava o Lançar", () => {
+  const e = estPrev(PAR2), ui = { adm: true, hoje: "2026-11-25", modo: "parcelado", n: 3, valores: null, datas: null };
+  const c = D.comCalculo(e, ui);
+  assert.equal(c.form.n, 3);
+  assert.equal(c.mudou, true);
+  assert.equal(c.podeLancar, false);
+});
+
+test("a linha da prévia atual vale mais que o parcelasPrevia velho da sessão", () => {
+  const e = estPrev(PAR2);
+  const c = D.comCalculo(e, { adm: true, hoje: "2026-11-25", parcelasPrevia: "1.00@2026-11-25" });
+  assert.equal(c.mudou, false);
+  assert.equal(c.podeLancar, true);
 });

@@ -1664,7 +1664,7 @@
     var saldoC = Math.max(0, comCent(Number(estado.comissao) || 0) - comCent(Number(estado.jaLancado) || 0));
     var hoje = ui.hoje || hojeFluxo();
     /* página recarregada com PRÉVIA OK e o formulário ainda intocado: mostra as parcelas da própria prévia */
-    var prev = !ui.modo && !ui.valores && /^PR[ÉE]VIA OK/i.test(String(estado.texto || "").split("\n")[0]) ? comParcelasDaPrevia(estado.texto) : null;
+    var prev = ui.modo == null && ui.valores == null && ui.n == null && /^PR[ÉE]VIA OK/i.test(String(estado.texto || "").split("\n")[0]) ? comParcelasDaPrevia(estado.texto) : null;
     var modo = prev ? (prev.n > 1 ? "parcelado" : "vista") : (ui.modo === "parcelado" ? "parcelado" : "vista");
     var n = prev ? prev.n : (modo === "vista" ? 1 : Math.min(6, Math.max(2, Number(ui.n) || 2)));
     var vals, datas;
@@ -1686,7 +1686,7 @@
     var podePrevia = f.saldoC > 0 && !ocupado && !ui.testes && f.res.ok;
     var favPrevia = ft.id || ui.favPrevia || "";
     var favOk = cands.length < 2 || (!!favEf && favEf === favPrevia);
-    var pPrev = ui.parcelasPrevia || ((previaOk && comParcelasDaPrevia(texto)) || {}).texto || "";
+    var pPrev = ((previaOk && comParcelasDaPrevia(texto)) || {}).texto || ui.parcelasPrevia || "";   /* a linha da prévia atual vale mais; a da sessão é reserva */
     var mudou = !!pPrev && f.res.texto !== pPrev;
     var semParcelasPrevia = previaOk && !pPrev;   /* sem saber o que a prévia mostrou, não lança às cegas */
     return { form: f, previaOk: previaOk, cands: cands, favEf: favEf, favNome: ft.nome, ocupado: ocupado, podePrevia: podePrevia,
@@ -3902,7 +3902,7 @@
       if (k === "v" || k === "d") { comAoVivo(); return; }
       lerFormCom();
       if (k === "modo") { cm.ui.modo = el.value === "parcelado" ? "parcelado" : "vista"; cm.ui.valores = null; cm.ui.datas = null; }
-      else if (k === "n") { cm.ui.n = Number(el.value) || 2; cm.ui.valores = null; cm.ui.datas = null; }
+      else if (k === "n") { cm.ui.modo = "parcelado"; cm.ui.n = Number(el.value) || 2; cm.ui.valores = null; cm.ui.datas = null; }
       else if (k === "fav") cm.ui.fav = el.value;
       pintarM();
     }
