@@ -163,6 +163,8 @@ function moRotear_(action, sess, p) {
     case "orcPreviaSalvar":  return moOrcPreviaSalvar_(sess, p || {});
     case "orcEnviarMC":      return moOrcEnviarMC_(sess, p || {});
     case "orcEnvioDesbloquear": return moOrcDesbloquear_(sess, p || {});
+    case "posFeriasLer":     return moPosFeriasLer_(sess);
+    case "posFeriasSalvar":  return moPosFeriasSalvar_(sess, p || {});
     case "mapaVersao":       return { ok: true, versao: MO_VERSAO };
     default:                 return null;
   }
@@ -826,6 +828,30 @@ function moOutraPode_(sess, item, origem, P) {
 }
 function moDataProp_(P, nomes) { var n = moAcharColuna_(P, nomes); return n && P[n] && P[n].type === "date" ? n : null; }
 
+/* 25/11/26: atividade de Vendas SEM a relação com a casa (a VISTORIA PRÉVIA nasce assim) — acha a venda pelo título
+   ("CONFERIR SE A CASA 1RPB 24 QD 26A LT 13 ESTA APTA PARA A VISTORIA" → casa 1, endereço RPB 24 QD 26A LT 13).
+   Sem isso o portal mandava a gravação sem vendaId e voltava "faltou informação na chamada". */
+function moVendaPorTitulo_(titulo) {
+  var t = normDist_(titulo || "").toUpperCase().replace(/\s+/g, " ").trim();
+  var m = t.match(/(?:CASA|CS)\s*0*(\d+)\s*-?\s*(.+?)\s+(?:ESTA|FOI|ENTREGOU|PARA)\b/) || t.match(/(?:CASA|CS)\s*0*(\d+)\s*-?\s*(.+)$/);
+  if (!m) return null;
+  var casa = Number(m[1]), chave = function (s) { return normDist_(s || "").toUpperCase().replace(/[^A-Z0-9]/g, ""); }, alvo = chave(m[2]);
+  if (!alvo) return null;
+  var ck = "mo_vtit_" + casa + "_" + alvo;
+  try { var c = cacheGet_(ck); if (c && c.id) return c.id; } catch (e) {}
+  var achou = null, semCasa = null;
+  alQueryColunas_(CONFIG.DB.VENDAS, ["ENDEREÇO", "CASA"]).forEach(function (pg) {
+    if (achou) return;
+    var P = pg.properties || {};
+    if (chave(moTextoProp_(P["ENDEREÇO"])) !== alvo) return;
+    var n = P["CASA"] && P["CASA"].number;
+    if (n === casa) achou = pg.id; else if (n == null && !semCasa) semCasa = pg.id;
+  });
+  var id = achou || semCasa; id = id ? String(id).replace(/-/g, "") : null;
+  if (id) { try { cachePut_(ck, { id: id }, 21600); } catch (e) {} }
+  console.log("ATIVIDADES venda pelo título: " + titulo + " → " + (id || "não achei"));
+  return id;
+}
 function moOutraAbrir_(sess, p) {
   var item = moOutraItem_(p.id);
   var origem = (item && item.origem) || p.origem;
@@ -851,7 +877,8 @@ function moOutraAbrir_(sess, p) {
   out.obraId = rel[0] ? String(rel[0].id).replace(/-/g, "") : null;
   var dfn = moDataProp_(P, ["DATA FINAL PREVISTA", "DATA FINAL"]);
   if (origem === "Vendas") {
-    var venda = rel[0] ? notion_("GET", "/pages/" + rel[0].id, null) : null, VP = venda ? venda.properties || {} : {};
+    var vendaRef = rel[0] ? rel[0].id : moVendaPorTitulo_(tituloDe_(P));   /* 25/11/26: sem relação, acha a casa pelo título */
+    var venda = vendaRef ? notion_("GET", "/pages/" + vendaRef, null) : null, VP = venda ? venda.properties || {} : {};
     out.endereco = venda ? (moTitulo_(VP).txt + (moTextoProp_(getTol_(VP, "CASA")) ? " · Casa " + moTextoProp_(getTol_(VP, "CASA")) : "")) : "";
     var cols = moColunasVendas_();
     var lerV = function (k) { var c = cols[k]; return c && VP[c.nome] ? (sel_(VP[c.nome]) || texto_(VP[c.nome]) || (VP[c.nome].date && VP[c.nome].date.start) || "") : ""; };
@@ -909,7 +936,8 @@ function moOutraGravar_(sess, p) {
     notion_("PATCH", "/pages/" + p.id, { properties: pr });
     r = { ok: true };
   } else if (k.indexOf("v:") === 0 && origem === "Vendas") {
-    if (!p.vendaId) return { ok: false, erro: "FALTA_PARAM" };
+    if (!p.vendaId) { try { p.vendaId = moVendaPorTitulo_(tituloDe_(notion_("GET", "/pages/" + p.id, null).properties || {})); } catch (e) {} }   /* 25/11/26 */
+    if (!p.vendaId) return { ok: false, erro: "VENDA_NAO_ACHADA" };
     r = moVendaAplicar_(sess, { pageId: p.vendaId, campo: k.slice(2), valor: valor, quando: p.quando });
   } else if (k === "baixa" && origem === "Vendas") {
     r = baixa_(sess, { atividadeId: p.id, valor: valor || "SIM" });
@@ -1617,4 +1645,33 @@ function moOrcPreviaSalvar_(sess, p) {
     }, { Prefer: "resolution=merge-duplicates,return=representation" }) || [];
     return { ok: true, versao: v, salvo_por: quem, salvo_em: (r[0] || {}).salvo_em || new Date().toISOString() };
   } finally { lock.releaseLock(); }
+}
+
+/* ------------------------ pós obra · férias dos empreiteiros (25/11/26) ------------------------
+ * Aba ⚙ Configuração do pós obra: períodos de férias { resp, ini, fim, obs } guardados nas
+ * Propriedades do script (chave POS_OBRA_FERIAS). Só ADM e MASTER leem e gravam. */
+var MO_POS_FERIAS = "POS_OBRA_FERIAS";
+function moPodeFerias_(sess) { var t = String(sess && (sess.t || sess.tipo) || "").toUpperCase(); return t === "ADM" || t === "MASTER" || ehAdm_(sess); }
+function moPosFeriasLer_(sess) {
+  if (!moPodeFerias_(sess)) return { ok: false, erro: "APENAS_ADM_MASTER" };
+  var d = {}; try { d = JSON.parse(PropertiesService.getScriptProperties().getProperty(MO_POS_FERIAS) || "{}"); } catch (e) {}
+  return { ok: true, ferias: d.ferias || [], em: d.em || "", por: d.por || "" };
+}
+function moPosFeriasSalvar_(sess, p) {
+  if (!moPodeFerias_(sess)) return { ok: false, erro: "APENAS_ADM_MASTER" };
+  if (ehTestes_(sess)) return { ok: false, erro: "MODO_TESTE" };
+  if (!Array.isArray(p.ferias)) return { ok: false, erro: "FALTA_PARAM" };
+  var dia = /^\d{4}-\d{2}-\d{2}$/, L = [];
+  p.ferias.forEach(function (f) {
+    f = f || {};
+    var r = String(f.resp || "").trim().slice(0, 80), ini = String(f.ini || ""), fim = String(f.fim || "");
+    if (!r || !dia.test(ini) || !dia.test(fim) || fim < ini) return;
+    L.push({ resp: r, ini: ini, fim: fim, obs: String(f.obs || "").trim().slice(0, 200) });
+  });
+  L.sort(function (a, b) { return a.resp.localeCompare(b.resp) || a.ini.localeCompare(b.ini); });
+  var txt = JSON.stringify({ ferias: L, em: new Date().toISOString(), por: sess.u || sess.nome || "" });
+  if (txt.length > 8500) return { ok: false, erro: "MUITOS_PERIODOS" };
+  PropertiesService.getScriptProperties().setProperty(MO_POS_FERIAS, txt);
+  console.log("PÓS OBRA férias: " + (sess.u || "?") + " gravou " + L.length + " período(s)");
+  return { ok: true, n: L.length };
 }

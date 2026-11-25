@@ -906,6 +906,8 @@ const ERROS_TEXTO = {
   USE_UPLOAD_PARA_ARQUIVOS: "use o botão de anexar para colunas de arquivo",
   SEM_PAGINA: "erro interno: a tela não informou qual registro gravar",
   FALTA_PARAM: "erro interno: faltou informação na chamada",
+  VENDA_NAO_ACHADA: "não achei a casa (venda) desta atividade — confira o endereço no título",
+  APENAS_ADM_MASTER: "só ADM e MASTER",
   FILA_CHEIA: "a fila de envios offline está cheia — reconecte para esvaziar",
   // MELHORIAS item 7: chamado com SERVIÇO FINALIZADO só o ADM reescreve
   CHAMADO_FINALIZADO: "este chamado está FINALIZADO — só um ADM pode alterá-lo. "

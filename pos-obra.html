@@ -100,6 +100,16 @@ th.ord.on .seta{opacity:1}
 .pill.neutro{background:var(--bg3);color:var(--azul-esc)}
 .pill.alerta{background:#FEF3C7;color:#92400E}.pill.critico{background:#FEE2E2;color:#991B1B}
 .pill.novo{background:#DBEAFE;color:#1E40AF}
+.cfg-top{margin:4px 0 12px}.cfg-agora{background:#FFF7EC;border:1px solid #FCD9A8;color:#8A4B08;border-radius:10px;padding:10px 14px;font-size:13px}
+.cfg-agora.ok{background:var(--sup);border-color:var(--border2);color:var(--text3)}
+.cfg-aj{font-size:12px;color:var(--text3);margin:8px 0 0}
+.cfg-tab{overflow:auto;border-radius:12px}.cfg-tab table{width:100%}.cfg-tab td{vertical-align:middle}.cfg-tab td.c{text-align:center}
+.cfg-tab input{width:100%;font:inherit;font-size:13px;padding:6px 8px;border:1px solid var(--border2);border-radius:8px;background:var(--sup);color:var(--text)}
+.cfg-tab tr.pas td{opacity:.6}.cfg-vazio{text-align:center;color:var(--text3);padding:18px!important}
+.cfg-st{display:inline-block;font-size:11px;font-weight:700;border-radius:999px;padding:2px 9px;background:var(--bg3);color:var(--text3)}
+.cfg-st.agora{background:#FFE9C7;color:#8A4B08}.cfg-st.fut{background:#E3F0FB;color:#1F5F95}.cfg-st.inc{background:#FDECEA;color:#B42318}
+.cfg-acoes{display:flex;align-items:center;gap:10px;margin-top:12px}.cfg-sujo{color:#B45309;font-weight:700;font-size:12px}
+.bt-x{background:none;border:0;color:var(--text4);cursor:pointer;font-size:14px;padding:2px 8px;border-radius:6px}.bt-x:hover{background:#FDECEA;color:#B42318}
 .vazio{background:var(--sup);border:1px dashed var(--border);border-radius:12px;padding:22px;color:var(--text3);text-align:center;font-size:13px}
 .load{display:inline-block;width:14px;height:14px;border:2px solid var(--border);border-top-color:var(--verde);border-radius:50%;animation:spin .7s linear infinite;vertical-align:-2px}
 @keyframes spin{to{transform:rotate(360deg)}}
@@ -626,6 +636,7 @@ html[data-tema="escuro"] .logo{background:#fff}
                 title="Descarta o cache e relê o Notion agora. Use quando alguém criou/alterou uma linha direto no banco.">🔄 Atualizar dados</button>
         <button class="bt ghost" id="bt-agenda" onclick="abrirLinksAgenda()" style="display:none">🔗 Link dos responsáveis</button>
         <button class="bt az" onclick="irIndicadores()">📊 Indicadores</button>
+        <button class="bt ghost" id="bt-config" onclick="irConfig()" style="display:none" title="Férias dos empreiteiros (só ADM e MASTER)">⚙ Configuração</button>
       </div>
 
       <!-- 01/10/26: só ADM — obras e serviços criados por outras pessoas esperando validação -->
@@ -704,6 +715,12 @@ html[data-tema="escuro"] .logo{background:#fff}
       <div class="sec"><span class="cond">Indicadores de Pós Obra</span><span style="flex:1"></span><span class="count" id="ind-info"></span></div>
       <div class="kpis" id="ind-kpis"></div>
       <div class="ind-grid" id="ind-graficos" style="margin-top:16px"></div>
+    </section>
+    <!-- ===================== CONFIGURAÇÃO (25/11/26 — só ADM e MASTER) ===================== -->
+    <section id="view-cfg" style="display:none">
+      <div class="crumb"><button class="btn-voltar" onclick="irHub()">← Voltar para Pós Obra</button></div>
+      <div class="sec"><span class="cond">Configuração · Férias dos empreiteiros</span><span style="flex:1"></span><span class="count" id="cfg-info"></span></div>
+      <div id="cfg-box"><div class="vazio"><span class="load"></span> Carregando…</div></div>
     </section>
     <div class="updated"></div>
   </main>
@@ -865,7 +882,7 @@ html[data-tema="escuro"] .logo{background:#fff}
   <input type="file" id="arq-input" style="display:none" onchange="enviarArquivo(this)">
   <div class="toast" id="toast"></div>
 
-<script src="app.js?v=46"></script>
+<script src="app.js?v=47"></script>
 <script src="atv-contadores.js?v=1"></script>
 <script src="painel-abas.js?v=3"></script>
 <script>
@@ -1698,6 +1715,9 @@ function pintarUsuario(s){
      todo mundo. */
   const bu = document.getElementById("bt-atualizar");
   if(bu) bu.style.display = (s.tipo==="ADM" ? "" : "none");
+  /* 25/11/26: configuração (férias dos empreiteiros) — só ADM e MASTER */
+  const bc = document.getElementById("bt-config");
+  if(bc) bc.style.display = (["ADM","MASTER"].indexOf(String(s.tipo||"").toUpperCase()) >= 0 ? "" : "none");
 }
 
 /* ===================== ATUALIZAR DADOS AGORA (pedido 4, set/26) ===========
@@ -2629,13 +2649,92 @@ function abrirServicoDoCard(){
 
 /* ===================== PÁGINA DA OBRA ===================== */
 function mostrarView(qual){
-  ["view-hub","view-obra","view-ind"].forEach(v=>{
+  ["view-hub","view-obra","view-ind","view-cfg"].forEach(v=>{
     document.getElementById(v).style.display = (v===qual ? "" : "none");
   });
   window.scrollTo(0,0);
 }
 function irHub(){ OBRA = null; mostrarView("view-hub"); renderAlertas(); }
 function irIndicadores(){ mostrarView("view-ind"); renderIndicadores(); }
+
+/* ===================== CONFIGURAÇÃO — FÉRIAS DOS EMPREITEIROS (25/11/26) =====================
+ * Só ADM e MASTER veem o botão e a tela; a trava que vale é a do servidor (posFeriasLer /
+ * posFeriasSalvar no MapaObras.gs, que também recusa outros perfis). Cada período é
+ * { resp, ini, fim, obs }. Os empreiteiros vêm das opções da coluna RESPONSÁVEL e de quem
+ * já aparece na agenda; dá para digitar um nome novo. */
+let FERIAS = null, FERIAS_SUJO = false, FERIAS_SALVANDO = false;
+function podeConfig(){ const t = String(S && S.tipo || "").toUpperCase(); return t === "ADM" || t === "MASTER"; }
+function empreiteirosConhecidos(){
+  const s = {};
+  const c = (SCHEMA && SCHEMA.campos || []).find(x => normN(x.nome) === normN("RESPONSÁVEL"));
+  ((c && (c.opcoes || c.options)) || []).forEach(o => { const n = typeof o === "string" ? o : (o && o.name); if(n) s[n] = 1; });
+  responsaveisDaAgenda().forEach(n => s[n] = 1);
+  (FERIAS || []).forEach(f => { if(f.resp) s[f.resp] = 1; });
+  return Object.keys(s).sort((a,b) => a.localeCompare(b, "pt-BR"));
+}
+function feriasHoje(){ const h = isoDe(new Date()); return (FERIAS || []).filter(f => f.ini && f.fim && f.ini <= h && h <= f.fim); }
+async function irConfig(){
+  if(!podeConfig()){ toast("Só ADM e MASTER acessam a configuração.", 4); return; }
+  mostrarView("view-cfg");
+  if(FERIAS === null || !FERIAS_SUJO) await carregarFerias();
+  renderConfig();
+}
+async function carregarFerias(){
+  const box = document.getElementById("cfg-box");
+  if(FERIAS === null && box) box.innerHTML = '<div class="vazio"><span class="load"></span> Carregando as férias…</div>';
+  let r = null; try{ r = await chamar({ action: "posFeriasLer" }, 60000, true); }catch(e){ r = null; }
+  if(!r || !r.ok){ if(box) box.innerHTML = '<div class="vazio">⚠ Não carregou: '+esc(r && r.erro === "APENAS_ADM_MASTER" ? "só ADM e MASTER" : (r && r.erro) || "sem conexão")+' <button class="bt ghost" onclick="irConfig()">↻ Tentar de novo</button></div>'; FERIAS = FERIAS || null; return; }
+  FERIAS = (r.ferias || []).map(f => Object.assign({}, f)); FERIAS_SUJO = false;
+  const info = document.getElementById("cfg-info");
+  if(info) info.textContent = r.em ? "salvo em " + new Date(r.em).toLocaleString("pt-BR") + (r.por ? " por " + r.por : "") : "";
+}
+function brData(iso){ return iso ? iso.split("-").reverse().join("/") : "—"; }
+function renderConfig(){
+  const box = document.getElementById("cfg-box"); if(!box || FERIAS === null) return;
+  const ro = soLeitura(), hoje = isoDe(new Date());
+  const emps = empreiteirosConhecidos();
+  const lista = FERIAS.map((f,i) => Object.assign({ i }, f)).sort((a,b) => (a.resp||"").localeCompare(b.resp||"","pt-BR") || (a.ini||"").localeCompare(b.ini||""));
+  const est = f => !f.ini || !f.fim ? ["inc","incompleto"] : f.fim < hoje ? ["pas","já passou"] : f.ini <= hoje ? ["agora","de férias agora"] : ["fut","programado"];
+  const agora = feriasHoje();
+  let h = '<div class="cfg-top">'+
+    (agora.length ? '<div class="cfg-agora">🏖 <b>De férias hoje:</b> '+agora.map(f => esc(f.resp)+' (até '+brData(f.fim)+')').join(" · ")+'</div>' : '<div class="cfg-agora ok">Nenhum empreiteiro de férias hoje.</div>')+
+    '<p class="cfg-aj">Marque o período de férias de cada empreiteiro (data de saída e de volta). Só ADM e MASTER veem esta tela.</p></div>';
+  h += '<datalist id="cfg-emps">'+emps.map(n => '<option value="'+esc(n)+'">').join("")+'</datalist>';
+  h += '<div class="cfg-tab"><table class="grade"><thead><tr><th>Empreiteiro</th><th>Saída</th><th>Volta</th><th>Dias</th><th>Observação</th><th>Situação</th><th></th></tr></thead><tbody>';
+  if(!lista.length) h += '<tr><td colspan="7" class="cfg-vazio">Nenhum período cadastrado ainda.</td></tr>';
+  lista.forEach(f => {
+    const e = est(f), dias = f.ini && f.fim && f.fim >= f.ini ? Math.round((new Date(f.fim+"T12:00") - new Date(f.ini+"T12:00")) / 864e5) + 1 : "";
+    h += '<tr class="'+e[0]+'">'+
+      '<td><input list="cfg-emps" value="'+esc(f.resp||"")+'" placeholder="nome do empreiteiro" '+(ro?"disabled":"")+' onchange="feriasCampo('+f.i+',\'resp\',this.value)"></td>'+
+      '<td><input type="date" value="'+esc(f.ini||"")+'" '+(ro?"disabled":"")+' onchange="feriasCampo('+f.i+',\'ini\',this.value)"></td>'+
+      '<td><input type="date" value="'+esc(f.fim||"")+'" '+(ro?"disabled":"")+' onchange="feriasCampo('+f.i+',\'fim\',this.value)"></td>'+
+      '<td class="c">'+dias+'</td>'+
+      '<td><input value="'+esc(f.obs||"")+'" placeholder="opcional" '+(ro?"disabled":"")+' onchange="feriasCampo('+f.i+',\'obs\',this.value)"></td>'+
+      '<td class="c"><span class="cfg-st '+e[0]+'">'+e[1]+'</span></td>'+
+      '<td class="c">'+(ro?"":'<button class="bt-x" title="Apagar este período" onclick="feriasApagar('+f.i+')">✕</button>')+'</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  if(!ro) h += '<div class="cfg-acoes"><button class="bt ghost" onclick="feriasNova()">+ Novo período de férias</button><span style="flex:1"></span>'+
+    (FERIAS_SUJO ? '<span class="cfg-sujo">• alterações não salvas</span>' : '')+
+    '<button class="bt az" '+(FERIAS_SALVANDO?"disabled":"")+' onclick="feriasSalvar()">'+(FERIAS_SALVANDO?"Salvando…":"💾 Salvar")+'</button></div>';
+  box.innerHTML = h;
+}
+function feriasNova(){ FERIAS.push({ resp: "", ini: "", fim: "", obs: "" }); FERIAS_SUJO = true; renderConfig(); }
+function feriasCampo(i, k, v){ if(!FERIAS[i]) return; FERIAS[i][k] = String(v||"").trim(); FERIAS_SUJO = true; renderConfig(); }
+function feriasApagar(i){ FERIAS.splice(i, 1); FERIAS_SUJO = true; renderConfig(); }
+async function feriasSalvar(){
+  if(soLeitura()){ toast("Modo teste: nada é gravado.", 3); return; }
+  const ok = FERIAS.filter(f => f.resp || f.ini || f.fim);
+  const ruim = ok.find(f => !f.resp || !f.ini || !f.fim || f.fim < f.ini);
+  if(ruim){ toast(!ruim.resp ? "Falta o nome do empreiteiro em um período." : !ruim.ini || !ruim.fim ? "Preencha a saída e a volta de " + ruim.resp + "." : "A volta de " + ruim.resp + " está antes da saída.", 5); return; }
+  FERIAS_SALVANDO = true; renderConfig();
+  let r = null; try{ r = await chamar({ action: "posFeriasSalvar", ferias: ok }, 60000, true); }catch(e){ r = null; }
+  FERIAS_SALVANDO = false;
+  if(!r || !r.ok){ toast("Não salvou: " + (r && r.erro === "APENAS_ADM_MASTER" ? "só ADM e MASTER" : (r && r.erro) || "sem conexão"), 5); renderConfig(); return; }
+  FERIAS = ok; FERIAS_SUJO = false;
+  const info = document.getElementById("cfg-info"); if(info) info.textContent = "salvo agora";
+  toast("Férias salvas ✓", 3); renderConfig();
+}
 
 /* ===================== ABRIR UMA OBRA (r24) ===============================
  * Antes: uma execução do Apps Script por clique em obra — GET da página +
