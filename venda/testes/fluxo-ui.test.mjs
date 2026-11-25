@@ -437,3 +437,34 @@ test("cartão: quantidade mexida continua só encaixando (sem data guardada nada
   assert.equal(D.preMexida(ed, 1, "n", "20"), "");
   assert.equal(ed.linhas[1].n, 20);
 });
+
+/* 25/11/2026 (financeiro): carregar o fluxo do PDF que o cliente escolheu */
+test("PDF: botão no editor; fluxo do PDF troca as linhas, mantém a reserva paga no sinal e preenche o motivo", () => {
+  const ed = editor({ linhas: [{ t: "prereserva", v: 1000, n: 1, d: "2026-10-20", i: 1, x: "" }, { t: "sinal", v: 9000, n: 1, d: "2026-10-30", i: 1, x: "" },
+                               { t: "pre", v: 1000, n: 20, d: "2026-12-10", i: 1, x: "" }, { t: "fin", v: 70000, n: 1, d: "", i: 1, x: "" }] });
+  const pdf = F.lerCodigoFluxo(F.codigoFluxo({ valor: 100000, entrega: "2028-12-01", linhas: [
+    { t: "sinal", v: 10000, n: 1, d: "2026-10-30", i: 1, x: "" }, { t: "pre", v: 2000, n: 10, d: "2026-12-10", i: 1, x: "" },
+    { t: "fin", v: 70000, n: 1, d: "", i: 1, x: "" }] }, { unidade: "7", gerado: "2026-11-25" }));
+  const r = D.fluxoDoPdf(ed, pdf);
+  assert.match(r.msg, /unidade 7/);
+  assert.match(r.msg, /reserva paga/);
+  assert.deepEqual(ed.linhas.map((l) => [l.t, l.v, l.n]), [["prereserva", 1000, 1], ["sinal", 9000, 1], ["pre", 2000, 10], ["fin", 70000, 1]]);
+  assert.equal(F.validar({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }).diferenca, 0);
+  assert.match(ed.motivo, /PDF de 25\/11\/2026/);
+});
+
+test("PDF: valor da casa diferente só para quem muda o preço", () => {
+  const pdf = F.lerCodigoFluxo(F.codigoFluxo({ valor: 99000, entrega: "2028-12-01", linhas: [
+    { t: "sinal", v: 10000, n: 1, d: "2026-10-30", i: 1, x: "" }, { t: "pre", v: 950, n: 20, d: "2026-12-10", i: 1, x: "" }, { t: "fin", v: 70000, n: 1, d: "", i: 1, x: "" }] }));
+  const ed = editor({ quemMudaPreco: ["Fulano"] }), antes = JSON.stringify(ed.linhas);
+  assert.match(D.fluxoDoPdf(ed, pdf).erro, /Só Fulano pode carregar/);
+  assert.equal(JSON.stringify(ed.linhas), antes);
+  const ed2 = editor({ podePreco: true });
+  assert.ok(D.fluxoDoPdf(ed2, pdf).msg);
+  assert.equal(ed2.valor, 99000);
+});
+
+test("PDF: o editor mostra o botão Carregar fluxo de um PDF (só PDF)", () => {
+  const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
+  assert.match(h, /📄 Carregar fluxo de um PDF<input type="file" accept="application\/pdf,\.pdf" data-fx-pdf="1"/);
+});

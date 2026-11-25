@@ -584,3 +584,19 @@ test("novaDataPre: para trás ganha parcelas; depois do último mês ou mesmo m�
   const longe = F.novaDataPre(f, k0, "2028-01-10");
   assert.equal(longe.linhas[k0].d, "2028-01-10");
 });
+
+/* 25/11/2026 (financeiro): o código do fluxo no PDF do Fluxo personalizado */
+test("codigoFluxo/lerCodigoFluxo: ida e volta exata, mesmo com quebras de linha do PDF no meio (inclusive na marca)", () => {
+  const f = doze(); f.linhas[4].x = "Opção B — balão maior";
+  const cod = F.codigoFluxo(f, { unidade: "30", gerado: "2026-11-25" });
+  const texto = "Reserva do Ipês\nCódigo do fluxo (para carregar): " + cod.slice(0, 3) + "\n" + cod.slice(3, 90) + " \n" + cod.slice(90) + "\nfim";
+  const r = F.lerCodigoFluxo(texto);
+  assert.deepEqual([r.unidade, r.gerado, r.valor, r.entrega], ["30", "2026-11-25", 305000, "2028-12-30"]);
+  assert.deepEqual(r.linhas, F.normalizar(f).linhas);
+});
+
+test("lerCodigoFluxo: PDF sem código, cortado ou estragado diz o que fazer", () => {
+  assert.match(F.lerCodigoFluxo("só a tabela").erro, /não tem o código/);
+  assert.match(F.lerCodigoFluxo("[[FXP1:abc").erro, /cortado/);
+  assert.match(F.lerCodigoFluxo("[[FXP1:%%%:FXP1]]").erro, /Não consegui ler/);
+});
