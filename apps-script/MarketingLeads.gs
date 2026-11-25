@@ -42,6 +42,23 @@
  *   mkEnviar        envia um lead para a planilha da imobiliária
  *   mkHudson        confirma envio ao Hudson (um ou vários de uma vez)
  *   mkDesfazer      ADM: apaga o registro de envio (não mexe na planilha da imobiliária)
+ *   mkRobo          SEM login do portal, com a chave do robô (Propriedade MK_ROBO_CHAVE):
+ *                   o robô da HyperFlow do servidor (servidor/robo_hyperflow.py) pede a lista de
+ *                   leads (op "leads"), grava a classificação (op "gravar") e o resultado da
+ *                   rodada (op "status"). O gancho fica no Code.gs, ANTES da conferência de sessão:
+ *                     if (action === "mkRobo") return out_(mkRobo_(p));
+ *
+ * mk2 (25/11/2026):
+ *   - LEADS CLIENTES (aba da planilha de marketing) recebe sozinha cada atendimento novo da
+ *     HyperFlow (acionador de 10 em 10 min — rodar mkLigarAcionador uma vez), na próxima linha
+ *     livre (a coluna IMOBILIÁRIA já vem com o rodízio pré-preenchido e é mantida). Lead que já
+ *     está na planilha de uma imobiliária entra com a IMOBILIÁRIA real e HUDSON TRANSPÔS = SIM.
+ *     O envio pelo portal também marca IMOBILIÁRIA e HUDSON TRANSPÔS.
+ *   - o envio sugere a imobiliária da linha da LEADS CLIENTES (o rodízio).
+ *   - campanhas: qualquer aba (menos a 1ª, a HYPERFLOW e as conhecidas) com ad_name e adset_name;
+ *     a aba HYPERFLOW vai para o fim da planilha.
+ *   - mkCampanhas devolve também quem já foi enviado à imobiliária e se tem retorno (funil da
+ *     análise de decisão) e a última rodada do robô.
  *
  * COMO INSTALAR (projeto PORTAL-LEITURA — o da URL padrão do portal):
  *   1) Arquivo novo "MarketingLeads" (script) com este conteúdo.
@@ -56,7 +73,7 @@
  *      ACESSOS e marcar em quem usa (Hudson, marketing).
  *************************************************************************/
 
-var MK_VERSAO = "mk1";
+var MK_VERSAO = "mk2";
 var MK_ACESSO = "ANÁLISE DE MARKETING";
 var MK_FUSO = "America/Sao_Paulo";
 
@@ -80,7 +97,18 @@ var MK_ABA_SITE = "Site";
 var MK_TIPOS = ["CLIENTE", "CORRETOR", "RESPONDEU E PAROU", "SEM RESPOSTA", "SEM CONVERSA"];
 var MK_HYPER_CAB = ["TELEFONE", "NOME", "TIPO", "ETAPA", "COMPLETO", "FONTE", "ATUALIZADO EM", "POR"];
 var MK_ENVIOS_CAB = ["CHAVE", "ORIGEM", "NOME", "TELEFONE", "DESTINO", "ENVIADO EM", "ENVIADO POR"];
-var MK_CACHE_LEADS = "mk_leads_v1";
+var MK_CACHE_LEADS = "mk_leads_v2";
+var MK_ABA_CLIENTES = "LEADS CLIENTES";
+/* nome do portal → como a LEADS CLIENTES escreve a imobiliária */
+var MK_CURTO = { "JESSICA": "JESSICA", "LUXURY IMÓVEIS": "LUXURY", "MY BROKER CANEDO": "MY BROKER CANEDO", "GERLIANE": "GERLIANE" };
+function mkDoCurto_(x) {
+  var n = mkNorm_(x); if (!n) return "";
+  for (var i = 0; i < MK_CORRETORES.length; i++) {
+    var c = MK_CORRETORES[i]; var curto = mkNorm_(MK_CURTO[c.nome] || c.nome);
+    if (n === mkNorm_(c.nome) || n === curto || n.indexOf(curto) === 0) return c.nome;
+  }
+  return "";
+}
 
 /* ===================== ROTEADOR ===================== */
 function mkRotear_(action, sess, p) {
@@ -169,7 +197,7 @@ function mkCol_(cab, nomes) {
 function mkAbaOuCria_(ss, nome, cab) {
   var sh = ss.getSheetByName(nome);
   if (!sh) {
-    sh = ss.insertSheet(nome);
+    sh = ss.insertSheet(nome, ss.getNumSheets());
     sh.getRange(1, 1, 1, cab.length).setValues([cab]).setFontWeight("bold");
     sh.setFrozenRows(1);
   }
@@ -216,12 +244,13 @@ function mkHyperMapa_(ss) {
 }
 function mkGravarHyper_(ss, itens, sess) {
   var sh = mkAbaOuCria_(ss, MK_ABA_HYPER, MK_HYPER_CAB);
+  try { if (sh.getIndex() < ss.getNumSheets()) { var at = ss.getActiveSheet(); ss.setActiveSheet(sh); ss.moveActiveSheet(ss.getNumSheets()); if (at) ss.setActiveSheet(at); } } catch (e) {}
   var mapa = mkHyperMapa_(ss), novas = [], n = 0;
   itens.forEach(function (it) {
     var k = mkChaveTel_(it.k || it.telefone); if (!k) return;
     var tipo = mkNorm_(it.tipo);
     if (MK_TIPOS.indexOf(tipo) < 0) return;
-    var linha = [k, it.nome || "", tipo, it.etapa || "", it.completo ? "SIM" : "NÃO", it.fonte || "MANUAL", it.at || mkAgora_(), sess ? mkLogin_(sess) : ""];
+    var linha = [k, it.nome || "", tipo, it.etapa || "", it.completo ? "SIM" : "NÃO", it.fonte || "MANUAL", it.at || mkAgora_(), sess ? mkLogin_(sess) : (it.por || "")];
     if (mapa[k]) { sh.getRange(mapa[k].linha, 1, 1, linha.length).setValues([linha]); }
     else { novas.push(linha); mapa[k] = { linha: -1 }; }
     n++;
@@ -265,11 +294,15 @@ function mkCampanhas_() {
     }
   } catch (e) { console.warn("mkCampanhas: ATENDIMENTOS " + e); }
 
+  var envio = {};
+  MK_CORRETORES.forEach(function (c) {
+    try { mkLerCorretor_(c).linhas.forEach(function (l) { if (l.k && !envio[l.k]) envio[l.k] = { d: c.nome, r: l.ret ? 1 : 0 }; }); }
+    catch (e) { console.warn("mkCampanhas: " + c.nome + " " + e); }
+  });
   var abas = [];
   ss.getSheets().forEach(function (sh, idx) {
-    if (idx < 2) return;                                   // campanhas = da 3ª aba em diante
     var nome = sh.getName();
-    if (nome === MK_ABA_HYPER) return;
+    if (idx === 0 || nome === MK_ABA_HYPER || nome === MK_ABA_SITE || nome === MK_ABA_CLIENTES) return;   // Página1 = campanha antiga
     var v = mkValores_(sh); if (v.length < 2) return;
     var cab = v[0].map(String);
     var iAd = mkCol_(cab, ["ad_name"]), iSet = mkCol_(cab, ["adset_name"]);
@@ -292,12 +325,15 @@ function mkCampanhas_() {
         camp: iCamp >= 0 ? sem(row[iCamp]) : "", form: iForm >= 0 ? mkTxt_(row[iForm]) : "",
         st: iSt >= 0 ? mkTxt_(row[iSt]) : "", nome: iNome >= 0 ? mkTxt_(row[iNome]) : "",
         tel: mkTelBonito_(row[iTel]), k: k, email: iMail >= 0 ? mkTxt_(row[iMail]) : "", plat: iPlat >= 0 ? mkTxt_(row[iPlat]) : "",
-        cls: cls, etapa: etapa, fonte: fonte, completo: completo
+        cls: cls, etapa: etapa, fonte: fonte, completo: completo,
+        atend: !!(k && atend[k]), env: k && envio[k] ? envio[k].d : "", ret: k && envio[k] ? envio[k].r : 0
       });
     }
     abas.push({ nome: nome, gid: sh.getSheetId(), leads: leads });
   });
-  return { ok: true, versao: MK_VERSAO, geradoEm: mkAgora_(), planilha: ss.getUrl(), abas: abas };
+  var ult = ""; Object.keys(hyper).forEach(function (k) { if ((hyper[k].at || "") > ult && hyper[k].fonte !== "MANUAL") ult = hyper[k].at; });
+  var robo = null; try { robo = JSON.parse(PropertiesService.getScriptProperties().getProperty("MK_ROBO_ULTIMA") || "null"); } catch (e) {}
+  return { ok: true, versao: MK_VERSAO, geradoEm: mkAgora_(), planilha: ss.getUrl(), abas: abas, hyperAtualizado: ult, robo: robo };
 }
 function mkColTelefone_(v) {
   var cab = v[0].map(String);
@@ -401,6 +437,7 @@ function mkLeads_(forcar) {
   var ssA = SpreadsheetApp.openById(mkProp_("MK_PLANILHA_ATENDIMENTOS"));
   var ssM = SpreadsheetApp.openById(mkProp_("MK_PLANILHA_MARKETING"));
   var at = mkAtendimentos_(ssA), site = mkSite_(ssM), envios = mkEnviosMapa_(ssA);
+  var lc = {}; try { lc = mkClientesMapa_(ssM).porK; } catch (e) { console.warn("mkLeads: LEADS CLIENTES " + e); }
   /* onde cada telefone está nas planilhas das imobiliárias */
   var achado = {}, erros = [];
   MK_CORRETORES.forEach(function (c) {
@@ -417,6 +454,7 @@ function mkLeads_(forcar) {
     it.enviadoPor = e ? e.por : "";
     it.foraDoPortal = it.enviado && !e;
     if (na && it.tipo === "corretor") { it.retorno = na.ret; it.atualizacao = na.atu; it.linhaDestino = na.linha; }
+    if (it.tipo === "corretor" && it.k && lc[it.k]) { it.sugestao = mkDoCurto_(lc[it.k].imob); it.linhaClientes = lc[it.k].linha; }
     if (it.tipo === "corretor" && it.enviado && !it.retorno) {
       var base = it.enviadoEm || it.t;
       var d = base ? new Date(base.replace("T", " ").replace(/-/g, "/")).getTime() : 0;
@@ -427,7 +465,8 @@ function mkLeads_(forcar) {
   var out = {
     ok: true, versao: MK_VERSAO, geradoEm: mkAgora_(), itens: itens,
     corretores: MK_CORRETORES.map(function (c) { return { nome: c.nome, url: "https://docs.google.com/spreadsheets/d/" + c.id + "/edit" }; }),
-    planilhaAtendimentos: ssA.getUrl(), erros: erros
+    planilhaAtendimentos: ssA.getUrl(), planilhaMarketing: ssM.getUrl(),
+    gidClientes: (function () { try { return ssM.getSheetByName(MK_ABA_CLIENTES).getSheetId(); } catch (e) { return null; } })(), erros: erros
   };
   try { var s = JSON.stringify(out); if (s.length < 95000) cache.put(MK_CACHE_LEADS, s, 60); } catch (e) {}
   return out;
@@ -474,6 +513,7 @@ function mkEnviar_(sess, p) {
     c.sh.getRange(alvo, 1, 1, linha.length).setValues([linha]);
     if (c.ix.data >= 0) c.sh.getRange(alvo, c.ix.data + 1).setNumberFormat("dd/MM");
     at.sh.getRange(it.linha, at.ix.mandou + 1).setValue("SIM");
+    try { mkClientesMarcar_(SpreadsheetApp.openById(mkProp_("MK_PLANILHA_MARKETING")), it, destino.nome); } catch (e) { console.warn("mkEnviar: LEADS CLIENTES " + e); }
     if (!envios[it.chave]) mkRegistrar_(ssA, it, destino.nome, sess);
     else mkAbaOuCria_(ssA, MK_ABA_ENVIOS, MK_ENVIOS_CAB).getRange(envios[it.chave].linha, 5, 1, 3).setValues([[destino.nome, mkAgora_().replace("T", " "), mkLogin_(sess)]]);
     mkLimparCache_();
@@ -514,3 +554,123 @@ function mkDesfazer_(sess, p) {
 
 /* Rodar pelo menu Executar: confere se a conta do script abre as 6 planilhas (e pede a autorização de Planilhas na 1ª vez). */
 function mkTestarAcesso() { console.log(JSON.stringify(mkVersao_(), null, 1)); }
+
+/* ===================== LEADS CLIENTES (mk2) ===================== */
+/* A aba LEADS CLIENTES da planilha de marketing: linhas 1–4 = legenda das planilhas, linha com CLIENTE =
+   cabeçalho (DATA sem título na coluna A · CLIENTE · TELEFONE · EMAIL · OBSERVAÇÕES · IMOBILIÁRIA ·
+   HUDSON TRANSPÔS PRA OUTRA PLANILHA?). Abaixo dos clientes as linhas já têm a IMOBILIÁRIA do rodízio. */
+function mkClientesMapa_(ssM) {
+  var sh = ssM.getSheetByName(MK_ABA_CLIENTES);
+  if (!sh) throw new Error("aba " + MK_ABA_CLIENTES + " não existe");
+  var v = mkValores_(sh), h = -1;
+  for (var r = 0; r < Math.min(v.length, 12); r++) if (v[r].map(mkNorm_).indexOf("CLIENTE") >= 0) { h = r; break; }
+  if (h < 0) throw new Error("cabeçalho CLIENTE não achado na " + MK_ABA_CLIENTES);
+  var cab = v[h].map(String);
+  var ix = { cli: mkCol_(cab, ["CLIENTE"]), tel: mkCol_(cab, ["TELEFONE"]), mail: mkCol_(cab, ["EMAIL", "E-MAIL"]),
+             obs: mkCol_(cab, ["OBSERVAÇÕES", "OBSERVACOES"]), imob: mkCol_(cab, ["IMOBILIÁRIA", "IMOBILIARIA"]),
+             hud: mkCol_(cab, ["HUDSON TRANSP"]) };
+  ix.data = ix.cli > 0 ? ix.cli - 1 : -1;
+  var porK = {}, ultima = h + 1;
+  for (var i = h + 1; i < v.length; i++) {
+    if (!mkTxt_(v[i][ix.cli]) && !mkTxt_(v[i][ix.tel])) continue;
+    ultima = i + 1;
+    var k = mkChaveTel_(v[i][ix.tel]);
+    if (k && !porK[k]) porK[k] = { linha: i + 1, imob: ix.imob >= 0 ? mkTxt_(v[i][ix.imob]) : "", hud: ix.hud >= 0 ? mkTxt_(v[i][ix.hud]) : "" };
+  }
+  return { sh: sh, ix: ix, h: h, porK: porK, ultima: ultima, largura: cab.length };
+}
+/* copia para a LEADS CLIENTES os atendimentos que ainda não estão lá (mais antigos primeiro) */
+function mkSincClientes_() {
+  var ssA = SpreadsheetApp.openById(mkProp_("MK_PLANILHA_ATENDIMENTOS"));
+  var ssM = SpreadsheetApp.openById(mkProp_("MK_PLANILHA_MARKETING"));
+  var m = mkClientesMapa_(ssM), at = mkAtendimentos_(ssA).itens.slice();
+  at.sort(function (a, b) { return (a.t || "").localeCompare(b.t || ""); });
+  var achado = {};
+  MK_CORRETORES.forEach(function (c) {
+    try { mkLerCorretor_(c).linhas.forEach(function (l) { if (l.k && !achado[l.k]) achado[l.k] = c.nome; }); } catch (e) {}
+  });
+  var envios = mkEnviosMapa_(ssA), novos = 0, linha = m.ultima;
+  at.forEach(function (it) {
+    if (!it.k || m.porK[it.k]) return;
+    linha++;
+    var dt = it.t ? new Date(it.t.slice(0, 10).replace(/-/g, "/")) : new Date();
+    var obs = [it.renda, it.prof, it.pref].filter(function (x) { return x; }).join(" , ");
+    var c = m.ix.cli + 1;
+    if (m.ix.data >= 0) m.sh.getRange(linha, m.ix.data + 1).setValue(dt).setNumberFormat("dd/MM");
+    m.sh.getRange(linha, c).setValue(it.nome);
+    if (m.ix.tel >= 0) m.sh.getRange(linha, m.ix.tel + 1).setValue("'" + (it.telCru || it.tel));
+    if (m.ix.mail >= 0) m.sh.getRange(linha, m.ix.mail + 1).setValue(it.email || "");
+    if (m.ix.obs >= 0) m.sh.getRange(linha, m.ix.obs + 1).setValue(obs);
+    var destino = (envios[it.chave] && envios[it.chave].destino !== MK_HUDSON ? envios[it.chave].destino : "") || achado[it.k] || "";
+    if (destino) {
+      if (m.ix.imob >= 0) m.sh.getRange(linha, m.ix.imob + 1).setValue(MK_CURTO[destino] || destino);
+      if (m.ix.hud >= 0) m.sh.getRange(linha, m.ix.hud + 1).setValue("SIM");
+    }
+    m.porK[it.k] = { linha: linha };
+    novos++;
+  });
+  if (novos) mkLimparCache_();
+  return { ok: true, novos: novos };
+}
+function mkClientesMarcar_(ssM, it, destino) {
+  var m = mkClientesMapa_(ssM), r = it.k ? m.porK[it.k] : null;
+  if (!r) { mkSincClientes_(); m = mkClientesMapa_(ssM); r = it.k ? m.porK[it.k] : null; }
+  if (!r) return;
+  if (m.ix.imob >= 0) m.sh.getRange(r.linha, m.ix.imob + 1).setValue(MK_CURTO[destino] || destino);
+  if (m.ix.hud >= 0) m.sh.getRange(r.linha, m.ix.hud + 1).setValue("SIM");
+}
+/* acionador de tempo (10 min): rodar mkLigarAcionador UMA vez pelo menu Executar */
+function mkAcionadorClientes() {
+  var lock = LockService.getScriptLock(); if (!lock.tryLock(5000)) return;
+  try { var r = mkSincClientes_(); if (r.novos) console.log("LEADS CLIENTES: " + r.novos + " novo(s)"); }
+  catch (e) { console.error("mkAcionadorClientes: " + (e && e.stack || e)); }
+  finally { lock.releaseLock(); }
+}
+function mkLigarAcionador() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "mkAcionadorClientes") ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("mkAcionadorClientes").timeBased().everyMinutes(10).create();
+  mkAcionadorClientes();
+  console.log("acionador ligado (10 em 10 min) e primeira rodada feita");
+}
+
+/* ===================== ROBÔ DA HYPERFLOW (servidor) ===================== */
+/* Sem login do portal: a chave fica na Propriedade MK_ROBO_CHAVE (rodar mkGerarChaveRobo uma vez
+   e copiar a chave do log para o .env do servidor). */
+function mkGerarChaveRobo() {
+  var pr = PropertiesService.getScriptProperties();
+  var k = pr.getProperty("MK_ROBO_CHAVE");
+  if (!k) { k = Utilities.getUuid().replace(/-/g, "") + Utilities.getUuid().replace(/-/g, ""); pr.setProperty("MK_ROBO_CHAVE", k); }
+  console.log("MK_ROBO_CHAVE=" + k);
+}
+function mkRobo_(p) {
+  p = p || {};
+  var chave = PropertiesService.getScriptProperties().getProperty("MK_ROBO_CHAVE");
+  if (!chave || String(p.chave || "") !== chave) return { ok: false, erro: "CHAVE_ROBO_INVALIDA" };
+  try {
+    var ssM = SpreadsheetApp.openById(mkProp_("MK_PLANILHA_MARKETING"));
+    if (p.op === "leads") {
+      var c = mkCampanhas_(), hyper = mkHyperMapa_(ssM), h = {};
+      Object.keys(hyper).forEach(function (k) { h[k] = { tipo: hyper[k].tipo, etapa: hyper[k].etapa, fonte: hyper[k].fonte, at: hyper[k].at }; });
+      return { ok: true, versao: MK_VERSAO, abas: c.abas.map(function (a) { return { nome: a.nome, leads: a.leads.map(function (l) { return { k: l.k, t: l.t, nome: l.nome }; }) }; }), hyper: h };
+    }
+    if (p.op === "gravar") {
+      var lock = LockService.getScriptLock(); lock.waitLock(30000);
+      try {
+        var mapa = mkHyperMapa_(ssM);
+        var itens = (p.itens || []).filter(function (it) { var k = mkChaveTel_(it.k); return k && !(mapa[k] && mapa[k].fonte === "MANUAL"); })
+          .map(function (it) { it.por = "robô HyperFlow"; return it; });
+        var n = mkGravarHyper_(ssM, itens, null);
+        return { ok: true, gravados: n };
+      } finally { lock.releaseLock(); }
+    }
+    if (p.op === "status") {
+      PropertiesService.getScriptProperties().setProperty("MK_ROBO_ULTIMA", JSON.stringify({
+        em: mkAgora_(), ok: !!p.ok, msg: String(p.msg || "").slice(0, 300), lidos: p.lidos || 0, gravados: p.gravados || 0 }));
+      return { ok: true };
+    }
+    return { ok: false, erro: "OP_DESCONHECIDA" };
+  } catch (e) {
+    console.error("mkRobo " + p.op + ": " + (e && e.stack || e));
+    return { ok: false, erro: "ERRO_MK: " + (e && e.message || e) };
+  }
+}

@@ -75,6 +75,44 @@ html[data-tema="escuro"] .tit .cond{color:var(--text)}
 .chipb{font:inherit;font-size:13px;font-weight:700;border:1px solid var(--border);background:var(--bg2);color:var(--text);border-radius:99px;padding:0 14px;min-height:44px;cursor:pointer;display:inline-flex;align-items:center;gap:6px}
 .chipb[aria-pressed="true"]{border-color:var(--verde);background:var(--ok-bg);color:var(--ok)}
 .chipb small{font-weight:600;color:var(--text3)}
+/* 25/11: sub-abas (dentro de Campanhas) com cara diferente das abas principais */
+.subabas{display:flex;align-items:center;gap:6px;flex-wrap:wrap;background:var(--bg3);border:1px solid var(--border2);border-radius:12px;padding:6px;margin:12px 0}
+.subabas .rot{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:var(--text3);padding:0 8px 0 6px}
+.subaba{font:inherit;font-size:13.5px;font-weight:700;border:1px solid transparent;background:transparent;color:var(--text3);border-radius:9px;padding:0 14px;min-height:44px;cursor:pointer}
+.subaba:hover{color:var(--text);background:var(--sup)}
+.subaba[aria-selected="true"]{background:var(--azul);border-color:var(--azul);color:#fff}
+.subaba.dec{color:var(--verde)}
+.subaba.dec[aria-selected="true"]{background:var(--verde);border-color:var(--verde);color:#fff}
+.abas.grandes{border-bottom-width:3px}
+.abas.grandes .aba[aria-selected="true"]{border-bottom-width:4px}
+/* 25/11: linhas do Hudson */
+:root{--hud:#6b3fd1;--hud-bg:#f1ebff}
+html[data-tema="escuro"]{--hud:#b79cff;--hud-bg:#2a2140}
+tr.hud td{background:var(--hud-bg)}
+tr.hud td:first-child{box-shadow:inset 4px 0 0 var(--hud)}
+.hudtag{display:inline-block;background:var(--hud);color:#fff;border-radius:99px;padding:2px 9px;font-size:11.5px;font-weight:800;letter-spacing:.4px}
+html[data-tema="escuro"] .hudtag{color:#1a1030}
+.st.hud{background:var(--hud-bg);color:var(--hud);border:1px solid var(--hud)}
+.planilhas{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.planilhas .rot{font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
+.sug{font-size:11px;color:var(--text3);display:block;margin-top:2px}
+/* 25/11: decisões */
+.vered{display:inline-block;border-radius:99px;padding:3px 10px;font-size:12px;font-weight:800;white-space:nowrap}
+.v-esc{background:var(--ok-bg);color:var(--ok)}.v-man{background:var(--na-bg);color:var(--na)}.v-rev{background:var(--at-bg);color:var(--at)}
+.v-pau{background:var(--div-bg);color:var(--div)}.v-poc{background:transparent;color:var(--text3);border:1px dashed var(--border)}
+.tag-cor{display:inline-block;margin-top:3px;font-size:11px;font-weight:700;color:var(--c-cor)}
+.funil{display:flex;flex-direction:column;gap:8px}
+.funil .f{display:grid;grid-template-columns:200px 1fr 150px;gap:10px;align-items:center;font-size:13px}
+.funil .bar{height:22px;background:var(--bg3);border-radius:6px;overflow:hidden}
+.funil .bar i{display:block;height:100%;background:var(--c-cli);border-radius:6px 4px 4px 6px}
+.funil .f b{font-family:'Barlow Condensed';font-size:20px}
+@media(max-width:600px){.funil .f{grid-template-columns:1fr 70px}.funil .bar{grid-column:1/-1;grid-row:2}}
+.destaques{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.dest{background:var(--bg2);border:1px solid var(--border2);border-radius:11px;padding:12px 14px;min-width:0}
+.dest .r{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
+.dest .n{font-family:'Barlow Condensed';font-weight:800;font-size:22px;line-height:1.15;margin:3px 0;overflow-wrap:anywhere}
+.dest .p{font-size:12.5px;color:var(--text3)}
+.dest.bom{border-left:4px solid var(--verde)}.dest.ruim{border-left:4px solid var(--div)}
 .filtros{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .filtros .hspace{flex:1}
 input[type=search],select{font:inherit;font-size:16px;color:var(--text);background:var(--bg2);border:1px solid var(--border);border-radius:9px;padding:0 10px;min-height:44px;max-width:100%}
@@ -102,9 +140,10 @@ input[type=search]{min-width:0;width:240px}
 /* tabelas */
 .tbl-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border:1px solid var(--border2);border-radius:10px;max-width:100%}
 table{border-collapse:collapse;width:100%;font-size:13px}
-th,td{padding:7px 8px;text-align:left;border-bottom:1px solid var(--border2);vertical-align:middle}
+th,td{padding:7px 9px;text-align:center;border-bottom:1px solid var(--border2);border-right:1px solid var(--border2);vertical-align:middle}
+th:last-child,td:last-child{border-right:0}
 th{background:var(--bg3);font-size:11.5px;text-transform:uppercase;letter-spacing:.3px;color:var(--text3);white-space:nowrap;position:sticky;top:0}
-th.num,td.num{text-align:right;font-variant-numeric:tabular-nums}
+th.num,td.num{text-align:center;font-variant-numeric:tabular-nums}
 th.ord{cursor:pointer}
 th.ord:hover{color:var(--text)}
 tr:last-child td{border-bottom:0}
@@ -135,9 +174,9 @@ td.nome{font-weight:600;min-width:150px}
 .st.at{background:var(--at-bg);color:var(--at)}
 .st.div{background:var(--div-bg);color:var(--div)}
 .st.na{background:var(--na-bg);color:var(--na)}
-.envio{display:flex;gap:6px;align-items:center;flex-wrap:nowrap}
+.envio{display:flex;gap:6px;align-items:center;justify-content:center;flex-wrap:nowrap}
 .envio select{min-width:150px}
-.ret{max-width:280px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px}
+.ret{max-width:280px;margin:0 auto;white-space:pre-wrap;overflow-wrap:anywhere;font-size:12.5px;text-align:left}
 .origem{display:inline-block;border-radius:99px;padding:2px 9px;font-size:11.5px;font-weight:700;background:var(--bg3);color:var(--text3);white-space:nowrap}
 .origem.site{background:var(--at-bg);color:var(--at)}
 .toast{position:fixed;left:50%;bottom:18px;transform:translateX(-50%);background:var(--azul-esc);color:#fff;padding:10px 16px;border-radius:10px;font-weight:600;font-size:13.5px;z-index:60;max-width:calc(100vw - 24px);box-shadow:0 6px 20px var(--sombra)}
@@ -197,7 +236,7 @@ footer{max-width:1480px;margin:0 auto;padding:0 16px 24px;color:var(--text4);fon
  * Servidor: apps-script/MarketingLeads.gs (PORTAL-LEITURA). Acesso:
  * "ANÁLISE DE MARKETING" na coluna ACESSOS do LOGINS (ADM/MASTER sempre).
  * ============================================================================ */
-const PAGINA_VERSAO = "v1";
+const PAGINA_VERSAO = "v2";
 const SESS = exigirSessao();
 const $ = s => document.querySelector(s);
 const escA = s => String(s==null?"":s).replace(/[&<>"']/g, c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -242,7 +281,7 @@ function clsDe(l){ return CLS_DE[l.cls] ? l.cls : ""; }
 function statusMeta(st){ const s=String(st||"").toLowerCase(); if(s==="qualifiedlead") return "Q"; if(s==="disqualifiedlead") return "D"; return "N"; }
 
 /* ===================== ESTADO ===================== */
-const ST = { sec:"camp", C:null, aba:"__comp", periodo:"tudo", L:null, fEnv:"nao", fOri:"todos", busca:"", conf:null, enviando:false, copiouHudson:false, ordem:{} };
+const ST = { sec:"camp", C:null, aba:"__dec", periodo:"tudo", L:null, fEnv:"nao", fOri:"todos", busca:"", conf:null, enviando:false, copiouHudson:false, ordem:{} };
 
 function irPara(s){
   ST.sec=s;
@@ -259,7 +298,7 @@ async function carregarCampanhas(){
   const r = await api({ action:"mkCampanhas" });
   if(!r.ok){ $("#sec-camp").innerHTML='<div class="aviso erro">'+escA(msgErro(r.erro))+'</div>'; return; }
   ST.C=r;
-  if(ST.aba!=="__comp" && !r.abas.some(a=>a.nome===ST.aba)) ST.aba="__comp";
+  if(!/^__/.test(ST.aba) && !r.abas.some(a=>a.nome===ST.aba)) ST.aba="__dec";
   rodape(r);
   desenharCampanhas();
 }
@@ -359,11 +398,12 @@ function filtroPeriodo(){
 }
 function desenharCampanhas(listaAberta){
   const C=ST.C; if(!C) return;
-  const abas=[{nome:"__comp",rot:"Comparativo"}].concat(C.abas.map(a=>({nome:a.nome,rot:a.nome})));
+  const abas=[{nome:"__dec",rot:"★ Decisões",cls:"dec"},{nome:"__comp",rot:"Comparativo"}].concat(C.abas.map(a=>({nome:a.nome,rot:a.nome})));
   ST._abas=abas.map(a=>a.nome);
-  let h='<div class="abas" role="tablist" style="margin-bottom:12px">'+abas.map((a,i)=>'<button class="aba" role="tab" aria-selected="'+(ST.aba===a.nome)+'" onclick="ST.aba=ST._abas['+i+'];desenharCampanhas()">'+escA(a.rot)+'</button>').join("")+'</div>';
-  h+='<div class="painel" style="margin-bottom:16px">'+filtroPeriodo()+'</div>';
-  if(ST.aba==="__comp") h+=comparativo();
+  let h='<div class="subabas" role="tablist" aria-label="Sub-abas de Campanhas"><span class="rot">Campanhas ›</span>'+abas.map((a,i)=>'<button class="subaba '+(a.cls||"")+'" role="tab" aria-selected="'+(ST.aba===a.nome)+'" onclick="ST.aba=ST._abas['+i+'];desenharCampanhas()">'+escA(a.rot)+'</button>').join("")+'</div>';
+  h+='<div class="painel" style="margin-bottom:16px">'+filtroPeriodo()+infoHyper()+'</div>';
+  if(ST.aba==="__dec") h+=decisoes();
+  else if(ST.aba==="__comp") h+=comparativo();
   else{
     const A=C.abas.find(a=>a.nome===ST.aba); const leads=A.leads.filter(noPeriodo); const c=contar(leads);
     const ini=leads.map(l=>l.t).filter(Boolean).sort();
@@ -377,6 +417,89 @@ function desenharCampanhas(listaAberta){
   }
   $("#sec-camp").innerHTML=h;
   if(listaAberta){ const d=$("#sec-camp details.lista"); if(d) d.open=true; }
+}
+function infoHyper(){
+  const C=ST.C, r=C.robo;
+  let t='Classificação da HyperFlow atualizada em <b>'+fmtDH(C.hyperAtualizado)+'</b>';
+  if(r) t+=' · robô do servidor: '+(r.ok?'última rodada ':'<b style="color:var(--div)">falhou</b> ')+fmtDH(r.em)+(r.ok?'':' — '+escA(r.msg));
+  return '<p class="dica" style="margin-top:10px">'+t+'</p>';
+}
+/* ===================== DECISÕES (25/11) =====================
+   Base = leads COM LEITURA (cliente, corretor, respondeu e parou, sem resposta). "Sem conversa na HyperFlow" e "sem
+   classificação" ficam fora das taxas: não dá para saber o que aconteceu com eles. */
+const DEC = { min:10, escalar:1.3, rever:0.7, pausar:15 };
+function metricas(ls){
+  const c=contar(ls); const base=c.n-c["SEM CONVERSA"]-c[""];
+  const resp=c.CLIENTE+c.CORRETOR+c["RESPONDEU E PAROU"];
+  const comp=ls.filter(l=>clsDe(l)==="CLIENTE"&&l.completo).length;
+  const env=ls.filter(l=>l.env).length, ret=ls.filter(l=>l.env&&l.ret).length, atend=ls.filter(l=>l.atend).length;
+  return Object.assign(c,{ base, resp, comp, env, ret, atend, tCli: base? c.CLIENTE/base : 0, tResp: base? resp/base : 0, tCor: base? c.CORRETOR/base : 0 });
+}
+function veredito(m, media){
+  if(m.base < DEC.min) return {id:"poc", rot:"Pouca amostra", ord:4, por:"menos de "+DEC.min+" leads com leitura"};
+  if(m.CLIENTE===0 && m.base>=DEC.pausar) return {id:"pau", rot:"Pausar", ord:3, por:"nenhum cliente em "+m.base+" leads com leitura"};
+  if(media>0 && m.tCli>=media*DEC.escalar && m.CLIENTE>=2) return {id:"esc", rot:"Escalar", ord:0, por:"taxa de cliente "+pctT(m.tCli)+" (média "+pctT(media)+")"};
+  if(media>0 && m.tCli<media*DEC.rever) return {id:"rev", rot:"Rever", ord:2, por:"taxa de cliente "+pctT(m.tCli)+" abaixo da média "+pctT(media)};
+  return {id:"man", rot:"Manter", ord:1, por:"taxa de cliente perto da média ("+pctT(media)+")"};
+}
+function pctT(x){ return (Math.round(x*1000)/10).toLocaleString("pt-BR")+"%"; }
+function tabelaDecisao(grupos, media, titulo){
+  grupos.forEach(g=>g.v=veredito(g,media));
+  grupos.sort((a,b)=>a.v.ord-b.v.ord || b.tCli-a.tCli || b.n-a.n);
+  return '<div class="tbl-wrap"><table><thead><tr><th>Decisão</th><th>'+titulo+'</th><th>Leads</th><th>Com leitura</th><th>Responderam</th><th>Clientes</th><th>Taxa de cliente</th><th>Corretores</th><th>Qualif. completa</th><th>Enviados à imobiliária</th><th>Com retorno</th><th>Por quê</th></tr></thead><tbody>'+
+    grupos.map(g=>'<tr><td><span class="vered v-'+g.v.id+'">'+g.v.rot+'</span>'+(g.CORRETOR>g.CLIENTE&&g.CORRETOR>=3?'<br><span class="tag-cor">atrai mais corretor</span>':'')+'</td>'+
+      '<td class="nome">'+escA(g.nome)+'</td><td class="num">'+g.n+'</td><td class="num">'+g.base+'</td>'+
+      '<td class="num">'+g.resp+' <span class="muted">'+pctT(g.tResp)+'</span></td>'+
+      '<td class="num"><b>'+g.CLIENTE+'</b></td><td class="num"><b>'+pctT(g.tCli)+'</b></td>'+
+      '<td class="num">'+g.CORRETOR+'</td><td class="num">'+g.comp+'</td><td class="num">'+g.env+'</td><td class="num">'+g.ret+'</td>'+
+      '<td class="muted" style="min-width:180px">'+escA(g.v.por)+'</td></tr>').join("")+'</tbody></table></div>';
+}
+function decisoes(){
+  const C=ST.C; const todos=[]; C.abas.forEach(a=>a.leads.filter(noPeriodo).forEach(l=>todos.push(Object.assign({aba:a.nome},l))));
+  const M=metricas(todos), media=M.tCli;
+  const porAd=Object.entries(todos.reduce((g,l)=>{(g[l.ad]=g[l.ad]||[]).push(l);return g},{})).map(([k,ls])=>Object.assign({nome:k},metricas(ls)));
+  const porSet=Object.entries(todos.reduce((g,l)=>{(g[l.adset]=g[l.adset]||[]).push(l);return g},{})).map(([k,ls])=>Object.assign({nome:k},metricas(ls)));
+  const porAba=C.abas.map(a=>Object.assign({nome:a.nome},metricas(a.leads.filter(noPeriodo))));
+  const comAmostra=porAd.filter(g=>g.base>=DEC.min);
+  const melhor=comAmostra.slice().sort((a,b)=>b.tCli-a.tCli||b.CLIENTE-a.CLIENTE)[0];
+  const pior=comAmostra.slice().sort((a,b)=>a.tCli-b.tCli||b.base-a.base)[0];
+  const ultSem=semanas(todos);
+  const dest=(cls,r,n,p)=>'<div class="dest '+cls+'"><div class="r">'+r+'</div><div class="n">'+n+'</div><div class="p">'+p+'</div></div>';
+  let h='<div class="painel"><div class="tit"><span class="cond">O que está dando retorno</span><em>todas as campanhas · '+(ST.periodo==="tudo"?"todo o período":"últimos "+ST.periodo+" dias")+'</em></div><div class="destaques">'+
+    dest("", "Taxa de cliente", pctT(M.tCli), M.CLIENTE+" clientes em "+M.base+" leads com leitura")+
+    dest("", "Taxa de resposta", pctT(M.tResp), M.resp+" responderam a HyperFlow")+
+    (melhor? dest("bom","Melhor anúncio",escA(melhor.nome),pctT(melhor.tCli)+" viram cliente ("+melhor.CLIENTE+" de "+melhor.base+")") : dest("","Melhor anúncio","—","nenhum anúncio com "+DEC.min+"+ leads com leitura"))+
+    (pior&&pior!==melhor? dest("ruim","Pior anúncio",escA(pior.nome),pctT(pior.tCli)+" viram cliente ("+pior.CLIENTE+" de "+pior.base+")") : "")+
+    dest("", "Enviados às imobiliárias", M.env, M.ret+" já têm retorno da imobiliária")+
+  '</div></div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Funil — do anúncio à imobiliária</span></div>'+funil(M)+'</div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Decisão por anúncio</span><em>média de cliente: '+pctT(media)+'</em></div>'+tabelaDecisao(porAd,media,"Anúncio")+'</div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Decisão por conjunto (público)</span></div>'+tabelaDecisao(porSet,media,"Conjunto")+'</div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Campanha a campanha</span></div>'+tabelaDecisao(porAba,media,"Campanha")+'</div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Semana a semana</span><em>a campanha está melhorando ou piorando?</em></div>'+ultSem+'</div>';
+  h+='<div class="painel"><div class="tit"><span class="cond">Como a decisão é calculada</span></div><ul class="dica" style="margin:0;padding-left:18px;display:flex;flex-direction:column;gap:4px">'+
+    '<li><b>Leads com leitura</b> = cliente + corretor + respondeu e parou + sem resposta. "Sem conversa na HyperFlow" e "sem classificação" ficam fora das taxas.</li>'+
+    '<li><b>Taxa de cliente</b> = clientes ÷ leads com leitura. A média é a de todas as campanhas no período escolhido.</li>'+
+    '<li><span class="vered v-esc">Escalar</span> taxa de cliente ≥ '+Math.round(DEC.escalar*100)+'% da média e pelo menos 2 clientes · <span class="vered v-man">Manter</span> perto da média · <span class="vered v-rev">Rever</span> abaixo de '+Math.round(DEC.rever*100)+'% da média · <span class="vered v-pau">Pausar</span> nenhum cliente em '+DEC.pausar+'+ leads com leitura · <span class="vered v-poc">Pouca amostra</span> menos de '+DEC.min+' leads com leitura.</li>'+
+    '<li><b>Atrai mais corretor</b>: o anúncio trouxe mais corretores que clientes (3 ou mais).</li>'+
+    '<li><b>Enviados à imobiliária / com retorno</b>: o telefone do lead está na planilha de uma das imobiliárias / com a coluna RETORNO preenchida.</li>'+
+    '<li>Sem o valor investido por anúncio não dá para calcular custo por cliente. Se a planilha da Meta ganhar a coluna de gasto, entra aqui.</li></ul></div>';
+  return h;
+}
+function funil(M){
+  const et=[["Leads captados",M.n],["Com leitura na HyperFlow",M.base],["Responderam",M.resp],["Clientes",M.CLIENTE],["Qualificação completa",M.comp],["Enviados à imobiliária",M.env],["Com retorno da imobiliária",M.ret]];
+  const max=Math.max(M.n,1);
+  return '<div class="funil">'+et.map(([r,v],i)=>'<div class="f"><span>'+r+'</span><div class="bar"><i style="width:'+(v*100/max)+'%;'+(i<2?'background:var(--c-sr)':'')+'"></i></div><span><b>'+v+'</b> <span class="muted">'+(i? pctT(v/max)+' dos leads':'')+'</span></span></div>').join("")+'</div>';
+}
+function semanas(ls){
+  const sem=d=>{ const x=new Date(d.slice(0,10)+"T12:00:00"); const dia=(x.getDay()+6)%7; x.setDate(x.getDate()-dia); return x.toISOString().slice(0,10); };
+  const g={}; ls.forEach(l=>{ if(!l.t) return; const k=sem(l.t); (g[k]=g[k]||[]).push(l); });
+  const ks=Object.keys(g).sort(); if(!ks.length) return '<p class="dica">Sem datas.</p>';
+  let ant=null;
+  return '<div class="tbl-wrap"><table><thead><tr><th>Semana (seg)</th><th>Leads</th><th>Com leitura</th><th>Clientes</th><th>Taxa de cliente</th><th>Corretores</th><th>Taxa de resposta</th><th>vs. semana anterior</th></tr></thead><tbody>'+
+    ks.map(k=>{ const m=metricas(g[k]); let vs='<span class="muted">—</span>';
+      if(ant && ant.base>=5 && m.base>=5){ const d=(m.tCli-ant.tCli)*100; vs=Math.abs(d)<1?'<span class="muted">igual</span>':(d>0?'<span style="color:var(--ok);font-weight:700">▲ '+d.toFixed(1).replace(".",",")+' p.p.</span>':'<span style="color:var(--div);font-weight:700">▼ '+(-d).toFixed(1).replace(".",",")+' p.p.</span>'); }
+      ant=m; return '<tr><td>'+fmtD(k)+'</td><td class="num">'+m.n+'</td><td class="num">'+m.base+'</td><td class="num"><b>'+m.CLIENTE+'</b></td><td class="num"><b>'+pctT(m.tCli)+'</b></td><td class="num">'+m.CORRETOR+'</td><td class="num">'+pctT(m.tResp)+'</td><td>'+vs+'</td></tr>'; }).join("")+'</tbody></table></div>';
 }
 function comparativo(){
   const C=ST.C;
@@ -425,8 +548,8 @@ function horas(iso){ if(!iso) return null; const d=new Date(String(iso).replace(
 function tempo(h){ if(h==null) return ""; if(h<1) return "menos de 1 h"; if(h<24) return Math.round(h)+" h"; const d=Math.floor(h/24); return d+(d===1?" dia":" dias"); }
 function statusLead(l){
   if(l.tipo==="hudson"){
-    if(l.enviado) return '<span class="st ok">Enviado ao Hudson<small>'+fmtDH(l.enviadoEm)+(l.enviadoPor?' · '+escA(l.enviadoPor):'')+'</small></span>';
-    const h=horas(l.t); return '<span class="st '+(h>24?'div':'at')+'">Falta enviar ao Hudson<small>chegou há '+tempo(h)+'</small></span>';
+    if(l.enviado) return '<span class="st hud">Enviado ao <b>HUDSON</b><small>'+fmtDH(l.enviadoEm)+(l.enviadoPor?' · '+escA(l.enviadoPor):'')+'</small></span>';
+    const h=horas(l.t); return '<span class="st hud">'+(h>24?'⚠ ':'')+'Falta enviar ao <b>HUDSON</b><small>chegou há '+tempo(h)+'</small></span>';
   }
   if(!l.enviado){ const h=horas(l.t); return '<span class="st '+(h>24?'div':'at')+'">Aguardando envio<small>chegou há '+tempo(h)+'</small></span>'; }
   if(l.retorno) return '<span class="st ok">Com retorno da imobiliária<small>'+escA(l.destino||"")+(l.atualizacao?' · '+escA(l.atualizacao):'')+'</small></span>';
@@ -451,8 +574,10 @@ function celulaEnvio(l, i){
     return '<div class="envio"><span class="muted">→ <b>'+escA(l.destino||"?")+'</b>'+(l.enviadoEm?'<br>'+fmtDH(l.enviadoEm)+(l.enviadoPor?' · '+escA(l.enviadoPor):''):'')+'</span>'+(c?'<a class="btn peq" href="'+escA(c.url)+'" target="_blank" rel="noopener" title="Abrir a planilha da imobiliária">↗</a>':'')+'</div>';
   }
   const conf = ST.conf && ST.conf.i===i;
-  return '<div class="envio"><select id="dest-'+i+'" aria-label="Imobiliária para '+escA(l.nome)+'" onchange="ST.conf=null;desenharLeads()">'+
-    '<option value="">Imobiliária…</option>'+(ST.L.corretores||[]).map(c=>'<option'+(conf&&ST.conf.destino===c.nome?' selected':'')+'>'+escA(c.nome)+'</option>').join("")+'</select>'+
+  const sel = conf ? ST.conf.destino : (l.sugestao||"");
+  return '<div class="envio"><div><select id="dest-'+i+'" aria-label="Imobiliária para '+escA(l.nome)+'" onchange="ST.conf=null;desenharTabela()">'+
+    '<option value="">Imobiliária…</option>'+(ST.L.corretores||[]).map(c=>'<option'+(sel===c.nome?' selected':'')+'>'+escA(c.nome)+'</option>').join("")+'</select>'+
+    (l.sugestao&&!conf?'<span class="sug">rodízio da LEADS CLIENTES</span>':'')+'</div>'+
     (conf? '<button class="btn conf peq" onclick="enviar('+i+')"'+(ST.enviando?' disabled':'')+'>Confirmar → '+escA(ST.conf.destino)+'</button>' : '<button class="btn pri peq" onclick="preEnviar('+i+')">Enviar</button>')+'</div>';
 }
 function ehAdmTela(){ const t=String(SESS&&SESS.tipo||SESS&&SESS.t||"").toUpperCase(); return t==="ADM"||t==="MASTER"; }
@@ -490,6 +615,8 @@ function desenharLeads(){
       '<a class="btn peq" href="'+escA(L.planilhaAtendimentos)+'" target="_blank" rel="noopener">Planilha de atendimentos ↗</a>'+
       '<button class="btn peq" onclick="carregarLeads(true)">↻ Atualizar</button></div>'+
     (L.erros&&L.erros.length?'<div class="aviso at" style="margin-bottom:10px">Não consegui ler: '+escA(L.erros.join(" · "))+'</div>':'')+
+    '<div class="planilhas"><span class="rot">Planilhas das imobiliárias</span>'+(L.corretores||[]).map(c=>'<a class="btn peq" href="'+escA(c.url)+'" target="_blank" rel="noopener">'+escA(c.nome)+' ↗</a>').join("")+
+      (L.planilhaMarketing?'<a class="btn peq" href="'+escA(L.planilhaMarketing)+(L.gidClientes!=null?'#gid='+L.gidClientes:'')+'" target="_blank" rel="noopener">LEADS CLIENTES ↗</a>':'')+'</div>'+
     '<div id="tabela-leads"></div>'+
     '<p class="dica" style="margin-top:10px">Clientes que a HyperFlow grava na planilha de atendimentos vão para a imobiliária escolhida (a linha entra na planilha dela com data, cliente, telefone, e-mail e observações; aqui marca "MANDOU PRA TABELA DE CORRETORES?" = SIM). O alerta da 1ª coluna conta o tempo desde o envio enquanto a coluna RETORNO DA IMOBILIÁRIA estiver vazia: amarelo depois de 1 dia, vermelho depois de 3. Leads novos da aba Site (desde '+fmtD("2026-11-24")+') vão só para o Hudson.</p></div>';
   $("#sec-red").innerHTML=h;
@@ -499,11 +626,11 @@ function desenharTabela(){
   const lista=filtrados();
   const el=$("#tabela-leads"); if(!el) return;
   if(!lista.length){ el.innerHTML='<p class="vazio dica" style="padding:12px 2px">Nenhum lead neste filtro.</p>'; return; }
-  el.innerHTML='<div class="tbl-wrap alta"><table><thead><tr><th>Situação</th><th>Data/hora</th><th>Origem</th><th>Nome</th><th>Consent.</th><th>WhatsApp</th><th>E-mail</th><th>Faixa de renda / entrada</th><th>Profissão / objetivo</th><th>Preferência / parcela</th><th>Mandou p/ tabela?</th><th>Envio</th><th>Retorno da imobiliária</th></tr></thead><tbody>'+
-    lista.map(l=>'<tr>'+
+  el.innerHTML='<div class="tbl-wrap alta"><table class="tred"><thead><tr><th>Situação</th><th>Data/hora</th><th>Origem</th><th>Nome</th><th>Consent.</th><th>WhatsApp</th><th>E-mail</th><th>Faixa de renda / entrada</th><th>Profissão / objetivo</th><th>Preferência / parcela</th><th>Mandou p/ tabela?</th><th>Envio</th><th>Retorno da imobiliária</th></tr></thead><tbody>'+
+    lista.map(l=>'<tr'+(l.tipo==="hudson"?' class="hud"':'')+'>'+
       '<td>'+statusLead(l)+'</td>'+
       '<td style="white-space:nowrap">'+fmtDH(l.t)+'</td>'+
-      '<td><span class="origem'+(l.tipo==="hudson"?' site':'')+'" title="'+escA(l.origem)+'">'+escA(String(l.origem||"").replace(/\s*-\s*Reserva dos Ip[êe]s/i,""))+'</span></td>'+
+      '<td><span class="origem'+(l.tipo==="hudson"?' site':'')+'" title="'+escA(l.origem)+'">'+escA(String(l.origem||"").replace(/\s*-\s*Reserva dos Ip[êe]s/i,""))+'</span>'+(l.tipo==="hudson"?'<br><span class="hudtag" style="margin-top:4px">→ HUDSON</span>':'')+'</td>'+
       '<td class="nome">'+escA(l.nome||"—")+'</td>'+
       '<td>'+escA(l.cons||"—")+'</td>'+
       '<td style="white-space:nowrap">'+(l.telCru?'<a href="https://wa.me/'+escA((l.telCru.length<=11?"55":"")+l.telCru)+'" target="_blank" rel="noopener">'+escA(l.tel)+'</a>':escA(l.tel||"—"))+'</td>'+
@@ -511,7 +638,7 @@ function desenharTabela(){
       '<td>'+escA(l.tipo==="hudson"? (l.entrada?"Entrada "+l.entrada:"—") : (l.renda||"—"))+'</td>'+
       '<td>'+escA(l.tipo==="hudson"? (l.objetivo||"—") : (l.prof||"—"))+'</td>'+
       '<td>'+escA(l.tipo==="hudson"? (l.parcela?"Parcela "+l.parcela:"—") : (l.pref||"—"))+'</td>'+
-      '<td>'+(l.tipo==="hudson"? '<span class="muted">só Hudson</span>' : escA(l.mandou||(l.enviado?"SIM":"—")))+'</td>'+
+      '<td>'+(l.tipo==="hudson"? '<span class="hudtag">só HUDSON</span>' : escA(l.mandou||(l.enviado?"SIM":"—")))+'</td>'+
       '<td>'+celulaEnvio(l,l.i)+'</td>'+
       '<td><div class="ret">'+(l.tipo==="hudson"?'<span class="muted">—</span>':escA(l.retorno||"")||'<span class="muted">vazio</span>')+'</div></td>'+
     '</tr>').join("")+'</tbody></table></div>';
