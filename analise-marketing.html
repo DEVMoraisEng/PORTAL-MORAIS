@@ -109,11 +109,15 @@ html[data-tema="escuro"] .lnk{color:var(--teal)}
 .v-pau{background:var(--div-bg);color:var(--div)}.v-poc{background:transparent;color:var(--text3);border:1px dashed var(--border)}
 .tag-cor{display:inline-block;margin-top:3px;font-size:11px;font-weight:700;color:var(--c-cor)}
 .funil{display:flex;flex-direction:column;gap:8px}
-.funil .f{display:grid;grid-template-columns:200px 1fr 150px;gap:10px;align-items:center;font-size:13px}
+.funil .f{display:grid;grid-template-columns:200px 1fr 200px;gap:10px;align-items:center;font-size:13px}
+.funil .f>span:last-child{white-space:nowrap}
 .funil .bar{height:22px;background:var(--bg3);border-radius:6px;overflow:hidden}
 .funil .bar i{display:block;height:100%;background:var(--c-cli);border-radius:6px 4px 4px 6px}
 .funil .f b{font-family:'Barlow Condensed';font-size:20px}
-@media(max-width:600px){.funil .f{grid-template-columns:1fr 70px}.funil .bar{grid-column:1/-1;grid-row:2}}
+.funil .fg{display:flex;align-items:baseline;gap:8px;flex-wrap:wrap;margin-top:6px;padding-bottom:3px;border-bottom:1px solid var(--border2);font-size:11px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--text3)}
+.funil .fg:first-child{margin-top:0}
+.funil .fg small{font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}
+@media(max-width:600px){.funil .f{grid-template-columns:minmax(0,1fr) auto;row-gap:4px}.funil .bar{grid-column:1/-1;grid-row:2}.funil .f>span:last-child .muted{font-size:12px}}
 .destaques{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
 .dest{background:var(--bg2);border:1px solid var(--border2);border-radius:11px;padding:12px 14px;min-width:0}
 .dest .r{font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.4px;color:var(--text3)}
@@ -477,7 +481,7 @@ function decisoes(){
     dest("", "Taxa de resposta", pctT(M.tResp), M.resp+" responderam a HyperFlow")+
     (melhor? dest("bom","Melhor anúncio",escA(melhor.nome),pctT(melhor.tCli)+" viram cliente ("+melhor.CLIENTE+" de "+melhor.base+")") : dest("","Melhor anúncio","—","nenhum anúncio com "+DEC.min+"+ leads com leitura"))+
     (pior&&pior!==melhor? dest("ruim","Pior anúncio",escA(pior.nome),pctT(pior.tCli)+" viram cliente ("+pior.CLIENTE+" de "+pior.base+")") : "")+
-    dest("", "Enviados às imobiliárias", M.env, M.ret+" já têm retorno da imobiliária")+
+    dest("", "Enviados às imobiliárias", M.env, M.ret+" com retorno da imobiliária ("+pctT(M.env? M.ret/M.env : 0)+" dos enviados)")+
   '</div></div>';
   h+='<div class="painel"><div class="tit"><span class="cond">Funil — do anúncio à imobiliária</span></div>'+funil(M)+'</div>';
   h+='<div class="painel"><div class="tit"><span class="cond">Decisão por anúncio</span><em>média de cliente: '+pctT(media)+'</em></div>'+tabelaDecisao(porAd,media,"Anúncio",true)+'</div>';
@@ -489,14 +493,29 @@ function decisoes(){
     '<li><b>Taxa de cliente</b> = clientes ÷ leads com leitura. A média é a de todas as campanhas no período escolhido.</li>'+
     '<li><span class="vered v-esc">Escalar</span> taxa de cliente ≥ '+Math.round(DEC.escalar*100)+'% da média e pelo menos 2 clientes · <span class="vered v-man">Manter</span> perto da média · <span class="vered v-rev">Rever</span> abaixo de '+Math.round(DEC.rever*100)+'% da média · <span class="vered v-pau">Pausar</span> nenhum cliente em '+DEC.pausar+'+ leads com leitura · <span class="vered v-poc">Pouca amostra</span> menos de '+DEC.min+' leads com leitura.</li>'+
     '<li><b>Atrai mais corretor</b>: o anúncio trouxe mais corretores que clientes (3 ou mais).</li>'+
-    '<li><b>Enviados à imobiliária / com retorno</b>: o telefone do lead está na planilha de uma das imobiliárias / com a coluna RETORNO preenchida.</li>'+
+    '<li><b>Enviados à imobiliária / com retorno</b>: o telefone do lead está na planilha de uma das imobiliárias / com retorno de verdade na coluna RETORNO ou ATUALIZAÇÃO ("sem retorno" e "aguardando retorno" não contam). Responderam, clientes e qualificação completa são sobre os leads com leitura na HyperFlow; com retorno é sobre os enviados.</li>'+
     '<li>Sem o valor investido por anúncio não dá para calcular custo por cliente. Se a planilha da Meta ganhar a coluna de gasto, entra aqui.</li></ul></div>';
   return h;
 }
+/* 25/11: cada etapa sobre a sua base — HyperFlow sobre quem tem leitura, retorno sobre os enviados */
 function funil(M){
-  const et=[["Leads captados",M.n],["Com leitura na HyperFlow",M.base],["Responderam",M.resp],["Clientes",M.CLIENTE],["Qualificação completa",M.comp],["Enviados à imobiliária",M.env],["Com retorno da imobiliária",M.ret]];
-  const max=Math.max(M.n,1);
-  return '<div class="funil">'+et.map(([r,v],i)=>'<div class="f"><span>'+r+'</span><div class="bar"><i style="width:'+(v*100/max)+'%;'+(i<2?'background:var(--c-sr)':'')+'"></i></div><span><b>'+v+'</b> <span class="muted">'+(i? pctT(v/max)+' dos leads':'')+'</span></span></div>').join("")+'</div>';
+  const grupos=[
+    ["Captação",null,[["Leads captados",M.n,M.n,""],["Com leitura na HyperFlow",M.base,M.n,"dos leads"]],true],
+    ["Na HyperFlow","sobre os "+M.base+" leads com leitura",[["Responderam",M.resp,M.base,"dos com leitura"],["Clientes",M.CLIENTE,M.base,"dos com leitura"],["Qualificação completa",M.comp,M.base,"dos com leitura"]]],
+    ["Imobiliárias",null,[["Enviados à imobiliária",M.env,M.n,"dos leads"],["Com retorno da imobiliária",M.ret,M.env,"dos enviados"]]]
+  ];
+  return '<div class="funil">'+grupos.map(([g,sub,et,cinza])=>'<div class="fg"><span>'+g+'</span>'+(sub?'<small>'+sub+'</small>':'')+'</div>'+
+    et.map(([r,v,b,txt])=>{ const p=b? v/b : 0;
+      return '<div class="f"><span>'+r+'</span><div class="bar"><i style="width:'+Math.min(100,p*100)+'%;'+(cinza?'background:var(--c-sr)':'')+'"></i></div><span><b>'+v+'</b> <span class="muted">'+(txt? pctT(p)+' '+txt:'')+'</span></span></div>'; }).join("")).join("")+'</div>'+notaEnvio();
+}
+/* quantos clientes estão nas planilhas das imobiliárias × quantos vieram destes anúncios (todo o período) */
+function notaEnvio(){
+  const e=ST.C&&ST.C.envio; if(!e) return "";
+  const ks=new Set(); ST.C.abas.forEach(a=>a.leads.forEach(l=>{ if(l.env&&l.k) ks.add(l.k); }));
+  const fora=Math.max(0,e.clientes-ks.size);
+  return '<p class="dica" style="margin:10px 0 0">Nas planilhas das 4 imobiliárias há <b>'+e.clientes+' clientes</b> ('+e.comRetorno+' com retorno). '+
+    '<b>'+ks.size+'</b> vieram destes anúncios e entram no funil; os outros <b>'+fora+'</b> vieram do site, do WhatsApp direto ou de campanhas antigas'+
+    (e.semTelefone? ', e '+e.semTelefone+' '+(e.semTelefone===1?'linha está':'linhas estão')+' sem telefone na planilha da imobiliária (não dá para ligar ao anúncio)':'')+'. Todo o período.</p>';
 }
 function semanas(ls){
   const sem=d=>{ const x=new Date(d.slice(0,10)+"T12:00:00"); const dia=(x.getDay()+6)%7; x.setDate(x.getDate()-dia); return x.toISOString().slice(0,10); };
@@ -596,11 +615,12 @@ function statusLead(l){
     const h=horas(l.t); return '<span class="st hud">'+(h>24?'⚠ ':'')+'Falta enviar ao <b>HUDSON</b><small>chegou há '+tempo(h)+'</small></span>';
   }
   if(!l.enviado){ const h=horas(l.t); return '<span class="st '+(h>24?'div':'at')+'">Aguardando envio<small>chegou há '+tempo(h)+'</small></span>'; }
-  if(l.retorno) return '<span class="st ok">Com retorno da imobiliária<small>'+escA(l.destino||"")+(l.atualizacao?' · '+escA(l.atualizacao):'')+'</small></span>';
+  if(temRet(l)) return '<span class="st ok">Com retorno da imobiliária<small>'+escA(l.destino||"")+(l.atualizacao?' · '+escA(l.atualizacao):'')+'</small></span>';
   const h = l.semRetornoHoras!=null ? l.semRetornoHoras : horas(l.enviadoEm||l.t);
   const cls = h==null? 'na' : h>=72? 'div' : h>=24? 'at' : 'na';
   return '<span class="st '+cls+'">⚠ Sem retorno há '+(h==null?'?':tempo(h))+'<small>'+escA(l.destino||"destino não identificado")+(l.foraDoPortal?' · enviado fora do portal':'')+'</small></span>';
 }
+function temRet(l){ return l.temRetorno!=null ? !!l.temRetorno : !!l.retorno; }
 function textoLead(l){
   const linhas=[ "*"+(l.nome||"Lead")+"*", "📞 "+(l.tel||""), l.email?"✉ "+l.email:"", "🗓 "+fmtDH(l.t), "Origem: "+l.origem ];
   if(l.tipo==="hudson"){ if(l.objetivo) linhas.push("Objetivo: "+l.objetivo); if(l.entrada) linhas.push("Entrada: "+l.entrada); if(l.parcela) linhas.push("Parcela: "+l.parcela); }
@@ -640,7 +660,7 @@ function desenharLeads(){
   const L=ST.L; if(!L) return;
   const it=L.itens;
   const n=(f)=>it.filter(f).length;
-  const semRet=n(l=>l.tipo==="corretor"&&l.enviado&&!l.retorno);
+  const semRet=n(l=>l.tipo==="corretor"&&l.enviado&&!temRet(l));
   const hudsonPend=it.filter(l=>l.tipo==="hudson"&&!l.enviado);
   const chip=(grp,v,r,c)=>'<button class="chipb" aria-pressed="'+(ST[grp]===v)+'" onclick="ST.'+grp+'=\''+v+'\';desenharLeads()">'+r+' <small>'+c+'</small></button>';
   const lista=filtrados();
