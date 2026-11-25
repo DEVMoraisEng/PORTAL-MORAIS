@@ -293,12 +293,12 @@
     });
     /* o que veio do Revit e não está no modelo: entra no fim da etapa pelo índice da seção do Revit */
     (revit && revit.linhas || []).filter(x => !usados.has(x)).forEach(x => {
-      const c = x.dims ? x.cat : CAT_MAP && CAT_MAP.chave[x.k];
+      const c = x.dims ? x.cat : CAT_MAP && CAT_MAP.chave[x.k];   // 25/11: item do MC com o mesmo nome (ou a mesma medida, nas bancadas)
       const et = etapaDaSecao(x.secao);
       const m = mult[x.disc] || 1;
       L.push({ id: "l" + (++seq), etapa: et, idx: "", cod: c ? c[1] : "", cat: c ? c[0] : "", nome: c ? c[2] : x.nome, un: c ? c[3] : x.un,
         q: arred(x.q * m, /^M$|^M2|^M²/i.test(x.un) ? "teto" : "nenhum"), revit: { base: x.q, disc: x.disc, fator: 1, arred: "teto" }, refs: refsDe([x]), unRevit: x.un,
-        origem: "Revit " + x.disc + " (" + x.tabela + "): " + numBr(x.q) + (m !== 1 ? " × " + m : ""), extra: true,
+        origem: "Revit " + x.disc + " (" + x.tabela + "): «" + x.nome + "» " + numBr(x.q) + (m !== 1 ? " × " + m : "") + (c ? " → item do MC com " + (x.dims ? "a mesma medida" : "o mesmo nome") : ""), extra: true, mcAuto: !!c,
         nomeFixo: !!(x.dims && !c),
         aviso: c ? "" : "não achei equivalente no MC" + (x.dims && x.perto && x.perto.length ? " (mais perto: " + x.perto.join(", ") + ")" : "") + " — clique em «escolher…» e indique o item do MC" });
     });
@@ -353,7 +353,7 @@
     const I = s.info || {}, nC = s.nCasas || Number(o && o.n_casas) || 1, L = s.linhas;
     L.forEach(l => {
       const nm = (l.idx ? l.idx + " · " : "") + l.nome;
-      if (l.revit && l.qref && l.q) { const r = l.q / l.qref; if (r > 2 || r < 0.5) add("alto", `${nm}: ${numBr(l.q)} ${l.un} — o REF (proporcional a ${nC} casas) daria ~${numBr(l.qref)} (${r > 1 ? "+" : ""}${Math.round((r - 1) * 100)}%)`, l.id); }
+      /* 25/11/26 (dono): sem comparar com o REF — ele é só um modelo e varia muito de obra para obra */
       if (l.revit && l.unRevit && l.un && unN(l.unRevit) !== unN(l.un)) add("medio", `${nm}: o Revit mede em ${l.unRevit} e o item do MC é em ${l.un}`, l.id);
       if (!l.cod) add("medio", `${nm}: sem código do MC`, l.id);
       else if (l.semCat) add("medio", `${nm}: o código ${l.cod} não está no catálogo do MC (Própria/Condomínio)`, l.id);
@@ -708,31 +708,32 @@
     else g.toast && g.toast("Não consegui ler a situação agora");
   }
 
+  function dadosHtml(o, ctx) {
+    const dados = ctx.dados || { lista: [], faltas: [] }, nF = dados.lista.filter(x => x.falta).length;
+    return `<div class="orc-pg-t"><b>Dados da obra usados no orçamento${nF ? ` <i class="rd">⚠ ${nF} faltando</i>` : ""}</b><span>Vêm da obra, do formulário de obra e do Revit. O que falta aparece em laranja — corrija na aba Dados ou no formulário de obra.</span></div>
+      <div class="orc-dados pg">${dados.lista.map(x => `<div class="od ${x.falta ? "falta" : ""}"><span>${escH(x.rot)}</span><b>${x.falta ? "falta" : escH(x.val)}</b>${x.orig || x.obs ? `<small>${escH((x.orig || "") + (x.obs ? " · " + x.obs : ""))}</small>` : ""}</div>`).join("")}</div>`;
+  }
   function html(o, ctx) {
     const s = ST[sT(o.id)];
     const dados = ctx.dados || { lista: [], faltas: [] };
     let h = "";
-    /* 24/11/26 (dono: "muito embolado, separa as informações das páginas"): os dados da obra viram uma guia própria;
-       o total, as datas e os botões da planilha ficam só na guia do orçamento */
-    const dadosHtml = () => `<div class="orc-pg-t"><b>Dados da obra usados no orçamento</b><span>Vêm da obra, do formulário de obra e do Revit. O que falta aparece em laranja — corrija na aba Dados da obra ou no formulário.</span></div>
-      <div class="orc-dados pg">${dados.lista.map(x => `<div class="od ${x.falta ? "falta" : ""}"><span>${escH(x.rot)}</span><b>${x.falta ? "falta" : escH(x.val)}</b>${x.orig || x.obs ? `<small>${escH((x.orig || "") + (x.obs ? " · " + x.obs : ""))}</small>` : ""}</div>`).join("")}</div>`;
+    /* 24/11/26 (dono: "muito embolado, separa as informações das páginas"): total, datas e botões só na guia do orçamento.
+       25/11: os dados da obra ficam embaixo do 3D (dadosHtml), fora da planilha */
     if (!s || (s.carregando && !s.linhas.length)) {
       return h + `<div class="orc-vazio"><span class="load"></span> ${escH(s && s.msg || "Preparando a planilha do orçamento…")}</div>`;
     }
     if (s.erro) return h + `<div class="orc-vazio">⚠ ${escH(s.erro)}</div>`;
     if (!s.contratos) s.contratos = gerarContratos(s);
-    const tot = total(s), CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length, sub = s.sub || "orc", nFalta = dados.lista.filter(x => x.falta).length;
+    const tot = total(s), CF = conferir(s, o), nAlto = CF.filter(x => x.nivel === "alto").length, sub = s.sub === "dados" ? "orc" : (s.sub || "orc");
     /* 17/11: guias — o orçamento da obra, a conferência e um contrato por guia */
     h += `<div class="orc-guias">
       <button class="og-g ${sub === "orc" ? "on" : ""}" onclick="OrcObra.guia('orc')"><b>Orçamento da obra${travado(s, "orcamento") ? " 🔒" : ""}</b><span>${moeda(tot)} · ${s.linhas.length} linhas</span></button>
       <button class="og-g ${sub === "conf" ? "on" : ""} ${nAlto ? "rd" : ""}" onclick="OrcObra.guia('conf')"><b>Conferência ${CF.length ? "⚠ " + CF.length : "✓"}</b><span>${nAlto ? nAlto + " possíveis erros" : CF.length ? "pontos para olhar" : "nada estranho"}</span></button>
       ${s.contratos.map((k, ki) => `<button class="og-g ct ${sub === "ct" + ki ? "on" : ""}" onclick="OrcObra.guia('ct${ki}')"><b>Contrato ${escH(k.id)} · ${escH(k.nome.split(" — ")[0])}${travado(s, "ct:" + k.id) ? " 🔒" : ""}</b><span>${moeda(totalContrato(k))}</span></button>`).join("")}
-      <button class="og-g dd ${sub === "dados" ? "on" : ""} ${nFalta ? "rd" : ""}" onclick="OrcObra.guia('dados')"><b>Dados da obra${nFalta ? " ⚠ " + nFalta : ""}</b><span>${nFalta ? nFalta + " dado(s) faltando" : dados.lista.length + " dados usados"}</span></button>
     </div>`;
     /* guias que não são a planilha: só o conteúdo delas + salvar (quando há o que salvar) */
     const salvarMini = () => `<div class="orc-mini"><span>${s.salvoEm ? "Salva em " + escH(new Date(s.salvoEm).toLocaleString("pt-BR")) : "Ainda não salva"}${s.sujo ? ` <i class="sujo">• alterações não salvas</i>` : ""}</span><span class="sp"></span>
       <button class="bt" ${s.salvando || s.podeSalvar === false ? "disabled" : ""} onclick="OrcObra.salvar()">${s.salvando ? "Salvando…" : "💾 Salvar"}</button></div>`;
-    if (sub === "dados") return h + dadosHtml();
     if (sub === "conf") return h + conferenciaHtml(s, CF);
     if (/^ct\d+$/.test(sub)) { const k = s.contratos[Number(sub.slice(2))]; return h + salvarMini() + (k ? envioBloco(s, "ct:" + k.id) : "") + contratoHtml(s, Number(sub.slice(2))); }
     h += `<div class="orc-kpis">
@@ -769,24 +770,29 @@
       if (ft.length && ftAb) h += `<tbody class="ftb">${ft.map(x => `<tr class="ft"><td>${escH(x.idx)}</td><td class="mu">${escH(x.cod)}</td><td colspan="5"><b>${escH(x.nome)}</b> <small>— ${escH(x.motivo || "não veio do Revit")}</small></td><td></td></tr>`).join("")}</tbody>`;
       /* 24/11/26 (dono: "como essas subetapas vão ser criadas?"): a subetapa (3.1, 3.3.4…) aparece como faixa dentro da
          etapa — é ela que o envio ao Mais Controle cria (etapa → subetapa → itens, pelo índice) */
-      let subAtual = gp.k;
+      /* 25/11/26 (dono): cada subetapa abre/fecha (▾/▸) e mostra o subtotal */
       const subNome = idx => { const n = (s.nomesEtapa || {})[idx]; if (n) return n; const e = MODELO && MODELO.etapas.find(x => x.idx === idx); return e ? e.nome : ""; };
+      const subFech = s.subFechado || {}, cadeia = l => { const sub = l.etapa && l.etapa !== "_revit" ? String(l.etapa) : gp.k, p = sub.split("."), c = []; for (let i = 2; i <= p.length; i++) c.push(p.slice(0, i).join(".")); return c; };
+      const subTot = {}, subN = {}; gp.linhas.forEach(l => cadeia(l).forEach(ix => { subTot[ix] = (subTot[ix] || 0) + (l.q || 0) * (l.custo || 0); subN[ix] = (subN[ix] || 0) + 1; }));
+      let antes = [];
       h += `<tbody>` + gp.linhas.map(l => {
         let sh = "";
-        const sub = l.etapa && l.etapa !== "_revit" ? String(l.etapa) : gp.k;
-        if (sub !== subAtual && sub.indexOf(".") > 0) {
-          const partes = sub.split("."), cad = [];
-          for (let i = 2; i <= partes.length; i++) { const ix = partes.slice(0, i).join("."); cad.push(ix + " · " + (subNome(ix) || "subetapa nova")); }
-          sh = `<tr class="sh"><td colspan="8">${escH(cad.join("  ›  "))}</td></tr>`;
-        }
-        subAtual = sub;
+        const cad = cadeia(l);
+        cad.forEach((ix, n) => {
+          if (antes[n] === ix) return;
+          if (cad.slice(0, n).some(a => subFech[a])) return;            // o pai está fechado: não mostra a faixa de baixo
+          const f = !!subFech[ix];
+          sh += `<tr class="sh n${n}" onclick="OrcObra.alternarSub('${escH(ix)}')"><td colspan="6"><span class="car">${f ? "▸" : "▾"}</span> ${escH(ix + " · " + (subNome(ix) || "subetapa nova"))} <span class="cnt">${subN[ix]} ${subN[ix] === 1 ? "linha" : "linhas"}</span></td><td class="n">${moeda(subTot[ix])}</td><td></td></tr>`;
+        });
+        antes = cad;
+        if (cad.some(ix => subFech[ix])) return sh;
         return sh + (() => {
         const av = [l.aviso, l.semCat ? "código não está no catálogo do MC" : "", l.inativo ? "código INATIVO no MC" : "", !l.cod ? "sem código do MC" : ""].filter(Boolean);
         const cf = (marca[l.id] || []).filter(x => x.txt.indexOf("sem código") < 0 && x.txt.indexOf("catálogo do MC") < 0 && x.txt.indexOf("INATIVO") < 0);
         return `<tr class="${av.length || cf.length ? "av" : ""} ${cf.some(x => x.nivel === "alto") ? "erro" : ""} ${l.editado ? "ed" : ""} ${l.padrao && !l.editado ? "pd" : ""}" data-id="${l.id}">
           <td><input class="ix" value="${escH(l.idx)}" placeholder="${escH(l.etapa && l.etapa !== "_revit" ? l.etapa + ".?" : "?")}" onchange="OrcObra.indice('${l.id}',this.value)" title="Índice — ex.: 8.12 leva a linha para a etapa 8, item 12"></td>
           <td><button class="cod" onclick="OrcObra.trocar('${l.id}')" title="Trocar a composição/insumo">${l.cod ? escH(l.cod) : "escolher…"}</button></td>
-          <td><div class="nm">${l.padrao && !l.editado ? `<span class="pdb" title="Quantidade padrão da base (por casa / por lote / fixa) — não veio do Revit">PADRÃO</span> ` : ""}${escH(l.nome)}</div><div class="og">${escH(l.origem || "")}${av.length ? ` <span class="w">⚠ ${escH(av.join(" · "))}</span>` : ""}${cf.length ? ` <span class="w cf">🔎 ${escH(cf.map(x => x.txt.replace(/^[^:]*: /, "")).join(" · "))}</span>` : ""}</div></td>
+          <td><div class="nm">${l.padrao && !l.editado ? `<span class="pdb" title="Quantidade padrão da base (por casa / por lote / fixa) — não veio do Revit">PADRÃO</span> ` : ""}${escH(l.nome)}</div><div class="tgs">${l.revit || l.extra ? `<span class="tg ok" title="A quantidade vem do quantitativo do Revit">✓ Revit</span>` : ""}${l.cod && !l.semCat ? `<span class="tg ok" title="${l.mcAuto ? "Item do MC achado pelo nome/medida do Revit — confira" : "Item do Mais Controle"}">✓ MC</span>` : `<span class="tg no" title="Clique no código para escolher o item do MC">✗ sem item no MC — escolha no «escolher…»</span>`}</div><div class="og">${escH(l.origem || "")}${av.length ? ` <span class="w">⚠ ${escH(av.join(" · "))}</span>` : ""}${cf.length ? ` <span class="w cf">🔎 ${escH(cf.map(x => x.txt.replace(/^[^:]*: /, "")).join(" · "))}</span>` : ""}</div></td>
           <td class="mu">${escH(l.un)}</td>
           <td class="n"><input type="number" step="any" min="0" value="${escH(l.q)}" onchange="OrcObra.qtd('${l.id}',this.value)"></td>
           <td class="n mu">${l.custo ? moeda(l.custo) : "—"}</td>
@@ -801,7 +807,7 @@
   }
   function conferenciaHtml(s, CF) {
     const rot = { alto: "Possível erro", medio: "Conferir", baixo: "Detalhe" };
-    let h = `<div class="cf-top"><b>Conferência dos quantitativos</b><span>Compara com o REF proporcional ao nº de casas, com a área construída, com o formulário de obra e com o próprio Revit. Não muda nada — só aponta. Clique para ir à linha.</span></div>`;
+    let h = `<div class="cf-top"><b>Conferência dos quantitativos</b><span>Compara com a área construída, com o formulário de obra e com o próprio Revit. Não muda nada — só aponta. Clique para ir à linha.</span></div>`;
     if (!CF.length) return h + `<div class="ok-msg" style="padding:12px 0">✓ Nada estranho nos quantitativos.</div>`;
     ["alto", "medio", "baixo"].forEach(n => {
       const l = CF.filter(x => x.nivel === n); if (!l.length) return;
@@ -879,7 +885,7 @@
     } catch (e) { return null; }
   }
   g.OrcObra = {
-    html: html, abrir: abrir, gerar: gerar, _st: ST, linhasRevit: j => lerTabelas(j), refKey: x => x.disc + "|" + x.tabela + "|" + x.k + "|" + (x.arrimo ? 1 : 0),
+    html: html, dados: dadosHtml, abrir: abrir, gerar: gerar, _st: ST, linhasRevit: j => lerTabelas(j), refKey: x => x.disc + "|" + x.tabela + "|" + x.k + "|" + (x.arrimo ? 1 : 0),
     repintar: () => { if (typeof g.repintarOrcamento === "function") g.repintarOrcamento(); const a = atual(); if (a.s && !a.s.carregando) guardarRascunho(a.s); },
     paraVisualizador: paraVisualizador, etapasModelo: () => MODELO ? MODELO.etapas : null,
     guia: v => { const a = atual(); if (!a.s) return; a.s.sub = v; g.OrcObra.repintar(); },
@@ -908,6 +914,7 @@
     envioAtualizar: () => { const a = atual(); if (a.o) envioAtualizar(a.o); },
     fecharJanela: fecharJanela,
     baixar: () => { const a = atual(); if (a.o) baixar(a.o); },
+    alternarSub: ix => { const a = atual(); if (!a.s) return; a.s.subFechado = a.s.subFechado || {}; a.s.subFechado[ix] = !a.s.subFechado[ix]; g.OrcObra.repintar(); },
     verFaltando: k => { const a = atual(); if (!a.s) return; a.s.ftAberto = a.s.ftAberto || {}; a.s.ftAberto[k] = !a.s.ftAberto[k]; g.OrcObra.repintar(); },
     atualizarRevit: () => { const a = atual(); if (a.o) atualizarRevit(a.o); },
     regerar: () => { const a = atual(); if (!a.o) return; if (a.s && (a.s.sujo || a.s.salvoEm) && !confirm("Gerar a planilha de novo pelo modelo e pelo Revit? As edições feitas aqui somem (a versão salva só muda se você salvar depois).\n\nPara manter suas edições e só trazer os números novos do Revit, use ⟳ Atualizar do Revit.")) return; abrir(a.o, g.ctxOrcamento ? g.ctxOrcamento(a.o) : {}, { regerar: true }); },

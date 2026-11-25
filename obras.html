@@ -376,8 +376,26 @@ html[data-tema="escuro"] .orc-kpis .kp b{color:var(--text)}
 .orc-vazio{padding:30px;text-align:center;color:var(--text3);background:var(--sup);border:1px dashed var(--border2);border-radius:12px}
 .orc-tab{border:1px solid var(--border2);border-radius:12px;overflow:auto;background:var(--sup)}
 .orc-tab table{width:100%;border-collapse:collapse;table-layout:fixed;font-size:12.5px}
-.orc-tab thead th{position:sticky;top:0;background:var(--azul);color:#fff;font-size:10px;letter-spacing:.4px;text-transform:uppercase;padding:8px 8px;text-align:left;z-index:1}
+.orc-tab thead th{position:sticky;top:0;background:var(--azul);color:#fff;font-size:10px;letter-spacing:.4px;text-transform:uppercase;padding:8px 8px;text-align:center;z-index:1;border-right:1px solid rgba(255,255,255,.18)}
 .orc-tab th.n,.orc-tab td.n{text-align:right}
+/* 25/11/26 (dono): colunas centralizadas e com divisão vertical (a descrição continua à esquerda) */
+.orc-tab tbody:not(.g) tr:not(.sh):not(.add):not(.ft) td{border-right:1px solid var(--border2);vertical-align:middle}
+.orc-tab tbody:not(.g) tr:not(.sh):not(.add):not(.ft) td:last-child{border-right:0}
+.orc-tab tbody:not(.g) tr:not(.sh):not(.add):not(.ft) td:not(:nth-child(3)){text-align:center}
+.orc-tab tbody:not(.g) tr:not(.sh):not(.add):not(.ft) td.n{text-align:center}
+.orc-tab input.ix{text-align:center}.orc-tab .cod{text-align:center}
+.orc-tab input[type=number]{text-align:center!important}
+.orc-tab thead th:nth-child(3){text-align:left}
+.orc-tab tr.sh{cursor:pointer}.orc-tab tr.sh td.n{color:var(--azul-esc);font-size:11.5px;font-weight:800}
+.orc-tab tr.sh.n1 td{padding-left:38px;font-weight:700}.orc-tab tr.sh.n2 td{padding-left:54px;font-weight:700}
+.orc-tab tr.sh .cnt{font-weight:600;color:var(--text4);font-size:10.5px}
+.orc-tab .tgs{display:flex;gap:4px;flex-wrap:wrap;margin-top:2px}
+.orc-tab .tg{font-size:9.5px;font-weight:800;letter-spacing:.3px;padding:0 6px;border-radius:5px;border:1px solid}
+.orc-tab .tg.ok{color:#1E7A4C;background:#E8F6EE;border-color:#BFE5CF}
+.orc-tab .tg.no{color:#B42318;background:#FEF0EE;border-color:#F7C6C0}
+html[data-tema="escuro"] .orc-tab .tg.ok{color:#7EE0A8;background:#173528;border-color:#24533d}
+html[data-tema="escuro"] .orc-tab .tg.no{color:#ffaba1;background:#3d1d1a;border-color:#6b2d27}
+.orc-dados-box{margin:10px 0 4px}.orc-pg-t .rd{color:#B45309;font-style:normal;font-size:12px;margin-left:6px}
 .orc-tab td{padding:5px 8px;border-top:1px solid var(--border2);vertical-align:top;white-space:normal;overflow-wrap:anywhere}
 .orc-tab tr.gh td{background:var(--bg3);cursor:pointer;padding:8px;border-top:2px solid var(--border)}
 .orc-tab tr.gh b{color:var(--azul-esc)}
@@ -737,7 +755,7 @@ html[data-tema="escuro"] .atv.atr .nm{color:#f3a29a}
 
 <script src="app.js?v=46"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="js/obra-orcamento.js?v=14"></script>
+<script src="js/obra-orcamento.js?v=15"></script>
 <script>
 /* ---------- tema ---------- */
 const TEMA_KEY="morais_tema";
@@ -1981,7 +1999,7 @@ function ctxOrcamento(o){ return {form:lerFormulario(o),dados:dadosOrcamento(o)}
 window.ctxOrcamento=ctxOrcamento; window.OBRA_ATUAL=()=>OBRA; window.OBRA_OBJ=()=>obraDe(OBRA);
 window.repintarOrcamento=function(){ const b=document.getElementById("orc-box"), o=obraDe(OBRA); if(!b||!o||ABA_OB!=="orc"||!window.OrcObra) return;
   const foco=document.activeElement&&b.contains(document.activeElement)&&document.activeElement.classList.contains("busca");
-  b.innerHTML=OrcObra.html(o,ctxOrcamento(o)); if(foco){ const i=b.querySelector(".orc-bar .busca"); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } } };
+  b.innerHTML=OrcObra.html(o,ctxOrcamento(o)); const db=document.getElementById("orc-dados-box"); if(db&&OrcObra.dados) db.innerHTML=OrcObra.dados(o,ctxOrcamento(o)); if(foco){ const i=b.querySelector(".orc-bar .busca"); if(i){ i.focus(); i.setSelectionRange(i.value.length,i.value.length); } } };
 
 /* ---- atividades: progresso e atrasos ---- */
 function procEstado(o){
@@ -2079,7 +2097,9 @@ function abaOrc(o){
   let h=`<div class="m3d-bar"><a class="bt az" href="visualizador-3d.html?obra=${encodeURIComponent(o.id)}" target="_blank" rel="noopener" title="Abre o 3D das disciplinas (ARQ, HID…) com as tabelas de quantitativos publicadas pelo Revit">🧊 Abrir modelo 3D</a>
       <div class="m3d-lay" id="m3d-lay"><span class="ajuda">Mesmo layout: carregando…</span></div>
       <span class="ajuda">Publicar ou atualizar: no Revit, <b>MORAIS → Geral → Publicar 3D</b>.</span></div>`;
-  h+=`<div class="tab-top" style="margin-top:6px"><div class="tt"><b>Planilha prévia do orçamento</b><span>modelo REF 127 + quantitativos do Revit + dados da obra e do formulário · custos do catálogo do Mais Controle</span></div></div>`;
+  /* 25/11/26 (dono): os dados da obra usados no orçamento ficam aqui, embaixo do 3D */
+  h+=`<div class="orc-dados-box" id="orc-dados-box">${window.OrcObra&&OrcObra.dados?OrcObra.dados(o,ctxOrcamento(o)):""}</div>`;
+  h+=`<div class="tab-top" style="margin-top:6px"><div class="tt"><b>Planilha prévia do orçamento</b><span>quantitativos do Revit + quantidades padrão da base + dados da obra e do formulário · custos do catálogo do Mais Controle</span></div></div>`;
   h+=`<div class="pl" id="orc-box">${window.OrcObra?OrcObra.html(o,ctxOrcamento(o)):`<div class="ajuda">⚠ não carregou o módulo do orçamento (js/obra-orcamento.js)</div>`}</div>`;
   return h;
 }
