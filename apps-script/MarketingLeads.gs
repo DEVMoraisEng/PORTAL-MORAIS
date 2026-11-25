@@ -73,7 +73,7 @@
  *      ACESSOS e marcar em quem usa (Hudson, marketing).
  *************************************************************************/
 
-var MK_VERSAO = "mk2";
+var MK_VERSAO = "mk3";
 var MK_ACESSO = "ANÁLISE DE MARKETING";
 var MK_FUSO = "America/Sao_Paulo";
 
@@ -570,14 +570,15 @@ function mkClientesMapa_(ssM) {
              obs: mkCol_(cab, ["OBSERVAÇÕES", "OBSERVACOES"]), imob: mkCol_(cab, ["IMOBILIÁRIA", "IMOBILIARIA"]),
              hud: mkCol_(cab, ["HUDSON TRANSP"]) };
   ix.data = ix.cli > 0 ? ix.cli - 1 : -1;
-  var porK = {}, ultima = h + 1;
+  var porK = {}, ultima = h + 1, linhas = [];
   for (var i = h + 1; i < v.length; i++) {
     if (!mkTxt_(v[i][ix.cli]) && !mkTxt_(v[i][ix.tel])) continue;
     ultima = i + 1;
     var k = mkChaveTel_(v[i][ix.tel]);
+    linhas.push({ linha: i + 1, k: k, imob: ix.imob >= 0 ? mkTxt_(v[i][ix.imob]) : "", hud: ix.hud >= 0 ? mkTxt_(v[i][ix.hud]) : "" });
     if (k && !porK[k]) porK[k] = { linha: i + 1, imob: ix.imob >= 0 ? mkTxt_(v[i][ix.imob]) : "", hud: ix.hud >= 0 ? mkTxt_(v[i][ix.hud]) : "" };
   }
-  return { sh: sh, ix: ix, h: h, porK: porK, ultima: ultima, largura: cab.length };
+  return { sh: sh, ix: ix, h: h, porK: porK, ultima: ultima, largura: cab.length, linhas: linhas };
 }
 /* copia para a LEADS CLIENTES os atendimentos que ainda não estão lá (mais antigos primeiro) */
 function mkSincClientes_() {
@@ -605,12 +606,27 @@ function mkSincClientes_() {
     if (destino) {
       if (m.ix.imob >= 0) m.sh.getRange(linha, m.ix.imob + 1).setValue(MK_CURTO[destino] || destino);
       if (m.ix.hud >= 0) m.sh.getRange(linha, m.ix.hud + 1).setValue("SIM");
+    } else if (m.ix.hud >= 0) {
+      m.sh.getRange(linha, m.ix.hud + 1).setValue(/^SIM/i.test(it.mandou || "") ? "SIM" : "NÃO");
     }
     m.porK[it.k] = { linha: linha };
     novos++;
   });
-  if (novos) mkLimparCache_();
-  return { ok: true, novos: novos };
+  /* mk3 (25/11): linha sem HUDSON TRANSPÔS ganha SIM (está na planilha de uma imobiliária, com o nome dela na
+     IMOBILIÁRIA) ou NÃO (ainda não foi enviada) */
+  var mandouK = {}; at.forEach(function (it) { if (it.k && /^SIM/i.test(it.mandou || "")) mandouK[it.k] = 1; });
+  var marcados = 0;
+  if (m.ix.hud >= 0) m.linhas.forEach(function (l) {
+    if (l.hud) return;
+    var d = l.k ? achado[l.k] : "";
+    if (d) {
+      if (m.ix.imob >= 0 && !l.imob) m.sh.getRange(l.linha, m.ix.imob + 1).setValue(MK_CURTO[d] || d);
+      m.sh.getRange(l.linha, m.ix.hud + 1).setValue("SIM");
+    } else m.sh.getRange(l.linha, m.ix.hud + 1).setValue(l.k && mandouK[l.k] ? "SIM" : "NÃO");
+    marcados++;
+  });
+  if (novos || marcados) mkLimparCache_();
+  return { ok: true, novos: novos, marcados: marcados };
 }
 function mkClientesMarcar_(ssM, it, destino) {
   var m = mkClientesMapa_(ssM), r = it.k ? m.porK[it.k] : null;
