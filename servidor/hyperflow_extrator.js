@@ -85,13 +85,15 @@ HX.readDrawer = async () => {
   while (g++ < 150) { grab(); if (seen.size > 500) break; if (p.scrollTop + p.clientHeight >= p.scrollHeight - 2 || p.scrollTop === last) break; last = p.scrollTop; p.scrollTop += p.clientHeight * 0.85; await HX.sleep(160); }
   grab(); return [...seen.values()];
 };
+// 25/11: contato com mais de um atendimento abre o protocolo mais novo (≠ do cartão) — vale "o protocolo mudou".
 HX.openCard = async c => {
+  const antes = HX.protoText();
   const tgt = [...c.el.querySelectorAll('p,span')].find(e => e.textContent.trim().startsWith('"'));
   (tgt || c.el).scrollIntoView({block: 'center'}); (tgt || c.el).click();
-  let ok = false; for (let i = 0; i < 80; i++) { await HX.sleep(250); if (HX.protoText().includes(c.id) && document.querySelector('.message-out-wrapper,.message-in-wrapper,.message-info-wrapper')) { ok = true; break; } }
+  let ok = false; for (let i = 0; i < 48; i++) { await HX.sleep(250); const pt = HX.protoText(); if ((pt.includes(c.id) || (pt && pt !== antes)) && document.querySelector('.message-out-wrapper,.message-in-wrapper,.message-info-wrapper')) { ok = true; break; } }
   if (!ok) return null;
   if (!document.querySelector('.message-out-wrapper,.message-in-wrapper')) { for (let i = 0; i < 12; i++) { await HX.sleep(250); if (document.querySelector('.message-out-wrapper,.message-in-wrapper')) break; } }
-  await HX.sleep(300);
+  await HX.sleep(400);
   return await HX.readDrawer();
 };
 // Percorre a lista (mais recentes primeiro, 100 por página), guarda os cards e lê o chat mais recente de cada contato que wantFn(k, card) aprovar.
