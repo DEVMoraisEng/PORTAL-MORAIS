@@ -288,3 +288,16 @@ test("a linha da prévia atual vale mais que o parcelasPrevia velho da sessão",
   assert.equal(c.mudou, false);
   assert.equal(c.podeLancar, true);
 });
+
+test("estado inicial REAL da tela (novoUiCom) conta como intocado: a página recarregada mostra a prévia", () => {
+  /* 25/11: a tela criava o ui com modo "vista" e n 2 e o preenchimento pela prévia nunca acontecia — o teste acima
+     usava um ui vazio e não pegava. Aqui o ui é o mesmo que a tela monta. */
+  const ui = D.novoUiCom(true, "2026-11-25");
+  const c = D.comCalculo(estPrev(PAR2), ui);
+  assert.equal(c.form.modo, "parcelado");
+  assert.deepEqual(c.form.valores, ["8.750,00", "8.750,00"]);
+  assert.equal(c.podeLancar, true);
+  const sem = D.comCalculo({ comissao: 17500, jaLancado: 0, texto: "" }, D.novoUiCom(true, "2026-11-25"));
+  assert.equal(sem.form.modo, "vista");
+  assert.deepEqual(sem.form.valores, ["17.500,00"]);
+});

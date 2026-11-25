@@ -1660,6 +1660,9 @@
              valores: cent.map(function (c) { return c / 100; }), datas: datas, n: cent.length };
   }
   /* valores e datas que a tela mostra: o que a pessoa digitou (se ainda vale) ou o padrão; ui = {modo, n, valores, datas, ...} */
+  /* 25/11: estado inicial do formulário SEM modo/n — vazio = "intocado", e o comForm usa à vista (ou 2 parcelas) por padrão.
+     Com modo/n preenchidos aqui, a página recarregada nunca mostrava as parcelas da prévia (achado na prova do teste). */
+  function novoUiCom(adm, hoje) { return { adm: !!adm, hoje: hoje }; }
   function comForm(estado, ui) {
     var saldoC = Math.max(0, comCent(Number(estado.comissao) || 0) - comCent(Number(estado.jaLancado) || 0));
     var hoje = ui.hoje || hojeFluxo();
@@ -1970,7 +1973,7 @@
                    destinosDoEnvio: destinosDoEnvio, resultadoPorEspaco: resultadoPorEspaco,
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, htmlPerguntaTipo: htmlPerguntaTipo, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
-                   topicosMC: topicosMC, htmlComissao: htmlComissao, parcelasDoForm: parcelasDoForm, comParcelasDaPrevia: comParcelasDaPrevia, comCalculo: comCalculo, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
+                   topicosMC: topicosMC, htmlComissao: htmlComissao, parcelasDoForm: parcelasDoForm, comParcelasDaPrevia: comParcelasDaPrevia, comCalculo: comCalculo, novoUiCom: novoUiCom, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
                    htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
@@ -3061,7 +3064,7 @@
     var comPR = soPR || !!(opts && opts.preReserva), estadoP = null, uiP = { msg: "", faltas: null, ocupado: null, testes: perfilTestes(), rapido: !!(opts && opts.rapido) };
     /* 24/11: Comissão do corretor — só no cartão do condomínio (comPR); ui.adm = perfil que pode lançar */
     uiM.condominio = !!comPR;
-    uiM.comissao = { estado: null, msg: "", ui: { adm: /^(ADM|MASTER)$/.test(String(((typeof sessao === "function" ? sessao() : null) || {}).tipo || "").toUpperCase()), hoje: hojeFluxo(), modo: "vista", n: 2 } };
+    uiM.comissao = { estado: null, msg: "", ui: novoUiCom(/^(ADM|MASTER)$/.test(String(((typeof sessao === "function" ? sessao() : null) || {}).tipo || "").toUpperCase()), hojeFluxo()) };
     var ctxP = novoCtxA(); ctxP.doc = "PRE_RESERVA";
     function vivo() { return !!ativo(eu); }
     function dentro(sel) { return raiz ? raiz.querySelector(sel) : null; }
