@@ -80,7 +80,7 @@ export function criarGas({ props, rotas, extras = {} }) {
   Object.assign(ctx, extras);
   vm.createContext(ctx);
   for (const f of ["RegrasVenda.js", "ClaudeLeitor.js", "OpenAILeitor.js", "UnidadesCondominio.js", "ContratoVenda.js", "PreReservaVenda.js", "ClicksignVenda.js",
-                   "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs",
+                   "PortalVenda.gs", "GerarContrato.gs", "AssinaturaVenda.gs", "MaisControleVenda.gs", "ComissaoMC.gs",
                    "CondominioVenda.js", "GerarVendaCondominio.gs", "RecebimentoVenda.gs", "ConfissaoVenda.js", "Confissao.gs", "PreReserva.gs", "ConferenciaDocs.js", "Conferencia.gs", "FilaRobo.gs", "AnexosMC.gs",
                    "FluxoLivre.js", "FluxoVenda.gs", "LogContratoVenda.js", "LogContrato.gs",
                    "Antecipacao.js", "AntecipacaoVenda.gs", "FiadoresVenda.js", "TermosVenda.js", "TrocaFiadores.gs"])

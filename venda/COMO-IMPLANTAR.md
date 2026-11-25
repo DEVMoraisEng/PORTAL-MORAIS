@@ -1578,3 +1578,43 @@ sem ninguém clicar em Ver prévia e Lançar".
   `MC_LANCAR_AO_ASSINAR` = SIM e `ASSINATURA_AVISO_EMAILS`; o gatilho da vigia já instalado (`instalarVigiaAssinaturas`).
   Robô: `git pull` no servidor (`venda/mc/anexos.py`, `servidor/robo_fila.py`). Este pedido não mexeu em versões
   (`VERSAO_VENDA`): quem integra sobe a versão.
+
+## Comissão do corretor (24/11/2026)
+
+Bloco **Comissão do corretor** na tela da venda do **condomínio**: o portal pede pela fila do servidor (`mc-venda`,
+ação `comissao`) e o robô `venda/mc/comissao.py` lança no Mais Controle **um** título A PAGAR (à vista ou
+Parcelado) para o corretor ou a imobiliária dele, categoria "Comissão Venda de Casa", forma Pix, com o recibo de
+cada parcela anexado. Antes, sempre, uma **prévia** com carimbo `[#…]`; o lançamento só grava o que a prévia mostrou.
+
+- **Coluna nova** (texto) `MC - COMISSÃO` na **BANCO DE DADOS VENDAS CONDOMÍNIO**, de **teste e de produção**.
+  É a memória do que já foi lançado: as linhas `LANÇADA | …`, `INCERTO | …` e `INCERTO CONFERIDO | …` **nunca se
+  apagam** (nem à mão). O saldo da comissão = COMISSÃO − soma das `LANÇADA`.
+- **Contra lançar em dobro:** o robô anota `INCERTO | …` na coluna **antes** do POST (sem conseguir anotar, não
+  lança) e troca por `LANÇADA | título <id> | … | recibos: pendentes` logo que o ERP devolve o id. Toda execução
+  lê no Mais Controle os títulos `COMISSÃO CORRETOR UNIDADE NN` **da obra da venda** (de 30 dias antes da DATA DE
+  ASSINATURA DO CONTRATO até hoje + 400 dias); título que a coluna não conhece (lançado à mão, anotação perdida)
+  entra como `LANÇADA | … | encontrado no ERP` e desconta do saldo. A prévia mostra a linha "Já lançado no Mais
+  Controle: …".
+- **Incerto aberto exige prévia nova:** se a coluna tinha um `INCERTO | …` aberto quando o pedido de lançar chegou,
+  o robô o confere no Mais Controle (vira `LANÇADA` ou `INCERTO CONFERIDO`), grava a coluna e **recusa** com o código
+  `INCERTO_RESOLVIDO_PECA_PREVIA` — nenhum título é criado nessa execução; peça uma prévia nova e lance de novo.
+  A lista de títulos do Mais Controle é lida página a página enquanto o ERP avisa `hasNextPage`; com o teto de
+  páginas estourado a execução é recusada (nunca decide com leitura incompleta).
+- **Variáveis que o robô lê** (na fila do servidor, `_central\robos-portal.json`, bloco `vars` de cada fila; nada
+  disso no repositório): `DB_VENDAS_COND` (id da VENDAS CONDOMÍNIO daquela fila; sem ela o robô recusa),
+  `DB_CORRETORES` (CORRETORES – CONTRATO, de onde vem a CHAVE PIX quando o cadastro do ERP não tem) e o
+  `NOTION_TOKEN` da fila.
+- **Travas de gravar:** as mesmas do lançamento da venda — o pedido com aplicar (só ADM/MASTER no portal) +
+  `"pode_gravar": true` na fila + o arquivo `_central\VENDA_APLICAR.txt` (só o dono cria). Sem as três, sai a prévia
+  com `BLOQUEADO: gravar está desligado neste ambiente`.
+- **Chave Pix:** o tipo escrito no cadastro (CPF, CNPJ, CELULAR/TELEFONE, E-MAIL, ALEATÓRIA/EVP) manda. Chave de 14
+  dígitos sem tipo escrito e que não fecha como CNPJ é recusada (`PIX_DUVIDOSO`): conferir o cadastro. Chave CPF/CNPJ
+  diferente do documento do favorecido só gera um `ATENÇÃO` na prévia.
+- **Implantar (teste primeiro):**
+  - Apps Script (PORTAL-VENDA de teste, depois o de produção): `venda/ComissaoMC.gs` (novo),
+    `venda/PortalVenda.gs` (ações `mcComissao` e `mcComissaoEstado`) e `venda/LogContratoVenda.js` (linha do log).
+  - Site: `venda-dossie.js` (bloco da tela).
+  - Servidor: `git pull` (`venda/mc/comissao.py`, `venda/mc/erp.py`, `servidor/robo_fila.py`) e conferir as
+    variáveis acima em `robos-portal.json`.
+  - 1º teste ao vivo: uma prévia numa venda de teste; conferir na coluna o favorecido, o Pix, as parcelas e o "Já
+    lançado"; só depois o lançamento, e conferir o título e os recibos no Mais Controle.

@@ -37,7 +37,7 @@ function tratar_(p) {
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
-                 "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
+                 "salvarCamposContrato", "escolherContaRecebimento", "mcLancar", "mcComissao" /* 24/11: ComissaoMC.gs */, "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "assinaturaTrocarEmail" /* 03/11 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "confirmarReservaPaga" /* 08/11 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
                  "recebimentoConfirmar" /* entrega 14 */, "recebimentoRemover", "recebimentoValor", "recebimentoLerContratoFin", "recebimentoMC" /* 05/11 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
@@ -85,6 +85,8 @@ function executar_(col, sess, p) {
       case "gerarContrato": return aprovarPreContrato_(col, sess, p);   /* o final só sai de um pré-contrato conferido */
       case "mcEstado":     return mcEstado_(col, p);
       case "mcLancar":     return mcLancar_(col, sess, p);
+      case "mcComissao":   return mcComissao_(col, sess, p);   /* 24/11: pedido da comissão do corretor (só condomínio) */
+      case "mcComissaoEstado": return mcComissaoEstado_(col, p);
       case "mcAnexar":     return mcAnexar_(col, sess, p);   /* 03/11: contrato/ZIP de novo ao Mais Controle */
       case "assinaturaEnviar": return assinaturaEnviar_(col, sess, p);
       case "assinaturaEstado": return assinaturaEstado_(col, p);

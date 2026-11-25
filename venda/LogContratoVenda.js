@@ -65,6 +65,7 @@ var LogContratoVenda = (function () {
     },
     escolherContaRecebimento: function () { return "escolheu a conta de recebimento"; },
     mcLancar: function () { return "lançou a venda no Mais Controle"; },
+    mcComissao: function (p) { return p && p.aplicar ? "lançou a comissão do corretor" : "pediu a prévia da comissão"; },
     gerarVendaCondominio: function () { return "gerou a venda do condomínio"; },
     salvarContaPreReserva: function () { return "gravou a conta de devolução da reserva"; },
     salvarPagamentoPreReserva: function () { return "gravou o valor e a data do pagamento da reserva"; },
