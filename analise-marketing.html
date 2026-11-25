@@ -346,16 +346,19 @@ function kpis(c){
 }
 function agrupar(leads, campo){
   const g={}; leads.forEach(l=>{ const k=l[campo]||"(vazio)"; (g[k]=g[k]||[]).push(l); });
-  return Object.entries(g).map(([k,ls])=>Object.assign({ nome:k }, contar(ls)));
+  return Object.entries(g).map(([k,ls])=>{ const c=contar(ls), base=c.n-c["SEM CONVERSA"]-c[""], resp=c.CLIENTE+c.CORRETOR+c["RESPONDEU E PAROU"];
+    return Object.assign({ nome:k }, c, { base, resp, tResp: base? resp/base : -1 }); });
 }
 function tabelaGrupo(id, linhas, titulo){
   const ord = (id in ST.ordem) ? ST.ordem[id] : "n";
   linhas.sort((a,b)=> (b[ord]-a[ord]) || (b.n-a.n) || a.nome.localeCompare(b.nome));
   const th=(k,r)=>'<th class="num ord" onclick="ordenar(\''+id+'\',\''+k+'\')" title="Ordenar">'+r+(ord===k?' ▾':'')+'</th>';
-  return '<div class="tbl-wrap"><table><thead><tr><th>'+titulo+'</th>'+th("n","Leads")+
+  return '<div class="tbl-wrap"><table><thead><tr><th>'+titulo+'</th>'+th("tResp","Respostas")+th("n","Leads")+
     '<th style="min-width:140px">Composição</th>'+th("CLIENTE","Clientes")+th("CORRETOR","Corretores")+th("RESPONDEU E PAROU","Parou")+th("SEM RESPOSTA","Sem resp.")+
     th("SEM CONVERSA","Sem conversa")+th("","Sem class.")+th("Q","Qualif.")+th("D","Desqualif.")+'</tr></thead><tbody>'+
-    linhas.map(g=>'<tr><td class="nome">'+(id==="ad"||id==="adall"? linkAnuncio(g.nome, id==="ad"? ST.aba : "") : escA(g.nome))+'</td><td class="num"><b>'+g.n+'</b></td><td>'+pilha(g)+'</td>'+
+    linhas.map(g=>'<tr><td class="nome">'+(id==="ad"||id==="adall"? linkAnuncio(g.nome, id==="ad"? ST.aba : "") : escA(g.nome))+'</td>'+
+      '<td class="num" title="Responderam na HyperFlow (cliente + corretor + respondeu e parou) ÷ leads com leitura">'+(g.base? '<b>'+pctT(g.tResp)+'</b><br><span class="muted" style="font-size:11px">'+g.resp+' de '+g.base+'</span>' : '<span class="muted">—</span>')+'</td>'+
+      '<td class="num"><b>'+g.n+'</b></td><td>'+pilha(g)+'</td>'+
       ["CLIENTE","CORRETOR","RESPONDEU E PAROU","SEM RESPOSTA","SEM CONVERSA",""].map(k=>'<td class="num">'+(g[k]||'<span class="muted">0</span>')+(g[k]?' <span class="muted">'+pct(g[k],g.n)+'%</span>':'')+'</td>').join("")+
       '<td class="num">'+g.Q+'</td><td class="num">'+g.D+'</td></tr>').join("")+
   '</tbody></table></div>';
@@ -566,7 +569,7 @@ function tabelaDias(leads){
 }
 function comparativo(){
   const C=ST.C;
-  const porAba=C.abas.map(a=>Object.assign({nome:a.nome}, contar(a.leads.filter(noPeriodo))));
+  const porAba=C.abas.map(a=>Object.assign({nome:a.nome}, metricas(a.leads.filter(noPeriodo))));
   const todos=[]; C.abas.forEach(a=>a.leads.filter(noPeriodo).forEach(l=>todos.push(Object.assign({aba:a.nome},l))));
   const tot=contar(todos);
   const rank=(cls)=>{
