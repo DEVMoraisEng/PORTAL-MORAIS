@@ -507,6 +507,73 @@ var FluxoLivre = (function () {
     return { linhas: linhas, mudou: mudou.sort(function (x, y) { return x - y; }) };
   }
 
+  /* 25/11/2026 (Gustavo, financeiro): "quando eu ajustar uma data de vcto pra frente, calcule a quantidade de meses até a
+     parcela final padrão e ajuste a quantidade de meses, já ajustando o valor da parcela". A pré-chaves k ainda com a
+     data ANTIGA em f; novaData = a 1ª data nova. A última parcela fica no mesmo mês de antes (ex.: a 1ª parte termina em
+     11/2027), a quantidade vira os meses da data nova até ela e o total da linha não muda (cada parcela sobe ou baixa;
+     o centavo vai na última). Vale também para trás (mais parcelas, cada uma menor). Data nova depois do último mês, ou
+     linha que não é mensal: só a data muda, como antes. Depois encaixa as outras partes (encaixarPre com a linha fixa).
+     { linhas, mudou: [índices], n: quantidade nova } */
+  function novaDataPre(f, k, novaData) {
+    f = normalizar(f);
+    var linhas = f.linhas.slice(), l = linhas[k];
+    if (!l) return { linhas: linhas, mudou: [], n: 0 };
+    var nova = { t: l.t, v: l.v, n: l.n, d: String(novaData || "").slice(0, 10), i: l.i, x: l.x };
+    if (l.u) nova.u = l.u;
+    if (l.b) nova.b = l.b;
+    if (l.t === "pre" && isoValida(l.d) && isoValida(nova.d) && (l.i || 1) === 1 && l.n >= 1) {
+      var fimMes = mesNum(l.d) + l.n - 1, n = fimMes - mesNum(nova.d) + 1;
+      if (n >= 1 && n !== l.n && totalLinhaC(l) >= 100 * n) nova = comTotal({ t: l.t, n: n, d: nova.d, i: 1, x: l.x }, totalLinhaC(l));
+    }
+    linhas[k] = nova;
+    var mudou = [];
+    if (l.t === "pre") {
+      var en = encaixarPre({ valor: f.valor, entrega: f.entrega, linhas: linhas }, k);
+      linhas = en.linhas; mudou = en.mudou.filter(function (j) { return j !== k; });
+    }
+    return { linhas: linhas, mudou: mudou, n: linhas[k].n };
+  }
+
+  /* 25/11/2026 (Gustavo, financeiro): "subir um pdf e ele alterar o fluxo de acordo com o pdf (podemos gerar mais de um e
+     o cliente decidir qual ele quer)". O PDF do Fluxo personalizado leva no rodapé um código com as linhas do fluxo:
+     [[FXP1:<base64url de JSON>:FXP1]]. Ler o texto de um PDF e remontar a tabela não é confiável; o código é exato.
+     O leitor junta o texto do PDF inteiro e tira os espaços/quebras de linha entre as marcas (base64url não tem espaço). */
+  var COD_INI = "[[FXP1:", COD_FIM = ":FXP1]]";
+  function b64(txt) {
+    var bin = unescape(encodeURIComponent(txt));
+    var s = typeof btoa === "function" ? btoa(bin) : Buffer.from(bin, "binary").toString("base64");
+    return s.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  }
+  function deB64(s) {
+    s = String(s).replace(/-/g, "+").replace(/_/g, "/");
+    while (s.length % 4) s += "=";
+    var bin = typeof atob === "function" ? atob(s) : Buffer.from(s, "base64").toString("binary");
+    return decodeURIComponent(escape(bin));
+  }
+  /* f = { valor, entrega, linhas }; extra = { unidade, gerado (AAAA-MM-DD) } → o código para imprimir */
+  function codigoFluxo(f, extra) {
+    f = normalizar(f); extra = extra || {};
+    var o = { u: String(extra.unidade || "").slice(0, 20), g: isoValida(extra.gerado) ? extra.gerado : "", v: f.valor, e: f.entrega,
+              L: f.linhas.map(function (l) { var a = [l.t, l.v, l.n, l.d, l.i, l.x || ""]; if (l.u) a.push(l.u); return a; }) };
+    return COD_INI + b64(JSON.stringify(o)) + COD_FIM;
+  }
+  /* texto do PDF → { unidade, gerado, valor, entrega, linhas } ou { erro }. Com mais de um código, vale o primeiro. */
+  function lerCodigoFluxo(texto) {
+    var t = String(texto || "").replace(/\s+/g, ""), a = t.indexOf(COD_INI);   /* a quebra de linha pode cair dentro da marca */
+    if (a < 0) return { erro: "Este PDF não tem o código do fluxo. Use o PDF do Fluxo personalizado gerado a partir de hoje (25/11/2026)." };
+    var b = t.indexOf(COD_FIM, a + COD_INI.length);
+    if (b < 0) return { erro: "O código do fluxo está cortado neste PDF — gere o PDF de novo." };
+    var o;
+    try { o = JSON.parse(deB64(t.slice(a + COD_INI.length, b))); }
+    catch (e) { return { erro: "Não consegui ler o código do fluxo deste PDF — gere o PDF de novo." }; }
+    if (!o || !Array.isArray(o.L) || !o.L.length) return { erro: "O código do fluxo deste PDF está vazio." };
+    var f = normalizar({ valor: o.v, entrega: o.e, linhas: o.L.map(function (a) {
+      return Array.isArray(a) ? { t: a[0], v: a[1], n: a[2], d: a[3], i: a[4], x: a[5], u: a[6] } : {};
+    }) });
+    if (f.linhas.some(function (l) { return !TIPOS[l.t]; })) return { erro: "O código do fluxo deste PDF tem um tipo de linha desconhecido." };
+    return { unidade: String(o.u || ""), gerado: isoValida(o.g) ? o.g : "", valor: f.valor, entrega: f.entrega, linhas: f.linhas };
+  }
+
   /* { ok, diferenca, erros: [texto], porLinha: { índice: [texto] }, avisos: [texto] } — diferenca = valor − soma
      (positivo = falta). Regra do dono: só a CONTA trava (e linha sem valor/data/tipo); data fora da entrega é AVISO. */
   /* anterior (03/11) = o fluxo gravado antes (FLUXO PERSONALIZADO): a permuta antiga, só com a descrição, continua
@@ -1139,7 +1206,7 @@ var FluxoLivre = (function () {
            PRAZOS: PRAZOS, TIPOS_BEM: TIPOS_BEM, QUITA_PADRAO: QUITA_PADRAO, normalizarBem: normalizarBem, faltasBem: faltasBem, semDadosDoBem: semDadosDoBem, resumoBem: resumoBem,
            crlvDaLeitura: crlvDaLeitura, preencherBemCrlv: preencherBemCrlv,
            docValido: docValido, docFormatado: docFormatado, renavamValido: renavamValido, placaValida: placaValida, chassiValido: chassiValido, prazoDasLinhas: prazoDasLinhas, mudarPrazo: mudarPrazo, distribuir: distribuir, guiar: guiar, tetoFinanciamento: tetoFinanciamento,
-           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, reservaNoFluxo: reservaNoFluxo, alinharComProposta: alinharComProposta, sinalMinimoCasa: sinalMinimoCasa, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
+           normalizar: normalizar, validar: validar, corrigirDatas: corrigirDatas, refVencimento: refVencimento, encaixarPre: encaixarPre, novaDataPre: novaDataPre, codigoFluxo: codigoFluxo, lerCodigoFluxo: lerCodigoFluxo, reservaNoFluxo: reservaNoFluxo, alinharComProposta: alinharComProposta, sinalMinimoCasa: sinalMinimoCasa, cabemPre: cabemPre, FIM_PARCELAS_PRE: FIM_PARCELAS_PRE, redistribuir: redistribuir, aplicarDesconto: aplicarDesconto, valorDoDesconto: valorDoDesconto, doPadrao: doPadrao, abaterSinal: abaterSinal, expandir: expandir,
            serializar: serializar, ler: ler, ordenar: ordenar, totalLinha: function (l) { return totalLinhaC(normalizar({ linhas: [l] }).linhas[0] || {}) / 100; },
            soma: function (linhas) { return somaC(normalizar({ linhas: linhas }).linhas) / 100; }, maisMeses: maisMeses, moeda: moeda, dataBR: dataBR };
 })();

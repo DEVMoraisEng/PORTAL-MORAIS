@@ -311,10 +311,15 @@ var FluxoPersonalizado = (function () {
         ".cab{display:flex;align-items:center;gap:14px;border-bottom:2px solid #EFB700;padding-bottom:12px;margin-bottom:6px}.cab img{height:54px}" +
         ".fxp-tab{border-collapse:collapse;width:100%;font-size:12px}.fxp-tab th{text-align:left;font-size:10.5px;text-transform:uppercase;color:#6B5A45;padding:5px 6px;border-bottom:1px solid #E7DCC7}" +
         ".fxp-tab td{padding:4px 6px;border-bottom:1px solid #F1E9D8;vertical-align:top}.fxp-n{text-align:right;white-space:nowrap}.fxp-sub{font-weight:800;font-size:12.5px;color:#7A4A16;text-transform:uppercase;margin:16px 0 6px}" +
-        ".fxp-min{font-size:10.5px;color:#6B5A45}tr{break-inside:avoid}";
+        ".fxp-min{font-size:10.5px;color:#6B5A45}tr{break-inside:avoid}" +
+        ".fxp-cod{margin-top:18px;font:7px/1.25 Consolas,monospace;color:#9A8B76;word-break:break-all;break-inside:avoid}";
+      /* 25/11/2026 (financeiro): o código do fluxo no rodapé — o Alterar fluxo do cartão carrega este PDF (o cliente escolhe
+         entre vários) */
+      var cod = '<div class="fxp-cod">Código do fluxo (para carregar no Alterar fluxo do portal): ' +
+        esc(F.codigoFluxo(fluxo, { unidade: sel ? sel.unidade : "", gerado: hojeIso() })) + "</div>";
       w.document.write("<!doctype html><html lang=\"pt-BR\"><head><meta charset=\"utf-8\"><title>Reserva do Ipês — " + esc(rotuloUn()) + "</title><style>" + css + "</style></head><body>" +
         '<div class="cab">' + (cfg.logo ? '<img src="' + esc(cfg.logo) + '" alt="">' : "") + "<div><h1>Reserva do Ipês — Fluxo de pagamento</h1><p class=\"sub\">" + esc(rotuloUn()) + " · gerado em " + F.dataBR(hojeIso()) + "</p></div></div>" +
-        z("folha").innerHTML + "</body></html>");
+        z("folha").innerHTML + cod + "</body></html>");
       w.document.close();
       setTimeout(function () { try { w.focus(); w.print(); } catch (e) { /* a pessoa imprime pela janela */ } }, 500);
     }
@@ -343,7 +348,10 @@ var FluxoPersonalizado = (function () {
       var k = Number(tr.getAttribute("data-k")), l = fluxo.linhas[k];
       if (cc === "v") { l.v = num(a.value); delete l.u; if (l.t !== "sinal" && l.t !== "entrada") travas[k] = true; }
       else if (cc === "n") { l.n = Math.max(1, Math.round(Number(a.value) || 1)); delete l.u; if (l.t !== "sinal" && l.t !== "entrada") travas[k] = true; if (l.t === "pre") encaixar(k); }
-      else if (cc === "d") { l.d = a.value; if (l.t === "pre") encaixar(k); }
+      else if (cc === "d") {
+        /* 25/11: pré-chaves com data nova termina no mesmo mês de antes — a quantidade e o valor de cada se ajustam */
+        if (l.t === "pre") { var nd = F.novaDataPre(fluxo, k, a.value); fluxo.linhas = nd.linhas; } else l.d = a.value;
+      }
       else if (cc === "t") { l.t = a.value; delete travas[k]; }
       else if (cc === "x") l.x = a.value;
       editado = true;

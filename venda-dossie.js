@@ -1090,6 +1090,18 @@
      reajuste. Regra do dono: qualquer redistribuição vale, mas só salva com a soma batendo AO CENTAVO com o valor
      da casa. As regras moram em venda/FluxoLivre.js (as mesmas do servidor). ---- */
   function FL() { return typeof FluxoLivre !== "undefined" ? FluxoLivre : require("./venda/FluxoLivre.js"); }
+  /* 25/11: pdf.js (a mesma versão do RubricasVenda), carregado só quando alguém sobe um PDF de fluxo */
+  var PDFJS_FX = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.min.mjs", PDFJS_FX_W = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+  var pdfjsFx = null;
+  async function textoDoPdf(arq) {
+    if (!pdfjsFx) { pdfjsFx = import(PDFJS_FX).then(function (m) { m.GlobalWorkerOptions.workerSrc = PDFJS_FX_W; return m; }); pdfjsFx.catch(function () { pdfjsFx = null; }); }
+    var lib = await pdfjsFx, doc = await lib.getDocument({ data: new Uint8Array(await arq.arrayBuffer()) }).promise, partes = [];
+    for (var p = 1; p <= Math.min(doc.numPages, 20); p++) {
+      var tc = await (await doc.getPage(p)).getTextContent();
+      partes.push(tc.items.map(function (it) { return it.str || ""; }).join("\n"));
+    }
+    return partes.join("\n");
+  }
   function fluxoDoEstado(f) {
     return { coluna: !!f.coluna, alterado: !!f.alterado, trava: String(f.trava || ""), por: String(f.por || ""),
              em: String(f.em || ""), alteracoes: Number(f.alteracoes) || 0 };
@@ -1206,7 +1218,10 @@
     h += '<div class="dz-nota">Mexeu no valor ou na quantidade de uma pré-chaves, balão ou pós-chaves: a linha trava (🔒) e o simulador ajusta as outras soltas (🔓) para a conta fechar.</div>';
     h += htmlFluxoBem(ed, dis);
     h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-add"' + dis + ">+ linha</button> " +
-      '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-padrao"' + dis + ">Recomeçar do fluxo da proposta</button></div>";
+      '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-padrao"' + dis + ">Recomeçar do fluxo da proposta</button> " +
+      /* 25/11 (financeiro): o PDF do Fluxo personalizado que o cliente escolheu */
+      '<label class="bt ghost bt-mini vb-fx-pdf"' + (dis ? ' aria-disabled="true"' : "") + ">📄 Carregar fluxo de um PDF" +
+      '<input type="file" accept="application/pdf,.pdf" data-fx-pdf="1" style="display:none"' + dis + "></label></div>";
     h += '<div class="vb-fx-viva">' + htmlFluxoVivo(ed, dis) + "</div>";
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
     h += '<div class="dz-linha"><label class="dz-campo" style="display:block">Motivo da alteração (obrigatório) <input type="text" maxlength="300" data-fx="motivo" value="' + esc(ed.motivo || "") + '"' + dis +
@@ -1280,6 +1295,63 @@
     return r.mudou;
   }
   function limparGuia(ed) { ed.travadas = {}; ed.ajustadas = {}; ed.sugestao = null; ed.sugestaoU = null; ed.guiaErro = ""; }
+  /* 25/11/2026 (financeiro): "subir um pdf e ele alterar o fluxo de acordo com o pdf" — lido = FluxoLivre.lerCodigoFluxo do
+     PDF do Fluxo personalizado. Troca as linhas do editor (nada é gravado: a pessoa confere e salva). A reserva já paga
+     continua dentro do sinal (reservaNoFluxo, como no servidor). Valor da casa diferente só para quem pode mudar o preço.
+     { msg } ou { erro } */
+  function fluxoDoPdf(ed, lido) {
+    if (!ed || !lido || lido.erro) return { erro: (lido && lido.erro) || "PDF sem fluxo" };
+    var F = FL(), cv = function (v) { return Math.round((Number(v) || 0) * 100); };
+    var valor = ed.valor;
+    if (cv(lido.valor) !== cv(ed.valor)) {
+      if (!ed.podePreco) return { erro: "O fluxo do PDF é de " + F.moeda(lido.valor) + " e esta venda é de " + F.moeda(ed.valor) +
+                                        ". Só " + ((ed.quemMudaPreco || []).join(" ou ") || "quem muda o valor da casa") + " pode carregar um fluxo com outro valor." };
+      valor = lido.valor;
+    }
+    var linhas = lido.linhas.map(function (l) { var x = { t: l.t, v: l.v, n: l.n, d: l.d, i: l.i || 1, x: l.x || "" }; if (l.u) x.u = l.u; return x; });
+    var pago = 0, dPago = "";
+    ed.linhas.forEach(function (l) { if (l.t === "prereserva") { pago += F.totalLinha(l); dPago = l.d; } });
+    var avisoRes = "";
+    if (pago > 0 && !linhas.some(function (l) { return l.t === "prereserva"; })) {
+      var rn = F.reservaNoFluxo({ valor: valor, entrega: ed.entrega, linhas: linhas }, { valor: pago, data: dPago }, { hoje: ed.hoje || "" });
+      if (rn.erro) return { erro: "Não deu para pôr a reserva paga no fluxo do PDF: " + rn.erro };
+      linhas = rn.linhas; avisoRes = " A reserva paga (" + F.moeda(pago) + ") entrou como 1ª parte do sinal.";
+    }
+    ed.valor = valor; ed.linhas = linhas; ed.descontos = []; ed.semComissao = false; ed.dAntes = {};
+    limparGuia(ed);
+    if (!ed.motivo) ed.motivo = "Fluxo escolhido pelo cliente (PDF" + (lido.gerado ? " de " + F.dataBR(lido.gerado) : "") + ")";
+    return { msg: "Fluxo do PDF carregado" + (lido.unidade ? " (unidade " + lido.unidade + ")" : "") + ": " + linhas.length + " linhas." +
+                  avisoRes + " Confira as datas e salve." };
+  }
+  /* 25/11/2026 (financeiro): pré-chaves com 1ª data nova termina no MESMO mês de antes — a quantidade de meses e o valor
+     de cada se ajustam (o total da linha não muda; FluxoLivre.novaDataPre). A tela digita a data aos poucos (evento
+     "input"), então a data de ANTES fica guardada em ed.dAntes até o "change". */
+  function guardarDataAntes(ed, k) {
+    var l = ed && ed.linhas[k];
+    if (!l || l.t !== "pre") return;
+    ed.dAntes = ed.dAntes || {};
+    if (!(k in ed.dAntes)) ed.dAntes[k] = l.d;
+  }
+  /* no "change" da data ou da quantidade de uma pré-chaves: devolve a mensagem para a tela ("" = nada mudou) */
+  function preMexida(ed, k, campo, valor) {
+    var l = ed && ed.linhas[k];
+    if (!l || l.t !== "pre") return "";
+    var dAnt = campo === "d" && ed.dAntes ? ed.dAntes[k] : undefined, nAntes = l.n, r;
+    if (ed.dAntes) delete ed.dAntes[k];
+    if (dAnt !== undefined) {
+      var antes = ed.linhas.slice(), lr = {};
+      Object.keys(l).forEach(function (c) { lr[c] = l[c]; });
+      lr.d = dAnt; antes[k] = lr;
+      r = FL().novaDataPre({ valor: ed.valor, entrega: ed.entrega, linhas: antes }, k, valor);
+    } else r = FL().encaixarPre({ valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas }, k);
+    var nMudou = campo === "d" && r.linhas[k].n !== nAntes;
+    if (!r.mudou.length && !nMudou) return "";
+    ed.linhas = r.linhas;
+    var partes = [];
+    if (nMudou) partes.push("A linha " + (k + 1) + " ficou com " + r.linhas[k].n + " parcelas até o mesmo último mês (o total não mudou).");
+    if (r.mudou.length) partes.push("As outras pré-chaves foram encaixadas mês a mês (" + r.mudou.map(function (j) { return "linha " + (j + 1); }).join(", ") + ").");
+    return partes.join(" ");
+  }
   /* revisão 04/11: a pessoa mexeu no campo `campo` da linha k. Valor, quantidade ou tipo que vira pré-chaves/balão/
      pós-chaves: trava a linha e pede a conta (true). Tipo que vira fixo: o cadeado sai. O resto não mexe na conta. */
   function fxMexeu(ed, k, campo) {
@@ -1974,7 +2046,7 @@
                    resumo: resumo, escala: escala, tipoAceito: tipoAceito, painelCarregando: painelCarregando,
                    htmlContrato: htmlContrato, htmlPerguntaTipo: htmlPerguntaTipo, resumoCondicoes: resumoCondicoes, htmlCondicoesResumo: htmlCondicoesResumo, htmlContratoLeitura: htmlContratoLeitura, MSG_SO_LEITURA: MSG_SO_LEITURA, htmlReservaContrato: htmlReservaContrato, MSG_RESERVA_VENCIDA: MSG_RESERVA_VENCIDA, etapaContrato: etapaContrato, estadoContrato: estadoContrato, mensagemContrato: mensagemContrato, htmlMC: htmlMC, pedidoParado: pedidoParado, mensagemMC: mensagemMC,
                    topicosMC: topicosMC, htmlComissao: htmlComissao, parcelasDoForm: parcelasDoForm, comParcelasDaPrevia: comParcelasDaPrevia, comCalculo: comCalculo, novoUiCom: novoUiCom, MC_URL_VENDA: MC_URL_VENDA, htmlTestemunhas: htmlTestemunhas, htmlConjugePR: htmlConjugePR,
-                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
+                   htmlCampos: htmlCampos, htmlConta: htmlConta, htmlFluxo: htmlFluxo, htmlFluxoVivo: htmlFluxoVivo, htmlFluxoDesconto: htmlFluxoDesconto, htmlFluxoBem: htmlFluxoBem, aplicarCrlv: aplicarCrlv, permutaSemBem: permutaSemBem, guiarEditor: guiarEditor, fxMexeu: fxMexeu, guardarDataAntes: guardarDataAntes, preMexida: preMexida, fluxoDoPdf: fluxoDoPdf, travarLinha: travarLinha, aplicarSugestao: aplicarSugestao, limparGuia: limparGuia, travasAoApagar: travasAoApagar, faltasDoBem: faltasDoBem, campoBem: campoBem, lerNumBR: lerNumBR, contaDoEstado: contaDoEstado, pedidoCampos: pedidoCampos,
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
                    rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2,
@@ -1991,6 +2063,7 @@
   var NO_PAINEL = ["#dossie-wrap", "#pn-body .vb-blocos", "#pn-body .vb-ass", "#pn-body .vb-rec", "#pn-body .vb-mc"];
   function emCada(sufixo) { return NO_PAINEL.map(function (b) { return b + sufixo; }).join(","); }
   var CSS = "#dossie-wrap .dz-linha,.vb-blocos .dz-linha{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:6px 0}" +
+    ".vb-fx-pdf{cursor:pointer;display:inline-flex;align-items:center;min-height:44px;box-sizing:border-box}" +   /* 25/11: carregar fluxo de PDF (alvo de toque 44 px) */
     "#dossie-wrap .dz-rot,.vb-blocos .dz-rot{flex:1 1 200px}#dossie-wrap .on{outline:2px solid #4cd964}" +
     "#dossie-wrap .dz-aviso,.vb-blocos .dz-aviso{color:#E67E22;margin:6px 0}" +
     "#dossie-wrap .dz-msg,.vb-blocos .dz-msg{margin-top:8px;font-weight:600}" +
@@ -4502,6 +4575,24 @@
       var viva = dentro(".vb-fx-viva");
       if (viva) viva.innerHTML = htmlFluxoVivo(ed, "");
     }
+    /* 25/11 (financeiro): o PDF do Fluxo personalizado → texto (pdf.js da cdnjs, só na hora) → código do fluxo → editor */
+    async function carregarFluxoPdf(alvo) {
+      var ed = uiC.fluxoEd, arq = alvo.files && alvo.files[0];
+      alvo.value = "";
+      if (!ed || !arq) return;
+      uiC.msg = "Lendo o PDF…"; pintar();
+      var lido;
+      try { lido = FL().lerCodigoFluxo(await textoDoPdf(arq)); }
+      catch (e) { lido = { erro: "Não consegui abrir o PDF (" + (e && e.message || e) + ")." }; }
+      if (!vivo() || uiC.fluxoEd !== ed) return;
+      if (lido.erro) { uiC.msg = lido.erro; pintar(); return; }
+      var F = FL();
+      if (!confirm("Carregar o fluxo do PDF" + (lido.unidade ? " da unidade " + lido.unidade : "") + (lido.gerado ? ", gerado em " + F.dataBR(lido.gerado) : "") +
+                   " (" + F.moeda(lido.valor) + ")?\nAs linhas de agora são trocadas (nada é gravado até salvar).")) { uiC.msg = ""; pintar(); return; }
+      var r = fluxoDoPdf(ed, lido);
+      uiC.msg = r.erro || r.msg;
+      pintar();
+    }
     /* digitando no editor: guarda no estado e redesenha só o total da linha e o placar (não perde o foco) */
     function aoDigitarFluxo(alvo) {
       var ed = uiC.fluxoEd, campo = alvo.getAttribute("data-fx");
@@ -4515,7 +4606,11 @@
         if (campo === "v") { l.v = lerNumBR(alvo.value); delete l.u; }
         else if (campo === "n") { l.n = parseInt(alvo.value, 10) || 0; delete l.u; }
         else if (campo === "i") l.i = parseInt(alvo.value, 10) || 1;
-        else if (campo === "d") l.d = alvo.value;
+        else if (campo === "d") {
+          /* 25/11: guarda a data de antes da pré-chaves até o "change" (novaDataPre mantém o último mês dela) */
+          guardarDataAntes(ed, Number(alvo.getAttribute("data-k")));
+          l.d = alvo.value;
+        }
         else if (campo === "x") l.x = alvo.value;
         else if (campo === "t") l.t = alvo.value;
         var tot = raiz.querySelector('.vb-fx-tot[data-k="' + alvo.getAttribute("data-k") + '"]');
@@ -4716,14 +4811,8 @@
             /* 07/11 (dono): "se eu tenho 2 pré-chaves de 12, não pode deixar eu aumentar uma para 13" — a parte mexida fica,
                as outras andam/encurtam mês a mês (o total de cada uma não muda) e o simulador refaz as soltas */
             var edx = uiC.fluxoEd, kx = Number(ev.target.getAttribute("data-k"));
-            if (edx && edx.linhas[kx] && edx.linhas[kx].t === "pre") {
-              var enx = FL().encaixarPre({ valor: edx.valor, entrega: edx.entrega, linhas: edx.linhas }, kx);
-              if (enx.mudou.length) {
-                edx.linhas = enx.linhas;
-                uiC.msg = "As outras pré-chaves foram encaixadas mês a mês (" + enx.mudou.map(function (j) { return "linha " + (j + 1); }).join(", ") + ").";
-                pintar();
-              }
-            }
+            var mx = preMexida(edx, kx, fx, ev.target.value);
+            if (mx) { uiC.msg = mx; pintar(); }
             return;
           }   /* revisão 04/11: setas do número também travam e pedem a conta */   /* o tipo muda o reajuste mostrado; o modo do desconto, os campos */
           if (fx === "dde") { aoDigitarFluxo(ev.target); return; }
@@ -4733,6 +4822,7 @@
             ev.target.value = numBR(lerNumBR(ev.target.value));
             return;
           }
+          if (ev.target.hasAttribute("data-fx-pdf")) { carregarFluxoPdf(ev.target); return; }
           if (ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha();
           else if (ev.target.hasAttribute("data-conta")) aoEscolherConta(ev.target.value);
           else if (ev.target.hasAttribute("data-rec-arq")) {
