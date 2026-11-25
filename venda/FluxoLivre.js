@@ -66,9 +66,10 @@ var FluxoLivre = (function () {
     });
     P.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : a.k - b.k || a.j - b.j; });
     if (!P.length) return { prazos: [], erradas: [], demais: false };
-    var pz = (padrao && padrao.prazosSinal) || f.prazosSinal || null, exato = !!pz;
-    /* sem os prazos da venda (contrato conferindo sem a proposta), a conta é por dias e aceita 3 dias de folga:
-       30/60/90 dias × 1/2/3 meses diferem até 2 dias — pular um prazo (30 dias) nunca passa */
+    var pz = (padrao && padrao.prazosSinal) || f.prazosSinal || null;
+    /* a conta aceita 3 dias de folga, com ou sem os prazos da venda: 30/60/90 dias × 1/2/3 meses diferem até 2 dias,
+       e o vencimento que cai em feriado/fim de semana anda um ou dois dias (25/11/2026, financeiro: 25/12 é Natal).
+       Pular um prazo (30 dias) nunca passa — é isso que a regra do dono trava */
     function longe(a, b) { return Math.abs(Date.parse(a + "T00:00:00Z") - Date.parse(b + "T00:00:00Z")) > 3 * 864e5; }
     if (!pz) {
       var ass = isoValida(f.assinatura) ? f.assinatura : (padrao && isoValida(padrao.assinatura) ? padrao.assinatura : P[0].d);
@@ -80,15 +81,30 @@ var FluxoLivre = (function () {
       var maxIni = 1, sP = ((padrao && padrao.linhas) || []).filter(function (l) { return l.t === "sinal" && isoValida(l.d); })
         .map(function (l) { return l.d; }).sort();
       if (sP.length) maxIni = Math.max(1, pz.indexOf(sP[0]));
-      var q = pz.indexOf(P[0].d);
+      /* 25/11/2026 (financeiro, reserva paga na véspera e 30 dias num feriado): o prazo do restante é o mais perto
+         da 1ª parcela, com a mesma folga de 3 dias — antes só valia o dia exato, e 24/12 (25/12 é Natal) caía no ato */
+      var q = -1;
+      pz.forEach(function (d, i) { if (q < 0 && !longe(P[0].d, d)) q = i; });
       if (q > 0 && q <= maxIni && q + P.length <= 4) ini = q;
     }
     var erradas = [];
     P.forEach(function (x, n) {
       var certa = pz[ini + n] || "";
-      if (certa && (exato ? x.d !== certa : longe(x.d, certa))) erradas.push({ k: x.k, j: x.j, d: x.d, certa: certa });
+      if (certa && longe(x.d, certa)) erradas.push({ k: x.k, j: x.j, d: x.d, certa: certa });
     });
     return { prazos: pz, erradas: erradas, demais: ini + P.length > 4 };
+  }
+  /* 25/11/2026 (financeiro): "dia 25/12 é feriado" — o Corrigir datas não põe parcela do sinal em sábado, domingo ou
+     feriado fixo (nacionais, Goiás 26/07, Goiânia 24/05 e 24/10, 31/12 sem banco): volta para o dia útil anterior,
+     dentro da folga de 3 dias. Feriados móveis (Carnaval, Sexta Santa, Corpus Christi) ficam de fora. */
+  var FERIADOS_FIXOS = ["01-01", "04-21", "05-01", "05-24", "07-26", "09-07", "10-12", "10-24", "11-02", "11-15", "11-20", "12-25", "12-31"];
+  function diaUtilAntes(iso) {
+    for (var g = 0; g < 3; g++) {
+      var p = String(iso).split("-").map(Number), w = new Date(Date.UTC(p[0], p[1] - 1, p[2])).getUTCDay();
+      if (w !== 0 && w !== 6 && FERIADOS_FIXOS.indexOf(iso.slice(5)) < 0) return iso;
+      iso = maisDias(iso, -1);
+    }
+    return iso;
   }
   function dataBR(iso) { var p = String(iso || "").split("-"); return p.length === 3 ? p[2] + "/" + p[1] + "/" + p[0] : ""; }
   function moeda(v) {
@@ -376,7 +392,7 @@ var FluxoLivre = (function () {
     /* 14/11/2026 (dono): o sinal vai para os prazos em ordem (ato, 30, 60, 90). Linha de sinal com mais de uma parcela
        vira uma linha por parcela, porque 30/60/90 dias não é "mesmo dia do mês seguinte". Os valores não mudam. */
     var sp = sinalNosPrazos(f, padrao ? normalizar(padrao) : null), certaDe = {};
-    sp.erradas.forEach(function (e) { certaDe[e.k + ":" + e.j] = e.certa; });
+    sp.erradas.forEach(function (e) { certaDe[e.k + ":" + e.j] = diaUtilAntes(e.certa); });
     var abertas = [], andou = [];
     f.linhas.forEach(function (l, k) {
       var n = Math.max(1, l.n | 0), tem = false;

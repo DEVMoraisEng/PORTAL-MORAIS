@@ -46,9 +46,11 @@ test("a ordem das linhas na tela não importa; cinco parcelas não salva", () =>
   assert.match(errosSinal(cinco).join(";"), /O sinal vai em no máximo 4 parcelas/);
 });
 
-test("linha de sinal com 2 parcelas mensais (14/11 e 14/12) cabe; com 3 a 3ª cai em 14/01 e não em 13/01", () => {
+test("linha de sinal mensal: 14/11, 14/12 e 14/01 cabem (1 dia de folga do 13/01); com 5 parcelas não", () => {
+  /* 25/11/2026: a folga de 3 dias vale também com os prazos da venda — mês cheio no lugar de 60 dias passa */
   assert.deepEqual(errosSinal(com([s(5000, "2026-11-14", 2)])), []);
-  assert.match(errosSinal(com([s(3333.33, "2026-11-14", 3)]))[0], /sinal vence em 14\/01\/2027: .*vence em 13\/01\/2027/);
+  assert.deepEqual(errosSinal(com([s(3500, "2026-11-14", 3)])), []);
+  assert.match(errosSinal(com([s(2000, "2026-11-14", 5)])).join(";"), /no máximo 4 parcelas/);
 });
 
 test("com reserva paga o restante pode começar no ato ou em 30 dias, sempre sem pular", () => {
@@ -70,8 +72,8 @@ test("Corrigir datas leva o sinal para os prazos em ordem, sem mudar valor nem o
   assert.equal(F.soma(r.linhas), F.soma(f.linhas));
   assert.deepEqual(r.mudou, [1]);
   assert.deepEqual(errosSinal({ valor: f.valor, entrega: f.entrega, linhas: r.linhas }), []);
-  /* série de 3 vira 3 linhas, com o centavo da última */
-  const serie = com([Object.assign(s(3333.33, "2026-11-14", 3), { u: 3333.34 })]);
+  /* série com intervalo errado (a cada 2 meses: pula o 60) vira 3 linhas nos prazos, com o centavo da última */
+  const serie = com([Object.assign(s(3333.33, "2026-11-14", 3), { i: 2, u: 3333.34 })]);
   const r2 = F.corrigirDatas(serie, P);
   assert.deepEqual(r2.linhas.filter((l) => l.t === "sinal").map((l) => [l.v, l.n, l.d]),
     [[3333.33, 1, "2026-11-14"], [3333.33, 1, "2026-12-14"], [3333.34, 1, "2027-01-13"]]);
@@ -85,4 +87,18 @@ test("sem os prazos da venda (contrato sem a proposta): conta em dias com 3 dias
   const es = (x) => F.validar(x).erros.filter((e) => /sinal/i.test(e));
   assert.deepEqual(es(f([s(2000, "2026-10-07"), s(8000, "2026-11-07")])), []);   /* 31 dias: mês cheio */
   assert.equal(es(f([s(2000, "2026-10-07"), s(8000, "2027-01-05")])).length, 1); /* 90 dias no lugar do 30 */
+});
+
+test("25/11/2026 (financeiro): reserva paga na véspera é o ato; 30 dias no Natal pode ir para 24/12", () => {
+  const g = Object.assign({}, gavetas, { assinatura: "2026-11-25", data30: "2026-12-25", data60: "2027-01-24", data90: "2027-02-23" });
+  const pr = F.doPadrao(g, 0, { valor: 1000, data: "2026-11-24" });
+  assert.deepEqual(pr.prazosSinal, ["2026-11-25", "2026-12-25", "2027-01-24", "2027-02-23"]);
+  const base = pr.linhas.filter((l) => l.t !== "sinal");
+  /* as datas da tela: 24/12 (véspera do Natal), 24/01 e 23/02 */
+  assert.deepEqual(errosSinal(com([s(3000, "2026-12-24"), s(5234.36, "2027-01-24"), s(5234.36, "2027-02-23")], base), pr), []);
+  /* pular o prazo continua travado: começar em 60 dias com reserva */
+  assert.equal(errosSinal(com([s(9000, "2027-01-24")], base), pr).length, 1);
+  /* Corrigir datas não põe parcela no Natal */
+  const r = F.corrigirDatas(com([s(4000, "2027-01-24"), s(5000, "2027-03-30")], base), pr);
+  assert.ok(r.linhas.filter((l) => l.t === "sinal").every((l) => !/-12-25$/.test(l.d)));
 });
