@@ -111,13 +111,15 @@ var CondominioVenda = (function () {
   function juntar(partes, sep) {
     return partes.filter(function (x) { return !vazio(x); }).map(function (x) { return String(x).trim(); }).join(sep);
   }
+  /* 26/11/2026 (dono): o COMPLEMENTO (apto, bloco, quadra/lote) entra logo depois do número — sem ele o endereço
+   * do contrato saía incompleto */
   function enderecoBloco1(L) {
-    var rua = juntar([L.v("ENDERECO COMPRADOR 1"), L.v("NUMERO COMPRADOR 1")], ", ");
+    var rua = juntar([L.v("ENDERECO COMPRADOR 1"), L.v("NUMERO COMPRADOR 1"), L.v("COMPLEMENTO COMPRADOR 1")], ", ");
     var cep = L.v("CEP COMPRADOR 1");
     return juntar([rua, L.v("SETOR COMPRADOR 1"), L.v("CIDADE COMPRADOR 1"), vazio(cep) ? "" : "CEP " + String(cep).trim()], " - ");
   }
   function enderecoProponente(L) {
-    var rua = juntar([L.v("ENDEREÇO"), L.v("NÚMERO")], ", ");
+    var rua = juntar([L.v("ENDEREÇO"), L.v("NÚMERO"), L.v("COMPLEMENTO")], ", ");
     var cep = L.v("CEP");
     return juntar([rua, L.v("SETOR"), L.v("CIDADE"), vazio(cep) ? "" : "CEP " + String(cep).trim()], " - ");
   }

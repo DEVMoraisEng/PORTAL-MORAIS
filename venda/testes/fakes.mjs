@@ -142,7 +142,7 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
   const pagina = { id: pageId, parent: { database_id: dbId }, properties: {} };
   for (const [nome, p] of Object.entries(db.properties)) pagina.properties[nome] = Object.assign({ type: p.type }, vazioDe(p.type));
   for (const [nome, v] of Object.entries(valores)) Object.assign(pagina.properties[nome], v);
-  const uploads = {}, patches = [], escritas = [];
+  const uploads = {}, patches = [], escritas = [], criacoes = [];
   let seq = 0;
 
   function aplicar(props) {
@@ -168,6 +168,16 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
       if (m === "GET" && u.startsWith("/databases/") && esquemas[u.slice(11)])
         return { json: { properties: Object.fromEntries(Object.entries(esquemas[u.slice(11)]).map(([n, t]) => [n, { type: t, [t]: {} }])) } };
       if (m === "GET" && u.startsWith("/databases/")) return { json: db };
+      /* 26/11/2026: criar coluna na base da página (COMPLEMENTO da correção) — a página ganha a coluna vazia */
+      if (m === "PATCH" && u === "/databases/" + dbId) {
+        criacoes.push(corpo.properties);
+        for (const [nome, def] of Object.entries(corpo.properties)) {
+          const tipo = Object.keys(def)[0];
+          db.properties[nome] = { type: tipo, [tipo]: {} };
+          pagina.properties[nome] = Object.assign({ type: tipo }, vazioDe(tipo));
+        }
+        return { json: db };
+      }
       /* entrega 12: grava numa linha de cadastro (id "<base>-linha-<i>") ou cria uma linha nova */
       const lp = /^\/pages\/(.+)-linha-(\d+)$/.exec(u);
       if (m === "PATCH" && lp && bases[lp[1]] && bases[lp[1]][Number(lp[2])]) {
@@ -233,7 +243,7 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
     }
     return null;
   }
-  return { rota, pagina, uploads, patches, db, escritas, bases };
+  return { rota, pagina, uploads, patches, db, escritas, bases, criacoes };
 }
 
 /* Clicksign falsa (API v3, JSON:API), no formato dos exemplos da documentação

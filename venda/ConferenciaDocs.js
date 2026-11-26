@@ -68,9 +68,12 @@ var ConferenciaDocs = (function () {
    * `v(nome)` = valor atual da coluna. Devolve [{ coluna, rotulo }] (o endereço são cinco colunas) ou [] quando
    * o campo não se corrige aqui. */
   var OPCOES_CIVIL = ["SOLTEIRO", "CASADO", "DIVORCIADO", "VIUVO", "UNIAO ESTAVEL"];   /* completar-venda.html */
-  var END_PROPONENTE = [["ENDEREÇO", "Rua"], ["NÚMERO", "Número"], ["SETOR", "Setor"], ["CIDADE", "Cidade"], ["CEP", "CEP"]];
-  var END_BLOCO1 = [["ENDERECO COMPRADOR 1", "Rua"], ["NUMERO COMPRADOR 1", "Número"], ["SETOR COMPRADOR 1", "Setor"],
-                    ["CIDADE COMPRADOR 1", "Cidade"], ["CEP COMPRADOR 1", "CEP"]];
+  /* 26/11/2026 (dono): "o endereço tudo vem incompleto pq falta o campo de complemento" — COMPLEMENTO (apto, bloco,
+   * quadra/lote) entra depois do número. Terceiro item = opcional: base sem a coluna ganha a coluna (Conferencia.gs). */
+  var END_PROPONENTE = [["ENDEREÇO", "Rua"], ["NÚMERO", "Número"], ["COMPLEMENTO", "Complemento", 1], ["SETOR", "Setor"],
+                        ["CIDADE", "Cidade"], ["CEP", "CEP"]];
+  var END_BLOCO1 = [["ENDERECO COMPRADOR 1", "Rua"], ["NUMERO COMPRADOR 1", "Número"], ["COMPLEMENTO COMPRADOR 1", "Complemento", 1],
+                    ["SETOR COMPRADOR 1", "Setor"], ["CIDADE COMPRADOR 1", "Cidade"], ["CEP COMPRADOR 1", "CEP"]];
   function camposParaCorrigir(item, campo, seg, v) {
     v = v || function () { return ""; };
     function um(coluna, rotulo) { return [{ coluna: coluna, rotulo: rotulo }]; }
@@ -95,7 +98,7 @@ var ConferenciaDocs = (function () {
     } else if (item === "c1-end" && campo === "endereco") {
       var temProp = END_PROPONENTE.some(function (x) { return txt(v(x[0])); });
       var lista = seg || temProp || !END_BLOCO1.some(function (x) { return txt(v(x[0])); }) ? END_PROPONENTE : END_BLOCO1;
-      return lista.map(function (x) { return { coluna: x[0], rotulo: x[1] }; });
+      return lista.map(function (x) { return x[2] ? { coluna: x[0], rotulo: x[1], opcional: true } : { coluna: x[0], rotulo: x[1] }; });
     } else if (item === "c1-civil" && campo === "estado_civil") {
       /* a coluna é texto: as mesmas opções que o "completar venda" grava (teste de tela de 31/10 abriu texto livre) */
       return [{ coluna: "ESTADO CIVIL", rotulo: "Estado civil", opcoes: OPCOES_CIVIL.slice() }];

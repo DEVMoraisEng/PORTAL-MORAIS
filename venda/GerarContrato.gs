@@ -255,7 +255,8 @@ function ctrDadosCondominio_(c) {
   function t(nome) { var x = k(nome); return x === null || x === undefined ? "" : ctrTxt_(x).trim(); }
   function fiador(i) {
     return { nome: t("FIADOR " + i), cpf: RegrasVenda.cpfDoNotion(t("CPF FIADOR " + i)), rg: t("RG FIADOR " + i), nacionalidade: t("NACIONALIDADE FIADOR " + i),
-             endereco: t("ENDERECO FIADOR " + i), numero: t("NUMERO FIADOR " + i), setor: t("SETOR FIADOR " + i),
+             endereco: t("ENDERECO FIADOR " + i), numero: t("NUMERO FIADOR " + i), complemento: t("COMPLEMENTO FIADOR " + i),
+             setor: t("SETOR FIADOR " + i),
              cidade: t("CIDADE FIADOR " + i), cep: t("CEP FIADOR " + i), email: t("EMAIL FIADOR " + i),
              /* 30/10/2026 (Súmula 332): estado civil e cônjuge do fiador — gravados pelo SIMULADOR (proposta e link da venda) */
              estadoCivil: t("ESTADO CIVIL FIADOR " + i), conjugeNome: t("CONJUGE FIADOR " + i),

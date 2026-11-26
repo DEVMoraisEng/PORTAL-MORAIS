@@ -135,7 +135,7 @@ function confAviso_(pageId, hash) {
 /* 31/10/2026 (dono): "Corrigir aqui" na conferência — abre o campo da linha do condomínio que alimenta o
    campo conferido (ConferenciaDocs.camposParaCorrigir) e grava ali mesmo. Só a linha do condomínio; só as
    colunas que a regra devolve para aquele item/campo (a tela não escolhe coluna). */
-function confAlvos_(p) {
+function confAlvos_(p, valores) {
   var pg = notion_("GET", "/pages/" + p.pageId, null);
   if (vendaBaseDaPagina_(pg) !== "CONDOMINIO") return { erro: "SO_CONDOMINIO" };
   var props = pg.properties || {}, real = {};
@@ -143,10 +143,29 @@ function confAlvos_(p) {
   function v(nome) { var n = real[RegrasVenda.chave(nome)]; return n ? ctrTxt_(ctrValor_(props[n])).trim() : ""; }
   var alvos = ConferenciaDocs.camposParaCorrigir(String(p.item || ""), String(p.campo || ""), CondominioVenda.temSegundo(props), v);
   if (!alvos.length) return { erro: "NAO_CORRIGE_AQUI" };
-  var faltam = alvos.filter(function (a) { return !real[RegrasVenda.chave(a.coluna)]; }).map(function (a) { return a.coluna; });
-  if (faltam.length) return { erro: "COLUNA_FALTANDO", faltas: faltam };
+  var faltam = alvos.filter(function (a) { return !real[RegrasVenda.chave(a.coluna)]; });
+  if (faltam.some(function (a) { return !a.opcional; }))
+    return { erro: "COLUNA_FALTANDO", faltas: faltam.map(function (a) { return a.coluna; }) };
+  /* 26/11/2026: coluna opcional que a base ainda não tem (COMPLEMENTO) aparece vazia ao abrir e nasce como texto
+   * só ao salvar com valor (valores) — abrir o formulário nunca grava no Notion; salvar vazio não cria coluna */
+  var criar = valores ? faltam.filter(function (a) {
+    return Object.prototype.hasOwnProperty.call(valores, a.coluna) && ctrTxt_(valores[a.coluna]).trim();
+  }) : [];
+  if (valores) alvos = alvos.filter(function (a) { return real[RegrasVenda.chave(a.coluna)] || criar.indexOf(a) >= 0; });
+  if (criar.length) {
+    var novas = {};
+    criar.forEach(function (a) { novas[a.coluna] = { rich_text: {} }; });
+    notion_("PATCH", "/databases/" + pg.parent.database_id, { properties: novas });
+    ctrLog_("confAlvos " + String(p.pageId).slice(0, 8) + " criou a coluna " + Object.keys(novas).join(", "));
+    pg = notion_("GET", "/pages/" + p.pageId, null);
+    props = pg.properties || {};
+    real = {};
+    Object.keys(props).forEach(function (n) { real[RegrasVenda.chave(n)] = n; });
+    if (alvos.some(function (a) { return !real[RegrasVenda.chave(a.coluna)]; })) return { erro: "COLUNA_FALTANDO", faltas: criar.map(function (a) { return a.coluna; }) };
+  }
   return { pg: pg, alvos: alvos.map(function (a) {
     var n = real[RegrasVenda.chave(a.coluna)];
+    if (!n) return { coluna: a.coluna, rotulo: a.rotulo, tipo: "rich_text", valor: "", opcoes: null, nova: true };
     return { coluna: n, rotulo: a.rotulo, tipo: props[n].type, valor: v(n), opcoes: a.opcoes || null };
   }) };
 }
@@ -164,7 +183,7 @@ function corrigirConferenciaCampos_(col, p) {
   return { ok: true, campos: a.alvos.map(function (x) { return { coluna: x.coluna, rotulo: x.rotulo, valor: x.valor, opcoes: opcoes[x.coluna] || x.opcoes || null }; }) };
 }
 function corrigirConferencia_(col, sess, p) {
-  var pid = String(p.pageId).slice(0, 8), a = confAlvos_(p);
+  var pid = String(p.pageId).slice(0, 8), a = confAlvos_(p, p.valores || {});
   if (a.erro) return { ok: false, erro: a.erro, faltas: a.faltas };
   var valores = p.valores || {}, props = {}, mudou = [];
   for (var i = 0; i < a.alvos.length; i++) {

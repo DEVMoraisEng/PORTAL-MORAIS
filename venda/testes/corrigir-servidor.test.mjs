@@ -43,7 +43,9 @@ test("corrigirConferenciaCampos: abre a coluna certa com o valor atual; select t
   r = g.chamar({ action: "corrigirConferenciaCampos", token: token(), pageId: PAGE, item: "c1-civil", campo: "estado_civil" });
   assert.deepEqual(r.campos[0].opcoes, ["SOLTEIRO(A)", "CASADO(A)"]);
   r = g.chamar({ action: "corrigirConferenciaCampos", token: token(), pageId: PAGE, item: "c1-end", campo: "endereco" });
-  assert.deepEqual(r.campos.map((x) => x.coluna), ["ENDEREÇO", "NÚMERO", "SETOR", "CIDADE", "CEP"]);
+  /* 26/11/2026: COMPLEMENTO aparece vazio mesmo sem a coluna na base — e abrir não cria nada */
+  assert.deepEqual(r.campos.map((x) => x.coluna), ["ENDEREÇO", "NÚMERO", "COMPLEMENTO", "SETOR", "CIDADE", "CEP"]);
+  assert.equal(r.campos[2].valor, "");
   assert.equal(g.chamar({ action: "corrigirConferenciaCampos", token: token(), pageId: PAGE, item: "c2-id", campo: "nome" }).erro, "NAO_CORRIGE_AQUI");
 });
 
@@ -64,6 +66,27 @@ test("corrigirConferencia: grava só a coluna da regra; CPF inválido recusa; co
   assert.equal(g.chamar({ action: "corrigirConferencia", token: token("TESTES"), pageId: PAGE, item: "c1-id", campo: "nome",
                           valores: { "PROPONENTE": "X" } }).erro, "SEM_PERMISSAO_TESTES");
   assert.equal(n.patches.length, antes);
+});
+
+test("corrigirConferencia: COMPLEMENTO sem coluna na base — salvar vazio não cria; salvar com valor cria e grava", () => {
+  const { n, g } = montar(BASE);
+  g.chamar({ action: "corrigirConferenciaCampos", token: token(), pageId: PAGE, item: "c1-end", campo: "endereco" });
+  assert.equal(n.criacoes.length, 0, "abrir o formulário não cria coluna");
+  let r = g.chamar({ action: "corrigirConferencia", token: token(), pageId: PAGE, item: "c1-end", campo: "endereco",
+                     valores: { "ENDEREÇO": "Rua Teste", "NÚMERO": "10", "COMPLEMENTO": "", "SETOR": "", "CIDADE": "", "CEP": "" } });
+  assert.equal(r.ok, true);
+  assert.equal(n.criacoes.length, 0, "complemento vazio não cria coluna");
+  assert.deepEqual(r.mudou, ["NÚMERO"]);
+  r = g.chamar({ action: "corrigirConferencia", token: token(), pageId: PAGE, item: "c1-end", campo: "endereco",
+                 valores: { "ENDEREÇO": "Rua Teste", "NÚMERO": "10", "COMPLEMENTO": "APTO 204 BL 12" } });
+  assert.equal(r.ok, true);
+  assert.deepEqual(n.criacoes, [{ "COMPLEMENTO": { rich_text: {} } }]);
+  assert.deepEqual(r.mudou, ["COMPLEMENTO"]);
+  assert.equal(n.pagina.properties["COMPLEMENTO"].rich_text[0].plain_text, "APTO 204 BL 12");
+  /* a coluna já existe: abre com o valor gravado e não cria de novo */
+  r = g.chamar({ action: "corrigirConferenciaCampos", token: token(), pageId: PAGE, item: "c1-end", campo: "endereco" });
+  assert.equal(r.campos.find((x) => x.coluna === "COMPLEMENTO").valor, "APTO 204 BL 12");
+  assert.equal(n.criacoes.length, 1);
 });
 
 test("financeiroEstado: não lançada, lançada sem retrato e com retrato (da antecipação)", () => {
