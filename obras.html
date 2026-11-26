@@ -579,6 +579,9 @@ html[data-tema="escuro"] .orc-tab thead th{background:#1d3a4d}
 .cont .anx img{max-width:220px;max-height:180px;border-radius:8px;border:1px solid var(--border2);object-fit:cover;display:block}
 .cont .anx video{max-width:320px;max-height:220px;border-radius:8px;background:#000;display:block}
 .cont .anx a{color:var(--azul);font-weight:600}
+/* 26/11: o botão do anexo ainda sem endereço mostra o motivo — quebra a linha em vez de passar da tela */
+.cont .anx .bt{white-space:normal;text-align:left;max-width:100%;overflow-wrap:anywhere;line-height:1.3}
+@media (max-width:600px){ .cont .anx .bt{min-height:44px} }
 .cont>.anx{margin:6px 0}
 .cont hr{border:0;border-top:1px solid var(--border2);margin:10px 0}
 .progresso{height:8px;border-radius:8px;background:var(--border2);overflow:hidden;margin:4px 22px 10px}
@@ -2483,16 +2486,29 @@ const ARQ_URL={};
    Notion": a tela tenta de novo sozinha (6 s, 20 s) e o próprio anexo vira um
    botão "📎 abrir arquivo" que busca o endereço na hora e abre. */
 let _arqRetry={pid:null,n:0,t:null};
+/* 26/11/2026 (dono: "verificar esse erro ao abrir os anexos"): o servidor pede os anexos ao Notion todos de uma vez; com
+   várias fotos (ou logo depois de anexar, quando o Notion ainda está processando o arquivo ou limitando os pedidos) parte
+   volta sem endereço e a tela desistia depois de 2 tentativas — sobrava "abrir arquivo" e "não consegui". Agora: o que
+   faltou no lote é pedido de novo um por um, a tentativa automática vai até 5 vezes (5 s → 60 s) e o botão tenta 4 vezes. */
+const ARQ_ESPERAS=[5000,10000,20000,40000,60000];
+async function arqUmAUm(pid,ids){
+  for(const id of ids.slice(0,12)){
+    if(ATV!==pid) return;
+    let r; try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:[id]},45000); }catch(e){ r=null; }
+    if(r&&r.ok&&r.arquivos&&r.arquivos[id]) ARQ_URL[id]=Object.assign({t:Date.now()},r.arquivos[id]);
+    await new Promise(ok=>setTimeout(ok,700));   // devagar: o Notion limita pedidos por segundo
+  }
+}
 async function abrirArqFalhou(btn,id){
   const pid=ATV; if(!pid) return;
   btn.disabled=true; btn.textContent="⏳ buscando o arquivo…";
   let r=null;
-  for(let k=0;k<2&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
-    if(k) await new Promise(ok=>setTimeout(ok,2500));
+  for(let k=0;k<4&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
+    if(k){ btn.textContent="⏳ o Notion ainda está preparando o arquivo — tentativa "+(k+1)+" de 4…"; await new Promise(ok=>setTimeout(ok,[0,2500,5000,9000][k])); }
     try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:[id]},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
   }
   const a=r&&r.ok&&r.arquivos&&r.arquivos[id];
-  if(!a){ btn.disabled=false; btn.textContent="⚠ não consegui ("+(r&&r.ok?"o Notion ainda não liberou o arquivo":errMsg(r))+") — tentar de novo"; return; }
+  if(!a){ btn.disabled=false; btn.textContent=(r&&r.ok?"⏳ o Notion ainda está processando este arquivo (acontece logo depois de anexar) — toque para tentar de novo":"⚠ não consegui ("+errMsg(r)+") — tentar de novo"); return; }
   ARQ_URL[id]=Object.assign({t:Date.now()},a);
   window.open(a.url,"_blank","noopener");
   carregarArquivos();
@@ -2504,6 +2520,9 @@ async function carregarArquivos(){
     let r; try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:falta.slice(i,i+25)},45000); }catch(e){ r=null; }
     if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ ARQ_URL[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
   }
+  /* 26/11: o que não veio no lote é pedido um por um (o Notion recusa parte quando chegam muitos pedidos juntos) */
+  const ainda=falta.filter(id=>!ARQ_URL[id]);
+  if(ainda.length&&ATV===pid) await arqUmAUm(pid,ainda);
   if(ATV!==pid) return;
   let faltou=false;
   document.querySelectorAll("#p2-cont [data-arq]").forEach(e=>{
@@ -2517,8 +2536,8 @@ async function carregarArquivos(){
   });
   /* faltou algum endereço: tenta de novo sozinho, duas vezes */
   if(_arqRetry.pid!==pid) _arqRetry={pid:pid,n:0,t:null};
-  if(faltou && _arqRetry.n<2 && !_arqRetry.t){
-    _arqRetry.t=setTimeout(()=>{ _arqRetry.t=null; _arqRetry.n++; if(ATV===pid) carregarArquivos(); }, _arqRetry.n?20000:6000);
+  if(faltou && _arqRetry.n<ARQ_ESPERAS.length && !_arqRetry.t){
+    _arqRetry.t=setTimeout(()=>{ _arqRetry.t=null; _arqRetry.n++; if(ATV===pid) carregarArquivos(); }, ARQ_ESPERAS[_arqRetry.n]);
   }
 }
 async function tirarAnexo(respId,id){
