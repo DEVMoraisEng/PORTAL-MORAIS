@@ -382,6 +382,8 @@ class _PaginaFalsa:
         self.parcelas = parcelas        # {n: {"vencimento": ..., "pago": ...}}
 
     def evaluate(self, _js, arg):
+        if isinstance(arg, str):            # _JS_VENC_UNICO (campo "Vencimento *" do formulário)
+            return getattr(self, "unico", None) or {"vencimento": None, "parcelas": 0}
         n, _marca = arg
         total = len(self.parcelas)
         if n in self.parcelas:
@@ -399,3 +401,11 @@ def test_ideia_com_parcela_unica_usa_a_1a_e_serralheria_continua_na_2a():
     assert ro.parcela_alvo(duas, "Serralheria do Fabio")[0] == 2
     assert ro.aceita_parcela_unica("IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHAS LTDA")
     assert not ro.aceita_parcela_unica("Rocha Mármores e Granitos")
+
+
+def test_ideia_parcela_unica_pelo_campo_vencimento_do_formulario():
+    pg = _PaginaFalsa({})
+    pg.unico = {"vencimento": "01/10/2026", "desabilitado": True, "pago": True, "parcelas": 1, "unica": True}
+    num, p = ro.parcela_alvo(pg, "Ideia Calhas e Rufos")
+    assert num == 1 and p["pago"] and p["unica"]
+    assert ro.parcela_alvo(pg, "Serralheria do Fabio")[0] == 2      # Serralheria não usa o campo único
