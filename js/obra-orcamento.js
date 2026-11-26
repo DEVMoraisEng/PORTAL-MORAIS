@@ -28,6 +28,46 @@
   let MODELO = null, CAT = null, CAT_MAP = null, CAT_ERRO = "", CAT_LIDO = null;
   const sT = v => String(v || "").replace(/-/g, "").toLowerCase();
   const NN = s => String(s == null ? "" : s).normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/\s+/g, " ").trim();
+
+  /* 25/11/26 (dono: "existem itens comuns sempre… quando faltar, aviso por agrupamento, não item por item").
+     Grupos que aparecem em quase todos os orçamentos de casa do Mais Controle — lidos nos orçamentos 109 a 129
+     (19 orçamentos, fora os REF) em 25/11/2026. [etapa do modelo, nome do grupo, começo da descrição, em quantos dos 19].
+     Se nenhuma linha da etapa começa assim com quantidade > 0, a etapa mostra "faltando: <grupo>". */
+  const GRUPOS_N = 19;
+  const GRUPOS = [
+    ["1", "Aquisição do lote", /^AQUISICAO/, 19],
+    ["2", "ART", /^ART\b/, 19], ["2", "Serviço de despachante", /^SERVICO/, 19], ["2", "Impressões / cópias de projeto", /^IMPRESSAO/, 19], ["2", "Uso do solo", /^USO\b/, 18],
+    ["3", "Limpeza do terreno", /^LIMPEZA/, 19], ["3", "Locação da obra", /^LOCACAO/, 19], ["3", "Placas", /^PLACA/, 19], ["3", "Padrão de energia / hidrômetro", /^INSTALACAO/, 19],
+    ["3", "Pregos", /^PREGO/, 19], ["3", "Arame", /^ARAME/, 19], ["3", "Discos de corte", /^DISCO/, 19], ["3", "Linha de pedreiro", /^LINHA/, 19], ["3", "Cadeado", /^CADEADO/, 19], ["3", "Broxa", /^BROXA/, 19],
+    ["4", "Aterro", /^ATERRO/, 19], ["4", "Estacas", /^ESTACA/, 19], ["4", "Impermeabilização", /^IMPERMEABILIZA/, 19], ["4", "Laje", /^LAJE/, 19],
+    ["4", "Pilares", /^PILAR/, 19], ["4", "Vigas", /^VIGAS?\b/, 19], ["4", "Vergas", /^VERGA/, 19], ["4", "Vigotas da laje", /^VIGOTA/, 19],
+    ["5", "Alvenaria", /^ALVENARIA/, 19], ["5", "Reboco", /^REBOCO/, 19], ["5", "Tela", /^TELA/, 19], ["5", "Pingadeiras", /^PINGADEIRA/, 19], ["5", "Piso / calçada", /^PISO/, 19],
+    ["6", "Janelas", /^JANELA/, 19], ["6", "Kits de porta", /^KIT\b/, 19],
+    ["7", "Vigotas", /^VIGOTA/, 19], ["7", "Caibros", /^CAIBRO/, 19], ["7", "Calhas", /^CALHA/, 19], ["7", "Rufos", /^RUFO/, 19], ["7", "Estrutura (caixa d'água / metálica)", /^ESTRUTURA/, 19], ["7", "Instalação de telha", /^INSTALACAO/, 19],
+    ["8", "Pisos", /^PISO/, 18], ["8", "Revestimentos", /^REVESTIMENTO/, 18], ["8", "Argamassa de assentamento", /^ARGAMASSA/, 18], ["8", "Rejuntes", /^REJUNTE/, 18], ["8", "Instalação de bancadas (MO)", /^INSTALACAO/, 18],
+    ["9", "Bancadas", /^BANCADA/, 19], ["9", "Soleiras", /^SOLEIRA/, 19], ["9", "Peitoris", /^PEITORIL/, 19], ["9", "Chumbadores", /^CHUMBADOR/, 19], ["9", "Massa plástica", /^MASSA/, 19],
+    ["10", "Gesso", /^GESSO/, 19],
+    ["11", "Pintura", /^PINTURA/, 19], ["11", "Materiais de pintura", /^MATERIAIS/, 19], ["11", "Acessórios de pintura", /^ACESSORIOS/, 19], ["11", "Mão de obra de pintura", /^MAO\b/, 19],
+    ["12", "Cabos", /^CABO/, 19], ["12", "Caixas", /^CAIXA/, 19], ["12", "Conjuntos (tomadas / interruptores)", /^CONJUNTO/, 19], ["12", "Eletrodutos", /^ELETRODUTO/, 19],
+    ["12", "Luminárias", /^LUMINARIA/, 19], ["12", "Plafons", /^PLAFON/, 19], ["12", "Mão de obra elétrica", /^INSTALACOES/, 19],
+    ["13", "Tubos", /^TUBO/, 18], ["13", "Joelhos", /^JOELHO/, 18], ["13", "Curvas", /^CURVA/, 18], ["13", "Tês", /^TEE?\b/, 18], ["13", "Luvas", /^LUVA/, 18], ["13", "Junções", /^JUNCAO/, 18],
+    ["13", "Caixas (sifonada / inspeção / gordura)", /^CAIXA/, 18], ["13", "Registros", /^REGISTRO/, 18], ["13", "Torneiras", /^TORNEIRA/, 18], ["13", "Fossa", /^FOSSA/, 18], ["13", "Grelhas", /^GRELHA/, 18],
+    ["13", "Tampas", /^TAMPA/, 18], ["13", "Adaptadores", /^ADAPTADOR/, 18], ["13", "Buchas", /^BUCHA/, 18], ["13", "Adesivo", /^ADESIVO/, 18], ["13", "Solução limpadora", /^SOLUCAO/, 18],
+    ["13", "Fita veda-rosca", /^FITA/, 18], ["13", "Plugs", /^PLUG/, 18], ["13", "Prolongadores", /^PROLONGADOR/, 18], ["13", "Terminais de ventilação", /^TERMINAL/, 18], ["13", "Bases", /^BASE/, 18], ["13", "Acessórios hidráulicos", /^ACESSORIOS/, 18],
+    ["14", "Grama", /^GRAMA/, 18], ["14", "Árvore", /^ARVORE/, 18], ["14", "Churrasqueira", /^CHURRASQUEIRA/, 18], ["14", "Contas mensais (água / energia)", /^CONTA\b/, 18], ["14", "Cópia de chaves", /^COPIA/, 18], ["14", "Limpeza final", /^LIMPEZA/, 18],
+    ["15", "Areia", /^AREIA/, 19], ["15", "Brita", /^BRITA/, 19], ["15", "Tábuas", /^TABUA/, 19],
+    ["16", "Empreitas (mestre / encanador)", /^EMPREITA/, 19],
+    ["17", "Habite-se", /^HABITE/, 19], ["17", "INSS", /^INSS/, 19], ["17", "ISSQN", /^ISSQN/, 19], ["17", "Certidões", /^CERTIDAO/, 19], ["17", "Comissão", /^COMISSAO/, 19],
+    ["17", "Seguro", /^SEGURO/, 19], ["17", "Vistoria", /^VISTORIA/, 19], ["17", "Registro", /^REGISTRO/, 19]
+  ];
+  function gruposFaltando(s) {
+    const out = {};
+    GRUPOS.forEach(([et, nome, re, n]) => {
+      const tem = (s.linhas || []).some(l => String(l.etapa || l.idx || "").split(".")[0] === et && Number(l.q) > 0 && re.test(NN(l.nome)));
+      if (!tem) (out[et] = out[et] || []).push({ nome: nome, n: n });
+    });
+    return out;
+  }
   const escH = s => String(s == null ? "" : s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
   /* chave de comparação de nomes Revit × MC: sem acento, sem "PVC", sem pontuação, "3,00m" = "3m", "6.3" = "6,3" */
   function chave(s) {
@@ -379,6 +419,9 @@
     if (I.arrimoForm === false && I.arrimoRevit) add("alto", "O formulário diz que NÃO tem arrimo, mas o Revit tem tabelas do arrimo");
     if (I.arrimoForm === true && I.temRevit && !I.arrimoRevit) add("alto", "O formulário diz que tem arrimo, mas o Revit não tem as tabelas do arrimo — as linhas do arrimo ficaram sem quantidade");
     const ord = { alto: 0, medio: 1, baixo: 2 };
+    const GF = gruposFaltando(s);
+    Object.keys(GF).forEach(et => { const e = MODELO && MODELO.etapas.find(x => x.idx === et);
+      add("alto", `${et} · ${e ? e.nome : "etapa"}: faltando ${GF[et].map(g => g.nome).join(", ")} — costuma${GF[et].length > 1 ? "m" : ""} estar nos orçamentos de casa`, null); });
     return C.sort((a, b) => ord[a.nivel] - ord[b.nivel]);
   }
 
@@ -759,13 +802,18 @@
     if (alx.length) h += `<div class="orc-av">${alx.map(escH).join("<br>")}</div>`;
     h += `<div class="orc-tab"><table><colgroup><col style="width:84px"><col style="width:132px"><col><col style="width:54px"><col style="width:104px"><col style="width:104px"><col style="width:116px"><col style="width:58px"></colgroup>
       <thead><tr><th title="Mude o índice para mover a linha de lugar ou de etapa">Índice ✎</th><th>Código</th><th>Descrição · de onde veio</th><th>Un</th><th class="n">Qtd</th><th class="n">Custo un.</th><th class="n">Total</th><th></th></tr></thead>`;
+    const GF = gruposFaltando(s), comLinha = new Set(grupos(s).map(g => g.k));
+    const etSem = Object.keys(GF).filter(et => !comLinha.has(et)).sort((a, b) => a - b);
+    if (etSem.length) h += `<div class="orc-gf-top">⚠ <b>Etapas sem nenhum item:</b> ${etSem.map(et => { const e = MODELO && MODELO.etapas.find(x => x.idx === et); return `<span>${escH(et + " · " + (e ? e.nome.replace(/\*$/, "").replace(/ - falta.*$/i, "") : "etapa"))} <i>(${escH(GF[et].map(g => g.nome).join(", "))})</i></span>`; }).join("")}</div>`;
     grupos(s).forEach(gp => {
+      const gf = GF[gp.k] || [];
       const fechado = s.aberto[gp.k] === false, st = gp.linhas.reduce((t, l) => t + (l.q || 0) * (l.custo || 0), 0), na = gp.linhas.filter(l => l.aviso || l.semCat || !l.cod || marca[l.id]).length;
       const novaEt = gp.k !== "_revit" && !(MODELO && MODELO.etapas.some(x => x.idx === gp.k));
       const ft = (s.faltando || []).filter(x => String(x.etapa || x.idx).split(".")[0] === gp.k && !s.linhas.some(l => l.orig === x.idx)), ftAb = s.ftAberto && s.ftAberto[gp.k];
       h += `<tbody class="g"><tr class="gh"><td colspan="6" onclick="OrcObra.alternar('${gp.k}')"><span class="car">${fechado ? "▸" : "▾"}</span> <b>${escH(gp.k === "_revit" ? "" : gp.k + " · ")}${escH(gp.nome)}</b> <span class="cnt">${gp.linhas.length} ${gp.linhas.length === 1 ? "linha" : "linhas"}${na ? ` · <i>⚠ ${na}</i>` : ""}</span>${ft.length ? `<button class="gh-b ft" title="Itens do modelo REF 127 desta etapa que não vieram do Revit — não estão na planilha. Confira se faltou modelar ou publicar a tabela." onclick="event.stopPropagation();OrcObra.verFaltando('${gp.k}')">${ftAb ? "▾" : "▸"} ${ft.length} não vieram do Revit</button>` : ""}
         ${gp.k !== "_revit" ? `<button class="gh-b" title="Renumerar os itens desta etapa" onclick="event.stopPropagation();OrcObra.renumerar('${gp.k}')">1·2·3</button>` : ""}${novaEt || (s.nomesEtapa || {})[gp.k] ? `<button class="gh-b" title="Dar nome a esta etapa" onclick="event.stopPropagation();OrcObra.nomeEtapa('${gp.k}')">✎ nome</button>` : ""}</td>
         <td class="n"><b>${moeda(st)}</b></td><td></td></tr></tbody>`;
+      if (gf.length) h += `<tbody class="gfb"><tr class="gf"><td colspan="8">⚠ <b>Faltando nesta etapa:</b> ${gf.map(g => `<span title="Aparece em ${g.n} de ${GRUPOS_N} orçamentos de casa do Mais Controle">${escH(g.nome)}</span>`).join("")} <small>— nenhum item com quantidade; costumam estar em quase todos os orçamentos</small></td></tr></tbody>`;
       if (fechado) return;
       if (ft.length && ftAb) h += `<tbody class="ftb">${ft.map(x => `<tr class="ft"><td>${escH(x.idx)}</td><td class="mu">${escH(x.cod)}</td><td colspan="5"><b>${escH(x.nome)}</b> <small>— ${escH(x.motivo || "não veio do Revit")}</small></td><td></td></tr>`).join("")}</tbody>`;
       /* 24/11/26 (dono: "como essas subetapas vão ser criadas?"): a subetapa (3.1, 3.3.4…) aparece como faixa dentro da
