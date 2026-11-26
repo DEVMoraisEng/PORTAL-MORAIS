@@ -236,7 +236,8 @@ def plano_devolucao(pl: dict, venda: dict, valor=None, data: str = "", hoje: str
                                         "status": work.get("status") or "IN_PROGRESS"}}],
         "numberPrecision": 2,
         "markedAsPaid": False,             # é conta A PAGAR: a devolução ainda vai ser feita
-        "account": {"id": conta["id"], "name": conta.get("name")},
+        # 26/11/2026 (comissão): sem openingBalanceDate o POST /trade-payables do ERP responde HTTP 500
+        "account": {"id": conta["id"], "name": conta.get("name"), "openingBalanceDate": conta.get("openingBalanceDate")},
         "freightageValue": 0, "otherValue": 0, "ipiValue": 0, "discountValue": 0,
     }
     if responsavel_id:
