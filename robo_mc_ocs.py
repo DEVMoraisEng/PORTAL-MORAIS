@@ -141,9 +141,38 @@ def parcela_alvo(page, fornecedor) -> tuple[int, dict]:
     p2 = page.evaluate(_JS_PARCELA, [2, "parc2"]) or {}
     if p2.get("vencimento") is None and p2.get("parcelas", 0) < 2 and aceita_parcela_unica(fornecedor):
         p1 = page.evaluate(_JS_PARCELA, [1, "parc1"]) or {}
+        if p1.get("vencimento") is None and not p1.get("parcelas"):
+            # 26/11 (fotos das OCs 8901 e 7900): lançamento de parcela única não tem blocos "Parcela N" — o
+            # vencimento é o campo "Vencimento *" do próprio formulário; travado (cinza) = já pago
+            p1 = page.evaluate(_JS_VENC_UNICO, "parc1") or {}
         if p1.get("vencimento") is not None:
             return 1, p1
     return 2, p2
+
+
+#: 26/11: o campo "Vencimento *" do formulário Editar lançamento (parcela única). Marca o input com data-robo-oc.
+#: travado (disabled / readonly / cinza do MUI) = o MC não deixa mudar = parcela já paga.
+_JS_VENC_UNICO = r"""(marca) => {
+  const N = s => (s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[\s*]+/g," ").trim();
+  const vis = e => !!(e && (e.offsetWidth || e.offsetHeight || e.getClientRects().length));
+  const rot = [...document.querySelectorAll("label, span, div, p")].filter(e => vis(e) && N(e.textContent) === "VENCIMENTO"
+      && [...e.children].every(c => N(c.textContent) !== "VENCIMENTO"));
+  for (const r of rot) {
+    let box = r;
+    for (let i = 0; i < 4 && box; i++, box = box.parentElement) {
+      const ins = [...box.querySelectorAll("input")].filter(x => x.type !== "hidden" && x.type !== "checkbox");
+      if (ins.length === 1 || (ins.length && i > 0)) {
+        const v = ins[0];
+        v.setAttribute("data-robo-oc", marca);
+        const raiz = v.closest("[class*=MuiInputBase-root], [class*=MuiPickersInputBase-root]") || v.parentElement;
+        const cinza = !!(raiz && /Mui-disabled/.test(raiz.className || "")) || v.getAttribute("aria-disabled") === "true";
+        const trav = !!(v.disabled || v.readOnly || cinza);
+        return {vencimento: v.value || "", tipo: v.type || "", desabilitado: trav, pago: trav, parcelas: 1, unica: true};
+      }
+    }
+  }
+  return {vencimento: null, parcelas: 0};
+}"""
 
 APROVADO = {"APPROVED", "APROVADO", "APROVADA"}
 CANCELADA = {"CANCELED", "CANCELLED", "CANCELADO", "CANCELADA", "REJECTED", "REFUSED", "REPROVADO", "REPROVADA",
@@ -1742,6 +1771,8 @@ def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None =
         if p2.get("pago"):          # 19/11: paga = nada a fazer (sai do mapa); não mexe
             return "FEITO", "a %s já estava PAGA (vencimento %s) — nada mudado" % (nome, atual)
         if p2.get("desabilitado"):
+            if p2.get("unica"):     # 26/11: Ideia, parcela única travada = já paga; nada a fazer
+                return "FEITO", "parcela única com vencimento %s travado no MC (já paga) — nada mudado" % atual
             raise RuntimeError("o vencimento da %s está travado na tela (%s) — conferir no MC" % (nome, atual))
         if not aplicar:
             return "SIMULADO", "faria: %s %s → %s (próximo dia útil depois do SIM de %s; falta a chave " \
@@ -2088,7 +2119,7 @@ def main() -> int:
                 """OC antiga da Serralheria: a 2ª parcela ainda não foi paga? Abre o lançamento (só olha), com limite
                 de quantidade e de tempo por rodada; o resultado fica anotado (ver REVER_DIAS)."""
                 reg = parc_vistas.get(oc["oc_id"])
-                if reg and reg.get("r") == "sem2" and not reg.get("v") and aceita_parcela_unica(oc.get("fornecedor")):
+                if reg and reg.get("r") == "sem2" and (reg.get("v") or 0) < 3 and aceita_parcela_unica(oc.get("fornecedor")):
                     reg = None              # 26/11: parcela única da Ideia agora vale — confere de novo
                 if not rever_parcela(reg, hoje):
                     return False
@@ -2104,7 +2135,7 @@ def main() -> int:
                 except Exception as e:      # noqa: BLE001 — fica para a próxima rodada
                     log("   OC %s (antiga, 2ª parcela): não consegui ver o lançamento (%s)" % (oc.get("numero"), str(e)[:120]))
                     return None
-                parc_vistas[oc["oc_id"]] = {"r": r, "em": hoje.isoformat(), "numero": oc.get("numero"), "v": 2}
+                parc_vistas[oc["oc_id"]] = {"r": r, "em": hoje.isoformat(), "numero": oc.get("numero"), "v": 3}
                 guardar_json(PARCELA_CONFERIDAS, parc_vistas)
                 parc[r if r in ("aberta", "paga") else "outras"] += 1
                 return r == "aberta"
