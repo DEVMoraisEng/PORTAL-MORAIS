@@ -292,6 +292,7 @@ body.drone #drone-pad{display:grid}
     <div class="hspace"></div>
     <span id="gerado"></span>
     <button class="hbtn" id="b-pranchas" style="display:none" onclick="abrirPranchas()" title="Pranchas em PDF publicadas pelo Revit (MORAIS → Geral → Publicar 3D)">📄 Pranchas</button>
+    <button class="hbtn" id="b-recarregar" onclick="recarregar3d('botão')" title="O 3D ficou estranho (peças fora do lugar, arquitetura que não é desta obra, tela preta)? Recarrega o modelo e volta para o mesmo ponto de vista">↻ Recarregar 3D</button>
     <a class="hbtn" id="b-voltar" href="obras.html" title="Voltar para Obras">← Obras</a>
     <button class="hbtn so-mob" id="b-lado" title="Mostrar/esconder a tabela">☰ Tabela</button>
     <button class="hbtn" id="btema" onclick="(function(){var e=document.documentElement,t=e.dataset.tema==='escuro'?'claro':'escuro';e.dataset.tema=t;try{localStorage.setItem('morais_tema',t)}catch(x){};location.reload()})()" title="Alternar claro/escuro">◐</button>
@@ -701,6 +702,84 @@ window.REUNIAO_CFG = (function () {
 </script>
 <script src="js/obra-orcamento.js?v=16"></script>
 <script src="js/visualizador-3d.js?v=16"></script>
+<script>
+/* ===== 3D QUE "ESTRAGA" SOZINHO (26/11/26, dono) ==========================
+ * "Do nada fica uma arquitetura aleatória aparecendo; com CTRL+SHIFT+R volta."
+ * Causa: o navegador tira a memória de vídeo da página quando ela falta (Revit
+ * aberto no mesmo PC, outra aba com 3D, muito tempo aberto) — é o evento
+ * webglcontextlost. O visualizador (That Open / three.js) não se recupera disso:
+ * cria um renderizador novo, mas as peças do modelo ficam com os dados de vídeo
+ * antigos — tela preta ou pedaços fora do lugar. Conferido forçando a perda.
+ * Agora: perdeu a placa de vídeo → aviso e recarrega sozinho, voltando para o
+ * mesmo ponto de vista. O botão "↻ Recarregar 3D" faz o mesmo à mão.
+ * E as conexões que sumiam de longe: ver "semSimplificar" abaixo.
+ * ===================================================================== */
+(function () {
+  const CHAVE = "vis3d_retomar", obra = new URLSearchParams(location.search).get("obra") || "";
+  function camera() {
+    try {
+      const c = window.VIS3D && window.VIS3D.world && window.VIS3D.world.camera, ctl = c && c.controls;
+      if (!ctl || !c.three) return null;
+      const p = ctl.getPosition(c.three.position.clone()), t = ctl.getTarget(c.three.position.clone());
+      return [p.x, p.y, p.z, t.x, t.y, t.z].map(n => Math.round(n * 1000) / 1000);
+    } catch (e) { return null; }
+  }
+  let indo = false;
+  window.recarregar3d = function (motivo) {
+    if (indo) return; indo = true;
+    try { sessionStorage.setItem(CHAVE, JSON.stringify({ obra, em: Date.now(), cam: camera(), motivo: motivo || "" })); } catch (e) {}
+    const av = document.createElement("div");
+    av.id = "vis3d-aviso";
+    av.textContent = motivo === "placa"
+      ? "O navegador liberou a memória de vídeo do 3D (acontece com o Revit ou outro 3D aberto). Recarregando o modelo…"
+      : "Recarregando o modelo…";
+    document.body.appendChild(av);
+    setTimeout(() => location.reload(), motivo === "placa" ? 1200 : 50);
+  };
+  const css = document.createElement("style");
+  css.textContent = "#vis3d-aviso{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:200;max-width:min(460px,calc(100vw - 32px));" +
+    "background:var(--sup);color:var(--text);border:1.5px solid var(--border);border-left:5px solid var(--sel-bd);border-radius:12px;" +
+    "padding:16px 18px;font-weight:700;font-size:14px;line-height:1.4;box-shadow:0 12px 40px var(--sombra)}" +
+    "@media(max-width:700px){#b-recarregar{display:none}}";
+  document.head.appendChild(css);
+  /* o evento não sobe (não borbulha), mas passa pela fase de captura da janela: pega o canvas do 3D sem precisar achá-lo */
+  window.addEventListener("webglcontextlost", ev => {
+    if (!(ev.target && ev.target.closest && ev.target.closest("#tela3d"))) return;
+    console.warn("[3D] o navegador tirou a memória de vídeo do 3D — recarregando");
+    recarregar3d("placa");
+  }, true);
+  /* 26/11/26 (dono: "as conexões sumindo"): o motor do 3D (That Open Fragments) simplifica o que está longe — tubo vira
+     linha grossa e peça pequena (joelho, tê, luva, registro) some. Numa casa o modelo é leve: desliga a simplificação
+     (modo "tudo visível", setLodMode(1)) em cada disciplina assim que ela abre. Peça oculta/isolada continua oculta. */
+  const semSimplificar = new WeakSet();
+  setInterval(() => {
+    const V = window.VIS3D; if (!V || !V.ST || !V.ST.modelos) return;
+    let mudou = false;
+    Object.keys(V.ST.modelos).forEach(k => {
+      const m = V.ST.modelos[k] && V.ST.modelos[k].model;
+      if (!m || semSimplificar.has(m) || typeof m.setLodMode !== "function") return;
+      semSimplificar.add(m); mudou = true;
+      Promise.resolve(m.setLodMode(1)).then(() => { try { V.fragments.core.update(true); } catch (e) {} })
+        .catch(e => console.warn("[3D] simplificação de " + k + ":", e));
+    });
+    if (mudou) console.log("[3D] simplificação desligada:", Object.keys(V.ST.modelos).join(", "));
+  }, 700);
+  /* depois de recarregar: volta para o mesmo ponto de vista quando o modelo terminar de abrir */
+  let salvo = null;
+  try { salvo = JSON.parse(sessionStorage.getItem(CHAVE) || "null"); sessionStorage.removeItem(CHAVE); } catch (e) {}
+  if (!salvo || salvo.obra !== obra || Date.now() - salvo.em > 5 * 60000 || !Array.isArray(salvo.cam)) return;
+  let n = 0;
+  const t = setInterval(async () => {
+    if (++n > 240) { clearInterval(t); return; }   // até 4 minutos (modelo grande baixando)
+    const V = window.VIS3D, st = document.getElementById("status");
+    const pronto = V && V.ST && V.ST.modelos && Object.keys(V.ST.modelos).length && !(st && st.textContent.trim());
+    if (!pronto) return;
+    clearInterval(t);
+    await new Promise(ok => setTimeout(ok, 400));   // deixa o enquadramento automático terminar
+    try { await V.world.camera.controls.setLookAt(...salvo.cam, false); V.fragments.core.update(true); } catch (e) { console.warn("[3D] não voltei o ponto de vista:", e); }
+  }, 1000);
+})();
+</script>
 <script src="natal.js?v=1" defer></script>
 </body>
 </html>
