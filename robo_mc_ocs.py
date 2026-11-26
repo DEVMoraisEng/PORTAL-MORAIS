@@ -124,6 +124,26 @@ FORNECEDORES = {
     "IDEIA CALHAS E RUFOS": "PARCELA",
     "IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHA": "PARCELA",
 }
+#: 26/11 (dono): "faz com a Ideia Calhas o mesmo esquema da Serralheria" — os lançamentos da Ideia costumam ter UMA
+#: parcela só. Para estes fornecedores, lançamento de parcela única: a parcela que o SIM passa para o próximo dia
+#: útil é a 1ª (a única); com 2 parcelas continua a 2ª, igual à Serralheria.
+PARCELA_UNICA_OK = ("IDEIA CALHAS", "IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHA")
+
+
+def aceita_parcela_unica(fornecedor) -> bool:
+    n = N(fornecedor)
+    return any(k in n for k in PARCELA_UNICA_OK)
+
+
+def parcela_alvo(page, fornecedor) -> tuple[int, dict]:
+    """(nº da parcela que o SIM muda, leitura dela na janela Editar lançamento). 2ª parcela; lançamento de parcela
+    única de quem aceita (Ideia Calhas): a 1ª."""
+    p2 = page.evaluate(_JS_PARCELA, [2, "parc2"]) or {}
+    if p2.get("vencimento") is None and p2.get("parcelas", 0) < 2 and aceita_parcela_unica(fornecedor):
+        p1 = page.evaluate(_JS_PARCELA, [1, "parc1"]) or {}
+        if p1.get("vencimento") is not None:
+            return 1, p1
+    return 2, p2
 
 APROVADO = {"APPROVED", "APROVADO", "APROVADA"}
 CANCELADA = {"CANCELED", "CANCELLED", "CANCELADO", "CANCELADA", "REJECTED", "REFUSED", "REPROVADO", "REPROVADA",
@@ -1630,7 +1650,7 @@ def segunda_parcela(tela: Tela, oc: dict) -> str:
     """19/11: como está a 2ª parcela do lançamento da OC — "aberta" (não paga), "paga", "sem_lanc" (OC sem
     lançamento), "sem2" (lançamento sem 2ª parcela) ou "varios" (mais de um lançamento). SÓ OLHA: não salva nada.
     Erro (tela que não abriu etc.) sobe — quem chama deixa para a próxima rodada."""
-    passo("OC %s (antiga, 2ª parcela): conferindo o lançamento" % oc.get("numero"))
+    passo("OC %s (antiga, parcela a pagar): conferindo o lançamento" % oc.get("numero"))
     try:
         n = lancamentos_vinculados(tela, oc["oc_id"], oc.get("numero"))
         if n == 0:
@@ -1639,7 +1659,11 @@ def segunda_parcela(tela: Tela, oc: dict) -> str:
             return "varios"
         t2 = _abrir_lancamento(tela, oc, n)
         try:
-            p2 = t2.page.evaluate(_JS_PARCELA, [2, "parc2"]) or {}
+            _num, p2 = parcela_alvo(t2.page, oc.get("fornecedor"))
+            if p2.get("vencimento") is None and aceita_parcela_unica(oc.get("fornecedor")):
+                # 26/11: Ideia sem "Parcela 1/2" reconhecível — guarda a foto para ensinar o robô
+                log("   OC %s (Ideia): não reconheci a parcela no lançamento (%s parcela(s)) · %s" % (
+                    oc.get("numero"), p2.get("parcelas", "?"), foto_da_tela(t2, "parcela-%s" % oc.get("numero"))[:200]))
         finally:
             _fechar_extra(tela, t2)
         if p2.get("vencimento") is None:
@@ -1698,13 +1722,15 @@ def juntar_candidatas(ocs: list, candidatas: list) -> list:
 
 
 def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None = None) -> tuple[str, str]:
-    """ROBÔ 2: vencimento da 2ª parcela do lançamento da OC → próximo dia útil depois do SIM."""
+    """ROBÔ 2: vencimento da 2ª parcela do lançamento da OC → próximo dia útil depois do SIM. 26/11: Ideia Calhas com
+    lançamento de parcela única → a 1ª (a única)."""
     hoje = hoje or dt.date.today()
     marcado = dia_local(linha.get("respondido_em")) or hoje
     alvo = data_da_parcela(marcado, hoje)
     t2 = _abrir_lancamento(tela, linha)
     try:
-        p2 = t2.page.evaluate(_JS_PARCELA, [2, "parc2"])
+        num, p2 = parcela_alvo(t2.page, linha.get("fornecedor"))
+        nome = "%dª parcela" % num
         if not p2 or p2.get("vencimento") is None:
             if (p2 or {}).get("parcelas", 0) < 2:
                 raise RuntimeError("o lançamento da OC não tem 2ª parcela (%s parcela(s)) — conferir com o financeiro"
@@ -1712,16 +1738,16 @@ def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None =
             raise RuntimeError("não achei o vencimento da Parcela 2 na janela Editar lançamento")
         atual = p2["vencimento"]
         if mesma_data(atual, alvo):
-            return "FEITO", "2ª parcela já estava com vencimento %s — nada mudado" % atual
+            return "FEITO", "%s já estava com vencimento %s — nada mudado" % (nome, atual)
         if p2.get("pago"):          # 19/11: paga = nada a fazer (sai do mapa); não mexe
-            return "FEITO", "a 2ª parcela já estava PAGA (vencimento %s) — nada mudado" % atual
+            return "FEITO", "a %s já estava PAGA (vencimento %s) — nada mudado" % (nome, atual)
         if p2.get("desabilitado"):
-            raise RuntimeError("o vencimento da 2ª parcela está travado na tela (%s) — conferir no MC" % atual)
+            raise RuntimeError("o vencimento da %s está travado na tela (%s) — conferir no MC" % (nome, atual))
         if not aplicar:
-            return "SIMULADO", "faria: 2ª parcela %s → %s (próximo dia útil depois do SIM de %s; falta a chave " \
-                               "OCS_APLICAR.txt)" % (atual or "sem data", br(alvo), br(marcado))
+            return "SIMULADO", "faria: %s %s → %s (próximo dia útil depois do SIM de %s; falta a chave " \
+                               "OCS_APLICAR.txt)" % (nome, atual or "sem data", br(alvo), br(marcado))
         marca = len(t2.escritas)
-        campo = t2.page.locator('[data-robo-oc="parc2"]').first
+        campo = t2.page.locator('[data-robo-oc="parc%d"]' % num).first
         if p2.get("tipo") == "date":            # <input type=date>: o valor é AAAA-MM-DD
             campo.fill(alvo.isoformat())
         elif _campo_mui(campo):
@@ -1750,13 +1776,13 @@ def mudar_parcela(tela: Tela, linha: dict, aplicar: bool, hoje: dt.date | None =
     # confere abrindo de novo
     t3 = _abrir_lancamento(tela, linha)
     try:
-        p2b = t3.page.evaluate(_JS_PARCELA, [2, "parc2"]) or {}
+        p2b = t3.page.evaluate(_JS_PARCELA, [num, "parc%d" % num]) or {}
     finally:
         _fechar_extra(tela, t3)
     if mesma_data(p2b.get("vencimento"), alvo):
-        return "FEITO", "2ª parcela %s → %s (conferido no lançamento) · %s" % (atual or "sem data", br(alvo), rotas)
-    raise RuntimeError("salvei, mas a 2ª parcela voltou com vencimento \"%s\" (queria %s; %s)"
-                       % (p2b.get("vencimento"), br(alvo), rotas if not ok else "gravação ok"))
+        return "FEITO", "%s %s → %s (conferido no lançamento) · %s" % (nome, atual or "sem data", br(alvo), rotas)
+    raise RuntimeError("salvei, mas a %s voltou com vencimento \"%s\" (queria %s; %s)"
+                       % (nome, p2b.get("vencimento"), br(alvo), rotas if not ok else "gravação ok"))
 
 
 # ------------------------------------------------------------------------------------------- descoberta
@@ -2062,6 +2088,8 @@ def main() -> int:
                 """OC antiga da Serralheria: a 2ª parcela ainda não foi paga? Abre o lançamento (só olha), com limite
                 de quantidade e de tempo por rodada; o resultado fica anotado (ver REVER_DIAS)."""
                 reg = parc_vistas.get(oc["oc_id"])
+                if reg and reg.get("r") == "sem2" and not reg.get("v") and aceita_parcela_unica(oc.get("fornecedor")):
+                    reg = None              # 26/11: parcela única da Ideia agora vale — confere de novo
                 if not rever_parcela(reg, hoje):
                     return False
                 if parc["vistas"] >= MAX_PARCELAS:
@@ -2076,7 +2104,7 @@ def main() -> int:
                 except Exception as e:      # noqa: BLE001 — fica para a próxima rodada
                     log("   OC %s (antiga, 2ª parcela): não consegui ver o lançamento (%s)" % (oc.get("numero"), str(e)[:120]))
                     return None
-                parc_vistas[oc["oc_id"]] = {"r": r, "em": hoje.isoformat(), "numero": oc.get("numero")}
+                parc_vistas[oc["oc_id"]] = {"r": r, "em": hoje.isoformat(), "numero": oc.get("numero"), "v": 2}
                 guardar_json(PARCELA_CONFERIDAS, parc_vistas)
                 parc[r if r in ("aberta", "paga") else "outras"] += 1
                 return r == "aberta"
