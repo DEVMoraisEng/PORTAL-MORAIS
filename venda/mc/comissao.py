@@ -700,19 +700,23 @@ def processar(page_id: str, notion, erp, parcelas_txt: str, favorecido_id: str =
                    "lançado; peça de novo" % COL_ESTADO, "NAO_ANOTADO")
 
     # POST uma vez só; dali em diante nada repete o POST
+    motivo = ""
     try:
         r = erp.pedir("POST", "/trade-payables", corpo=corpo, params={"userApprovesSaleCreation": "true"})
+        motivo = json.dumps(r, ensure_ascii=False, default=str) if r is not None else "(resposta vazia)"
     except ErpErro as e:
         if re.match(r"^[A-Z]+ \S+ -> HTTP 4\d\d:", str(e)):   # o status do próprio pedido, não um citado no corpo
             return fim("RECUSADO", "ERRO: o Mais Controle recusou o título (%s) — nada foi lançado; CONFIRA no Mais "
                        "Controle antes de pedir de novo" % str(e)[:250], "ERP_RECUSOU")
-        r = None
-    except Exception:   # noqa: BLE001 — rede caiu no meio: pode ter gravado
-        r = None
+        r, motivo = None, str(e)
+    except Exception as e:   # noqa: BLE001 — rede caiu no meio: pode ter gravado
+        r, motivo = None, "%s: %s" % (type(e).__name__, e)
     tpid = r.get("id") if isinstance(r, dict) else None
     if not tpid:
+        # 26/11/2026: sem o que o ERP respondeu, o INCERTO não dava para diagnosticar (o motivo sumia)
         return fim("INCERTO", "INCERTO: o Mais Controle não devolveu o id — CONFIRA antes de repetir (o título pode "
-                   "ter sido criado; procure \"%s\"). A próxima execução confere no Mais Controle." % desc, "INCERTO",
+                   "ter sido criado; procure \"%s\"). A próxima execução confere no Mais Controle. "
+                   "Resposta do Mais Controle: %s" % (desc, " ".join(str(motivo).split())[:400]), "INCERTO",
                    depois=[marca], obrigatorio=True)
     res["titulo"] = str(tpid)
 
