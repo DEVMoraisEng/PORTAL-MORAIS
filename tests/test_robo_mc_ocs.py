@@ -374,3 +374,28 @@ def test_solicitacao_que_nao_entra_mais_sai_da_aba():
     assert linhas == [{"sol_id": "sol-7", "pendente": False, "resolvida_em": agora, "visto_em": agora}]
     assert cont["resolvidas"] == 1
     assert ro.linhas_solicitacoes([pingadeira], {}, "creationDate", agora)[0] == []
+
+
+# ------------------------------------------------- 26/11: Ideia Calhas — parcela única vale
+class _PaginaFalsa:
+    def __init__(self, parcelas):
+        self.parcelas = parcelas        # {n: {"vencimento": ..., "pago": ...}}
+
+    def evaluate(self, _js, arg):
+        n, _marca = arg
+        total = len(self.parcelas)
+        if n in self.parcelas:
+            return dict(self.parcelas[n], parcelas=total)
+        return {"vencimento": None, "parcelas": total}
+
+
+def test_ideia_com_parcela_unica_usa_a_1a_e_serralheria_continua_na_2a():
+    unica = _PaginaFalsa({1: {"vencimento": "10/12/2026", "pago": False}})
+    duas = _PaginaFalsa({1: {"vencimento": "01/11/2026", "pago": True}, 2: {"vencimento": "10/12/2026", "pago": False}})
+    assert ro.parcela_alvo(unica, "Ideia Calhas e Rufos")[0] == 1
+    assert ro.parcela_alvo(unica, "SELENILDE FERREIRA DE MOURA (IDEIA CALHAS E RUFOS)")[1]["vencimento"] == "10/12/2026"
+    assert ro.parcela_alvo(unica, "Serralheria do Fabio") == (2, {"vencimento": None, "parcelas": 1})
+    assert ro.parcela_alvo(duas, "Ideia Calhas e Rufos")[0] == 2
+    assert ro.parcela_alvo(duas, "Serralheria do Fabio")[0] == 2
+    assert ro.aceita_parcela_unica("IDEIAS E SOLUCOES COMERCIO E SERVICOS EM CALHAS LTDA")
+    assert not ro.aceita_parcela_unica("Rocha Mármores e Granitos")
