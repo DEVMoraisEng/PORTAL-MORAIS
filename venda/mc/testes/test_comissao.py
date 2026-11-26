@@ -378,6 +378,19 @@ def test_post_que_cai_por_rede_e_incerto_e_recusa_4xx_e_erro():
         assert r["codigo"] == cod and len(e.posts) == 1 and e.anexos == []
         assert "CONFIRA" in coluna(n)
 
+def test_incerto_mostra_o_que_o_erp_respondeu():
+    # caso real 26/11: o INCERTO dizia só "não devolveu o id" e o motivo do ERP sumia
+    for exc, trecho in ((ErpErro("POST /trade-payables -> HTTP 500: Internal Server Error"), "POST /trade-payables -> HTTP 500: Internal Server Error"),
+                        (TimeoutError("sem resposta"), "TimeoutError: sem resposta")):
+        n, e = NotionFake(pagina()), ErpFake(post_erro=exc)
+        K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+        K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+        assert ("Resposta do Mais Controle: " + trecho) in coluna(n)
+    n, e = NotionFake(pagina()), ErpFake(post_sem_id=True)
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert "Resposta do Mais Controle: {}" in coluna(n)
+
 def test_anexo_que_falha_nao_apaga_o_lancamento():
     n, e = NotionFake(pagina()), ErpFake(anexo_erro=True)
     K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
