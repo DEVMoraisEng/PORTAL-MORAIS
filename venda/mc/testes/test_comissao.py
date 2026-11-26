@@ -145,8 +145,9 @@ class NotionFake:
 
 class ErpFake:
     user_id = "u-1"
-    def __init__(self, fornecedores=None, ja=None, post_sem_id=False, post_erro=None, anexo_erro=False):
-        self.posts, self.anexos = [], []
+    def __init__(self, fornecedores=None, ja=None, post_sem_id=False, post_erro=None, anexo_erro=False,
+                 lista_sem_banco=False):
+        self.posts, self.anexos, self.detalhes, self.lista_sem_banco = [], [], [], lista_sem_banco
         self.fornecedores = fornecedores if fornecedores is not None else [
             {"id": "f-1", "name": "CORRETOR TESTE", "status": "ACTIVE", "bankAccount": "PIX: 11144477735"}]
         self.ja, self.post_sem_id, self.post_erro, self.anexo_erro = ja or [], post_sem_id, post_erro, anexo_erro
@@ -165,7 +166,10 @@ class ErpFake:
     def ler_venda(self, _): return {"id": "v-1", "customer": {"name": "COMPRADOR TESTE"},
                                     "work": {"id": "w-1", "name": "OBRA TESTE", "status": "IN_PROGRESS"}}
     def obra(self, _): return {"defaultAccount": {"id": "c-1", "name": "CONTA TESTE"}}
-    def participantes_por_documento(self, _): return [self.fornecedores[0]] if self.fornecedores else []
+    def participantes_por_documento(self, _):
+        if not self.fornecedores: return []
+        f = self.fornecedores[0]
+        return [{k: v for k, v in f.items() if k != "bankAccount"} if self.lista_sem_banco else f]
     def condicao_por_tipo(self, t): return {"id": "cond-" + t, "type": t}
     def anexar_titulo(self, tp, nome, conteudo):
         assert conteudo.startswith(b"%PDF")
@@ -178,7 +182,14 @@ class ErpFake:
         # formato medido ao vivo (24/11): o nome vem em "filename", SEM a extensão
         return [{"filename": n[:-4] if n.lower().endswith(".pdf") else n} for n in self.anexos]
     def pedir(self, metodo, caminho, corpo=None, params=None):
-        if caminho.startswith("/participants"): return self.fornecedores
+        if caminho.startswith("/participants/"):      # detalhe: o único lugar onde o ERP devolve o bankAccount
+            pid = caminho.split("/")[2]
+            self.detalhes.append(pid)
+            return next(dict(f) for f in self.fornecedores if f["id"] == pid)
+        if caminho.startswith("/participants"):
+            if self.lista_sem_banco:                  # como o ERP real (medido 26/11): a lista não traz bankAccount
+                return [{k: v for k, v in f.items() if k != "bankAccount"} for f in self.fornecedores]
+            return self.fornecedores
         if caminho == "/categories/all": return [{"id": "cat-1", "name": "Comissão Venda de Casa"}]
         if caminho == "/payment-methods/all": return [{"id": "pix-1", "name": "Pix"}]
         if caminho.startswith("/payable-installments/paginated-result"):
@@ -415,6 +426,15 @@ def test_pix_pelo_cadastro_de_corretores_so_para_o_documento_do_corretor():
     forn2 = [{"id": "f-2", "name": "IMOBILIARIA TESTE", "status": "ACTIVE", "cnpj": "00000000000191", "bankAccount": ""}]
     n = NotionFake(pagina(), corretores=cad)
     assert K.processar(PAGE, n, ErpFake(fornecedores=forn2), "1.00@2026-11-24", hoje=HOJE)["codigo"] == "SEM_PIX"
+
+def test_pix_vem_do_detalhe_do_fornecedor_porque_a_lista_nao_traz_bankaccount():
+    # caso real 26/11: chave gravada no cadastro do ERP e o robô seguia dizendo SEM_PIX (lia só a lista)
+    forn = [{"id": "f-1", "name": "CORRETOR TESTE", "status": "ACTIVE", "cpf": "11144477735",
+             "bankAccount": "PIX CPF 111.444.777-35"}]
+    n, e = NotionFake(pagina()), ErpFake(fornecedores=forn, lista_sem_banco=True)
+    assert K.processar(PAGE, n, e, "1.00@2026-11-24", hoje=HOJE)["situacao"] == "PREVIA"
+    assert "Pix: CPF: 111.444.777-35" in coluna(n)
+    assert e.detalhes == ["f-1"]
 
 def test_email_de_outro_cadastro_nao_vira_candidato():
     forn = [{"id": "f-1", "name": "CORRETOR TESTE", "status": "ACTIVE", "bankAccount": "PIX: 11144477735"},
