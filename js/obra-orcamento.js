@@ -60,6 +60,44 @@
     ["17", "Habite-se", /^HABITE/, 19], ["17", "INSS", /^INSS/, 19], ["17", "ISSQN", /^ISSQN/, 19], ["17", "Certidões", /^CERTIDAO/, 19], ["17", "Comissão", /^COMISSAO/, 19],
     ["17", "Seguro", /^SEGURO/, 19], ["17", "Vistoria", /^VISTORIA/, 19], ["17", "Registro", /^REGISTRO/, 19]
   ];
+  /* 26/11/26 (dono): além do aviso, os itens do grupo que faltou entram ZERADOS na planilha (dá para excluir).
+     Só itens que existem nos 19 orçamentos lidos — GRUPOS_ITENS[etapa|grupo] = [[descrição no MC, em quantos orçamentos]].
+     Madeiramento do telhado (vigotas e caibros da cobertura) fica só no aviso. */
+  const GRUPOS_SO_AVISO = new Set(["7|Vigotas", "7|Caibros"]);
+  let GRUPOS_ITENS = {}, GRUPOS_ITENS_N = 8;
+  /* cidade: item marcado com a OUTRA cidade sai; item sem cidade sai quando existe o mesmo item marcado com a cidade da obra.
+     "CASA 1 / CASA 2" vira uma linha por casa da obra (o nome do MC com o número da casa). */
+  function itensDoGrupo(its, cidade, nC) {
+    const SC = /SENADOR CANEDO/, GO = /GOIANIA/, ehSC = /CANEDO/.test(NN(cidade)), ehGO = /GOIANIA/.test(NN(cidade));
+    const tira = d => NN(d).replace(/\(?\s*(SENADOR CANEDO|GOIANIA)\s*\)?/g, "").replace(/[\s\-]+$/, "").trim();
+    let L = its.filter(([d]) => { const n = NN(d); if (SC.test(n) && ehGO) return false; if (GO.test(n) && ehSC) return false; return true; });
+    const proprios = new Set(L.filter(([d]) => (ehSC && SC.test(NN(d))) || (ehGO && GO.test(NN(d)))).map(([d]) => tira(d)));
+    L = L.filter(([d]) => { const n = NN(d); return SC.test(n) || GO.test(n) || !proprios.has(tira(d)); });
+    const out = [];
+    L.forEach(([d, v]) => {
+      if (/\bCASA [2-9]\b/.test(NN(d))) return;
+      if (/\bCASA 1\b/.test(NN(d))) { for (let c = 1; c <= Math.max(nC || 1, 1); c++) out.push([d.replace(/CASA 1\b/i, "CASA " + c), v]); }
+      else out.push([d, v]);
+    });
+    return out;
+  }
+  function linhasDeGrupoFaltando(L, seqIni, cidade, nC) {
+    let seq = seqIni; const out = [];
+    GRUPOS.forEach(([et, nome, re, n]) => {
+      const k = et + "|" + nome; if (GRUPOS_SO_AVISO.has(k)) return;
+      const its = itensDoGrupo(GRUPOS_ITENS[k] || [], cidade, nC); if (!its.length) return;
+      if (L.some(l => String(l.etapa || l.idx || "").split(".")[0] === et && Number(l.q) > 0 && re.test(NN(l.nome)))) return;
+      its.forEach(([desc, vezes]) => {
+        if (L.concat(out).some(l => chave(l.nome) === chave(desc))) return;
+        const c = CAT_MAP && CAT_MAP.chave[chave(desc)];
+        const mod = MODELO && MODELO.itens.find(i => chave(i.nome) === chave(desc));
+        out.push({ id: "g" + (++seq), etapa: mod ? paiDe(mod.idx) : et, idx: "", cod: c ? c[1] : "", cat: c ? c[0] : "", nome: c ? c[2] : desc, un: c ? c[3] : "", q: 0,
+          grupoFalta: nome, origem: "Grupo «" + nome + "» faltando — item que está em " + vezes + " dos " + GRUPOS_ITENS_N + " orçamentos de casa mais recentes do MC",
+          aviso: "zerado: preencha a quantidade ou exclua" + (c ? "" : " · não achei no catálogo do MC — escolha o código") });
+      });
+    });
+    return out;
+  }
   function gruposFaltando(s) {
     const out = {};
     GRUPOS.forEach(([et, nome, re, n]) => {
@@ -90,7 +128,9 @@
     if (MODELO) return MODELO;
     const r = await fetch("orcamento/modelo-casa-rua.json?v=3", { cache: "no-cache" });
     if (!r.ok) throw new Error("não carregou o modelo do orçamento (HTTP " + r.status + ")");
-    MODELO = await r.json(); return MODELO;
+    MODELO = await r.json();
+    try { const g = await fetch("orcamento/grupos-mc.json?v=1", { cache: "no-cache" }); if (g.ok) { const j = await g.json(); GRUPOS_ITENS = j.itens || {}; GRUPOS_ITENS_N = j.n || 8; } } catch (e) {}
+    return MODELO;
   }
   async function carregarCatalogo(forcar) {
     if (CAT && !forcar) return CAT;
@@ -346,6 +386,7 @@
     /* a soma passa a apontar para as LINHAS (o índice pode mudar na mão depois) */
     for (let i = L.length - 1; i >= 0; i--) if (L[i]._sai) L.splice(i, 1);
     L.forEach(ln => { if (ln.soma) { ln.somaIds = L.filter(x => ln.soma.indexOf(x.orig) >= 0).map(x => x.id); delete ln.soma; } });
+    linhasDeGrupoFaltando(L, seq, o && o.cidade, nC).forEach(x => L.push(x));   // 26/11/26: itens dos grupos que faltaram, zerados
     renumerar(L, false); ordenar(L);   // 24/11/26: o que veio do Revit fica junto da subetapa dele, não no fim da etapa
     const R = revit && revit.linhas || [];
     const info = { temRevit: temRevit, arrimoRevit: arrimoRevit, discs: Object.keys(discsRevit),
@@ -555,6 +596,7 @@
   function chaveLinha(l) {
     if (!l || l.manual) return "";
     if (l.extra) return "x|" + (l.refs || []).join(",");
+    if (l.grupoFalta) return "g|" + chave(l.nome);
     const suf = String(l.nome || "").indexOf(" — CASA ") > 0 ? String(l.nome).slice(String(l.nome).indexOf(" — CASA ")) : "";
     return l.orig ? "o|" + l.orig + "|" + suf : "";
   }

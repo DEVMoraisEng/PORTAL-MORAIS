@@ -1,0 +1,1030 @@
+{
+ "base": "Orçamentos 121, 122, 123, 124, 125, 126, 128 e 129 do Mais Controle (os 8 mais recentes, lidos em 26/11/2026). Item entra quando aparece em pelo menos metade dos orçamentos que têm o grupo.",
+ "n": 8,
+ "itens": {
+  "1|Aquisição do lote": [
+   [
+    "Aquisição de lote",
+    8
+   ]
+  ],
+  "2|ART": [
+   [
+    "ART",
+    4
+   ],
+   [
+    "ART (Senador Canedo)",
+    4
+   ]
+  ],
+  "2|Serviço de despachante": [
+   [
+    "SERVIÇO DE DESPACHANTE - PESSOA JURÍDICA (Goiânia)",
+    4
+   ],
+   [
+    "SERVIÇO DE DESPACHANTE - PESSOA JURÍDICA (Senador Canedo)",
+    4
+   ]
+  ],
+  "2|Impressões / cópias de projeto": [
+   [
+    "IMPRESSÃO DE PROJETO - A1",
+    8
+   ]
+  ],
+  "2|Uso do solo": [
+   [
+    "USO DO SOLO (Senador Canedo)",
+    6
+   ]
+  ],
+  "3|Limpeza do terreno": [
+   [
+    "Limpeza de Terreno",
+    8
+   ]
+  ],
+  "3|Locação da obra": [
+   [
+    "Locação da Obra",
+    8
+   ],
+   [
+    "Locação de Contêiner",
+    8
+   ]
+  ],
+  "3|Placas": [
+   [
+    "PLACA DE ENGENHEIRO - Isaac Natan",
+    3
+   ]
+  ],
+  "3|Padrão de energia / hidrômetro": [
+   [
+    "Instalação de padrão de energia monofásico e caixa de hidrômetro - 5m SANESC",
+    5
+   ]
+  ],
+  "3|Pregos": [
+   [
+    "PREGO - 18x30",
+    8
+   ],
+   [
+    "PREGO - 17x21",
+    8
+   ]
+  ],
+  "3|Arame": [
+   [
+    "ARAME RECOZIDO - N 18",
+    8
+   ],
+   [
+    "ARAME RECOZIDO - N 14",
+    8
+   ]
+  ],
+  "3|Discos de corte": [
+   [
+    "DISCO DE FERRO - lixadeira caixa 50UN",
+    8
+   ],
+   [
+    "DISCO DE PORCEANATO",
+    8
+   ],
+   [
+    "DISCO DE CONCRETO - MAKITA (UN)",
+    7
+   ],
+   [
+    "DISCO MADEIRA - 7 POL caixa 20UN",
+    7
+   ]
+  ],
+  "3|Linha de pedreiro": [
+   [
+    "LINHA DE PEDREIRO - 100m",
+    8
+   ]
+  ],
+  "3|Cadeado": [
+   [
+    "CADEADO - N 60",
+    8
+   ]
+  ],
+  "3|Broxa": [
+   [
+    "BROXA - 15x5,5cm",
+    8
+   ]
+  ],
+  "4|Aterro": [
+   [
+    "Aterro da casa",
+    8
+   ]
+  ],
+  "4|Estacas": [
+   [
+    "Estacas de 6.3 mm, seção 7 x 14 cm",
+    8
+   ],
+   [
+    "Estacas de 8 mm, seção 7 x 14 cm",
+    8
+   ]
+  ],
+  "4|Impermeabilização": [
+   [
+    "Impermeabilização baldrame",
+    8
+   ]
+  ],
+  "4|Laje": [
+   [
+    "Laje Convencional - c/ lajota",
+    8
+   ],
+   [
+    "Laje Convencional - reforçada c/ lajotas",
+    4
+   ]
+  ],
+  "4|Pilares": [
+   [
+    "Pilares de  6.3 mm, seção 7 x 14 cm",
+    8
+   ],
+   [
+    "Pilares de 8 mm, seção 7 x 14 cm",
+    8
+   ]
+  ],
+  "4|Vigas": [
+   [
+    "Viga de baldrame 6,3 mm, seção 7 x 14 cm",
+    8
+   ],
+   [
+    "Viga de baldrame 8 mm, seção 7 x 14 cm",
+    8
+   ],
+   [
+    "Vigas de cobertura 8 mm, seção 7 x 14 cm",
+    8
+   ]
+  ],
+  "4|Vergas": [
+   [
+    "Vergas e contravergas",
+    8
+   ]
+  ],
+  "4|Vigotas da laje": [
+   [
+    "Vigota para laje - variável",
+    8
+   ]
+  ],
+  "5|Alvenaria": [
+   [
+    "Alvenaria convencional",
+    8
+   ]
+  ],
+  "5|Reboco": [
+   [
+    "Reboco casa",
+    8
+   ]
+  ],
+  "5|Tela": [
+   [
+    "TELA METÁLICA - Pinteiro 1,8x50m BWG 23",
+    8
+   ]
+  ],
+  "5|Pingadeiras": [
+   [
+    "Pingadeira 1m - 1 quina (Senador Canedo)",
+    6
+   ],
+   [
+    "Pingadeira 1m - 2 quinas (Senador Canedo)",
+    6
+   ]
+  ],
+  "5|Piso / calçada": [
+   [
+    "Piso tátil - direcional",
+    8
+   ]
+  ],
+  "6|Janelas": [
+   [
+    "JANELA DE CORRER DUAS FOLHAS BLINDEX - 120 x 100",
+    8
+   ],
+   [
+    "JANELA DE CORRER DUAS FOLHAS BLINDEX - 150 x 100",
+    6
+   ],
+   [
+    "JANELA DE CORRER DUAS FOLHAS BLINDEX - 60 x 80",
+    4
+   ]
+  ],
+  "6|Kits de porta": [
+   [
+    "Kit porta de madeira 80 x 210 - padrão mcmv + MO",
+    8
+   ],
+   [
+    "Kit porta de madeira 60 x 210 - padrão mcmv banheiro + MO",
+    8
+   ],
+   [
+    "KIT portão + alçapão - Portão de correr, trilho superior (Senador Canedo)",
+    6
+   ]
+  ],
+  "7|Calhas": [
+   [
+    "CALHAS COCHO CHAPA GALVANIZADA DE 70 CM",
+    8
+   ]
+  ],
+  "7|Rufos": [
+   [
+    "RUFOS CHAPA GALVANIZADA DE 25 CM",
+    8
+   ]
+  ],
+  "7|Estrutura (caixa d'água / metálica)": [
+   [
+    "Estrutura caixa d'agua",
+    8
+   ]
+  ],
+  "7|Instalação de telha": [
+   [
+    "Instalação de telha 366",
+    8
+   ],
+   [
+    "Instalação de telha de concreto",
+    6
+   ]
+  ],
+  "8|Pisos": [
+   [
+    "Piso casa + MO",
+    7
+   ],
+   [
+    "Piso banheiro, area de serviço e garagem + MO",
+    7
+   ]
+  ],
+  "8|Revestimentos": [
+   [
+    "Revestimento branco padrão + MO",
+    7
+   ],
+   [
+    "Revestimento detalhe da cozinha (retificado) + MO",
+    7
+   ],
+   [
+    "Revestimento da ducha + MO",
+    7
+   ],
+   [
+    "Revestimento detalhe do muro + MO",
+    7
+   ],
+   [
+    "Revestimento no box do banheiro (retificado) + MO",
+    7
+   ]
+  ],
+  "8|Argamassa de assentamento": [
+   [
+    "Argamassa de assentamento - ACI",
+    7
+   ]
+  ],
+  "8|Rejuntes": [
+   [
+    "Rejuntes - por casa",
+    7
+   ]
+  ],
+  "8|Instalação de bancadas (MO)": [
+   [
+    "INSTALAÇÃO DE BANCADAS CASA 1 - MO",
+    7
+   ],
+   [
+    "INSTALAÇÃO DE BANCADAS CASA 2 - MO",
+    7
+   ]
+  ],
+  "9|Bancadas": [
+   [
+    "Bancada granito verde ubatuba c/ pia - 50 x 120 cm",
+    4
+   ],
+   [
+    "Bancada granito verde ubatuba c/ pia - 60 x 210 cm",
+    4
+   ],
+   [
+    "Bancada granito verde ubatuba c/ cuba - 50 x 70 cm",
+    4
+   ],
+   [
+    "Bancada granito verde ubatuba c/ cuba - 45 x 55 cm",
+    4
+   ],
+   [
+    "Bancada granito verde ubatuba c/ pia - 50 x 115 cm",
+    4
+   ]
+  ],
+  "9|Soleiras": [
+   [
+    "SOLEIRA EM GRANITO VERDE UBATUBA  - 60CM",
+    8
+   ],
+   [
+    "SOLEIRA EM GRANITO VERDE UBATUBA - 90CM",
+    8
+   ]
+  ],
+  "9|Peitoris": [
+   [
+    "PEITORIL EM GRANITO VERDE UBATUBA - 120CM",
+    8
+   ],
+   [
+    "PEITORIL EM GRANITO VERDE UBATUBA - 150CM",
+    8
+   ],
+   [
+    "PEITORIL EM GRANITO VERDE UBATUBA - 80CM",
+    6
+   ]
+  ],
+  "9|Chumbadores": [
+   [
+    "CHUMBADOR DE BANCADA - 60 cm",
+    8
+   ]
+  ],
+  "9|Massa plástica": [
+   [
+    "MASSA PLÁTICA - Preta 400g",
+    8
+   ]
+  ],
+  "10|Gesso": [
+   [
+    "GESSO CORRIDO",
+    8
+   ]
+  ],
+  "11|Pintura": [
+   [
+    "Pintura externa - textura cor sereno",
+    8
+   ],
+   [
+    "Pintura externa - textura cor camurça",
+    8
+   ],
+   [
+    "Pintura externa - textura cor prata fina",
+    8
+   ],
+   [
+    "Pintura externa - textura cor titânio",
+    8
+   ],
+   [
+    "Pintura de pingadeira - textura cor branco neve",
+    8
+   ],
+   [
+    "Pintura de piso - tinta piso cor cinza escuro",
+    8
+   ],
+   [
+    "Pintura interna - grafiato cor gelo",
+    8
+   ],
+   [
+    "Pintura de portão - esmalte metálico marrom bronze (SENADOR CANEDO)",
+    6
+   ],
+   [
+    "Pintura interna - tinta acrílica cor neve",
+    5
+   ]
+  ],
+  "11|Materiais de pintura": [
+   [
+    "Materiais para pintura de porta de madeira",
+    8
+   ],
+   [
+    "Materiais para pintura da estrutura de madeira - SENADOR CANEDO",
+    6
+   ]
+  ],
+  "11|Acessórios de pintura": [
+   [
+    "Acessórios p/ pintura - SENADOR CANEDO",
+    6
+   ]
+  ],
+  "11|Mão de obra de pintura": [
+   [
+    "MÃO DE OBRA PINTURA - MO",
+    8
+   ]
+  ],
+  "12|Cabos": [
+   [
+    "Cabos flexíveis, haste e disjuntores - casas padrões",
+    8
+   ]
+  ],
+  "12|Caixas": [
+   [
+    "CAIXA DE LUZ OCTOGONAL - Metal",
+    8
+   ],
+   [
+    "CAIXA DE EMBUTIR PVC - 4X2",
+    8
+   ]
+  ],
+  "12|Conjuntos (tomadas / interruptores)": [
+   [
+    "CONJUNTO INTERRUPTOR C/ TOMADA - 4x2 1 tecla simples + tomada 10A",
+    8
+   ],
+   [
+    "CONJUNTO TOMADA - 4x2 10A",
+    8
+   ],
+   [
+    "CONJUNTO TAMPA CEGA  - 4x2",
+    8
+   ],
+   [
+    "CONJUNTO INTERRUPTOR PARALELO - 4x2 1 tecla paralelo",
+    4
+   ],
+   [
+    "CONJUNTO INTERRUPTOR MODULAR - 4x2 1 tecla simples",
+    4
+   ],
+   [
+    "CONJUNTO INTERRUPTOR PARALELO - 4x2 2 teclas paralelo",
+    4
+   ],
+   [
+    "CONJUNTO INTERRUPTOR PARALELO - 4x2 1 tecla",
+    4
+   ],
+   [
+    "CONJUNTO INTERRUPTOR SIMPLES - 4x2 1 tecla",
+    4
+   ],
+   [
+    "CONJUNTO INTERRUPTOR PARALELO - 4x2 2 teclas",
+    4
+   ],
+   [
+    "CONJUNTO INTERRUPTOR C/ TOMADA - 4x2 1 tecla paralela + tomada 10A",
+    4
+   ]
+  ],
+  "12|Eletrodutos": [
+   [
+    "Eletrodutos, quadro de distribuição e caixa de passagem",
+    8
+   ]
+  ],
+  "12|Luminárias": [
+   [
+    "LUMINÁRIA SLIM SOBREPOR - 60 cm luz branca",
+    8
+   ]
+  ],
+  "12|Plafons": [
+   [
+    "PLAFON SOQUETE - Sobrepor cor branca",
+    8
+   ]
+  ],
+  "12|Mão de obra elétrica": [
+   [
+    "INSTALAÇÕES ELÉTRICAS POR CASA - MO",
+    4
+   ],
+   [
+    "INSTALAÇÕES ELÉTRICAS CASA 1 - MO",
+    4
+   ],
+   [
+    "INSTALAÇÕES ELÉTRICAS CASA 2 - MO",
+    4
+   ]
+  ],
+  "13|Tubos": [
+   [
+    "Tubo PVC - Esgoto 40mm",
+    8
+   ],
+   [
+    "Tubo PVC - Esgoto 50mm",
+    8
+   ],
+   [
+    "Tubo PVC - Esgoto 100mm",
+    8
+   ],
+   [
+    "Tubo PVC - Soldável 25mm",
+    8
+   ],
+   [
+    "Tubo PVC - Soldável 50mm",
+    8
+   ]
+  ],
+  "13|Joelhos": [
+   [
+    "JOELHO PVC - ESG 40mm x 45º",
+    8
+   ],
+   [
+    "JOELHO PVC - ESG 40mm x 90º",
+    8
+   ],
+   [
+    "JOELHO PVC - ESG 50mm x 45º",
+    8
+   ],
+   [
+    "JOELHO PVC - ESG 50mm x 90º",
+    8
+   ],
+   [
+    "JOELHO PVC - ESG 100mm x 45 º",
+    8
+   ],
+   [
+    "JOELHO PVC - ESG 100mm x 90º",
+    8
+   ],
+   [
+    "JOELHO PVC - ESG 40mm x 90º c/anel",
+    8
+   ],
+   [
+    "JOELHO PVC - Soldável 25mm x 45º",
+    8
+   ],
+   [
+    "JOELHO PVC - Soldável 25mm x 90º",
+    8
+   ],
+   [
+    "JOELHO PVC - Soldável c/ bucha latão 25mm x 1/2''",
+    8
+   ],
+   [
+    "JOELHO PVC - Soldável 50mm x 45º",
+    4
+   ]
+  ],
+  "13|Curvas": [
+   [
+    "CURVA CURTA - ESG 100mm x 90º",
+    8
+   ],
+   [
+    "CURVA CURTA - Soldável 25mm x 90º",
+    8
+   ],
+   [
+    "CURVA CURTA - Soldável 50mm x 45º",
+    8
+   ],
+   [
+    "CURVA CURTA - Soldável 50mm x 90º",
+    8
+   ],
+   [
+    "CURVA CURTA - ESG 50mm x 90º",
+    4
+   ],
+   [
+    "CURVA PVC - Soldável 50mm x 90º",
+    4
+   ]
+  ],
+  "13|Tês": [
+   [
+    "TEE PVC - ESG 40mm",
+    8
+   ],
+   [
+    "TEE PVC - ESG 50mm",
+    8
+   ],
+   [
+    "TEE PVC - ESG 100 x 50mm",
+    8
+   ],
+   [
+    "TEE PVC - ESG 100mm",
+    8
+   ],
+   [
+    "TEE PVC - Soldável 25mm",
+    8
+   ],
+   [
+    "TEE PVC - Soldável 50mm",
+    8
+   ],
+   [
+    "TEE PVC - Soldável c/ bucha latão 25mm x 1/2''",
+    4
+   ],
+   [
+    "TEE PVC - Soldável c/ bucha latão 25x1/2",
+    4
+   ]
+  ],
+  "13|Luvas": [
+   [
+    "LUVA PVC - ESG 50mm",
+    8
+   ],
+   [
+    "LUVA PVC - ESG 100mm",
+    8
+   ],
+   [
+    "LUVA PVC - Soldável c/ rosca para fora 25 X 3/4''",
+    4
+   ],
+   [
+    "LUVA PVC - Soldável c/ bucha latão 25 x 3/4",
+    4
+   ]
+  ],
+  "13|Junções": [
+   [
+    "JUNÇÃO PVC - ESG 40mm",
+    8
+   ],
+   [
+    "JUNÇÃO PVC - ESG 100mm x 50 mm",
+    8
+   ],
+   [
+    "JUNÇÃO PVC - ESG 100mm",
+    4
+   ]
+  ],
+  "13|Caixas (sifonada / inspeção / gordura)": [
+   [
+    "CAIXA SIFONADA C/GRELHA QUADRADA - 100 x 100 x 50 mm",
+    8
+   ],
+   [
+    "CAIXA SIFONADA C/GRELHA QUADRADA - 150 x 150 x 50 mm",
+    8
+   ],
+   [
+    "CAIXA DE GORDURA - 42 L C/CESTO (grande)",
+    8
+   ],
+   [
+    "CAIXA DE GORDURA SIFONADA  - 250 X 172 X 50mm (pequena)",
+    8
+   ],
+   [
+    "CAIXA D'ÁGUA PVC - 500L",
+    8
+   ]
+  ],
+  "13|Registros": [
+   [
+    "REGISTRO - Esfera PVC soldável 50mm",
+    8
+   ],
+   [
+    "REGISTRO - Esfera PVC soldável 25mm",
+    8
+   ]
+  ],
+  "13|Torneiras": [
+   [
+    "TORNEIRA BOIA P/ CAIXA D'ÁGUA - 3/4",
+    4
+   ],
+   [
+    "TORNEIRA BOIA P/ CAIXA D'ÁGUA - 3/4 (PRIMEIRA LINHA)",
+    4
+   ]
+  ],
+  "13|Fossa": [
+   [
+    "Fossa, sumidouro e caixa de recarga - manilhas e tampas",
+    4
+   ],
+   [
+    "Fossa, sumidouro e caixa de recarga - manilhas e tampas (SENADOR CANEDO)",
+    4
+   ]
+  ],
+  "13|Grelhas": [
+   [
+    "GRELHA PVC - PRETA 30X30",
+    4
+   ],
+   [
+    "GRELHA PVC 30X30",
+    4
+   ]
+  ],
+  "13|Tampas": [
+   [
+    "TAMPA PVC - Preta 40x40",
+    4
+   ],
+   [
+    "TAMPA PVC 40x40",
+    4
+   ]
+  ],
+  "13|Adaptadores": [
+   [
+    "ADAPTADOR - Soldável c/ flange 50mm x 1.1/2",
+    8
+   ],
+   [
+    "ADAPTADOR - Soldável c/ flange 25mm 3/4",
+    8
+   ],
+   [
+    "ADAPTADOR L/R - Soldável curto 25mm x 3/4",
+    8
+   ]
+  ],
+  "13|Buchas": [
+   [
+    "BUCHA DE REDUÇÃO PVC - Soldável 50x25mm",
+    8
+   ],
+   [
+    "BUCHA DE REDUÇÃO PVC - ESG 50x40mm",
+    4
+   ],
+   [
+    "BUCHA DE REDUÇÃO LONGA PVC - ESG 50x40mm",
+    4
+   ]
+  ],
+  "13|Adesivo": [
+   [
+    "ADESIVO COLA PVC - Incolor 850 G",
+    8
+   ]
+  ],
+  "13|Solução limpadora": [
+   [
+    "SOLUÇÃO LIMPADORA - 850G",
+    8
+   ]
+  ],
+  "13|Fita veda-rosca": [
+   [
+    "FITA VEDA ROSCA - 50m",
+    8
+   ]
+  ],
+  "13|Plugs": [
+   [
+    "PLUG ROSCAVEL - 1/2",
+    8
+   ]
+  ],
+  "13|Prolongadores": [
+   [
+    "PROLONGADOR PVC - 100mm",
+    8
+   ],
+   [
+    "PROLONGADOR PVC - 150mm",
+    8
+   ],
+   [
+    "PROLONGADOR CAIXA DE GORDURA PEQUENA",
+    4
+   ],
+   [
+    "PROLONGADOR PVC - 250mm",
+    4
+   ]
+  ],
+  "13|Terminais de ventilação": [
+   [
+    "TERMINAL DE VENTILAÇÃO 50 mm",
+    8
+   ]
+  ],
+  "13|Bases": [
+   [
+    "BASE P/ REGISTRO - Gaveta 3/4 (25mm) - acabamento DOCOL",
+    8
+   ],
+   [
+    "BASE P/ REGISTRO - Pressão 3/4 (25mm) - acabamento DOCOL",
+    8
+   ]
+  ],
+  "13|Acessórios hidráulicos": [
+   [
+    "Acessórios para cozinha - padrão",
+    8
+   ],
+   [
+    "Acessórios para banheiro - padrão",
+    8
+   ],
+   [
+    "Acessórios para área de serviço - tanque 2 bocas",
+    6
+   ]
+  ],
+  "14|Grama": [
+   [
+    "GRAMA ESMERALDA - Tapete",
+    8
+   ]
+  ],
+  "14|Árvore": [
+   [
+    "Árvore da calçada - SENADOR CANEDO",
+    6
+   ]
+  ],
+  "14|Churrasqueira": [
+   [
+    "Churrasqueira pré-moldada predial - 4 espetos",
+    4
+   ],
+   [
+    "Churrasqueira pré-moldada tijolinho - 3 espetos",
+    4
+   ]
+  ],
+  "14|Contas mensais (água / energia)": [
+   [
+    "CONTA MENSAL DE ENERGIA",
+    8
+   ],
+   [
+    "CONTA MENSAL DE ÁGUA",
+    8
+   ]
+  ],
+  "14|Cópia de chaves": [
+   [
+    "CÓPIA DE CHAVES",
+    8
+   ]
+  ],
+  "14|Limpeza final": [
+   [
+    "Limpeza de entulho da obra",
+    8
+   ]
+  ],
+  "15|Areia": [
+   [
+    "AREIA - Fina",
+    8
+   ],
+   [
+    "AREIA - Grossa",
+    8
+   ],
+   [
+    "AREIA - Média",
+    8
+   ]
+  ],
+  "15|Brita": [
+   [
+    "BRITA - N 0",
+    8
+   ],
+   [
+    "BRITA  - N 1",
+    8
+   ]
+  ],
+  "15|Tábuas": [
+   [
+    "TÁBUA - 25cm c/ 3m",
+    8
+   ]
+  ],
+  "16|Empreitas (mestre / encanador)": [
+   [
+    "EMPREITA MESTRE DE OBRA CASA 1 - MO",
+    8
+   ],
+   [
+    "EMPREITA MESTRE DE OBRA CASA 2 - MO",
+    8
+   ],
+   [
+    "EMPREITA ENCANADOR CASA 1 - MO",
+    4
+   ],
+   [
+    "EMPREITA ENCANADOR CASA 2 - MO",
+    4
+   ]
+  ],
+  "17|Habite-se": [
+   [
+    "HABITE-SE (Senador Canedo)",
+    6
+   ]
+  ],
+  "17|INSS": [
+   [
+    "INSS (pessoa jurídica)",
+    8
+   ]
+  ],
+  "17|ISSQN": [
+   [
+    "ISSQN (Senador Canedo)",
+    6
+   ]
+  ],
+  "17|Certidões": [
+   [
+    "CERTIDÃO DE MATRÍCULA DAS CASAS",
+    8
+   ]
+  ],
+  "17|Comissão": [
+   [
+    "COMISSÃO ACOMPANHAMENTO DE VENDA",
+    8
+   ]
+  ],
+  "17|Seguro": [
+   [
+    "Seguro RCPM",
+    8
+   ]
+  ],
+  "17|Vistoria": [
+   [
+    "VISTORIA DA CAIXA",
+    8
+   ],
+   [
+    "VISTORIA DE PREFEITURA (Senador Canedo)",
+    6
+   ]
+  ],
+  "17|Registro": [
+   [
+    "REGISTRO OU AVERBAÇÃO DA CASA - PESSOA JURÍDICA",
+    8
+   ]
+  ]
+ }
+}
