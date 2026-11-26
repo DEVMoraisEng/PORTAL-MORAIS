@@ -409,7 +409,8 @@ test("editor: quantidade da pré-chaves mostra quantas cabem; partes no mesmo m�
 
 test("editor: coluna Última mostra o vencimento da última parcela (14/11, dono); linha de uma parcela fica com traço", () => {
   const h = D.htmlContrato(estado(fechado), { fluxoEd: editor() });
-  assert.match(h, /<th>A cada \(meses\)<\/th><th>Última<\/th><th>Descrição<\/th>/);
+  /* 26/11: o título quebra antes de "(meses)" (o ")" ficava sozinho na coluna estreita) */
+  assert.match(h, /<th title='A cada quantos meses vence a próxima parcela'>A cada<br><span class='vb-fx-th-un'>\(meses\)<\/span><\/th><th>Última<\/th><th>Descrição<\/th>/);
   const celula = (k) => (h.match(new RegExp('<td class="vb-fx-fim" data-k="' + k + '"[^>]*>([^<]*)</td>')) || [])[1];
   assert.equal(celula(0), "—");            /* sinal: uma parcela */
   assert.equal(celula(1), "10/07/2028");   /* 20 parcelas mensais a partir de 10/12/2026 */
@@ -467,4 +468,14 @@ test("PDF: valor da casa diferente só para quem muda o preço", () => {
 test("PDF: o editor mostra o botão Carregar fluxo de um PDF (só PDF)", () => {
   const h = D.htmlFluxo(fechado, { fluxoEd: editor() }, "");
   assert.match(h, /📄 Carregar fluxo de um PDF<input type="file" accept="application\/pdf,\.pdf" data-fx-pdf="1"/);
+});
+
+/* 26/11/2026 (financeiro): a linha "Reserva (paga)" ganha o ✕ de "reserva não paga"; as outras fixas seguem sem botão */
+test("editor: só a reserva paga tem o ✕ entre as linhas fixas", () => {
+  const ls = [{ t: "prereserva", v: 1000, n: 1, d: "2026-10-25", i: 1, x: "" }, { t: "sinal", v: 9000, n: 1, d: "2026-10-30", i: 1, x: "" },
+    { t: "fgts", v: 5000, n: 1, d: "", i: 1, x: "" }, { t: "pre", v: 1000, n: 20, d: "2026-12-10", i: 1, x: "" }];
+  const h = D.htmlContrato(estado(fechado), { fluxoEd: editor({ linhas: ls }) });
+  assert.equal((h.match(/data-acao="c-fluxo-reserva-nao"/g) || []).length, 1);
+  assert.match(linhaTr(h, 0), /aria-label="Reserva não paga: tirar a linha"/);
+  assert.doesNotMatch(linhaTr(h, 2), /<button/);
 });

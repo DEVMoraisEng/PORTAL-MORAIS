@@ -1162,7 +1162,7 @@
         (p === prazoAgora) + '"' + dis + ">" + p + "x</button>";
     }).join(" ") + ' <span class="dz-nota">refaz pré-chaves, balões e pós-chaves pela conta do simulador; sinal, financiamento e FGTS ficam</span></div>';
     h += '<div class="vb-fx-tab" style="overflow-x:auto"><table class="tbl-fx" style="border-collapse:collapse;width:100%;font-size:.9em">' +
-      "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th>A cada (meses)</th><th>Última</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
+      "<thead><tr><th>Tipo</th><th>↻</th><th>Valor de cada (R$)</th><th>Qtde</th><th>1ª data</th><th title='A cada quantos meses vence a próxima parcela'>A cada<br><span class='vb-fx-th-un'>(meses)</span></th><th>Última</th><th>Descrição</th><th>Total</th><th></th></tr></thead><tbody>";
     ed.linhas.forEach(function (l, k) {
       var tp = F.TIPOS[l.t] || { reajuste: "" };
       /* 05/11/2026 (dono): "alguns preferem reduzir o valor a financiar (nunca maior que a carta de aprovação)" — o
@@ -1179,7 +1179,11 @@
       if (tp.fixo) {
         h += '<tr data-fx-linha="' + k + '"><td><b>' + esc(tp.nome) + '</b><div class="dz-nota">' + (l.t === "prereserva" ? "já recebida — abate o sinal" : "fixo — vem da proposta") + '</div></td><td></td>' +
           '<td style="text-align:right">' + esc(numBR(l.v)) + "</td><td>" + esc(l.n) + "</td><td>" + esc(l.d ? F.dataBR(l.d) : "—") + "</td><td></td><td></td><td></td>" +
-          '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td><td></td></tr>";
+          '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td>" +
+          /* 26/11/2026 (financeiro): reserva gerada e não paga — o ✕ apaga a data do pagamento e devolve o valor ao sinal */
+          (l.t === "prereserva" ? '<td class="vb-fx-acoes"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-reserva-nao"' + dis +
+            ' title="A reserva não foi paga: tira esta linha e o valor volta para o sinal" aria-label="Reserva não paga: tirar a linha">✕</button></td>' : "<td></td>") +
+          "</tr>";
         return;
       }
       var guiada = ajustavelFx(l), trav = guiada && !!(ed.travadas || {})[k];
@@ -1209,7 +1213,7 @@
           : '<td><input type="text" maxlength="120" data-fx="x" data-k="' + k + '" value="' + esc(l.x || "") + '"' + dis +
             ' placeholder="' + (l.t === "permuta" ? "resumo (os dados vão no Dados do bem)" : "opcional") + '" style="min-width:10em"></td>') +
         '<td class="vb-fx-tot" data-k="' + k + '" style="white-space:nowrap;text-align:right">' + esc(F.moeda(F.totalLinha(l))) + "</td>" +
-        '<td style="white-space:nowrap">' +
+        '<td class="vb-fx-acoes">' +
         (l.t === "permuta" ? '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-bem" data-k="' + k + '"' + dis + ">Dados do bem</button> " : "") +
         (guiada ? htmlTrava(k, trav, dis) + " " : "") +
         '<button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-del" data-k="' + k + '"' + dis + ' aria-label="Apagar linha">✕</button></td></tr>';
@@ -4423,6 +4427,30 @@
       if (!ed) return;
       if (acao === "c-fluxo-fechar") { uiC.fluxoEd = null; pintar(); return; }
       if (acao === "c-fluxo-add") { ed.linhas.push({ t: "balao", v: 0, n: 1, d: "", i: 1, x: "" }); pintar(); return; }
+      /* 26/11/2026 (financeiro): "gerei a reserva mas o cliente não pagou" — apaga a data do pagamento no servidor (o fluxo
+         alterado perde a linha e o valor volta para o sinal) e reabre o editor com o fluxo da proposta sem a reserva */
+      if (acao === "c-fluxo-reserva-nao") {
+        var lr = ed.linhas.filter(function (x) { return x.t === "prereserva"; })[0];
+        if (!lr) return;
+        if (!window.confirm("A reserva de " + FL().moeda(FL().totalLinha(lr)) + " não foi paga?\n\nA data do pagamento sai da venda e o valor volta para o sinal. " +
+                            "O que você mudou aqui e não salvou se perde.")) return;
+        uiC.ocupadoContrato = "fluxo"; uiC.msg = ""; pintar();
+        var rn = await chamarVenda({ action: "reservaNaoPaga", pageId: pageId });
+        if (!vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (!rn.ok) {
+          uiC.msg = rn.erro === "RESERVA_TERMO_ASSINADO" ? "O termo de reserva está assinado: a reserva conta como paga e não sai daqui."
+            : (rn.pagamentoApagado ? "A data do pagamento da reserva saiu, mas o fluxo não foi salvo: " : "") + mensagemContrato(rn);
+          pintar();
+          return;
+        }
+        if (estadoP) estadoP.dataPagamento = "";
+        if (rn.fluxo) estadoC.fluxo = fluxoDoEstado(rn.fluxo);
+        if (estadoC.pre) estadoC.pre.desatualizado = true;
+        await aoClicarFluxo("c-fluxo-abrir", b);
+        if (vivo()) { uiC.msg = "Reserva marcada como não paga: o valor voltou para o sinal. Confira o fluxo."; pintar(); }
+        return;
+      }
       if (acao === "c-fluxo-del") { if (!(FL().TIPOS[(ed.linhas[k] || {}).t] || {}).fixo) { ed.linhas.splice(k, 1); ed.bemK = null; ed.salvarDepois = false; travasAoApagar(ed, k); } pintar(); return; }
       /* 03/11 (dono): CRLV da permuta — escolhe a foto/PDF, a IA lê no servidor (lerCrlv) e a tela preenche só o vazio */
       if (acao === "c-fluxo-crlv") {

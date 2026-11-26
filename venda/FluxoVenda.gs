@@ -179,6 +179,42 @@ function confirmarReservaPaga_(col, sess, p) {
   rp.fluxoMudou = ajuste.mudou;
   return rp;
 }
+/* 26/11/2026 (financeiro): "gerei a reserva mas o cliente não pagou" — o ✕ da linha "Reserva (paga)" no Alterar fluxo.
+   Apaga a DATA PAGAMENTO da reserva (o valor fica, como no cancelamento do termo) com uma linha no histórico; sem data a
+   reserva deixa de contar como paga (ContratoVenda.preReservaPaga) e o fluxo da proposta volta com o sinal inteiro. Se a
+   venda tem fluxo alterado, tira a linha da reserva dele e o valor volta para a 1ª parcela do sinal (FluxoLivre.reservaNoFluxo
+   com valor 0), pelo mesmo caminho do Salvar: mesmas travas e mesmo histórico. Termo ASSINADO não deixa: aí a reserva foi paga. */
+function reservaNaoPaga_(col, sess, p) {
+  var pid = String(p.pageId).slice(0, 8), pg = ctrLerPaginaVenda_(p.pageId), C = PreReservaVenda.COL;
+  var sit = "";
+  try { sit = assTexto_(pg, assColunas_(pg, assDoc_({ doc: "PRE_RESERVA" })).SITUACAO).toUpperCase(); } catch (e) { sit = ""; }
+  if (sit === "ASSINADO") return { ok: false, erro: "RESERVA_TERMO_ASSINADO" };
+  var antes = prPagamento_(pg), apagou = false;
+  if (antes.data) {
+    var props = {};
+    props[prCol_(pg, C.DATA_PAGAMENTO)] = propNotion_("date", null);
+    var linha = PreReservaVenda.linhaHistorico(antes, { valor: antes.valor, data: "" }, ctrTxt_(sess && sess.u), hoje_("dd/MM/yyyy HH:mm"));
+    props[prCol_(pg, C.HISTORICO)] = propNotion_("rich_text",
+      PreReservaVenda.juntarHistorico(prTexto_(pg, C.HISTORICO), linha.replace(/: /, ": reserva não paga; ")));
+    notion_("PATCH", "/pages/" + p.pageId, { properties: props });
+    apagou = true;
+  }
+  var out = { ok: true, pagamentoApagado: apagou };
+  var pgD = apagou ? ctrLerPaginaVenda_(p.pageId) : pg, pers = FluxoLivre.ler(fluxoTextoDaLinha_(pgD));
+  if (pers && pers.linhas.some(function (l) { return l.t === "prereserva"; })) {
+    var hoje = (typeof HOJE_VENDA_TESTE_ === "string" ? HOJE_VENDA_TESTE_ : Utilities.formatDate(new Date(), "America/Sao_Paulo", "yyyy-MM-dd"));
+    var ajuste = FluxoLivre.reservaNoFluxo(pers, { valor: 0, data: "" }, { assinatura: fluxoPadrao_(pgD).assinatura, hoje: hoje });
+    if (ajuste.erro) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: [ajuste.erro], pagamentoApagado: apagou };
+    var novo = JSON.parse(FluxoLivre.serializar(pers));
+    novo.linhas = ajuste.linhas;
+    var r = salvarFluxo_(col, sess, { pageId: p.pageId, fluxo: novo, motivo: "Reserva não paga: o valor voltou para o sinal" });
+    if (!r.ok) { r.pagamentoApagado = apagou; return r; }
+    out.fluxo = r.fluxo;
+    out.fluxoMudou = ajuste.mudou;
+  }
+  ctrLog_("reservaNaoPaga " + pid + (apagou ? " data apagada" : " sem data") + (out.fluxo ? ", fluxo salvo" : "") + " por " + ctrTxt_(sess && sess.u));
+  return out;
+}
 /* rich_text do Notion: até 2000 caracteres por pedaço */
 function fluxoPedacos_(s) {
   var out = [];

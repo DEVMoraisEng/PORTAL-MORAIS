@@ -915,7 +915,11 @@ var FluxoLivre = (function () {
     if (pos < 0) pos = 0;
     sinais.sort(function (a, b) { return String(a.d) < String(b.d) ? -1 : String(a.d) > String(b.d) ? 1 : 0; });
     /* reserva corrigida para menos: a diferença volta para a 1ª parcela do sinal, que mantém a data */
-    if (falta < 0) { if (sinais.length) sinais[0].vC += -falta; else sinais.push({ t: "sinal", vC: -falta, n: 1, d: dRef || dPago, i: 1, x: "" }); }
+    /* 26/11: reserva não paga (valor 0) que tinha engolido o ato inteiro — o valor volta como o ato, na data da assinatura,
+       para o sinal seguir 0+30+60+90 (somar na parcela de 30 dias quebraria a ordem) */
+    var assR = ref && isoValida(ref.assinatura) ? ref.assinatura : "";
+    if (falta < 0 && pago === 0 && assR && sinais.length && sinais[0].d > assR) sinais.unshift({ t: "sinal", vC: -falta, n: 1, d: assR, i: 1, x: "" });
+    else if (falta < 0) { if (sinais.length) sinais[0].vC += -falta; else sinais.push({ t: "sinal", vC: -falta, n: 1, d: dRef || dPago, i: 1, x: "" }); }
     var resto = Math.max(0, falta);
     sinais = sinais.filter(function (s) {
       var usa = Math.min(resto, s.vC);
@@ -923,7 +927,9 @@ var FluxoLivre = (function () {
       return s.vC > 0;
     });
     if (resto > 0) return { erro: "A reserva paga (" + moeda(pago / 100) + ") passa do sinal do fluxo — confira o valor" };
-    var mudou = ["reserva de " + moeda(pago / 100) + " paga em " + dataBR(dPago) + " registrada como parte do sinal"];
+    /* 26/11: valor 0 = reserva não paga — a linha sai e o valor volta para a 1ª parcela do sinal */
+    var mudou = [pago > 0 ? "reserva de " + moeda(pago / 100) + " paga em " + dataBR(dPago) + " registrada como parte do sinal"
+                          : "reserva de " + moeda(jaC / 100) + " não paga: o valor voltou para o sinal"];
     var novas = pago > 0 ? [{ t: "prereserva", v: pago / 100, n: 1, d: dPago, i: 1, x: "" }] : [];
     sinais.forEach(function (s) {
       novas.push({ t: "sinal", v: s.vC / 100, n: 1, d: s.d, i: 1, x: s.x });
