@@ -165,7 +165,7 @@ class ErpFake:
         return {"content": itens[pg * sz:(pg + 1) * sz]}
     def ler_venda(self, _): return {"id": "v-1", "customer": {"name": "COMPRADOR TESTE"},
                                     "work": {"id": "w-1", "name": "OBRA TESTE", "status": "IN_PROGRESS"}}
-    def obra(self, _): return {"defaultAccount": {"id": "c-1", "name": "CONTA TESTE"}}
+    def obra(self, _): return {"defaultAccount": {"id": "c-1", "name": "CONTA TESTE", "openingBalanceDate": "2025-05-01"}}
     def participantes_por_documento(self, _):
         if not self.fornecedores: return []
         f = self.fornecedores[0]
@@ -196,6 +196,8 @@ class ErpFake:
             return self._listar(params or {})
         if metodo == "POST" and caminho == "/trade-payables":
             self.posts.append(corpo)
+            if not (corpo.get("account") or {}).get("openingBalanceDate"):   # como o ERP real (26/11): 500 sem mensagem
+                raise ErpErro("POST /trade-payables -> HTTP 500: No message available")
             if self.post_erro:
                 raise self.post_erro
             return {} if self.post_sem_id else {"id": "tp-1"}
@@ -378,6 +380,14 @@ def test_post_que_cai_por_rede_e_incerto_e_recusa_4xx_e_erro():
         assert r["codigo"] == cod and len(e.posts) == 1 and e.anexos == []
         assert "CONFIRA" in coluna(n)
 
+def test_conta_vai_com_a_data_do_saldo_inicial():
+    # caso real 26/11: sem account.openingBalanceDate o POST /trade-payables do ERP responde 500 e nada é criado
+    n, e = NotionFake(pagina()), ErpFake()
+    K.processar(PAGE, n, e, "1000.00@2026-11-24", hoje=HOJE)
+    r = K.processar(PAGE, n, e, "1000.00@2026-11-24", aplicar=True, hoje=HOJE)
+    assert r["situacao"] == "LANCADA" or "LANÇADA" in coluna(n), (r, coluna(n))
+    assert e.posts[-1]["account"]["openingBalanceDate"] == "2025-05-01"
+
 def test_incerto_mostra_o_que_o_erp_respondeu():
     # caso real 26/11: o INCERTO dizia só "não devolveu o id" e o motivo do ERP sumia
     for exc, trecho in ((ErpErro("POST /trade-payables -> HTTP 500: Internal Server Error"), "POST /trade-payables -> HTTP 500: Internal Server Error"),
@@ -540,7 +550,7 @@ class ErpListando(ErpFake):
     def __init__(self, *a, titulos=None, lista_erro=False, conta_id="c-1", **k):
         super().__init__(*a, **k)
         self.titulos, self.lista_erro, self.conta_id = dict(titulos or {}), lista_erro, conta_id
-    def obra(self, _): return {"defaultAccount": {"id": self.conta_id, "name": "CONTA TESTE"}}
+    def obra(self, _): return {"defaultAccount": {"id": self.conta_id, "name": "CONTA TESTE", "openingBalanceDate": "2025-05-01"}}
     def _listaveis(self):
         if self.post_sem_id or self.post_erro:
             return list(self.ja)

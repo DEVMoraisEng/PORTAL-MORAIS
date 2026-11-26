@@ -127,7 +127,8 @@ def corpo_titulo(parcelas, descricao_, obs, participante_id, categoria_id, forma
         "paymentMethod": {"id": forma_id},
         "numberPrecision": 2,
         "markedAsPaid": False,
-        "account": {"id": conta["id"], "name": conta.get("name")},
+        # 26/11/2026: sem openingBalanceDate o ERP responde HTTP 500 "No message available" e não cria o título
+        "account": {"id": conta["id"], "name": conta.get("name"), "openingBalanceDate": conta.get("openingBalanceDate")},
         "freightageValue": 0, "otherValue": 0, "ipiValue": 0, "discountValue": 0,
     }
     if n > 1:

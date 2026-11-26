@@ -292,7 +292,7 @@ class ErpComCatalogos(ErpFake):
         self.titulos = {}
 
     def obra(self, oid):
-        return {"id": oid, "defaultAccount": {"id": "conta-1", "name": "CONTA DA OBRA"}}
+        return {"id": oid, "defaultAccount": {"id": "conta-1", "name": "CONTA DA OBRA", "openingBalanceDate": "2025-05-01"}}
 
     def pedir(self, metodo, caminho, corpo=None, params=None):
         if metodo == "GET" and caminho == "/payment-conditions/all":
@@ -351,6 +351,7 @@ def test_aplicar_devolvido_altera_venda_e_lanca_titulo(monkeypatch):
     assert r["codigo"] == "APLICADO_ALTERAR", n.estado()
     t = erp.titulos["tp-1"]
     assert t["participant"] == {"id": "cli-1"} and t["category"] == {"id": "cat-dev"}
+    assert t["account"]["openingBalanceDate"] == "2025-05-01"   # sem ela o ERP dá 500 (26/11/2026)
     assert t["account"]["id"] == "conta-1" and t["costCentreDetails"][0]["work"]["id"] == "obra-1"
     assert t["installments"][0]["plannedValue"] == 8000.0 and t["markedAsPaid"] is False
     assert "conta a pagar da devolução LANÇADA" in n.estado()
