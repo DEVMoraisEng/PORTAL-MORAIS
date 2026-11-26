@@ -69,7 +69,9 @@ test("camposParaCorrigir: comprador 1 é o PROPONENTE; o bloco COMPRADOR 1 só q
 test("camposParaCorrigir: endereço são cinco colunas; comprador 2 e fiadores; o resto não se corrige aqui", () => {
   const v = (m) => (n) => m[n] || "";
   const end = K.camposParaCorrigir("c1-end", "endereco", false, v({ "ENDEREÇO": "Rua Teste" }));
-  assert.deepEqual(end.map((x) => x.coluna), ["ENDEREÇO", "NÚMERO", "SETOR", "CIDADE", "CEP"]);
+  assert.deepEqual(end.map((x) => x.coluna), ["ENDEREÇO", "NÚMERO", "COMPLEMENTO", "SETOR", "CIDADE", "CEP"]);
+  /* 26/11/2026: só o COMPLEMENTO é opcional (a base pode ainda não ter a coluna) */
+  assert.deepEqual(end.filter((x) => x.opcional).map((x) => x.coluna), ["COMPLEMENTO"]);
   const bloco = K.camposParaCorrigir("c1-end", "endereco", false, v({ "ENDERECO COMPRADOR 1": "Rua Teste" }));
   assert.equal(bloco[0].coluna, "ENDERECO COMPRADOR 1");
   assert.equal(K.camposParaCorrigir("c1-end", "endereco", true, v({ "ENDERECO COMPRADOR 1": "Rua Teste" }))[0].coluna, "ENDEREÇO");

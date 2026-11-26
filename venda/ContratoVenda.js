@@ -709,7 +709,7 @@ var ContratoVenda = (function () {
     x = x || {};
     return {
       nome: txt(x.nome), cpf: R().cpfValido(x.cpf) ? R().formatarCpf(x.cpf) : txt(x.cpf), rg: txt(x.rg),
-      nacionalidade: txt(x.nacionalidade), endereco: txt(x.endereco), numero: txt(x.numero),
+      nacionalidade: txt(x.nacionalidade), endereco: txt(x.endereco), numero: txt(x.numero), complemento: txt(x.complemento),
       setor: txt(x.setor), cidade: txt(x.cidade), cep: txt(x.cep), email: txt(x.email),
       /* 30/10/2026 (dono, Súmula 332 do STJ): estado civil e cônjuge do fiador */
       estadoCivil: txt(x.estadoCivil).toUpperCase(),
@@ -801,6 +801,7 @@ var ContratoVenda = (function () {
     var partes = [];
     if (fi.endereco) partes.push(fi.endereco);
     if (fi.numero) partes.push("nº " + fi.numero.replace(/^n[ºo°]\.?\s*/i, ""));
+    if (fi.complemento) partes.push(fi.complemento);   /* 26/11/2026 (dono): apto, bloco, quadra/lote */
     if (fi.setor) partes.push(fi.setor);
     if (fi.cidade) partes.push(fi.cidade);
     if (fi.cep) partes.push("CEP " + fi.cep.replace(/^CEP:?\s*/i, ""));

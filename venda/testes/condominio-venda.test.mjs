@@ -109,3 +109,12 @@ test("avisos: terceiro comprador e cônjuge, sem nome de ninguém", () => {
   assert.equal(a.some((x) => /CARLA|DIEGO/.test(x)), false);
   assert.deepEqual(C.avisos(linhaCondominio()), []);
 });
+
+test("mapear: COMPLEMENTO entra no endereço do contrato logo depois do número (26/11/2026)", () => {
+  const L = linhaCondominio();
+  const m = C.mapear(linhaCondominio({ "COMPLEMENTO": P.texto("APTO 204 BL 12"), "COMPLEMENTO COMPRADOR 1": P.texto("CASA 2") }), SCHEMA_VENDAS);
+  assert.equal(m["COMPRADOR 1 - ENDEREÇO"], "RUA DO CLIENTE, 20, APTO 204 BL 12 - SETOR DO CLIENTE - CIDADE DO CLIENTE");
+  assert.equal(m["COMPRADOR 2 - ENDEREÇO"], "RUA DE TESTE, 10, CASA 2 - SETOR TESTE - CIDADE TESTE - CEP 74000-000");
+  /* sem a coluna (base antiga): igual a antes */
+  assert.equal(C.mapear(L, SCHEMA_VENDAS)["COMPRADOR 1 - ENDEREÇO"], "RUA DO CLIENTE, 20 - SETOR DO CLIENTE - CIDADE DO CLIENTE");
+});
