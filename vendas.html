@@ -631,6 +631,8 @@ html[data-tema="escuro"] .pn-alerta.vermelho{color:#ff8a7a}html[data-tema="escur
   .cd-cardbox .tbl-fx td:nth-child(8)::before{content:"Descrição"}
   .cd-cardbox .tbl-fx td:nth-child(9)::before{content:"Total"}
   .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
+  /* 26/11/2026: 🔒 e ✕ da linha com alvo de toque de 44 px no celular (eram 29x34) */
+  .cd-cardbox .tbl-fx td.vb-fx-acoes .bt{min-width:44px;min-height:44px}
 }
 /* 31/10/2026 (dono): no cartão do condomínio o contrato aparece só como "Contrato gerado", sem o nome do arquivo */
 .cd-cardbox .vb-ct .dz-arq-nome{display:none}
@@ -641,8 +643,12 @@ html[data-tema="escuro"] .pn-alerta.vermelho{color:#ff8a7a}html[data-tema="escur
 .cd-cardbox .tbl-fx th,.cd-cardbox .tbl-fx td{padding:4px 3px;vertical-align:top;overflow-wrap:anywhere}
 /* 04/11: a última coluna leva 🔒 + ✕ lado a lado (fluxo guiado) — 11%, tirados do tipo, da descrição e do total */
 .cd-cardbox .tbl-fx th:nth-child(1){width:14%}.cd-cardbox .tbl-fx th:nth-child(2){width:5%}.cd-cardbox .tbl-fx th:nth-child(3){width:12%}
-.cd-cardbox .tbl-fx th:nth-child(4){width:7%}.cd-cardbox .tbl-fx th:nth-child(5){width:15%}.cd-cardbox .tbl-fx th:nth-child(6){width:6%}
-.cd-cardbox .tbl-fx th:nth-child(7){width:10%}.cd-cardbox .tbl-fx th:nth-child(8){width:9%}.cd-cardbox .tbl-fx th:nth-child(9){width:12%}.cd-cardbox .tbl-fx th:nth-child(10){width:10%}
+/* 26/11/2026 (financeiro: o ✕ aparecia como "…" e o "(meses)" deixava o ")" sozinho): a última coluna passa a 13% (🔒 + ✕
+   de 32 px cada), tirados da 1ª data, da última e do total; o título "A cada" quebra antes de "(meses)" */
+.cd-cardbox .tbl-fx th:nth-child(4){width:7%}.cd-cardbox .tbl-fx th:nth-child(5){width:14%}.cd-cardbox .tbl-fx th:nth-child(6){width:6%}
+.cd-cardbox .tbl-fx th:nth-child(7){width:9%}.cd-cardbox .tbl-fx th:nth-child(8){width:9%}.cd-cardbox .tbl-fx th:nth-child(9){width:11%}.cd-cardbox .tbl-fx th:nth-child(10){width:13%}
+/* sem nowrap: se a coluna apertar, o ✕ desce para baixo do 🔒 em vez de ser cortado */
+.tbl-fx .vb-fx-th-un{white-space:nowrap;font-weight:600}
 .cd-cardbox .tbl-fx td input,.cd-cardbox .tbl-fx td select{width:100%!important;min-width:0!important;box-sizing:border-box}
 .cd-cardbox .tbl-fx td.vb-fx-tot{white-space:normal!important}
 .cd-cardbox .tbl-fx th{white-space:normal;line-height:1.2}
@@ -1423,10 +1429,10 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 <script src="app.js?v=47"></script>
 <script src="atv-contadores.js?v=1"></script>
 <script src="venda/painel-casa.js?v=11"></script>
-<script src="venda/FluxoLivre.js?v=27"></script><!-- 29/10: Alterar fluxo -->
+<script src="venda/FluxoLivre.js?v=28"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=101"></script>
+<script src="venda-dossie.js?v=102"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: faixa "a reserva cai amanhã" -->

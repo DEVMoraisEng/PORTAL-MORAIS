@@ -2147,3 +2147,49 @@ test("08/11 reserva: valor inválido não grava; perfil TESTES não grava", () =
   assert.equal(c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" }, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
   assert.equal(c.n.pagina.properties["PRÉ-RESERVA - VALOR"].number, null);
 });
+
+/* 26/11/2026 (financeiro): "gerei a reserva mas o cliente não pagou" — ✕ da reserva no Alterar fluxo */
+test("26/11 reserva não paga: sem fluxo alterado apaga a data e o fluxo da proposta volta sem a reserva", () => {
+  const c = cenarioReservaFluxo();
+  assert.equal(c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" }).ok, true);
+  const comReserva = c.acao("fluxoEditar").padrao.linhas;
+  assert.equal(comReserva.filter((l) => l.t === "prereserva").length, 1);
+  const r = c.acao("reservaNaoPaga");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.equal(r.pagamentoApagado, true);
+  assert.equal(r.fluxo, undefined);
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date, null);
+  const ed = c.acao("fluxoEditar");
+  assert.equal(ed.padrao.linhas.filter((l) => l.t === "prereserva").length, 0);
+  const sinal = (ls) => ls.filter((l) => l.t === "sinal" || l.t === "prereserva").reduce((s, l) => s + Math.round(l.v * 100) * l.n, 0);
+  assert.equal(sinal(ed.padrao.linhas), sinal(comReserva), "o sinal volta inteiro");
+  assert.equal(ed.alterado, false);
+});
+
+test("26/11 reserva não paga: com fluxo alterado a linha sai, o valor volta ao sinal e o histórico registra", () => {
+  const c = cenarioReservaFluxo();
+  const base = c.acao("fluxoEditar").atual;
+  assert.equal(c.acao("salvarFluxo", { fluxo: comBalao(base), motivo: "cliente pediu mais um balão" }).ok, true);
+  assert.equal(c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" }).ok, true);
+  const antes = fluxoGravado(c);
+  const r = c.acao("reservaNaoPaga");
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.ok(r.fluxoMudou.some((m) => /não paga/.test(m)), JSON.stringify(r.fluxoMudou));
+  const depois = fluxoGravado(c);
+  const total = (f) => f.linhas.reduce((s, l) => s + Math.round(l.v * 100) * (l.u ? l.n - 1 : l.n) + (l.u ? Math.round(l.u * 100) : 0), 0);
+  assert.equal(total(depois), total(antes));
+  assert.equal(depois.linhas.filter((l) => l.t === "prereserva").length, 0);
+  const hist = c.acao("fluxoEditar").historico;
+  assert.match(hist[hist.length - 1].motivo, /^Reserva não paga/);
+  assert.equal(c.acao("fluxoEditar").ok, true);
+});
+
+test("26/11 reserva não paga: termo assinado não deixa; perfil TESTES não grava", () => {
+  const c = cenarioReservaFluxo({ "PRÉ-RESERVA - SITUAÇÃO": rt("ASSINADO") });
+  assert.equal(c.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" }).ok, true);
+  assert.equal(c.acao("reservaNaoPaga").erro, "RESERVA_TERMO_ASSINADO");
+  assert.equal(c.n.pagina.properties["PRÉ-RESERVA - DATA PAGAMENTO"].date.start, "2025-12-20");
+  const t = cenarioReservaFluxo();
+  assert.equal(t.acao("confirmarReservaPaga", { valor: 1000, data: "2025-12-20" }).ok, true);
+  assert.equal(t.acao("reservaNaoPaga", {}, token("TESTES")).erro, "SEM_PERMISSAO_TESTES");
+});
