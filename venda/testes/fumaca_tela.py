@@ -137,7 +137,7 @@ def main() -> int:
                               " grpDir: document.getElementById('grp-ref').getBoundingClientRect().right })")
             for bloco in ("#dossie-wrap", "#contrato-wrap", "#pn-body .vb-ass", "#pn-body .vb-mc"):
                 m = pg.evaluate("(sel) => { var w = document.querySelector(sel), g = w.querySelector(':scope > .grp'),"
-                                " c = w.querySelector(':scope > .dz-linha, :scope > .dz-aviso, :scope > ul');"
+                                " c = w.querySelector(':scope > .dz-linha, :scope > .dz-aviso, :scope > ul, :scope > .dz-card');"   # 26/11: Documentos/Contrato em cartões
                                 " var cs = g && getComputedStyle(g);"
                                 " return { grp: g && g.getBoundingClientRect().left, grpDir: g && g.getBoundingClientRect().right,"
                                 " linha: cs && cs.borderBottomStyle + ' ' + cs.borderBottomWidth,"

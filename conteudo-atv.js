@@ -53,6 +53,8 @@
   .ca .ca-anx img{max-width:220px;max-height:180px;border-radius:8px;border:1px solid var(--border2,#d0e4ec);object-fit:cover;display:block}
   .ca .ca-anx video{max-width:320px;max-height:220px;border-radius:8px;background:#000;display:block}
   .ca .ca-anx a{color:var(--azul,#295778);font-weight:600}
+  .ca .ca-anx .bt{white-space:normal;text-align:left;max-width:100%;overflow-wrap:anywhere;line-height:1.3}
+  @media (max-width:600px){ .ca .ca-anx .bt{min-height:44px} }
   .ca .ca-prog{font-size:12px;color:var(--text3,#5a8099);margin-bottom:6px}
   .ca .ca-vazio{color:var(--text4,#8aa);font-size:13px}`;
   function css(){ if(document.getElementById("ca-css")) return; const s=document.createElement("style"); s.id="ca-css"; s.textContent=CSS; document.head.appendChild(s); }
@@ -205,6 +207,13 @@
       const r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:falta.slice(i,i+25)},45000);
       if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ URLS[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
     }
+    /* 26/11/2026: o que não veio no lote é pedido um por um, devagar (o Notion recusa parte quando chegam muitos juntos,
+       e logo depois de anexar ainda está processando o arquivo) */
+    for(const id of falta.filter(id=>!URLS[id]).slice(0,12)){
+      const r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:[id]},45000);
+      if(r&&r.ok&&r.arquivos&&r.arquivos[id]) URLS[id]=Object.assign({t:Date.now()},r.arquivos[id]);
+      await new Promise(ok=>setTimeout(ok,700));
+    }
     let faltou=false;
     st.el.querySelectorAll("[data-arq]").forEach(x=>{
       const a=URLS[x.dataset.arq];
@@ -217,17 +226,18 @@
         :`<a href="${e(a.url)}" target="_blank" rel="noopener">📎 ${e(a.nome||"arquivo")}</a>`)+tb;
     });
     st._arqN=st._arqN||0;
-    if(faltou && st._arqN<2 && !st._arqT){ st._arqT=setTimeout(()=>{ st._arqT=null; st._arqN++; arquivos(st); }, st._arqN?20000:6000); }
+    const ESPERAS=[5000,10000,20000,40000,60000];   /* 26/11: até 5 tentativas sozinhas (antes eram 2) */
+    if(faltou && st._arqN<ESPERAS.length && !st._arqT){ st._arqT=setTimeout(()=>{ st._arqT=null; st._arqN++; arquivos(st); }, ESPERAS[st._arqN]); }
   }
   async function abrirArq(st,btn,id){
     btn.disabled=true; btn.textContent="⏳ buscando o arquivo…";
     let r=null;
-    for(let k=0;k<2&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
-      if(k) await new Promise(ok=>setTimeout(ok,2500));
+    for(let k=0;k<4&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
+      if(k){ btn.textContent="⏳ o Notion ainda está preparando o arquivo — tentativa "+(k+1)+" de 4…"; await new Promise(ok=>setTimeout(ok,[0,2500,5000,9000][k])); }
       r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:[id]},45000);
     }
     const a=r&&r.ok&&r.arquivos&&r.arquivos[id];
-    if(!a){ btn.disabled=false; btn.textContent="⚠ não consegui ("+(r&&r.ok?"o Notion ainda não liberou o arquivo":errTxt(r))+") — tentar de novo"; return; }
+    if(!a){ btn.disabled=false; btn.textContent=(r&&r.ok?"⏳ o Notion ainda está processando este arquivo (acontece logo depois de anexar) — toque para tentar de novo":"⚠ não consegui ("+errTxt(r)+") — tentar de novo"); return; }
     URLS[id]=Object.assign({t:Date.now()},a);
     window.open(a.url,"_blank","noopener");
     arquivos(st);

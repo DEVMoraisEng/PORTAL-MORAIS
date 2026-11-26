@@ -80,14 +80,20 @@
    *   Resumo · Documentos (dossiê + arquivos) · Compradores · Contrato (dados + gerar + Clicksign + Mais Controle)
    *   · Recebimentos · Andamento (checklist do processo, por departamento) */
   /* 09/11/2026 (dono): aba LINKS — layout, fotos e localização saíram do fim do Andamento ("cadastro da casa") */
-  var ABAS = [["resumo", "Resumo"], ["documentos", "Documentos"], ["compradores", "Compradores"],
-              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["andamento", "Andamento"], ["links", "Links"]];
+  /* 26/11/2026 (dono, MELHORIAS ABA DE VENDAS): Andamento passa a ser a 2ª aba e o Mais Controle ganha aba própria
+   * (saiu do fim da aba Contrato) */
+  var ABAS = [["resumo", "Resumo"], ["andamento", "Andamento"], ["documentos", "Documentos"], ["compradores", "Compradores"],
+              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["mc", "Mais Controle"], ["links", "Links"]];
   /* 13/11/2026 (dono): "algumas pessoas preferem ver em lista igual era antes" — o painel tem os dois jeitos. Em
    * LISTA ele volta a ser a coluna lateral à direita, com o resumo do processo parado no topo e só duas abas: tudo
    * do processo, na ordem (venda, compradores, contrato, etapas, links), e os documentos. Quem escolhe é a pessoa
    * (fica guardado no navegador dela). */
-  var ABAS_LISTA = [["etapas", "Todas as etapas"], ["documentos", "Documentos"]];
-  var RE_LINKS = /^(LAYOUT|FOTOS?|LOCALIZACAO)\b/;
+  /* 26/11/2026 (dono): "fazer tudo que citei antes na parte em lista" — a lista ganha abas próprias para o Contrato
+   * (dados, gerar, Clicksign e recebimentos), o Mais Controle e os Links (com TIPO e MODELO? = casa modelo) */
+  var ABAS_LISTA = [["etapas", "Todas as etapas"], ["documentos", "Documentos"], ["contrato", "Contrato"],
+                    ["mc", "Mais Controle"], ["links", "Links"]];
+  /* 26/11/2026 (dono): em Links também o TIPO e o MODELO? (casa modelo), para a pessoa preencher ali */
+  var RE_LINKS = /^(LAYOUT|FOTOS?|LOCALIZACAO)\b|^TIPO$|^MODELO\??$/;
   function abaDoCampo(nome) {
     var n = norm(nome), g = GRUPO[n] || "";
     if (RE_LINKS.test(n)) return "links";
@@ -143,7 +149,6 @@
   var PARES = [["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"],
                ["ARMAZENOU CONTRATO COMPRA E VENDA?", "DATA DA VENDA"],
                [/^MANDOU TODOS OS DOCS?.*\?$/, "DATA DE ENVIO DOS DOCUMENTOS"],
-               ["PROCESSO CONFORME?", "AGÊNCIA"],
                ["GEROU E ARMAZENOU GCAP?", "DATA GEROU GCAP"],
                ["PAGOU GCAP?", "DATA PAGOU GCAP"]];
   function casaPrimeiro(par, chave) { return par instanceof RegExp ? par.test(chave) : chave === norm(par); }
@@ -164,10 +169,27 @@
   /* itens da grade de uma etapa do painel: pares + campos soltos. Na etapa 2 (contrato de compra e venda) os pares vêm
    * primeiro e o EMITIU RCPM? depois (dono, 24/11). Só no painel; a ordem da planilha não muda. */
   var ETAPA_CONTRATO = "CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE";
+  /* 26/11/2026 (dono): "fica embolado o que é para preencher valores e o que é validação" — em cada etapa as
+   * validações (SIM/NÃO, datas) vêm primeiro e os VALORES depois, debaixo do subtítulo { sub: "Valores" }. A etapa 1
+   * já é só de valores e não ganha subtítulo. Na etapa 3 a ordem é a que o dono escreveu:
+   *   MANDOU P/ CONFORMIDADE — PROCESSO CONFORME · ASSINOU — DATA (um cartão) · AGÊNCIA — TEVE FGTS · VALORES */
+  var ETAPA_BANCO = "CONFORMIDADE E CONTRATO DO BANCO", ETAPA_VALORES = "AVALIAÇÃO E VALORES";
+  var RE_VALOR = /^VALOR\b|^RENDA\b/;
+  var ORDEM_BANCO = [/^MANDOU P\/ ?CONFORMIDADE/, /^PROCESSO CONFORME/, /^ASSINOU E ARMAZENOU CONTRATO DO BANCO/, /^AGENCIA/, /^TEVE FGTS/];
+  function chaveItem(x) { return norm(Array.isArray(x) ? x[0] : x); }
   function itensDaEtapa(titulo, nomes) {
     var it = agruparPares(nomes);
-    if (titulo !== ETAPA_CONTRATO) return it;
-    return it.filter(Array.isArray).concat(it.filter(function (x) { return !Array.isArray(x); }));
+    if (titulo === ETAPA_CONTRATO) it = it.filter(Array.isArray).concat(it.filter(function (x) { return !Array.isArray(x); }));
+    if (titulo === ETAPA_VALORES) return it;
+    var valores = it.filter(function (x) { return !Array.isArray(x) && RE_VALOR.test(chaveItem(x)); });
+    var outros = it.filter(function (x) { return valores.indexOf(x) < 0; });
+    if (titulo === ETAPA_BANCO) {
+      var pos = function (x) { var k = chaveItem(x); for (var i = 0; i < ORDEM_BANCO.length; i++) if (ORDEM_BANCO[i].test(k)) return i; return ORDEM_BANCO.length; };
+      outros = outros.map(function (x, i) { return { x: x, p: pos(x), i: i }; })
+        .sort(function (a, b) { return a.p - b.p || a.i - b.i; }).map(function (o) { return o.x; });
+    }
+    if (!valores.length || !outros.length) return outros.concat(valores);
+    return outros.concat([{ sub: "Valores" }], valores);
   }
   /* 04/11/2026 (dono): "na hora de gerar contrato, os campos que tiverem faltando, deixe editar naquele mesmo lugar".
    * Frase do faltasContrato (venda/ContratoVenda.js, casa de rua) -> colunas da VENDAS que resolvem. As colunas são as
@@ -243,9 +265,29 @@
   /* Etapas que o painel NÃO desenha (continuam em ETAPAS: a planilha e colunasRua dependem delas). A numeração
    * "N ·" das que sobram segue sequencial. */
   var ETAPAS_FORA_DO_PAINEL = ["CADASTRO DA CASA", ETAPA_OUTROS];
+  /* 26/11/2026 (dono): só no PAINEL (a planilha não muda) — a TAXA DE VISTORIA entra na etapa da prefeitura (ITBI e
+   * cartório) e a VISTORIA E ENTREGA DA CASA vem antes da DEVOLUÇÃO E RECEBIMENTO DO BANCO ("troca a ordem do 7 e do 8").
+   * A etapa juntada guarda a chave da prefeitura (etapa) e ganha o título novo. */
+  var ETAPA_PREFEITURA = "PREFEITURA, ITBI E CARTÓRIO";
+  var JUNTAR_NO_PAINEL = { "TAXA DE VISTORIA": ETAPA_PREFEITURA };
+  var TITULO_NO_PAINEL = {};
+  TITULO_NO_PAINEL[ETAPA_PREFEITURA] = "TAXA DE VISTORIA, PREFEITURA, ITBI E CARTÓRIO";
+  var ORDEM_PAINEL = ["AVALIAÇÃO E VALORES", "CONTRATO DE COMPRA E VENDA E DOCUMENTOS AO CORRESPONDENTE", "CONFORMIDADE E CONTRATO DO BANCO",
+                      "PROTOCOLOS DE TRANSFERÊNCIA (ÁGUA E ENERGIA)", ETAPA_PREFEITURA, "VISTORIA E ENTREGA DA CASA",
+                      "DEVOLUÇÃO E RECEBIMENTO DO BANCO", "GCAP", "REPAROS E VISTORIA"];
   function porEtapaPainel(nomes) {
-    var fora = (nomes || []).filter(function (n) { return ETAPAS_FORA_DO_PAINEL.indexOf(etapa(n)) < 0; });
-    return porEtapa(fora);
+    var caixas = {};
+    ORDEM_PAINEL.forEach(function (d) { caixas[d] = []; });
+    (nomes || []).forEach(function (n) {
+      var e = etapa(n);
+      if (ETAPAS_FORA_DO_PAINEL.indexOf(e) >= 0) return;
+      e = JUNTAR_NO_PAINEL[e] || e;
+      (caixas[e] || (caixas[e] = [])).push(n);
+    });
+    var ordem = ORDEM_PAINEL.concat(Object.keys(caixas).filter(function (d) { return ORDEM_PAINEL.indexOf(d) < 0; }));
+    var k = 0;
+    return ordem.filter(function (d) { return caixas[d].length; })
+      .map(function (d) { k++; return { titulo: k + " · " + (TITULO_NO_PAINEL[d] || d), etapa: d, campos: caixas[d] }; });
   }
 
   /* data "2026-11-05" (ou ISO com hora) -> "05/11/2026"; qualquer outra coisa -> "" (sem data = sem linha) */
@@ -387,6 +429,53 @@
     return { coluna: p.data, valor: hoje || hojeIso() };
   }
 
+  /* --- 26/11/2026 (dono): data de pagamento do GCAP ---
+   * O Apps Script (Code.gs, criarAtividadesGcap_) cria a atividade "Pagar GCAP" com prazo no 1º dia útil (seg–sex) do
+   * mês seguinte à DATA DE ASSINATURA DO CONTRATO (contrato da Caixa). A mesma conta aqui, para o painel, o Resumo e a
+   * planilha mostrarem a data e o alerta. */
+  function vencimentoGcap(dataAssinatura) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String((dataAssinatura && dataAssinatura.start) || dataAssinatura || "").trim());
+    if (!m) return "";
+    var ano = Number(m[1]), mes = Number(m[2]);
+    var anoS = mes === 12 ? ano + 1 : ano, mesS = mes === 12 ? 1 : mes + 1;
+    var d = new Date(anoS, mesS - 1, 1);
+    while (d.getDay() === 0 || d.getDay() === 6) d.setDate(d.getDate() + 1);
+    return hojeIso(d);
+  }
+  /* d = { assinatura, pagou, dataPagou, hoje } -> null (sem contrato da Caixa) ou
+   * { vence: "AAAA-MM-DD", venceBR, dias, texto, nivel: ok|vermelho|laranja|neutro, chave: pago|vencido|semana|aberto } */
+  function estadoGcap(d) {
+    d = d || {};
+    var vence = vencimentoGcap(d.assinatura);
+    if (!vence) return null;
+    var venceBR = formatarData(vence), hoje = d.hoje || hojeIso();
+    var dias = Math.round((Date.UTC(+vence.slice(0, 4), +vence.slice(5, 7) - 1, +vence.slice(8, 10)) -
+                           Date.UTC(+hoje.slice(0, 4), +hoje.slice(5, 7) - 1, +hoje.slice(8, 10))) / 86400000);
+    if (norm(d.pagou) === "SIM") {
+      var pg = formatarData(d.dataPagou);
+      return { vence: vence, venceBR: venceBR, dias: dias, chave: "pago", nivel: "ok", texto: "Pago" + (pg ? " em " + pg : "") };
+    }
+    if (dias < 0) return { vence: vence, venceBR: venceBR, dias: dias, chave: "vencido", nivel: "vermelho",
+                           texto: "Vencido há " + (-dias) + (dias === -1 ? " dia" : " dias") };
+    if (dias <= 7) return { vence: vence, venceBR: venceBR, dias: dias, chave: "semana", nivel: "laranja",
+                            texto: dias === 0 ? "Vence hoje" : "Vence em " + dias + (dias === 1 ? " dia" : " dias") };
+    return { vence: vence, venceBR: venceBR, dias: dias, chave: "aberto", nivel: "neutro", texto: "A pagar" };
+  }
+
+  /* --- 26/11/2026 (dono): "no agendamento de pré-vistoria deixa um alerta caso ainda não tenha o protocolo anexado" ---
+   * faltam = tipos ("agua"|"energia") cujo protocolo ainda não tem anexo; agendou = valor do AGENDOU PRÉ VISTORIA?.
+   * -> null (nada falta) ou { nivel: vermelho|laranja, texto } */
+  function alertaPreVistoria(faltam, agendou) {
+    faltam = (faltam || []).filter(function (t) { return t === "agua" || t === "energia"; });
+    if (!faltam.length) return null;
+    var nomes = faltam.map(function (t) { return t === "agua" ? "água" : "energia"; }).join(" e ");
+    var plural = faltam.length > 1;
+    if (norm(agendou) === "SIM")
+      return { nivel: "vermelho", texto: "Pré-vistoria agendada sem o protocolo de transferência de " + nomes + " anexado" +
+               " — anexe " + (plural ? "os protocolos" : "o protocolo") + " na etapa dos protocolos." };
+    return { nivel: "laranja", texto: "Antes de agendar a pré-vistoria, anexe o protocolo de transferência de " + nomes + "." };
+  }
+
   var api = { OCULTOS: OCULTOS, PROCESSO: PROCESSO, resolverProcesso: resolverProcesso, ESPELHO_COMPRADOR1: ESPELHO_COMPRADOR1, EMAIL_ANTIGO_C1: EMAIL_ANTIGO_C1,
               emailAntigoVisivel: emailAntigoVisivel, PREFIXOS_OCULTOS: PREFIXOS_OCULTOS, GRUPOS: GRUPOS, ocultoNoPainel: ocultoNoPainel,
               grupoDoCampo: grupoDoCampo, ordenar: ordenar, ordenarArquivos: ordenarArquivos,
@@ -398,7 +487,8 @@
               hojeIso: hojeIso, situacaoProcesso: situacaoProcesso, resolverSituacao: resolverSituacao, formulaDeCartao: formulaDeCartao,
               ordemCartoes: ordemCartoes, colunaDataCartao: colunaDataCartao, carimboGcap: carimboGcap, tipoConcessionaria: tipoConcessionaria,
               statusLigacao: statusLigacao, statusAguaEnergia: statusAguaEnergia, protocolos: protocolos, estadoProtocolo: estadoProtocolo,
-              carimboProtocolo: carimboProtocolo };
+              carimboProtocolo: carimboProtocolo, vencimentoGcap: vencimentoGcap, estadoGcap: estadoGcap,
+              alertaPreVistoria: alertaPreVistoria, ORDEM_PAINEL: ORDEM_PAINEL };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else raiz.PainelCasa = api;
 })(typeof window !== "undefined" ? window : this);
