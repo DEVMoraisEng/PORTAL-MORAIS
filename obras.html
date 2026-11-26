@@ -2479,6 +2479,10 @@ function anexarResp(inp,respId){
     });
   });
 }
+/* 26/11/2026: o servidor (obraAtvArquivos) devolve o id do anexo SEM tracinhos e o conteúdo relido do Notion traz o id COM
+   tracinhos — a tela não achava o endereço que tinha chegado ("o Notion ainda não liberou o arquivo"). Compara sem tracinhos. */
+const arqK=id=>String(id||"").replace(/-/g,"");
+const arqDe=(r,id)=>(r&&r.arquivos&&(r.arquivos[arqK(id)]||r.arquivos[id]))||null;
 /* endereço das fotos/vídeos (o do Notion vence em 1 h: guarda 50 min) */
 const ARQ_URL={};
 /* 22/10: anexo cujo endereço não veio (servidor ocupado, arquivo recém-
@@ -2495,7 +2499,7 @@ async function arqUmAUm(pid,ids){
   for(const id of ids.slice(0,12)){
     if(ATV!==pid) return;
     let r; try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:[id]},45000); }catch(e){ r=null; }
-    if(r&&r.ok&&r.arquivos&&r.arquivos[id]) ARQ_URL[id]=Object.assign({t:Date.now()},r.arquivos[id]);
+    if(r&&r.ok&&arqDe(r,id)) ARQ_URL[arqK(id)]=Object.assign({t:Date.now()},arqDe(r,id));
     await new Promise(ok=>setTimeout(ok,700));   // devagar: o Notion limita pedidos por segundo
   }
 }
@@ -2503,30 +2507,30 @@ async function abrirArqFalhou(btn,id){
   const pid=ATV; if(!pid) return;
   btn.disabled=true; btn.textContent="⏳ buscando o arquivo…";
   let r=null;
-  for(let k=0;k<4&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
+  for(let k=0;k<4&&!(r&&r.ok&&arqDe(r,id));k++){
     if(k){ btn.textContent="⏳ o Notion ainda está preparando o arquivo — tentativa "+(k+1)+" de 4…"; await new Promise(ok=>setTimeout(ok,[0,2500,5000,9000][k])); }
     try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:[id]},45000); }catch(e){ r={ok:false,erro:"sem conexão"}; }
   }
-  const a=r&&r.ok&&r.arquivos&&r.arquivos[id];
+  const a=r&&r.ok&&arqDe(r,id);
   if(!a){ btn.disabled=false; btn.textContent=(r&&r.ok?"⏳ o Notion ainda está processando este arquivo (acontece logo depois de anexar) — toque para tentar de novo":"⚠ não consegui ("+errMsg(r)+") — tentar de novo"); return; }
-  ARQ_URL[id]=Object.assign({t:Date.now()},a);
+  ARQ_URL[arqK(id)]=Object.assign({t:Date.now()},a);
   window.open(a.url,"_blank","noopener");
   carregarArquivos();
 }
 async function carregarArquivos(){
   const els=[...document.querySelectorAll("#p2-cont [data-arq]")]; if(!els.length||!ATV) return;
-  const pid=ATV, falta=[...new Set(els.map(e=>e.dataset.arq).filter(id=>!(ARQ_URL[id]&&Date.now()-ARQ_URL[id].t<50*60000)))];
+  const pid=ATV, falta=[...new Set(els.map(e=>e.dataset.arq).filter(id=>!(ARQ_URL[arqK(id)]&&Date.now()-ARQ_URL[arqK(id)].t<50*60000)))];
   for(let i=0;i<falta.length;i+=25){
     let r; try{ r=await chamar({action:"obraAtvArquivos",pageId:pid,ids:falta.slice(i,i+25)},45000); }catch(e){ r=null; }
-    if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ ARQ_URL[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
+    if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ ARQ_URL[arqK(id)]=Object.assign({t:Date.now()},arqDe(r,id)); });
   }
   /* 26/11: o que não veio no lote é pedido um por um (o Notion recusa parte quando chegam muitos pedidos juntos) */
-  const ainda=falta.filter(id=>!ARQ_URL[id]);
+  const ainda=falta.filter(id=>!ARQ_URL[arqK(id)]);
   if(ainda.length&&ATV===pid) await arqUmAUm(pid,ainda);
   if(ATV!==pid) return;
   let faltou=false;
   document.querySelectorAll("#p2-cont [data-arq]").forEach(e=>{
-    const a=ARQ_URL[e.dataset.arq];
+    const a=ARQ_URL[arqK(e.dataset.arq)];
     if(!a){ if(!e._tentou){ e._tentou=1; e.innerHTML=`<button type="button" class="bt bt-mini ghost" title="Buscar o endereço do arquivo e abrir" onclick="abrirArqFalhou(this,'${esc(e.dataset.arq)}')">📎 abrir arquivo</button>`; } faltou=true; return; }
     if(e._ok===a.url) return; e._ok=a.url;
     const tipo=a.tipo||e.dataset.tipo, tirar=e.dataset.de?`<button type="button" class="bt bt-mini ghost" title="Tirar este anexo" onclick="tirarAnexo('${esc(e.dataset.de)}','${esc(e.dataset.arq)}')">🗑 tirar</button>`:"";
