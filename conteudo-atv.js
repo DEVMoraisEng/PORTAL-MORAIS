@@ -199,24 +199,28 @@
     const c=cadeia(st,respId); if(c){ const k=c.lista.findIndex(x=>x.id===id); if(k>=0) c.lista.splice(k,1); }
     st.el.querySelectorAll(`[data-arq="${id}"]`).forEach(x=>x.remove()); stat(st,respId,"✓ anexo tirado");
   }
+  /* 26/11/2026: o servidor (obraAtvArquivos) devolve o id do anexo SEM tracinhos e o conteúdo relido do Notion traz o id COM
+     tracinhos — a tela não achava o endereço que tinha chegado ("o Notion ainda não liberou o arquivo"). Compara sem tracinhos. */
+  const arqK=id=>String(id||"").replace(/-/g,"");
+  const arqDe=(r,id)=>(r&&r.arquivos&&(r.arquivos[arqK(id)]||r.arquivos[id]))||null;
   const URLS={};   // o endereço do Notion vence em 1 h: guarda 50 min
   async function arquivos(st){
     const els=[...st.el.querySelectorAll("[data-arq]")]; if(!els.length) return;
-    const falta=[...new Set(els.map(x=>x.dataset.arq).filter(id=>!(URLS[id]&&Date.now()-URLS[id].t<50*60000)))];
+    const falta=[...new Set(els.map(x=>x.dataset.arq).filter(id=>!(URLS[arqK(id)]&&Date.now()-URLS[arqK(id)].t<50*60000)))];
     for(let i=0;i<falta.length;i+=25){
       const r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:falta.slice(i,i+25)},45000);
-      if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ URLS[id]=Object.assign({t:Date.now()},r.arquivos[id]); });
+      if(r&&r.ok) Object.keys(r.arquivos||{}).forEach(id=>{ URLS[arqK(id)]=Object.assign({t:Date.now()},arqDe(r,id)); });
     }
     /* 26/11/2026: o que não veio no lote é pedido um por um, devagar (o Notion recusa parte quando chegam muitos juntos,
        e logo depois de anexar ainda está processando o arquivo) */
-    for(const id of falta.filter(id=>!URLS[id]).slice(0,12)){
+    for(const id of falta.filter(id=>!URLS[arqK(id)]).slice(0,12)){
       const r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:[id]},45000);
-      if(r&&r.ok&&r.arquivos&&r.arquivos[id]) URLS[id]=Object.assign({t:Date.now()},r.arquivos[id]);
+      if(r&&r.ok&&arqDe(r,id)) URLS[arqK(id)]=Object.assign({t:Date.now()},arqDe(r,id));
       await new Promise(ok=>setTimeout(ok,700));
     }
     let faltou=false;
     st.el.querySelectorAll("[data-arq]").forEach(x=>{
-      const a=URLS[x.dataset.arq];
+      const a=URLS[arqK(x.dataset.arq)];
       /* 22/10: sem endereço = botão que busca na hora e abre (e nova tentativa automática) */
       if(!a){ faltou=true; if(!x._tentou){ x._tentou=1; x.innerHTML=`<button type="button" class="bt bt-mini ghost" data-abrir-arq="${e(x.dataset.arq)}">📎 abrir arquivo</button>`; } return; }
       if(x._ok===a.url) return; x._ok=a.url;
@@ -232,13 +236,13 @@
   async function abrirArq(st,btn,id){
     btn.disabled=true; btn.textContent="⏳ buscando o arquivo…";
     let r=null;
-    for(let k=0;k<4&&!(r&&r.ok&&r.arquivos&&r.arquivos[id]);k++){
+    for(let k=0;k<4&&!(r&&r.ok&&arqDe(r,id));k++){
       if(k){ btn.textContent="⏳ o Notion ainda está preparando o arquivo — tentativa "+(k+1)+" de 4…"; await new Promise(ok=>setTimeout(ok,[0,2500,5000,9000][k])); }
       r=await pedir({action:"obraAtvArquivos",pageId:st.pageId,ids:[id]},45000);
     }
-    const a=r&&r.ok&&r.arquivos&&r.arquivos[id];
+    const a=r&&r.ok&&arqDe(r,id);
     if(!a){ btn.disabled=false; btn.textContent=(r&&r.ok?"⏳ o Notion ainda está processando este arquivo (acontece logo depois de anexar) — toque para tentar de novo":"⚠ não consegui ("+errTxt(r)+") — tentar de novo"); return; }
-    URLS[id]=Object.assign({t:Date.now()},a);
+    URLS[arqK(id)]=Object.assign({t:Date.now()},a);
     window.open(a.url,"_blank","noopener");
     arquivos(st);
   }
