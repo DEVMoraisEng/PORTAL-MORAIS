@@ -3800,7 +3800,7 @@ function alertasLocaisDaLinha(l){
 function alertasRoboDaLinha(l){
   const out = [];
   (problemasRoboDaLinha(l) || []).forEach(it => {
-    if (it.grupo === "sem_uc" || String(it.grupo || "").indexOf("dup_") === 0 || it.grupo === "repetida") return;  // a tela já vê
+    if (roboTelaJaVe(it)) return;  // a tela já vê
     out.push(String(it.titulo || it.grupo).replace(/[<>&·]/g, "").trim());
   });
   const r = contaRobo(l);
@@ -3859,7 +3859,7 @@ function obsHistorico(l, cf){
   const r = contaRobo(l);
   ((r && r.hist) || []).forEach(h => robo.push({ quando: fmtQuandoRobo(h.q) + " · " + ROBO_NOME, texto: h.t, mc: h.mc || null,
                                                  robo: true, alerta: h.st === "alerta", ts: String(h.q || "").replace("T", " ").slice(0, 16) }));
-  const probs = problemasRoboDaLinha(l);
+  const probs = problemasRoboDaLinha(l).filter(it => !roboTelaJaVe(it));   // 25/11/26: o da tela vem do Notion de agora
   if (probs.length){
     const q = String((AGUA_PROB && AGUA_PROB.rodada_inicio) || "").replace("T", " ").slice(0, 16);
     probs.forEach(it => robo.push({ quando: (q ? fmtQuandoRobo(q) + " · " : "") + ROBO_NOME,
@@ -3910,6 +3910,11 @@ function ligadaSemUcProb(l){
   const uc = String(txt(getL(l, C.UC) || "")).trim();
   return !uc || uc === "-";
 }
+/* alertas do robô que a própria tela calcula pelo Notion (sem UC, linha repetida, UC repetida) */
+function roboTelaJaVe(it){
+  const g = String((it && it.grupo) || "");
+  return g === "sem_uc" || g === "repetida" || g.indexOf("dup_") === 0;
+}
 function problemasDaLinha(l){
   if (!l || !l.id) return [];
   const ix = idxProblemas(), out = [];
@@ -3919,10 +3924,10 @@ function problemasDaLinha(l){
   const u = ucChaveProb(l);
   if (u && ix.uc[u] && ix.uc[u].size > 1) out.push("UC/matrícula repetida em " + ix.uc[u].size + " casas");
   (ix.robo[idNotion(l.id)] || []).forEach(it => {
-    // o que a tela já calculou sozinha não repete; o que ela não viu, o robô completa
-    if (it.grupo === "sem_uc" && out.some(x => /^Ligada sem UC/.test(x))) return;
-    if (it.grupo === "dup_casa" && out.some(x => /^Linha repetida/.test(x))) return;
-    if ((it.grupo === "dup_uc" || it.grupo === "repetida") && out.some(x => /^UC\/matrícula/.test(x))) return;
+    // 25/11/26 (dono): sem UC e linha/UC repetida a tela vê no Notion de agora; o aviso do robô é da rodada das
+    // 07:30 e fica velho quando alguém corrige a célula (RR 02 QD 01 LT 29 CS 1: UC preenchida depois da rodada
+    // continuava em alerta). Desses, vale só o que a tela vê; o resto o robô completa.
+    if (roboTelaJaVe(it)) return;
     out.push(String(it.titulo || it.grupo).replace(/[<>&]/g, "") + (PROB_MC.indexOf(it.grupo) >= 0 ? " (Mais Controle)" : ""));
   });
   return out.filter((x, i) => out.indexOf(x) === i);
