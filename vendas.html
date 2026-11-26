@@ -186,6 +186,15 @@ tbody tr.sit1:hover td,tbody tr.sit2:hover td,tbody tr.sit3:hover td{filter:brig
 .legenda .dot.sit2{background:#FFB3B3;border-color:#E05252}
 .legenda .dot.sit3{background:#FFD8A0;border-color:#EDA344}
 .legenda .dot.sit0{background:var(--sup);border-color:var(--border)}
+/* 26/11/2026 (dono): data de pagamento do GCAP como alerta na planilha e como filtro */
+.gcap-tag{display:inline-block;margin-left:7px;padding:1px 7px;border-radius:9px;font-size:10px;font-weight:800;letter-spacing:.02em;vertical-align:middle;white-space:nowrap;border:1px solid transparent}
+.gcap-tag.vencido{background:#fde2e1;color:#a12a22;border-color:rgba(192,57,43,.35)}
+.gcap-tag.semana{background:#ffe9cf;color:#9a4a07;border-color:rgba(230,126,34,.45)}
+.legenda .dot.gcap-vencido{background:#fde2e1;border-color:#c0392b}
+.legenda .dot.gcap-semana{background:#ffe9cf;border-color:#e67e22}
+.legenda .dot.gcap-apagar{background:var(--sup);border-color:var(--azul)}
+html[data-tema="escuro"] .gcap-tag.vencido{background:rgba(192,57,43,.25);color:#ff8a7a}
+html[data-tema="escuro"] .gcap-tag.semana{background:rgba(230,126,34,.22);color:#f0a868}
 
 /* painel obra */
 .overlay{position:fixed;inset:0;background:rgba(15,30,45,.55);display:none;z-index:40}
@@ -438,13 +447,17 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
    põe no painel (#dossie-wrap no topo, #contrato-wrap no fim) vão para a aba pelo id. Só esconde/mostra. */
 .pn-abas{margin:0;padding:10px 12px 8px;background:var(--sup);border-bottom:1px solid var(--border2)}
 .pn-abas:empty{display:none}
-.pn-abas .tab{padding:7px 11px;font-size:12.5px}
+.pn-abas .tab{padding:7px 11px;font-size:12.5px;white-space:nowrap}
 #painel[data-aba] #pn-body>[data-sec],#painel[data-aba] #dossie-wrap,#painel[data-aba] #contrato-wrap{display:none}
 #painel[data-aba="resumo"] #pn-body>[data-sec="resumo"],#painel[data-aba="documentos"] #pn-body>[data-sec="documentos"],
 #painel[data-aba="compradores"] #pn-body>[data-sec="compradores"],#painel[data-aba="contrato"] #pn-body>[data-sec="contrato"],
 #painel[data-aba="andamento"] #pn-body>[data-sec="andamento"],#painel[data-aba="links"] #pn-body>[data-sec="links"],
 #painel[data-aba="documentos"] #dossie-wrap,#painel[data-aba="contrato"] #contrato-wrap,#painel[data-aba="recebimentos"] #contrato-wrap{display:block}
 #painel[data-aba="contrato"] #contrato-wrap>.vb-rec,#painel[data-aba="recebimentos"] #contrato-wrap>:not(.vb-rec){display:none}
+/* 26/11/2026 (dono): o Mais Controle sai do fim da aba Contrato e ganha aba própria (modo abas e modo lista) */
+#painel[data-aba="mc"] #contrato-wrap,#painel[data-aba="lista-mc"] #contrato-wrap{display:block}
+#painel[data-aba="contrato"] #contrato-wrap>.vb-mc,#painel[data-aba="mc"] #contrato-wrap>:not(.vb-mc),
+#painel[data-aba="lista-contrato"] #contrato-wrap>.vb-mc,#painel[data-aba="lista-mc"] #contrato-wrap>:not(.vb-mc){display:none}
 /* 05/11/2026: o seletor "Compradores 1 | 2" do dossiê (venda-dossie.js, evento dossie:compradores) esconde o grupo
    Comprador 2 da aba Compradores. Só no painel da casa de rua (#painel); o cartão do condomínio não muda. */
 #painel[data-compradores="1"] #pn-body [data-comprador2]{display:none}
@@ -469,19 +482,21 @@ tr.setor-detalhe td{background:var(--bg2);padding:12px 16px}
 #painel[data-modo="lista"] #contrato-wrap{order:4}
 #painel[data-modo="lista"] #pn-body>[data-sec="andamento"]{order:5}
 #painel[data-modo="lista"] #pn-body>[data-sec="links"]{order:6}
-#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:not([data-sec="documentos"]),#painel[data-aba="lista-etapas"] #contrato-wrap,
-#painel[data-aba="lista-documentos"] #pn-body>[data-sec="documentos"],#painel[data-aba="lista-documentos"] #dossie-wrap{display:block}
+/* 26/11/2026 (dono): na lista, "Todas as etapas" = venda, compradores, etapas do processo e rodapé; Contrato (dados, gerar,
+   Clicksign e recebimentos), Mais Controle e Links têm aba própria, como no modo abas */
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:not([data-sec="documentos"]):not([data-sec="contrato"]):not([data-sec="links"]),
+#painel[data-aba="lista-documentos"] #pn-body>[data-sec="documentos"],#painel[data-aba="lista-documentos"] #dossie-wrap,
+#painel[data-aba="lista-contrato"] #pn-body>[data-sec="contrato"],#painel[data-aba="lista-contrato"] #contrato-wrap,
+#painel[data-aba="lista-links"] #pn-body>[data-sec="links"]{display:block}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec]:empty{display:none}
 #painel[data-modo="lista"] .pn-grade{grid-template-columns:1fr}
-#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:not(:empty)::before,#painel[data-aba="lista-etapas"] #contrato-wrap:not(:empty)::before{
+#painel[data-aba="lista-etapas"] #pn-body>[data-sec]:not(:empty)::before,#painel[data-aba="lista-contrato"] #pn-body>[data-sec="contrato"]:not(:empty)::before{
   display:block;margin:18px 22px 0;padding:6px 10px;border-radius:8px;background:rgba(76,217,100,.12);color:var(--verde-txt,var(--verde,#2e9e57));
   font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec="resumo"]::before{content:"Venda";margin-top:10px}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec="compradores"]::before{content:"Compradores"}
-#painel[data-aba="lista-etapas"] #pn-body>[data-sec="contrato"]::before{content:"Contrato — dados"}
-#painel[data-aba="lista-etapas"] #contrato-wrap::before{content:"Contrato, assinatura e recebimentos"}
+#painel[data-aba="lista-contrato"] #pn-body>[data-sec="contrato"]::before{content:"Contrato — dados"}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec="andamento"]::before{content:"Etapas do processo (ordem da planilha)"}
-#painel[data-aba="lista-etapas"] #pn-body>[data-sec="links"]::before{content:"Links da casa"}
 /* 13/11/2026: Comentários / Distrato / Administração no fim da lista (no modo abas ficam no Resumo) */
 #painel[data-modo="lista"] #pn-body>.pn-rodape{order:7}
 #painel[data-aba="lista-etapas"] #pn-body>[data-sec].pn-rodape::before{content:none;display:none}
@@ -514,6 +529,10 @@ html[data-tema="escuro"] .proc-it.vermelho .proc-val{color:#ff8a7a}
 .pn-proto-st.nao{background:rgba(192,57,43,.07);border-color:rgba(192,57,43,.35);color:#c0392b}
 .pn-proto-st.alerta{background:rgba(230,126,34,.13);border-color:rgba(230,126,34,.55);color:#b45309}
 .pn-proto-ver,.pn-proto-anexar{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;font-size:13px;font-weight:700;color:var(--azul);cursor:pointer;text-decoration:underline}
+/* 26/11/2026 (dono): "requadra melhor esse botão de anexar e deixa mais evidente" — vira botão de verdade, verde e com clipe */
+.pn-proto-anexar{gap:6px;padding:0 16px;border:1.5px solid var(--verde);border-radius:9px;background:var(--verde);color:#fff;text-decoration:none;box-shadow:0 2px 6px rgba(42,157,92,.25)}
+.pn-proto-anexar:hover{filter:brightness(1.07)}
+.pn-proto-anexar:focus-within{outline:2px solid var(--verde-btn);outline-offset:2px}
 .pn-proto-data{margin-top:6px;min-width:0}
 .pn-proto-data label{font-size:12px}
 html[data-tema="escuro"] .pn-proto-st.ok{color:#8ce0a5}
@@ -534,8 +553,38 @@ html[data-tema="escuro"] .proc-it.nao .proc-val{color:#ff8a7a}
 @media (max-width:600px){ .proc{grid-template-columns:repeat(2,minmax(0,1fr))} }
 .pn-grade{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;padding:0 11px}
 .pn-grade>.campo{padding:0 11px}
-.pn-grade>.pn-par{grid-row:span 2;display:grid;grid-template-rows:subgrid;align-items:end}
-.pn-grade>.pn-par>.campo{padding:0 11px}
+/* 26/11/2026 (dono): "os que tiverem validação + data deixa junto, num card ou mesma linha" — o par (pergunta + data)
+   vira um cartão na largura toda da etapa, a pergunta à esquerda e a data à direita (no celular, um em cima do outro) */
+.pn-grade>.pn-par{grid-column:1/-1;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));align-items:end;margin:0 11px 13px;
+  padding:12px 0 0;border:1.5px solid var(--border2);border-left:4px solid var(--verde);border-radius:10px;background:var(--sup2);min-width:0}
+.pn-grade>.pn-par>.campo{padding:0 12px}
+/* subtítulo dentro da etapa: separa o que é validação (SIM/NÃO, datas) do que é VALOR a preencher */
+.pn-grade>.pn-sub{grid-column:1/-1;margin:4px 11px 10px;padding:5px 10px;border-radius:7px;background:rgba(41,87,120,.08);color:var(--azul);
+  font-family:'Barlow Condensed',sans-serif;font-size:13px;font-weight:800;letter-spacing:.08em;text-transform:uppercase}
+html[data-tema="escuro"] .pn-grade>.pn-sub{background:rgba(121,200,191,.1);color:var(--teal)}
+/* alertas dentro das etapas (pré-vistoria sem protocolo; vencimento do GCAP) e o cartão "Casa modelo" dos Links */
+.pn-alerta{margin:0 22px 12px;padding:10px 12px;border-radius:10px;border:1.5px solid var(--border2);border-left-width:4px;font-size:13px;font-weight:600;line-height:1.45;overflow-wrap:anywhere}
+.pn-alerta.vermelho{border-color:rgba(192,57,43,.45);border-left-color:#c0392b;background:rgba(192,57,43,.08);color:#a12a22}
+.pn-alerta.laranja{border-color:rgba(230,126,34,.5);border-left-color:#e67e22;background:rgba(230,126,34,.1);color:#9a4a07}
+.pn-alerta.ok{border-color:rgba(42,157,92,.4);border-left-color:var(--verde);background:rgba(42,157,92,.08);color:var(--verde-esc)}
+.pn-alerta.neutro{border-left-color:var(--azul);background:var(--sup2);color:var(--text)}
+.pn-alerta small{display:block;font-weight:500;color:var(--text3);margin-top:2px}
+html[data-tema="escuro"] .pn-alerta.vermelho{color:#ff8a7a}html[data-tema="escuro"] .pn-alerta.laranja{color:#f0a868}html[data-tema="escuro"] .pn-alerta.ok{color:#8ce0a5}
+/* 26/11/2026 (dono): buscar o campo que quer preencher — digita, clica no resultado e o painel vai até ele */
+.pn-busca{position:relative;padding:8px 12px;background:var(--sup);border-bottom:1px solid var(--border2)}
+.pn-busca input{width:100%;box-sizing:border-box;min-height:40px;padding:8px 12px 8px 34px;border:1.5px solid var(--border);border-radius:10px;font:inherit;font-size:14px;background:var(--sup2) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%235a8099' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 11px center;color:var(--text)}
+.pn-busca input:focus{outline:none;border-color:var(--verde)}
+.pn-busca-res{position:absolute;left:12px;right:12px;top:calc(100% - 4px);z-index:5;max-height:min(320px,50vh);overflow:auto;background:var(--sup);border:1.5px solid var(--border);border-radius:10px;box-shadow:0 10px 28px var(--sombra)}
+.pn-busca-res:empty{display:none}
+.pn-busca-it{display:flex;align-items:center;gap:8px;width:100%;min-height:44px;padding:8px 12px;border:0;border-bottom:1px solid var(--border2);background:none;font:inherit;font-size:13.5px;text-align:left;color:var(--text);cursor:pointer}
+.pn-busca-it:last-child{border-bottom:0}
+.pn-busca-it:hover,.pn-busca-it.on{background:rgba(76,217,100,.12)}
+.pn-busca-it b{flex:1 1 auto;min-width:0;overflow-wrap:anywhere;font-weight:700}
+.pn-busca-it span{flex:0 0 auto;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--text3);background:var(--bg3);padding:2px 8px;border-radius:8px}
+.pn-busca-vazio{padding:12px;color:var(--text3);font-size:13px}
+.pn-achado{animation:pnAchado 2.2s ease-out}
+@keyframes pnAchado{0%,40%{box-shadow:0 0 0 3px var(--verde-btn);border-radius:8px;background:rgba(76,217,100,.16)}100%{box-shadow:0 0 0 0 transparent;background:transparent}}
+@media (max-width:600px){ .pn-grade>.pn-par{grid-template-columns:1fr} .pn-busca input{font-size:16px;min-height:44px} }
 .pn-grade>.campo:has(.msgrid),.pn-grade>.campo:has(textarea){grid-column:1/-1}
 .pn-vazio{margin:18px 22px;color:var(--text3);font-size:13px}
 @media (max-width:600px){ .pn-grade{grid-template-columns:1fr} .pn-abas .tab{padding:8px 2px;font-size:11px} }
@@ -1315,6 +1364,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
     <div class="ph"><div class="pn-tit"><div class="end" id="pn-end">Obra</div><div class="loc" id="pn-loc"></div></div><div class="pn-bts"><button type="button" class="cd-bt pn-modo-bt" id="pn-modo" onclick="pnTrocarModo()" title="Trocar entre a visualização em abas (etapas) e em lista lateral">☰ Ver em lista</button><button type="button" class="cd-bt" id="pn-fechar" onclick="fecharObra()">✕ Fechar</button></div></div>
     <div class="pn-topo" id="pn-topo"></div>
     <div class="pn-abas cd-abas" id="pn-abas"></div>
+    <div class="pn-busca" id="pn-busca" role="search"><input type="search" id="pn-busca-q" placeholder="Buscar o campo que quer preencher…" aria-label="Buscar campo no painel" autocomplete="off" autocorrect="off" spellcheck="false" data-lpignore="true" data-1p-ignore data-form-type="other" oninput="pnBuscar(this.value)" onkeydown="pnBuscaTecla(event)" onfocus="pnBuscar(this.value)" onblur="setTimeout(pnBuscaFechar,180)"><div class="pn-busca-res" id="pn-busca-res" role="listbox"></div></div>
     <div class="pbody" id="pn-body"></div>
   </aside>
 
@@ -1372,11 +1422,11 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=47"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="venda/painel-casa.js?v=10"></script>
+<script src="venda/painel-casa.js?v=11"></script>
 <script src="venda/FluxoLivre.js?v=27"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
-<script src="venda-dossie.js?v=100"></script>
+<script src="venda-dossie.js?v=101"></script>
 <script src="venda/contrato-vendida.js?v=4"></script>
 <script src="venda/atualizar-venda.js?v=1"></script><!-- 07/11: Atualizar venda pela proposta -->
 <script src="venda/reserva-prazo-ui.js?v=1"></script><!-- 12/11: faixa "a reserva cai amanhã" -->
@@ -3945,12 +3995,14 @@ function renderTabela(ctx){
     const constr = (dc && /SIM/.test(normNome(dc.obra_iniciada))) ? "1":"0";
     const prazo=corSituacao(v.valores)||"sit0";
     const classe=[vendida?"vendida":"",corSituacao(v.valores)].filter(Boolean).join(" ");
-    html+=`<tr class="${classe}" data-id="${esc(v.id)}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}" data-prazo="${prazo}" data-dv="${esc(vendida?String(dv).slice(0,10):"")}"><td class="numcol"></td>`+cols.map((c,i)=>{
+    const gc=gcapDaLinha(v.valores);   /* 26/11/2026: vencimento do GCAP (alerta + filtro) */
+    html+=`<tr class="${classe}" data-id="${esc(v.id)}" data-b="${esc(busca)}" data-cidade="${esc(cidade)}" data-sit="${esc(sit)}" data-ano="${esc(ano)}" data-breve="${breve}" data-obra="${constr}" data-prazo="${prazo}" data-gcap="${gc?gc.chave:""}" data-dv="${esc(vendida?String(dv).slice(0,10):"")}"><td class="numcol"></td>`+cols.map((c,i)=>{
       const val=getV(v.valores,c.nome);
       if(i===0){ const casa=getV(v.valores,"CASA");
         return `<td class="stick"><span class="obralink" data-obra="${esc(v.id)}">${esc(val||"(sem endereço)")}</span>`+
           (casa!=null&&casa!==""?`<span class="casanum" title="Número da casa">CASA ${esc(casa)}</span>`:``)+
-          (completo?`<span class="chkcompleto" title="Processo de vendas completo">✓</span>`:``)+`</td>`; }
+          (completo?`<span class="chkcompleto" title="Processo de vendas completo">✓</span>`:``)+
+          (gc&&(gc.chave==="vencido"||gc.chave==="semana")?`<span class="gcap-tag ${gc.chave}" title="Pagar GCAP até ${esc(gc.venceBR)} — ${esc(gc.texto)}">GCAP ${esc(gc.venceBR.slice(0,5))}</span>`:``)+`</td>`; }
       return celulaHtml(c,val,v);
     }).join("")+'</tr>';
   });
@@ -3960,6 +4012,15 @@ function renderTabela(ctx){
   ligarTabela(ctx);
   renderLegenda(ctx);
   renumerarTabela(ctx);
+}
+/* 26/11/2026 (dono): "essa data do GCAP põe como alerta na planilha também, como opção de filtro". Mesma conta do painel
+   (venda/painel-casa.js, estadoGcap): 1º dia útil do mês seguinte à DATA DE ASSINATURA DO CONTRATO; PAGOU GCAP? = SIM = pago. */
+function gcapDaLinha(valores){
+  try{
+    const PC=window.PainelCasa; if(!PC||!PC.estadoGcap) return null;
+    const cp=pnColunaGcap(/^PAGOU GCAP/), cd=pnColunaGcap(/^DATA.*PAGOU.*GCAP/);
+    return PC.estadoGcap({assinatura:getV(valores,"DATA DE ASSINATURA DO CONTRATO"),pagou:cp?getV(valores,cp):"",dataPagou:cd?getV(valores,cd):""});
+  }catch(e){ return null; }
 }
 /* item 6: numera só as linhas VISÍVEIS (respeita os filtros aplicados, inclusive
    o de ano) e só as vendidas, na ordem da DATA DA VENDA (mais antiga = 1).
@@ -4093,7 +4154,11 @@ function renderLegenda(ctx){
     `<label class="sw"><input type="checkbox" data-v="sit1" ${on}><span class="dot sit1"></span> ⏳ Tempo corrido &gt; 20 dias</label>`+
     `<label class="sw"><input type="checkbox" data-v="sit2" ${on}><span class="dot sit2"></span> ⚠️ Tempo corrido &gt; 45 dias</label>`+
     `<label class="sw"><input type="checkbox" data-v="sit3" ${on}><span class="dot sit3"></span> 🚨 &gt; 45 dias e não recebeu</label>`+
-    `<label class="sw"><input type="checkbox" data-v="completo" ${on}><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</label>`;
+    `<label class="sw"><input type="checkbox" data-v="completo" ${on}><span class="chkcompleto" style="margin-left:0">✓</span> Processo de vendas completo</label>`+
+    /* 26/11/2026: filtros do vencimento do GCAP */
+    `<label class="sw"><input type="checkbox" data-v="gcap-vencido" ${on}><span class="dot gcap-vencido"></span> GCAP vencido</label>`+
+    `<label class="sw"><input type="checkbox" data-v="gcap-semana" ${on}><span class="dot gcap-semana"></span> GCAP vence em até 7 dias</label>`+
+    `<label class="sw"><input type="checkbox" data-v="gcap-apagar" ${on}><span class="dot gcap-apagar"></span> GCAP a pagar (todos)</label>`;
 }
 /* ---------- filtro de período (pedido: mês, 7 dias e intervalo livre) ----------
    Filtra pela DATA DA VENDA (a mesma que já alimenta o filtro de ano) — é a
@@ -4143,8 +4208,11 @@ function aplicarFiltros(ctx){
   // chips de prazo/pendência marcados (vazio = sem filtro, mostra tudo)
   const legBox=document.getElementById(ctx+"-legenda");
   const marcados=legBox?[...legBox.querySelectorAll("input[data-v]:checked")].map(i=>i.dataset.v):[];
-  const prazoFiltro=marcados.filter(v=>v!=="completo");
+  const prazoFiltro=marcados.filter(v=>v!=="completo"&&v.indexOf("gcap-")!==0);
   const completoOn=marcados.indexOf("completo")>=0;
+  /* 26/11/2026: GCAP — vencido / vence em até 7 dias / a pagar (todos os não pagos com contrato da Caixa) */
+  const gcapFiltro=marcados.filter(v=>v.indexOf("gcap-")===0).map(v=>v.slice(5));
+  const gcapCasa=g=>gcapFiltro.some(f=>f===g||(f==="apagar"&&(g==="vencido"||g==="semana"||g==="aberto")));
   let visiveis=0;
   document.querySelectorAll("#"+ctx+"-wrap tbody tr").forEach(tr=>{
     let ok = tr.dataset.b.indexOf(q)>=0;
@@ -4162,6 +4230,7 @@ function aplicarFiltros(ctx){
     if(ok && per){ const dv=tr.dataset.dv||""; ok = !!dv && dv>=per.de && dv<=per.ate; }
     if(ok && prazoFiltro.length) ok = prazoFiltro.indexOf(tr.dataset.prazo)>=0;
     if(ok && completoOn) ok = (","+tr.dataset.sit+",").indexOf(",completo,")>=0;
+    if(ok && gcapFiltro.length) ok = gcapCasa(tr.dataset.gcap||"");
     tr.style.display = ok?"":"none";
     if(ok) visiveis++;
   });
@@ -4309,6 +4378,7 @@ function temSensiveis(){ return SCHEMA.some(c=>c.sensivel); }
 let OBRA_ABERTA=null;   // id da obra no painel aberto (null = painel fechado)
 async function abrirObra(pageId){
   OBRA_ABERTA=pageId;
+  { const q=document.getElementById("pn-busca-q"); if(q) q.value=""; pnBuscaFechar(); }   /* 26/11: busca de campo zera a cada casa */
   pnModalAbrir();
   document.getElementById("overlay").classList.add("on"); document.getElementById("painel").classList.add("on");
   const body=document.getElementById("pn-body"); body.innerHTML='<div class="vazio"><span class="load"></span> Carregando…</div>';
@@ -4683,7 +4753,7 @@ function pnTemAba(aba){
   const sec=document.querySelector('#pn-body>[data-sec="'+aba+'"]');
   if(sec && sec.children.length) return true;
   /* os blocos do venda-dossie.js (dossiê, contrato, Clicksign, recebimentos, Mais Controle) chegam depois */
-  if(window.VendaBlocos && (aba==="documentos"||aba==="contrato"||aba==="recebimentos")) return true;
+  if(window.VendaBlocos && (aba==="documentos"||aba==="contrato"||aba==="recebimentos"||aba==="mc")) return true;
   return false;
 }
 function pnDesenharAbas(){
@@ -4715,14 +4785,16 @@ function pnDesenharAbas(){
 }
 function pnTrocarAba(aba){
   if(pnModoLista()){
-    /* no modo lista só há "etapas" e "documentos"; quem pede outra aba (ex.: clique no resumo do processo, que
-       aponta para o Andamento) cai em Todas as etapas, rolando até a parte pedida */
-    const alvo = aba==="documentos" ? "documentos" : "etapas";
+    /* no modo lista as abas são etapas, documentos, contrato, mc e links (26/11/2026); quem pede outra aba do modo abas
+       (ex.: clique no resumo do processo, que aponta para o Andamento) cai na aba da lista que a contém, rolando até a parte */
+    const MAPA_LISTA={documentos:"documentos",contrato:"contrato",recebimentos:"contrato",mc:"mc",links:"links"};
+    const alvo = MAPA_LISTA[aba] || "etapas";
     PN_ABA_LISTA=alvo;
     const painel=document.getElementById("painel"); if(painel) painel.setAttribute("data-aba","lista-"+alvo);
     document.querySelectorAll("#pn-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===alvo; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
     const body=document.getElementById("pn-body"); if(!body) return;
-    const sec=(aba!=="etapas"&&aba!=="documentos") ? (aba==="recebimentos"?document.getElementById("contrato-wrap"):body.querySelector(':scope>[data-sec="'+aba+'"]')) : null;
+    const sec=aba==="recebimentos" ? body.querySelector("#contrato-wrap>.vb-rec")
+      : ((aba!==alvo) ? body.querySelector(':scope>[data-sec="'+aba+'"]') : null);
     if(sec && sec.offsetParent) body.scrollTop = Math.max(0, sec.offsetTop - body.offsetTop - 6); else body.scrollTop=0;
     return;
   }
@@ -4731,6 +4803,75 @@ function pnTrocarAba(aba){
   const painel=document.getElementById("painel"); if(painel) painel.setAttribute("data-aba",aba);
   document.querySelectorAll("#pn-abas .tab").forEach(b=>{ const on=b.getAttribute("data-aba")===aba; b.classList.toggle("on",on); b.setAttribute("aria-selected",on); });
   const body=document.getElementById("pn-body"); if(body) body.scrollTop=0;
+}
+/* 26/11/2026 (dono): "coloca uma opção de buscar o campo que quer preencher, aí já direciona para ele ao clicar". Varre o
+   que está desenhado no painel (rótulos dos campos, títulos das etapas e dos cartões), mostra até 12 resultados com a aba
+   de cada um e, no clique (ou Enter), abre a aba, rola até o campo, pisca e põe o cursor nele. Vale no modo abas e lista. */
+let PN_BUSCA=[], PN_BUSCA_SEL=0;
+function pnSemAcento(t){ return String(t||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().replace(/\s+/g," ").trim(); }
+function pnAbaDoElemento(el){
+  if(el.closest("#dossie-wrap")) return "documentos";
+  if(el.closest("#contrato-wrap")) return el.closest(".vb-rec")?"recebimentos":(el.closest(".vb-mc")?"mc":"contrato");
+  const sec=el.closest("#pn-body>[data-sec]");
+  return sec?sec.getAttribute("data-sec"):"resumo";
+}
+function pnRotuloAba(aba){
+  const a=(pnAbas()||[]).find(x=>x[0]===aba);
+  return a?a[1]:(aba==="mc"?"Mais Controle":aba);
+}
+function pnIndiceBusca(){
+  const body=document.getElementById("pn-body"); if(!body) return [];
+  const vistos=new Set(), out=[];
+  body.querySelectorAll(".campo>label,.ri>.k,.grp,.dz-card-t,.pn-sub").forEach(el=>{
+    if(el.closest("#pn-topo")||el.closest(".proc-wrap")) return;
+    const txt=(el.textContent||"").replace(/\s*\((somente leitura|o mesmo do Resumo)\)\s*/i," ").replace(/\s+/g," ").trim();
+    if(!txt) return;
+    const aba=pnAbaDoElemento(el), k=pnSemAcento(txt)+"|"+aba;
+    if(vistos.has(k)) return; vistos.add(k);
+    out.push({el,txt,aba,n:pnSemAcento(txt),campo:!el.classList.contains("grp")&&!el.classList.contains("dz-card-t")&&!el.classList.contains("pn-sub")});
+  });
+  return out;
+}
+function pnBuscar(q){
+  const box=document.getElementById("pn-busca-res"); if(!box) return;
+  const termos=pnSemAcento(q).split(" ").filter(Boolean);
+  if(!termos.length){ box.innerHTML=""; PN_BUSCA=[]; return; }
+  const idx=pnIndiceBusca();
+  PN_BUSCA=idx.filter(x=>termos.every(t=>x.n.indexOf(t)>=0))
+    .sort((a,b)=>(b.n.indexOf(termos[0])===0)-(a.n.indexOf(termos[0])===0) || (b.campo-a.campo))
+    .slice(0,12);
+  PN_BUSCA_SEL=0;
+  box.innerHTML=PN_BUSCA.length?PN_BUSCA.map((x,i)=>`<button type="button" role="option" class="pn-busca-it${i===0?" on":""}" onmousedown="event.preventDefault()" onclick="pnIrBusca(${i})"><b>${esc(x.txt)}</b><span>${esc(pnRotuloAba(x.aba))}</span></button>`).join("")
+    :`<div class="pn-busca-vazio">Nenhum campo com “${esc(q)}”.</div>`;
+}
+function pnBuscaTecla(ev){
+  const box=document.getElementById("pn-busca-res");
+  if(ev.key==="Escape"){ ev.preventDefault(); ev.target.value=""; pnBuscar(""); return; }
+  if(!PN_BUSCA.length) return;
+  if(ev.key==="ArrowDown"||ev.key==="ArrowUp"){
+    ev.preventDefault();
+    PN_BUSCA_SEL=(PN_BUSCA_SEL+(ev.key==="ArrowDown"?1:-1)+PN_BUSCA.length)%PN_BUSCA.length;
+    if(box) box.querySelectorAll(".pn-busca-it").forEach((b,i)=>b.classList.toggle("on",i===PN_BUSCA_SEL));
+    return;
+  }
+  if(ev.key==="Enter"){ ev.preventDefault(); pnIrBusca(PN_BUSCA_SEL); }
+}
+function pnBuscaFechar(){ const box=document.getElementById("pn-busca-res"); if(box) box.innerHTML=""; }
+function pnIrBusca(i){
+  const x=PN_BUSCA[i]; if(!x||!x.el||!x.el.isConnected) return;
+  pnTrocarAba(x.aba);
+  const body=document.getElementById("pn-body"); if(!body) return;
+  const alvo=x.el.closest(".campo,.ri,.pn-par,.dz-card,.pn-proto")||x.el;
+  requestAnimationFrame(()=>{
+    const r=alvo.getBoundingClientRect(), rb=body.getBoundingClientRect();
+    body.scrollTop=Math.max(0, body.scrollTop + r.top - rb.top - 14);
+    alvo.classList.remove("pn-achado"); void alvo.offsetWidth; alvo.classList.add("pn-achado");
+    setTimeout(()=>alvo.classList.remove("pn-achado"),2300);
+    const inp=x.campo&&alvo.querySelector("input:not([type=hidden]):not([type=file]),select,textarea,.tg,button");
+    if(inp&&inp.focus) try{ inp.focus({preventScroll:true}); }catch(e){}
+  });
+  const q=document.getElementById("pn-busca-q"); if(q) q.value="";
+  pnBuscaFechar(); PN_BUSCA=[];
 }
 function pnAbaDoCampo(nome){ try{ return window.PainelCasa&&window.PainelCasa.abaDoCampo ? window.PainelCasa.abaDoCampo(nome) : "andamento"; }catch(e){ return "andamento"; } }
 /* 13/11/2026 (dono): o Andamento em ETAPAS na ordem da planilha da Secretaria de Vendas (venda/painel-casa.js, porEtapa) */
@@ -4808,6 +4949,10 @@ function pnResumoProcesso(V,pageId,sensPendente){
   });
   const i=cartoes.indexOf("agua_energia");
   if(i>=0) cartoes.splice(i,1,...aguaEnergia); else cartoes.push(...aguaEnergia);
+  /* 26/11/2026 (dono): "no GCAP mostra a data de pagamento dele e põe aparecendo no resumo" — cartão logo depois do Pagou GCAP */
+  { const g=pnEstadoGcap(V,sensPendente);
+    if(g){ const cg=card("vence_gcap","Pagar GCAP até",g.venceBR,CLS[g.nivel]||"",g.texto,` ir" onclick="pnTrocarAba('andamento')" title="Abrir nas etapas do processo`);
+      const ip=cartoes.findIndex(x=>x&&x.chave==="pagou_gcap"); if(ip>=0) cartoes.splice(ip+1,0,cg); else cartoes.push(cg); } }
   /* Situação do processo: texto, nunca número; primeiro enquanto não termina, último quando "Concluído" */
   const sc=PC.resolverSituacao(nomes,SCHEMA.filter(c=>c.tipo==="formula").map(c=>c.nome));
   if(sc.texto||sc.numero||sc.fim){
@@ -4820,6 +4965,51 @@ function pnResumoProcesso(V,pageId,sensPendente){
   const html=ordem.map(k=>cartoes.find(x=>x.chave===k).html).join("");
   /* .proc-wrap: no modo lista o mesmo HTML vai para o topo parado do painel (#pn-topo) e este some do Resumo */
   return html ? `<div class="proc-wrap"><div class="grp" style="margin-top:14px">Resumo do processo</div><div class="proc">${html}</div></div>` : "";
+}
+/* 26/11/2026 (dono): vencimento do GCAP = 1º dia útil do mês seguinte à DATA DE ASSINATURA DO CONTRATO (contrato da Caixa),
+   a mesma conta do Apps Script que cria a atividade "Pagar GCAP" (venda/painel-casa.js, estadoGcap) */
+const PN_COL_CACHE={schema:null,m:{}};
+function pnColunaGcap(re){
+  if(PN_COL_CACHE.schema!==SCHEMA){ PN_COL_CACHE.schema=SCHEMA; PN_COL_CACHE.m={}; }   // o schema troca ao recarregar: zera
+  const k=re.source; if(k in PN_COL_CACHE.m) return PN_COL_CACHE.m[k];
+  const c=SCHEMA.find(x=>re.test(normNome(x.nome))); return (PN_COL_CACHE.m[k]=c?c.nome:"");
+}
+function pnEstadoGcap(V,sensPendente){
+  const PC=window.PainelCasa; if(!PC||!PC.estadoGcap||painelListaBranca()) return null;
+  const ca=campoPorNome("DATA DE ASSINATURA DO CONTRATO"); if(!ca||(ca.sensivel&&sensPendente)) return null;
+  const cp=pnColunaGcap(/^PAGOU GCAP/), cd=pnColunaGcap(/^DATA.*PAGOU.*GCAP/);
+  return PC.estadoGcap({assinatura:getV(V,ca.nome),pagou:cp?getV(V,cp):"",dataPagou:cd?getV(V,cd):""});
+}
+function pnGcapHtml(V,sensPendente){
+  const g=pnEstadoGcap(V,sensPendente); if(!g) return "";
+  return `<div class="pn-alerta ${g.nivel==="neutro"?"neutro":g.nivel==="vermelho"?"vermelho":g.nivel==="laranja"?"laranja":"ok"}">`+
+    `📅 Pagamento do GCAP até <b>${esc(g.venceBR)}</b> — ${esc(g.texto)}`+
+    `<small>1º dia útil do mês seguinte à assinatura do contrato da Caixa (mesmo prazo da atividade "Pagar GCAP")</small></div>`;
+}
+/* 26/11/2026 (dono): alerta na etapa da vistoria quando o protocolo de transferência ainda não tem anexo */
+function pnAlertaPreVistoriaHtml(V,sensPendente){
+  const PC=window.PainelCasa; if(!PC||!PC.alertaPreVistoria||!PC.protocolos) return "";
+  const faltam=[];
+  PC.protocolos(SCHEMA.map(c=>c.nome)).forEach(p=>{
+    const ca=p.arquivo&&campoPorNome(p.arquivo); if(!ca||(ca.sensivel&&sensPendente)) return;
+    const lista=getV(V,ca.nome); if(!(Array.isArray(lista)&&lista.length)) faltam.push(p.tipo);
+  });
+  const ag=pnColunaGcap(/^AGENDOU PRE.?VISTORIA/);
+  const a=PC.alertaPreVistoria(faltam,ag?getV(V,ag):"");
+  return a?`<div class="pn-alerta ${a.nivel}">⚠️ ${esc(a.texto)}</div>`:"";
+}
+/* 26/11/2026 (dono): "no modo de lista falta a parte de casa modelo" — na aba Links, a casa modelo que o cliente visita
+   (mesma regra do mapa de vendas e da aba Casas Modelo: lcModeloRotulo) */
+function pnCasaModeloHtml(V,pageId){
+  const cm=campoExatoOuFrag("MODELO?"), ehModelo=!!cm&&normNome(getV(V,cm.nome))==="SIM";
+  const dentro=txt=>`<div class="pn-alerta neutro" id="pn-casa-modelo">🏠 ${txt}</div>`;
+  if(ehModelo) return dentro("Esta casa <b>é casa modelo</b> — as outras casas do mesmo tipo no setor usam o layout, as fotos e a localização dela.");
+  if(!TC.rows){ setTimeout(()=>{ carregarTiposCasa().then(()=>{ const el=document.getElementById("pn-casa-modelo"); if(el&&PN_PAGE===pageId&&PN_V) el.outerHTML=pnCasaModeloHtml(PN_V,pageId); }).catch(()=>{}); },0);
+    return dentro("Casa modelo de visita: carregando…"); }
+  const r=(TC.rows||[]).find(x=>String(x.id||"").replace(/-/g,"")===String(pageId||"").replace(/-/g,""));
+  if(!r) return dentro("Casa modelo de visita: — <small>(a casa ainda não está no mapa de vendas)</small>");
+  const rot=lcModeloRotulo(r);
+  return dentro(`Casa modelo de visita: <b>${esc(rot)}</b>`+(rot==="—"?`<small>Sem casa modelo para o tipo ${esc(r.tipo||"(sem tipo)")} neste setor — escolha na aba Casas Modelo.</small>`:`<small>Automático pelo TIPO e pelo setor (aba Casas Modelo).</small>`));
 }
 /* 24/11/2026 (dono): bloco só leitura com as ligações de água e energia da casa (vêm da tela Ligações; o cadastro segue lá) */
 function pnLigacoesHtml(V,pageId){
@@ -4940,7 +5130,9 @@ function renderPainel(V,pageId,sensPendente){
     return normNome(n)==="DATA DA VENDA" ? pnMarcarEspelho(h,n) : h;   // 24/11: a mesma coluna no Resumo e no Andamento
   };
   const pnItens=(nomes,etapa)=>{ nomes=nomes.filter(n=>!ehDataProtocolo(n)); try{ if(window.PainelCasa&&window.PainelCasa.itensDaEtapa) return window.PainelCasa.itensDaEtapa(etapa||"",nomes); if(window.PainelCasa&&window.PainelCasa.agruparPares) return window.PainelCasa.agruparPares(nomes); }catch(e){} return nomes; };
-    const blocoTitulado=(nomes,titulo,antes,etapa,depois)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div><div class="pn-grade">`+(antes||"")+pnItens(nomes,etapa).map(it=>Array.isArray(it)?`<div class="pn-par">`+it.map(pnCampo).join("")+`</div>`:pnCampo(it)).join("")+`</div>`+(depois||""):"";
+    /* 26/11/2026: item {sub} = subtítulo "Valores" dentro da etapa (venda/painel-casa.js, itensDaEtapa); "alerta" vai entre o
+       título e a grade */
+    const blocoTitulado=(nomes,titulo,antes,etapa,depois,alerta)=>(nomes.length||antes)?`<div class="grp">${esc(titulo)}</div>`+(alerta||"")+`<div class="pn-grade">`+(antes||"")+pnItens(nomes,etapa).map(it=>Array.isArray(it)?`<div class="pn-par">`+it.map(pnCampo).join("")+`</div>`:(it&&typeof it==="object"&&it.sub)?`<div class="pn-sub">${esc(it.sub)}</div>`:pnCampo(it)).join("")+`</div>`+(depois||""):"";
   /* 05/11/2026 (dono): Comprador 1 mostra nome, CPF, WhatsApp e e-mail do Resumo — a MESMA coluna (venda/painel-casa.js,
      ESPELHO_COMPRADOR1); o COMPRADOR 1 - E-MAIL antigo só aparece se tiver algo diferente do Email */
   const espC1=pnEspelhoComprador1(V,pageId,sensPendente);
@@ -4963,11 +5155,18 @@ function renderPainel(V,pageId,sensPendente){
      "VISTORIA E ENTREGA DA CASA"; sem essa etapa no painel (setor enxuto), o bloco vem no fim do Andamento */
   const ligsHtml=pnLigacoesHtml(V,pageId);
   const grupos=pnPorEtapa(porAba.andamento), ETAPA_ENTREGA="VISTORIA E ENTREGA DA CASA";
-  sec.andamento+=grupos.map(g=>blocoTitulado(g.campos,g.titulo,"",g.etapa,g.etapa===ETAPA_ENTREGA?ligsHtml:"")).join("");
+  /* 26/11/2026 (dono): alerta da pré-vistoria sem protocolo anexado (etapa da vistoria) e a data de pagamento do GCAP */
+  const alertaEtapa=e=>e===ETAPA_ENTREGA?pnAlertaPreVistoriaHtml(V,sensPendente):(e==="GCAP"?pnGcapHtml(V,sensPendente):"");
+  sec.andamento+=grupos.map(g=>blocoTitulado(g.campos,g.titulo,"",g.etapa,g.etapa===ETAPA_ENTREGA?ligsHtml:"",alertaEtapa(g.etapa))).join("");
   if(!grupos.some(g=>g.etapa===ETAPA_ENTREGA)) sec.andamento+=ligsHtml;
   /* 09/11/2026 (dono): aba Links — layout, fotos e localização da casa num lugar só */
   if(porAba.links.length){
-    sec.links+=blocoTitulado(porAba.links,"Links da casa")+
+    /* 26/11/2026 (dono): TIPO e MODELO? (casa modelo) também em Links, para preencher; os links (layout, fotos, localização)
+       num bloco e o tipo/casa modelo em outro */
+    const ehRel=n=>/^(TIPO|MODELO\??)$/.test(normNome(n));
+    const rel=porAba.links.filter(ehRel).sort((a,b)=>(normNome(a)==="TIPO"?0:1)-(normNome(b)==="TIPO"?0:1)), lnk=porAba.links.filter(n=>!ehRel(n));
+    if(rel.length) sec.links+=blocoTitulado(rel,"Tipo e casa modelo","","","",pnCasaModeloHtml(V,pageId));
+    if(lnk.length) sec.links+=blocoTitulado(lnk,"Links da casa")+
       `<div class="pn-ajuda">Vazio = automático: no mapa de vendas a casa usa o layout e as fotos da casa modelo do tipo `+
       `(ou do cadastro do tipo, na aba Casas Modelo). Link preenchido aqui vale mais que o automático. `+
       `A localização mostrada no mapa é a da casa modelo (onde o cliente visita).</div>`;

@@ -222,21 +222,24 @@ test("6: o painel não desenha CADASTRO DA CASA nem OUTROS CAMPOS; a função pu
   const tudo = P.porEtapa(nomes).map(x => x.etapa);
   assert.ok(tudo.includes("CADASTRO DA CASA") && tudo.includes("OUTROS CAMPOS"), "a função pura continua agrupando");
   const painel = P.porEtapaPainel(nomes);
-  assert.deepEqual(painel.map(x => x.titulo), ["1 · AVALIAÇÃO E VALORES", "2 · PREFEITURA, ITBI E CARTÓRIO", "3 · VISTORIA E ENTREGA DA CASA"], "numeração sequencial");
+  /* 26/11/2026: a etapa da prefeitura leva também a TAXA DE VISTORIA no título do painel */
+  assert.deepEqual(painel.map(x => x.titulo), ["1 · AVALIAÇÃO E VALORES", "2 · TAXA DE VISTORIA, PREFEITURA, ITBI E CARTÓRIO", "3 · VISTORIA E ENTREGA DA CASA"], "numeração sequencial");
   assert.ok(!painel.some(x => P.ETAPAS_FORA_DO_PAINEL.includes(x.etapa)));
   assert.ok(P.ETAPAS.some(e => e[0] === "CADASTRO DA CASA"), "ETAPAS não perdeu a etapa (colunasRua depende)");
   assert.match(vendas, /porEtapaPainel/);
 });
 
-test("7: AGÊNCIA na etapa 3, empilhada sob PROCESSO CONFORME?; etapa 5 = TAXA DE VISTORIA", () => {
+test("7: AGÊNCIA na etapa 3; etapa 5 = TAXA DE VISTORIA (26/11: no painel, AGÊNCIA ao lado de TEVE FGTS e os valores depois)", () => {
   assert.equal(P.etapa("AGÊNCIA"), "CONFORMIDADE E CONTRATO DO BANCO");
   assert.equal(P.etapa("RECEBEU TAXA VISTORIA?"), "TAXA DE VISTORIA");
   assert.ok(!P.ETAPAS.some(e => e[0] === "TAXA DE VISTORIA E AGÊNCIA"));
   const g = P.porEtapa(["MANDOU P/ CONFORMIDADE?", "PROCESSO CONFORME?", "ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO", "VALOR DA PARCELA", "TEVE FGTS?", "AGÊNCIA"]);
   assert.equal(g.length, 1);
   const it = P.itensDaEtapa(g[0].etapa, g[0].campos);
-  assert.deepEqual(it, ["MANDOU P/ CONFORMIDADE?", ["PROCESSO CONFORME?", "AGÊNCIA"], ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"], "VALOR DA PARCELA", "TEVE FGTS?"]);
-  assert.deepEqual(P.agruparPares(["PROCESSO CONFORME?"]), ["PROCESSO CONFORME?"], "sem a agência, fica sozinho");
+  /* 26/11/2026 (dono): MANDOU P/ COM. — CONFORME · ASSINOU — DATA · AGÊNCIA — TEVE FGTS · VALORES */
+  assert.deepEqual(it, ["MANDOU P/ CONFORMIDADE?", "PROCESSO CONFORME?", ["ASSINOU E ARMAZENOU CONTRATO DO BANCO?", "DATA DE ASSINATURA DO CONTRATO"],
+    "AGÊNCIA", "TEVE FGTS?", { sub: "Valores" }, "VALOR DA PARCELA"]);
+  assert.deepEqual(P.agruparPares(["PROCESSO CONFORME?", "AGÊNCIA"]), ["PROCESSO CONFORME?", "AGÊNCIA"], "26/11: AGÊNCIA deixou de ser par do CONFORME");
 });
 
 test("GCAP: a data (coluna nova) fica em par sob a pergunta, na etapa GCAP; sem a coluna nada muda", () => {
@@ -265,5 +268,5 @@ test("celular: cartões e linhas novas quebram dentro do cartão, sem estourar a
   assert.match(vendas, /\.pn-proto-ver,\.pn-proto-anexar\{[^}]*min-height:44px/);
   assert.match(vendas, /\.pn-proto-linha\{display:flex;flex-wrap:wrap/);
   assert.match(vendas, /\.lig\{flex-wrap:wrap\}/);
-  assert.match(vendas, /painel-casa\.js\?v=10/);
+  assert.match(vendas, /painel-casa\.js\?v=11/);
 });

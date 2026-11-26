@@ -89,27 +89,36 @@
     return qtdFilhos === 1 && classesPrimeiroFilho === "vazio" && !!primeiroTemLoad;
   }
 
+  /* 26/11/2026 (dono): "melhora a visualização dos documentos anexados — cada um num card, separando cada item (TIPO DE
+   * CASA, COMPRADORES, DOC…), cada um com um card maior". Só a moldura muda: o conteúdo, os botões (data-acao) e o que
+   * cada um faz são os mesmos. */
+  function cartao(titulo, corpo, extra) {
+    return '<div class="dz-card' + (extra ? " " + extra : "") + '"><div class="dz-card-t">' + esc(titulo) + "</div>" + corpo + "</div>";
+  }
   function html(e, ui) {
     var travado = !e.tipoCasa, ocupado = !!ui.ocupado, testes = !!ui.testes;
     var dis = function (cond) { return cond ? " disabled" : ""; };
     var h = '<div class="grp">Dossiê do comprador</div>';
     if (testes) h += '<div class="dz-aviso">Perfil TESTES só consulta.</div>';
-    h += '<div class="dz-linha"><span class="dz-rot">Tipo de casa</span>' + TIPOS_CASA.map(function (t) {
+    var c = "";
+    c += '<div class="dz-linha"><span class="dz-rot">Tipo de casa</span>' + TIPOS_CASA.map(function (t) {
       return '<button type="button" data-acao="tipo" data-valor="' + esc(t) + '" class="bt ghost bt-mini' +
         (e.tipoCasa === t ? " on" : "") + '"' + dis(ocupado || testes) + ">" + esc(t) + "</button>";
     }).join(" ") + (e.tipoCasaPelaObra ? " <small>(pela obra — pode trocar)</small>"
       : e.tipoCasa && TIPOS_CASA.indexOf(e.tipoCasa) < 0 ? " <small>(hoje: " + esc(e.tipoCasa) + " — escolha pronta ou em construção)</small>" : "") + "</div>";
-    if (travado) h += '<div class="dz-aviso">Escolha o tipo de casa para liberar os documentos.</div>';
-    h += '<div class="dz-linha"><span class="dz-rot">Compradores</span>' + ["1", "2"].map(function (n) {
+    if (travado) c += '<div class="dz-aviso">Escolha o tipo de casa para liberar os documentos.</div>';
+    h += cartao("Tipo de casa", c, "dz-card-tipo");
+    c = '<div class="dz-linha"><span class="dz-rot">Compradores</span>' + ["1", "2"].map(function (n) {
       return '<button type="button" data-acao="dois" data-valor="' + n + '" class="bt ghost bt-mini' +
         ((ui.dois ? "2" : "1") === n ? " on" : "") + '">' + n + "</button>";
     }).join(" ") + "</div>";
     /* 05/11/2026: em 1, a aba Compradores esconde o comprador 2 — mas o que já está gravado dele sai no contrato.
        Nada é apagado sozinho: só avisa. */
     if (!ui.dois && (e.comprador2ComDados || e.doisCompradores))
-      h += '<div class="dz-aviso">O comprador 2 tem dados gravados e vai sair no contrato. Apague os dados dele para tirá-lo.</div>';
-    h += htmlSoltar(e, ui);
-    h += htmlLerTodos(e, ui, "topo");
+      c += '<div class="dz-aviso">O comprador 2 tem dados gravados e vai sair no contrato. Apague os dados dele para tirá-lo.</div>';
+    h += cartao("Compradores", c, "dz-card-comp");
+    h += cartao("Enviar e ler documentos", htmlSoltar(e, ui) + htmlLerTodos(e, ui, "topo"), "dz-card-soltar");
+    c = "";
     DOCS.forEach(function (d) {
       if (d.comprador === 2 && !ui.dois) return;
       var n = Number((e.arquivos && e.arquivos[d.id]) || 0) || 0, extra = "";
@@ -119,11 +128,12 @@
         extra = ' <button type="button" class="bt ghost bt-mini" data-acao="copiar-comprovante"' + dis(travado || ocupado || testes || !n1) +
           ">Usar o mesmo do comprador 1</button>";
       }
-      h += linhaDoc(d, n, e, ui, travado, extra);
+      c += linhaDoc(d, n, e, ui, travado, extra);
     });
-    h += htmlSituacao("Dossiê do comprador", e.dossie, "", dis(travado || ocupado || testes));
-    h += htmlObservacao(e.observacao);
-    if (ui.msg && (ui.msgGrupo || "comprador") === "comprador") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
+    h += cartao(ui.dois ? "Documentos dos compradores" : "Documentos do comprador", c, "dz-card-docs");
+    c = htmlSituacao("Dossiê do comprador", e.dossie, "", dis(travado || ocupado || testes)) + htmlObservacao(e.observacao);
+    if (ui.msg && (ui.msgGrupo || "comprador") === "comprador") c += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
+    h += cartao("Conferência do dossiê do comprador", c, "dz-card-sit");
     return h + htmlImovel(e, ui);
   }
 
@@ -413,22 +423,25 @@
     if (im.erro) return h + '<div class="dz-aviso">' + esc(mensagemDeErro(im.erro)) + "</div>";
     var travado = !e.tipoCasa, ocupado = !!ui.ocupado, testes = !!ui.testes;
     var dis = function (cond) { return cond ? " disabled" : ""; };
-    if (travado) h += '<div class="dz-aviso">Escolha o tipo de casa para liberar os documentos.</div>';
+    var c = "";
+    if (travado) c += '<div class="dz-aviso">Escolha o tipo de casa para liberar os documentos.</div>';
     var semColunas = Array.isArray(im.semColunas) ? im.semColunas : [];
     DOCS_IMOVEL.forEach(function (d) {
       if (d.coluna && semColunas.indexOf(d.coluna) >= 0) return;
       var n = Number((im.arquivos && im.arquivos[d.id]) || 0) || 0;
-      h += linhaDoc(d, n, e, ui, travado, "");
+      c += linhaDoc(d, n, e, ui, travado, "");
     });
-    h += htmlSituacao("Dossiê do imóvel", im.dossie, "imovel", dis(travado || ocupado || testes));
+    h += cartao("Documentos do imóvel", c, "dz-card-docs");   /* 26/11/2026: cada parte num cartão */
+    c = htmlSituacao("Dossiê do imóvel", im.dossie, "imovel", dis(travado || ocupado || testes));
     var dados = dadosImovel(im.dados);
     /* 04/11: o que a IA leu numa tabela de duas colunas (rótulo · valor), não numa lista corrida */
-    if (dados.length) h += '<dl class="dz-dados">' + dados.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl>";
-    h += htmlObservacao(im.observacao);
-    h += htmlLoteamento(ui.loteamento);
-    if (ui.msg && ui.msgGrupo === "imovel") h += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
+    if (dados.length) c += '<dl class="dz-dados">' + dados.map(function (x) { return "<dt>" + esc(x[0]) + "</dt><dd>" + esc(x[1]) + "</dd>"; }).join("") + "</dl>";
+    c += htmlObservacao(im.observacao);
+    c += htmlLoteamento(ui.loteamento);
+    if (ui.msg && ui.msgGrupo === "imovel") c += '<div class="dz-msg">' + esc(ui.msg) + "</div>";
     /* 04/11: o segundo "Ler documentos" (fim do imóvel) só aparece quando há o que ler; o do topo fica sempre */
-    return h + (pendentesDe(e).length || ui.msgGrupo === "lote-imovel" ? htmlLerTodos(e, ui, "imovel") : "");
+    c += (pendentesDe(e).length || ui.msgGrupo === "lote-imovel" ? htmlLerTodos(e, ui, "imovel") : "");
+    return h + cartao("Conferência do dossiê do imóvel", c, "dz-card-sit");
   }
   /* entrega 13: depois de gravar no Notion, o painel da casa (vendas.html) recarrega os campos ao ouvir
      window "venda:dados-gravados" com detail { pageId, gravados? } (gravados: { coluna: valor } quando há) */
@@ -948,18 +961,30 @@
     if (u.perguntaTipo) h += htmlPerguntaTipo(u.perguntaTipo, dis);   /* 23/11 */
     if (u.perguntaReserva) h += htmlPerguntaReserva(u.perguntaReserva, dis);   /* 08/11 */
     if (u.avisoReserva) h += '<div class="dz-aviso">' + esc(u.avisoReserva) + "</div>";
-    h += htmlConta(e.conta, u, dis);
-    h += htmlComissaoCorretor(e.comissaoCorretor, u, dis);   /* 05/11/2026: casa de rua */
-    h += htmlTestemunhas(e.testemunhas, dis);
-    h += htmlFluxo(e.fluxo, u, dis, e);
-    h += htmlCondicoes(e.condicoes, u, dis);
-    h += htmlHistorico(e.historico);
-    if (u.msg) h += '<div class="dz-msg">' + esc(u.msg) + "</div>";
+    var msgs = "";
+    if (u.msg) msgs += '<div class="dz-msg">' + esc(u.msg) + "</div>";
     if (u.link && /^https:\/\//.test(u.link)) {
-      h += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
+      msgs += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
         '<a href="' + esc(u.link) + '" target="_blank" rel="noopener">Abrir contrato</a></div>';
     }
-    return h;
+    var conta = htmlConta(e.conta, u, dis), com = htmlComissaoCorretor(e.comissaoCorretor, u, dis),   /* 05/11/2026: casa de rua */
+        test = htmlTestemunhas(e.testemunhas, dis), fluxo = htmlFluxo(e.fluxo, u, dis, e), cond = htmlCondicoes(e.condicoes, u, dis),
+        hist = htmlHistorico(e.historico);
+    /* 26/11/2026 (dono): "a formatação está muito ruim e quem não sabe o que é fica em dúvida — separar a parte de conta,
+     * comissão…". Casa de rua (u.cartoes): cada assunto num cartão com título (gerar · conta · comissão · testemunhas ·
+     * fluxo · condições · histórico). Mesmos campos e botões; o condomínio continua como era. */
+    if (u.cartoes) {
+      var cg = h.slice(h.indexOf("</div>") + 6);   // tudo depois do título "Contrato"
+      h = h.slice(0, h.indexOf("</div>") + 6) +
+        cartao("Gerar o contrato", cg + msgs, "dz-card-gerar") +
+        (conta ? cartao("Conta de recebimento", '<div class="dz-msg dz-nota">Conta em que o comprador paga — vai escrita no contrato.</div>' + conta, "dz-card-conta") : "") +
+        (com ? cartao("Comissão do corretor", com, "dz-card-com") : "") +
+        (test ? cartao("Testemunhas da assinatura", test, "dz-card-test") : "") +
+        (fluxo ? cartao("Fluxo de pagamento", fluxo) : "") + (cond ? cartao("Condições especiais", cond) : "") +
+        (hist ? '<div class="dz-card dz-card-hist">' + hist + "</div>" : "");
+      return h;
+    }
+    return h + conta + com + test + fluxo + cond + hist + msgs;
   }
 
   /* ---- 03/11/2026 (dono): "depois de enviado, trava toda essa parte de contrato igual quando assinado, deixando mexer só
@@ -1963,7 +1988,7 @@
         '<button type="button" class="bt bt-mini" data-acao="r-valor" data-item="' + id + '"' + dis + ">Salvar valor</button>" +
         (/^(SINAL|FINANCIAMENTO|FGTS)$/.test(it.id) ? ' <small class="rec-arq">o robô acerta a parcela no Mais Controle</small>' : "") + "</div>";
     }
-    if (it.erro) return h + '<div class="dz-aviso">' + esc(mensagemDeErro(it.erro)) + " — este item não grava até a coluna existir.</div>";
+    if (it.erro) return cartaoRec(it, h + '<div class="dz-aviso">' + esc(mensagemDeErro(it.erro)) + " — este item não grava até a coluna existir.</div>");
     h += '<div class="dz-linha"><span class="dz-rot">' + linhaSituacaoRec(it) + "</span></div>";
     if (it.mc && textoMC(it.mc)) h += '<div class="dz-linha rec-mc"><span class="dz-rot">Mais Controle: ' + esc(textoMC(it.mc)) + "</span></div>";
     if (lista && (it.pagamentos || []).length) {
@@ -1979,7 +2004,7 @@
     }
     var data = it.id in rasc ? rasc[it.id] : (lista ? "" : (it.data || ""));
     var escolhido = arqs[it.id] && arqs[it.id].name ? ' <small class="rec-arq">escolhido: ' + esc(arqs[it.id].name) + "</small>" : "";
-    h += '<div class="dz-linha"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
+    h += '<div class="dz-linha rec-form"><label class="dz-campo">Data do recebimento <input type="date" data-rec-data="' + id + '" value="' + esc(data) + '"' + dis + "></label> " +
       (lista ? '<label class="dz-campo">Valor recebido <input type="text" inputmode="decimal" data-rec-valor="' + id + '" value="' + esc(vals[it.id] || "") +
         '" placeholder="' + esc(typeof it.falta === "number" && it.falta > 0 ? numRec(it.falta) : "") + '"' + dis + "></label> " : "") +
       (it.aceitaArquivo !== false ? '<label class="dz-campo">Comprovante <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="' + id + '"' + dis + "></label>" + escolhido + " " : "") +
@@ -1987,7 +2012,13 @@
       (lista ? ((it.pagamentos || []).length ? "Registrar outro pagamento" : "Confirmar recebimento") : (it.confirmado ? "Confirmar de novo (corrigir)" : "Confirmar recebimento")) + "</button>" +
       (u.ocupado === it.id ? " <b>salvando…</b>" : "") + "</div>";
     if (it.aviso) h += '<div class="dz-msg dz-nota">Comprovante: ' + esc(mensagemDeErro(it.aviso)) + "</div>";
-    return h;
+    return cartaoRec(it, h);
+  }
+  /* 26/11/2026 (dono): "recebimentos também, separa em cards" — cada item (Sinal, Entrada, Financiamento, FGTS, outros)
+   * num cartão; a borda da esquerda mostra a situação (verde recebido, laranja parcial/aguardando, vermelho passou) */
+  function cartaoRec(it, corpo) {
+    var st = it.confirmado || it.situacao === "RECEBIDO" ? "ok" : it.situacao === "SOBRA" ? "sobra" : it.situacao === "PARCIAL" ? "parc" : "pend";
+    return '<div class="dz-card rec-card rec-card-' + st + '" data-rec-item="' + esc(it.id) + '">' + corpo + "</div>";
   }
   function htmlRecebimentos(e, u) {
     u = u || {};
@@ -2000,28 +2031,30 @@
     (e.outros || []).forEach(function (it) { h += htmlItemRec(it, u, dis); });
     if (e.outrosColuna) {
       var nv = u.novo || {};
-      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Outro recebimento</b> (ex.: parcela combinada à parte)</span></div>' +
-        '<div class="dz-linha"><label class="dz-campo">Nome <input type="text" maxlength="40" data-rec-novo="rotulo" value="' + esc(nv.rotulo || "") + '"' + dis + "></label> " +
+      h += '<div class="dz-card rec-card rec-card-novo"><div class="dz-linha rec-item"><span class="dz-rot"><b>Outro recebimento</b> (ex.: parcela combinada à parte)</span></div>' +
+        '<div class="dz-linha rec-form"><label class="dz-campo">Nome <input type="text" maxlength="40" data-rec-novo="rotulo" value="' + esc(nv.rotulo || "") + '"' + dis + "></label> " +
         '<label class="dz-campo">Valor esperado <input type="text" inputmode="decimal" data-rec-novo="valor" value="' + esc(nv.valor || "") + '"' + dis + "></label> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="r-novo"' + dis + ">Acrescentar</button>" + (u.ocupado === "NOVO" ? " <b>salvando…</b>" : "") + "</div>";
+        '<button type="button" class="bt ghost bt-mini" data-acao="r-novo"' + dis + ">Acrescentar</button>" + (u.ocupado === "NOVO" ? " <b>salvando…</b>" : "") + "</div></div>";
     }
     if (e.contratoFin && e.contratoFin.coluna) {
       var af = (u.arquivos || {}).FIN, n = e.contratoFin.arquivos || 0;
-      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Contrato de financiamento</b> — ' +
+      h += '<div class="dz-card rec-card rec-card-fin"><div class="dz-linha rec-item"><span class="dz-rot"><b>Contrato de financiamento</b> — ' +
         (n ? n + (n === 1 ? " arquivo guardado" : " arquivos guardados") : "nenhum arquivo") + "</span></div>" +
-        '<div class="dz-linha"><label class="dz-campo">Arquivo <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="FIN"' + dis + "></label>" +
+        '<div class="dz-linha rec-form"><label class="dz-campo">Arquivo <input type="file" accept="image/jpeg,image/png,image/webp,application/pdf" data-rec-arq="FIN"' + dis + "></label>" +
         (af && af.name ? ' <small class="rec-arq">escolhido: ' + esc(af.name) + "</small>" : "") + " " +
         '<button type="button" class="bt bt-mini" data-acao="r-fin"' + dis + ">" + (af || !n ? "Ler e atualizar os valores" : "Ler de novo") + "</button>" +
         (u.ocupado === "FIN" ? " <b>lendo…</b>" : "") + "</div>" +
         '<div class="dz-msg dz-nota">A leitura troca o VALOR FINANCIADO e, se o contrato mostrar, o FGTS e o subsídio; depois o robô acerta as parcelas no Mais Controle.</div>';
       if (u.finMsg) h += '<div class="dz-msg">' + esc(u.finMsg) + "</div>";
+      h += "</div>";
     }
     if (e.vendaLancada) {
       var mc = e.mc || {};
-      h += '<div class="dz-linha rec-item"><span class="dz-rot"><b>Mais Controle</b> — ' +
+      h += '<div class="dz-card rec-card rec-card-mc"><div class="dz-linha rec-item"><span class="dz-rot"><b>Mais Controle</b> — ' +
         esc(mc.situacao ? textoMC(mc) + (mc.em && mc.situacao !== "PROCESSANDO" ? " (" + mc.em + ")" : "") : "ainda não conferido pelo robô") + "</span> " +
         '<button type="button" class="bt ghost bt-mini" data-acao="r-mc"' + ((dis || !e.filaLigada) ? " disabled" : "") + ">Conferir no Mais Controle</button></div>";
       (mc.avisos || []).forEach(function (a) { h += '<div class="dz-msg dz-nota">' + esc(a) + "</div>"; });
+      h += "</div>";
     } else if (e.vendaLancada === false) {
       h += '<div class="dz-msg dz-nota">A venda ainda não foi lançada no Mais Controle: ao confirmar o sinal, o robô cadastra o cliente e lança a venda só com o sinal.</div>';
       /* 23/11: o que o robô do sinal escreveu (prévia, lançado, recusado), uma linha por tópico */
@@ -2172,7 +2205,34 @@
     "#dossie-wrap>.dz-obs-at{margin:6px 22px;padding:8px 12px 8px 30px;border-left:4px solid #E67E22;background:rgba(230,126,34,.07);border-radius:6px}" +
     "#dossie-wrap .dz-atencao{color:#8a5a00;font-weight:600}" +
     "#dossie-wrap>.dz-hist{margin:4px 22px 10px;font-size:12.5px;color:var(--text3,#5a8099)}#dossie-wrap>.dz-hist summary{cursor:pointer;font-weight:700}" +
-    "@media (max-width:600px){#dossie-wrap>.dz-doc .dz-acoes{width:100%;justify-content:flex-start}#dossie-wrap .dz-dados{grid-template-columns:1fr}#dossie-wrap .dz-dados dd{margin-bottom:6px}}";
+    "@media (max-width:600px){#dossie-wrap>.dz-doc .dz-acoes{width:100%;justify-content:flex-start}#dossie-wrap .dz-dados{grid-template-columns:1fr}#dossie-wrap .dz-dados dd{margin-bottom:6px}}" +
+    /* 26/11/2026 (dono): Documentos, Contrato e Recebimentos do painel da casa de rua em CARTÕES — cada assunto num cartão
+       com título; no Documentos, cada documento num cartãozinho com a borda da situação (falta · anexado · novo) */
+    "#pn-body .dz-card{margin:10px 22px 12px;padding:12px 14px;border:1.5px solid var(--border2,#d0e4ec);border-radius:12px;background:var(--sup2,#f7fbfc);min-width:0;box-sizing:border-box}" +
+    "#pn-body .dz-card-t{font-family:'Barlow Condensed',sans-serif;font-size:14px;font-weight:800;letter-spacing:.06em;text-transform:uppercase;color:var(--azul,#295778);margin:0 0 8px;padding-bottom:6px;border-bottom:1px solid var(--border2,#d0e4ec)}" +
+    "#pn-body .dz-card>.dz-linha,#pn-body .dz-card>.dz-aviso,#pn-body .dz-card>.dz-msg{margin:6px 0}#pn-body .dz-card>ul{margin:4px 0;padding-left:18px}" +
+    "#pn-body .dz-card .dz-soltar{margin:4px 0 8px;background:var(--sup,#fff)}" +
+    "#dossie-wrap .dz-card .dz-doc{margin:8px 0;padding:10px 12px;border:1.5px solid var(--border2,#d0e4ec);border-left:4px solid #c0392b;border-radius:10px;background:var(--sup,#fff)}" +
+    "#dossie-wrap .dz-card .dz-doc-ok{border-left-color:#2a9d5c}#dossie-wrap .dz-card .dz-doc-novo{border-left-color:#E67E22}" +
+    "#dossie-wrap .dz-card .dz-doc .dz-rot{font-weight:700}" +
+    "#dossie-wrap .dz-card .dz-situacao{margin:0 0 6px;padding:0;border:0;background:none}" +
+    "#dossie-wrap .dz-card .dz-obs-at{margin:6px 0;padding:8px 12px 8px 30px;border-left:4px solid #E67E22;background:rgba(230,126,34,.07);border-radius:6px}" +
+    "#dossie-wrap .dz-card .dz-hist{margin:4px 0 2px;font-size:12.5px;color:var(--text3,#5a8099)}#dossie-wrap .dz-card .dz-hist summary{cursor:pointer;font-weight:700}" +
+    "#dossie-wrap .dz-card .dz-dados{margin:6px 0 8px}" +
+    "#pn-body .dz-card-gerar{border-left:4px solid var(--verde,#2a9d5c)}#pn-body .dz-card-gerar .pn-grade{padding:0}" +
+    "#pn-body .dz-card-hist{padding:8px 14px}#pn-body .dz-card-hist .dz-hist{margin:0}" +
+    /* recebimentos: borda da esquerda = situação; data, valor e comprovante lado a lado (no celular, um por linha) */
+    "#pn-body .rec-card{border-left:4px solid #E67E22}#pn-body .rec-card-ok{border-left-color:#2a9d5c}#pn-body .rec-card-sobra{border-left-color:#c0392b}" +
+    "#pn-body .rec-card-novo,#pn-body .rec-card-fin,#pn-body .rec-card-mc{border-left-color:var(--azul,#295778)}" +
+    "#pn-body .rec-card .rec-item{margin-top:0}#pn-body .rec-card .rec-item .dz-rot{font-size:14px}" +
+    "#pn-body .rec-form{align-items:flex-end;gap:10px}#pn-body .rec-form .dz-campo{flex:1 1 170px;flex-direction:column;align-items:stretch;gap:3px;min-width:0;font-size:11.5px;font-weight:700;color:var(--text3,#5a8099)}" +
+    "#pn-body .rec-form .dz-campo input{width:100%;box-sizing:border-box;min-height:36px;font-weight:400;color:var(--text,#1a3347)}" +
+    "#pn-body .rec-form .dz-campo input[type=file]{padding:5px;border:1px dashed var(--border,#b8d0da);border-radius:6px;background:var(--sup,#fff)}" +
+    "#pn-body .rec-form .bt{min-height:36px}" +
+    "@media (max-width:600px){#pn-body .dz-card{margin:10px 12px 12px;padding:10px}#pn-body .dz-card .bt{min-height:44px}" +
+    "#pn-body .dz-card input,#pn-body .dz-card select,#pn-body .dz-card textarea{font-size:16px}#pn-body .dz-card input:not([type=checkbox]):not([type=radio]),#pn-body .dz-card select{min-height:44px}" +
+    "#pn-body .rec-form{flex-direction:column;align-items:stretch}#pn-body .rec-form .dz-campo{flex:0 0 auto;width:100%}#pn-body .rec-form .bt{width:100%}" +
+    "#dossie-wrap .dz-card .dz-doc .dz-acoes{width:100%;justify-content:flex-start}}";
   var estado = null, ui = { dois: false, ocupado: null, msg: "", testes: false }, paginaDoBloco = null;
 
   function obraAberta() { try { return OBRA_ABERTA; } catch (e) { return null; } }
@@ -3174,6 +3234,7 @@
       if (assinadoA()) return htmlHistorico(estadoC && estadoC.historico);
       /* 04/11: só a casa de rua (painel com Recebimentos) abre as caixas do que falta; o vendas.html desenha o campo */
       uiC.campoVenda = comRec && typeof window.PainelFaltaCampo === "function" ? function (f) { return window.PainelFaltaCampo(pageId, f); } : null;
+      uiC.cartoes = !!comRec;   /* 26/11/2026: casa de rua — a aba Contrato em cartões (gerar, conta, comissão, testemunhas…) */
       return enviadoA() ? htmlContratoLeitura(estadoC, uiC) : htmlContrato(estadoC, uiC);
     }
     /* 03/11 (dono): contrato gerado direto, termo nunca enviado = pré-reserva dispensada (o servidor também recusa).

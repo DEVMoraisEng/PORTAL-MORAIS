@@ -11,7 +11,8 @@ const RAIZ = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "..")
 const vendas = fs.readFileSync(path.join(RAIZ, "vendas.html"), "utf8");
 
 test("abas na ordem combinada", () => {
-  assert.deepEqual(P.ABAS.map(a => a[0]), ["resumo", "documentos", "compradores", "contrato", "recebimentos", "andamento", "links"]);
+  /* 26/11/2026 (dono): Andamento em 2º e aba própria do Mais Controle */
+  assert.deepEqual(P.ABAS.map(a => a[0]), ["resumo", "andamento", "documentos", "compradores", "contrato", "recebimentos", "mc", "links"]);
 });
 
 test("cada campo vai para a aba certa", () => {
@@ -58,12 +59,14 @@ test("Andamento em etapas na ordem da planilha; coluna nova cai em OUTROS CAMPOS
     ["1 · PREFEITURA, ITBI E CARTÓRIO", "2 · VISTORIA E ENTREGA DA CASA"], "numeração só das etapas que aparecem");
 });
 
-test("13/11: modo lista (coluna lateral) com resumo do processo no topo e duas abas", () => {
-  assert.deepEqual(P.ABAS_LISTA.map(a => a[0]), ["etapas", "documentos"]);
+test("13/11: modo lista (coluna lateral) com resumo do processo no topo; 26/11: abas Contrato, Mais Controle e Links", () => {
+  assert.deepEqual(P.ABAS_LISTA.map(a => a[0]), ["etapas", "documentos", "contrato", "mc", "links"]);
   assert.ok(vendas.includes('id="pn-modo" onclick="pnTrocarModo()"'), "botão de trocar o modo no cabeçalho");
   assert.ok(vendas.includes('<div class="pn-topo" id="pn-topo"></div>'));
   assert.ok(vendas.includes('#painel[data-modo="lista"]{top:0;right:0;left:auto;transform:none;width:min(640px,100vw)'), "lista = coluna à direita");
-  assert.ok(vendas.includes('#painel[data-aba="lista-documentos"] #dossie-wrap{display:block}'));
+  assert.ok(vendas.includes('#painel[data-aba="lista-documentos"] #dossie-wrap,'));
+  assert.ok(vendas.includes('#painel[data-aba="lista-links"] #pn-body>[data-sec="links"]{display:block}'), "26/11: Links na lista");
+  assert.ok(vendas.includes('#painel[data-aba="lista-mc"] #contrato-wrap>:not(.vb-mc){display:none}'), "26/11: Mais Controle na lista");
   assert.ok(vendas.includes('localStorage.setItem("morais_pn_modo",PN_MODO)'), "escolha guardada por pessoa");
   assert.match(vendas.slice(vendas.indexOf("function renderPainel(")), /pnPorEtapa\(porAba\.andamento\)/);
 });
