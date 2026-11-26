@@ -378,6 +378,11 @@ def candidatos(erp, cpf: str | None, email: str | None) -> list[dict]:
             continue
         vistos.add(p["id"])
         out.append(p)
+    # a lista /participants do ERP NÃO traz o bankAccount (medido 26/11/2026): a chave Pix só vem no detalhe
+    for p in out:
+        det = erp.pedir("GET", "/participants/%s" % p["id"])
+        if isinstance(det, dict) and str(det.get("id") or "") == str(p["id"]):
+            p["bankAccount"] = det.get("bankAccount")
     return out
 
 
