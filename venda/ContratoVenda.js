@@ -23,6 +23,9 @@ var ContratoVenda = (function () {
     COMISSAO_FORMA: "CONTRATO - COMISSÃO FORMA",
     COMISSAO_VENCIMENTO: "CONTRATO - COMISSÃO VENCIMENTO",
     COMISSAO_PAGA_POR: "CONTRATO - COMISSÃO PAGA POR",
+    /* 27/11/2026 (dono): casa de rua — parte da comissão paga ao corretor na assinatura ("sinal da intermediação",
+       ex.: sinal de 10 mil = 5 mil de arras ao vendedor + 5 mil adiantados ao corretor). Opcional (lida com cv()). */
+    SINAL_INTERMEDIACAO: "CONTRATO - SINAL DA INTERMEDIAÇÃO",
     PRAZO_CONCLUSAO: "DATA DA ENTREGA",   // decisão do dono 08/10: a VENDAS já tem a data
     /* entrega 14: escritas pela leitura dos documentos do imóvel; opcionais (lidas com cv()) e, quando
        preenchidas, valem antes da DATA HABITE-SE da obra e da DENOMINAÇÃO do cadastro do setor */
@@ -939,7 +942,8 @@ var ContratoVenda = (function () {
       comissao: {
         /* 05/11/2026: casa de rua — a forma sai do cadastro do corretor (chave PIX / conta); sem dados lá, a coluna antiga */
         valor: comissao, forma: (!cond && formaComissaoCorretor(f.corretor)) || txt(v.COMISSAO_FORMA),
-        vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor
+        vencimento: txt(v.COMISSAO_VENCIMENTO), pagaPor: pagaPor,
+        sinal: cond ? null : num(v.SINAL_INTERMEDIACAO)
       },
       corretor: f.corretor ? {
         nome: txt(f.corretor.nome), creci: txt(f.corretor.creci), cpfCnpj: txt(f.corretor.cpfCnpj),
@@ -1226,10 +1230,30 @@ var ContratoVenda = (function () {
       exige(!vazio(n.intermediariaVencimento), "Negociação", "intermediária (vencimento)");
     }
     exige(!vazio(n.formaPagamento), "Negociação", "forma de pagamento");
+    /* 27/11/2026 (dono): sinal da intermediação só com comissão paga pelo comprador e no máximo o valor dela */
+    var ci = d.comissao || {};
+    if (!d.condominio && ci.sinal !== null && ci.sinal !== undefined && ci.sinal > 0) {
+      if (ci.pagaPor === "VENDEDOR") faltas.push("Negociação: sinal da intermediação só vale com a comissão paga pelo comprador");
+      else if (ci.valor === null || ci.valor === undefined || !(ci.valor > 0)) faltas.push("Negociação: sinal da intermediação sem valor de comissão");
+      else if (ci.sinal > ci.valor + 0.005) faltas.push("Negociação: sinal da intermediação maior que a comissão");
+    }
     /* 05/11/2026 (dono): comissão do corretor OPCIONAL na casa de rua por enquanto (ele vai acertar com a Juliana).
        Nos 47 contratos assinados ela sempre existe (R$ 8 a 27 mil), paga pelo comprador, quase sempre fora do preço.
        comissão (vencimento) deixou de ser exigida (dono, 08/10): vazia, a linha "c) Vencimento:" sai do
        contrato e as letras seguintes sobem (PARAGRAFOS_SE_VAZIO) */
+  }
+
+  /* 27/11/2026 (dono): "R$ 5.000,00 (cinco mil reais) na assinatura deste contrato, a título de sinal da intermediação,
+     e o saldo de R$ 15.000,00 (quinze mil reais) na data de assinatura do contrato de financiamento…". Sinal igual à
+     comissão = tudo na assinatura. Vazio fora da casa de rua, sem sinal ou sem comissão. */
+  function vencimentoComSinalIntermediacao(d) {
+    var c = (d && d.comissao) || {};
+    if (d.condominio || c.sinal === null || c.sinal === undefined || !(c.sinal > 0) || !(c.valor > 0)) return "";
+    var na = "R$ " + moedaComExtenso(c.sinal) + " na assinatura deste contrato";
+    var saldo = so2(c.valor - c.sinal);
+    if (saldo <= 0) return na;
+    return na + ", a título de sinal da intermediação, e o saldo de R$ " + moedaComExtenso(saldo) +
+      " na data de assinatura do contrato de financiamento por parte do COMPRADOR junto à instituição financeira";
   }
 
   function moedaOuVazio(n) { return n === null || n === undefined ? "" : moedaBR(n); }
@@ -1353,7 +1377,8 @@ var ContratoVenda = (function () {
       /* 19/11/2026 (dono): na casa de rua a forma é sempre "PIX ou depósito bancário" (saía em branco quando o
          cadastro do corretor não tinha Pix/conta) */
       COMISSAO_FORMA: d.condominio ? formaPorExtenso(c.forma) : "PIX ou depósito bancário",
-      COMISSAO_VENCIMENTO: c.vencimento,
+      /* 27/11/2026 (dono): com sinal da intermediação, a linha "c) Vencimento:" do item 5 diz quanto vai na assinatura e o saldo */
+      COMISSAO_VENCIMENTO: vencimentoComSinalIntermediacao(d) || c.vencimento,
       COMISSAO_RESPONSAVEL: pagaVend ? (txt(v.nome) || d.nomeProprietario) : nomes,
       CORRETOR_NOME: txt(k.nome),
       CORRETOR_CRECI: txt(k.creci),
