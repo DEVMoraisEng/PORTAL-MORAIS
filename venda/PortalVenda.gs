@@ -37,7 +37,7 @@ function tratar_(p) {
     if (!sess) return { ok: false, erro: "NAO_AUTORIZADO" };
     if (!temAcessoVendas_(sess)) return { ok: false, erro: "SEM_PERMISSAO" };
     var grava = ["tipoCasa", "lerDocumento", "anexarDocumento", "soltarDocumento", "lerDocumentos", "copiarComprovante", "conferir", "devolver", "gerarContrato", "gerarPreContrato", "aprovarPreContrato", "escolherTestemunhas",
-                 "salvarCamposContrato", "escolherContaRecebimento", "escolherCorretorContrato" /* 27/11 */, "mcLancar", "mcComissao" /* 24/11: ComissaoMC.gs */, "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
+                 "salvarCamposContrato", "escolherContaRecebimento", "escolherCorretorContrato" /* 27/11 */, "lerCreciCorretor" /* 27/11: documento do CRECI */, "mcLancar", "mcComissao" /* 24/11: ComissaoMC.gs */, "mcAnexar" /* 03/11: AnexosMC.gs */, "assinaturaEnviar", "assinaturaEstado",
                  "gerarVendaCondominio", "assinaturaReenviar", "assinaturaCancelar" /* 29/10 */, "assinaturaTrocarEmail" /* 03/11 */, "salvarCondicoesEspeciais" /* 29/10 */, "redigirCondicoesEspeciais", "salvarFluxo" /* 29/10 */, "confirmarReservaPaga" /* 08/11 */, "reservaNaoPaga" /* 26/11 */, "lerCrlv" /* 03/11: CRLV da permuta */, "salvarContaPreReserva", "salvarPagamentoPreReserva" /* 31/10 */, "salvarConjugePreReserva" /* 01/11 */, "gerarTermoPreReserva",
                  "conferirDocumentos", "confirmarConferencia" /* 28/10 */, "corrigirConferencia" /* 31/10 */, "salvarFiadores", "conjugeEhFiador2" /* 01/11: bloco Fiadores */,
                  "recebimentoConfirmar" /* entrega 14 */, "recebimentoRemover", "recebimentoValor", "recebimentoLerContratoFin", "recebimentoMC" /* 05/11 */, "antecipacaoLer", "antecipacaoPdf" /* 31/10: AntecipacaoVenda.gs */,
@@ -80,6 +80,7 @@ function executar_(col, sess, p) {
       case "salvarComissaoRua": return salvarComissaoRua_(col, sess, p);   /* 19/11/2026: seletor Comissão paga por + e-mail do corretor */
       case "escolherContaRecebimento": return escolherContaRecebimento_(col, sess, p);
       case "escolherCorretorContrato": return escolherCorretorContrato_(col, sess, p);
+      case "lerCreciCorretor": return lerCreciCorretor_(col, sess, p);              /* 27/11: CRECI do corretor lido pela IA (GerarContrato.gs) */
       case "gerarPreContrato": return gerarPreContrato_(col, sess, p);
       case "verPreContrato": return verPreContrato_(col, p);
       case "aprovarPreContrato":

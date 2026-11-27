@@ -1261,7 +1261,7 @@ function verDocumentoAssinado_(col, p) {
  * cancelar o envelope"): com o envelope ABERTO (RASCUNHO, ENVIADO, situação vazia ou envio pendente — assEnvelopeAberto_)
  * as mesmas ações respondem ENVELOPE_ABERTO com a mensagem; Atualizar situação, Reenviar, Cancelar, Prévia e as leituras
  * (visualizar contrato/termos/fluxo, documentos assinados) seguem. Cancelado/recusado/expirado destrava tudo. */
-var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento", "escolherCorretorContrato",
+var ASS_TRAVA_CONTRATO = ["gerarPreContrato", "aprovarPreContrato", "gerarContrato", "escolherTestemunhas", "salvarCamposContrato", "escolherContaRecebimento", "escolherCorretorContrato", "lerCreciCorretor" /* 27/11 */,
                           "salvarCondicoesEspeciais", "redigirCondicoesEspeciais", "salvarFiadores", "conjugeEhFiador2",
                           "excluirArquivoEspaco" /* 05/11: documento do dossiê não sai com o contrato enviado ou assinado */];
 /* 03/11: só o envelope ABERTO trava aqui. Assinado, salvarFluxo e lerCrlv já respondem FLUXO_CONTRATO_ASSINADO ("mudar o

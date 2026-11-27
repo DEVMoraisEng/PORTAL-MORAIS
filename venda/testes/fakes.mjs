@@ -186,8 +186,14 @@ export function notionFalso({ valores = {}, s3 = {}, colunas = COLUNAS_REAIS, pa
           if (!(nome in linha) && !(nome in cols)) return { status: 400, json: { message: "Could not find property " + nome } };
         escritas.push({ metodo: "PATCH", base: lp[1], linha: Number(lp[2]), props: corpo.properties });
         Object.assign(linha, JSON.parse(JSON.stringify(corpo.properties)));
+        /* 27/11/2026: coluna de arquivos da linha de cadastro (CRECI - DOCUMENTO): upload vira arquivo hospedado, como em aplicar() */
+        for (const [nome, v] of Object.entries(corpo.properties)) if (v.files) linha[nome] = { files: v.files.map((f) => (f.file_upload
+          ? { name: f.name, type: "file", file: { url: "https://s3.falso/" + f.file_upload.id } } : f)) };
         return { json: { id: lp[0] } };
       }
+      /* 27/11/2026: GET de uma linha de cadastro (anexarArquivo_ lê a lista de arquivos antes de acrescentar) */
+      const gl = /^\/pages\/(.+)-linha-(\d+)$/.exec(u);
+      if (m === "GET" && gl && bases[gl[1]] && bases[gl[1]][Number(gl[2])]) return { json: { id: gl[0], properties: tipar(bases[gl[1]][Number(gl[2])]) } };
       if (m === "POST" && u === "/pages" && corpo.parent && bases[corpo.parent.database_id]) {
         const base = corpo.parent.database_id, cols = esquemas[base] || {};
         for (const nome of Object.keys(corpo.properties))
