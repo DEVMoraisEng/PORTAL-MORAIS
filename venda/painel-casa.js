@@ -46,7 +46,7 @@
     { titulo: "Comprador 1", campos: comprador(1) },
     { titulo: "Comprador 2", campos: comprador(2) },
     { titulo: "Contrato — pagamento e comissão", campos: [
-      "CONTRATO - SINAL VALOR", "CONTRATO - SINAL DATA", "CONTRATO - ENTRADA VALOR", "CONTRATO - ENTRADA VENCIMENTO",
+      "CONTRATO - SINAL VALOR", "CONTRATO - SINAL DATA", "CONTRATO - SINAL DA INTERMEDIAÇÃO", "CONTRATO - ENTRADA VALOR", "CONTRATO - ENTRADA VENCIMENTO",
       "CONTRATO - INTERMEDIÁRIA VALOR", "CONTRATO - INTERMEDIÁRIA VENCIMENTO", "CONTRATO - FORMA DE PAGAMENTO"] },
     { titulo: "Contrato — imóvel", campos: [
       "CONTRATO - MATRÍCULA INDIVIDUAL", "CONTRATO - CRI DA MATRÍCULA", "CONTRATO - ÁREA DO LOTE (M²)", "CONTRATO - CONFRONTAÇÕES",
