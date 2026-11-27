@@ -117,6 +117,25 @@ function ctrAcharLinha_(linhas, nome) {
   return achada;
 }
 
+/* 27/11/2026: a base CORRETORES – CONTRATO ganha a coluna APELIDO (texto; lista separada por vírgula ou ";") com os nomes
+ * como aparecem na VENDAS (coluna CORRETOR ou IMOBILIÁRIA: "IVAN", "IVAN IMÓVEIS"), enquanto o título da linha é o nome
+ * completo / razão social que vai no contrato. Ordem: 1º o TÍTULO igual (ctrAcharLinha_, como sempre — título exato ganha
+ * do apelido); se nenhum, as linhas cujo APELIDO tem o nome (item a item, RegrasVenda.chave). 2 ou mais = { duplicado: true }.
+ * Base sem a coluna APELIDO (ou com ela vazia) = exatamente o comportamento de antes. */
+function ctrAcharCorretor_(linhas, nome) {
+  var r = ctrAcharLinha_(linhas, nome);
+  if (r) return r;
+  var k = RegrasVenda.chave(nome), achada = null;
+  if (!k) return null;
+  for (var i = 0; i < linhas.length; i++) {
+    var lista = ContratoVenda.apelidos(ctrTxt_(ctrCampo_(ctrPorChave_(linhas[i]), "APELIDO")));
+    if (lista.indexOf(k) < 0) continue;
+    if (achada) return { duplicado: true };
+    achada = { titulo: ctrTitulo_(linhas[i]), c: ctrPorChave_(linhas[i]), props: linhas[i], id: linhas[i].__id || "" };
+  }
+  return achada;
+}
+
 /* Endereço comparável: chave do RegrasVenda sem zero à esquerda nos números ("TB 6 QD 40" = "TB 06 QD 40"). */
 function ctrChaveEndereco_(s) { return RegrasVenda.chave(s).replace(/\b0+(\d)/g, "$1"); }
 
@@ -425,7 +444,7 @@ function ctrFontes_(col, pageId) {
   /* condomínio: o empreendimento é a linha de LOTEAMENTOS com o nome do condomínio (= ENDEREÇO da casa) */
   /* produção: DB_LOTEAMENTOS = "DISPONIBILIDADES POR SETOR,Empreendimentos" (uma linha por SETOR; o condomínio pelo nome) */
   var ll = ctrAcharLinhaPor_(ctrLinhasDasBases_(prop_("DB_LOTEAMENTOS")), cond ? venda.ENDERECO : setor, "SETOR");
-  var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), venda.CORRETOR);
+  var lc = ctrAcharCorretor_(ctrLinhasBase_(prop_("DB_CORRETORES")), venda.CORRETOR);
   var duplicados = [];
   if (lv && lv.duplicado) duplicados.push("Vendedor: cadastro duplicado em VENDEDORES – CONTRATO");
   /* 05/11/2026 (dono): casa de rua não usa mais o cadastro de loteamento — só o condomínio ainda lê a linha */
@@ -500,7 +519,7 @@ function ctrFontes_(col, pageId) {
   /* 27/11/2026: imobiliária + corretor — o corretor (pessoa) vai junto, com CRECI/CPF do cadastro dele se existir */
   var interm = !cond ? ctrIntermediador_(pageId, v) : null;
   if (corretor && interm && interm.modo === "AMBOS" && interm.pessoa) {
-    var lp = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), interm.pessoa);
+    var lp = ctrAcharCorretor_(ctrLinhasBase_(prop_("DB_CORRETORES")), interm.pessoa);
     corretor.pessoa = { nome: lp && !lp.duplicado ? lp.titulo : interm.pessoa,
                         creci: lp && !lp.duplicado ? t(lp, "CRECI") : "", cpfCnpj: lp && !lp.duplicado ? t(lp, "CPF/CNPJ") : "" };
   }
@@ -1247,7 +1266,7 @@ function escolherContaRecebimento_(col, sess, p) {
  * "Quando o corretor é de imobiliária, eles gostam que coloquem a imobiliária como corretor, às vezes a imobiliária +
  * o corretor." Propriedade CORRETOR_MODO_<pageId> = "IMOBILIARIA" | "AMBOS"; sem ela (ou sem IMOBILIÁRIA na venda) vale
  * o CORRETOR, como sempre. O nome devolvido é o do cadastro em CORRETORES – CONTRATO: a IMOBILIÁRIA da venda é uma lista
- * curta ("EXEMPLO IMOVEIS") e o cadastro costuma ter a razão social ("EXEMPLO IMOVEIS LTDA") — vale o título igual ou, sem ele, o
+ * curta ("EXEMPLO IMOVEIS") e o cadastro costuma ter a razão social ("EXEMPLO IMOVEIS LTDA") — vale o título igual, o APELIDO (27/11: coluna APELIDO) ou, sem eles, o
  * ÚNICO título que começa pelo nome da imobiliária. AMBOS: a imobiliária é a parte; o corretor (pessoa) vai junto no
  * texto. { modo, nome, pessoa, corretor, imobiliaria } */
 var CTR_CORRETOR_MODO = "CORRETOR_MODO_";
@@ -1266,8 +1285,11 @@ function ctrNomeImobiliaria_(imob) {
   var db = prop_("DB_CORRETORES"), k = RegrasVenda.chave(imob);
   if (!db || !k) return imob;
   try {
-    var titulos = ctrLinhasBase_(db).map(function (l) { return ctrTitulo_(l); });
+    var linhas = ctrLinhasBase_(db), titulos = linhas.map(function (l) { return ctrTitulo_(l); });
     for (var i = 0; i < titulos.length; i++) if (RegrasVenda.chave(titulos[i]) === k) return titulos[i];
+    /* 27/11/2026: o APELIDO ("IVAN IMÓVEIS") vale antes da regra "único título que começa pelo nome" */
+    var ap = ctrAcharCorretor_(linhas, imob);
+    if (ap && !ap.duplicado && ap.titulo) return ap.titulo;
     var comeca = titulos.filter(function (x) { return RegrasVenda.chave(x).indexOf(k + " ") === 0; });
     return comeca.length === 1 ? comeca[0] : imob;
   } catch (e) { ctrErro_("contrato: imobiliaria pelo nome", e); return imob; }
@@ -1425,7 +1447,7 @@ function ctrComissaoCorretorEstado_(pg) {
      continua sendo a coluna E-MAIL do cadastro em CORRETORES – CONTRATO (CRECI/CPF/CNPJ/E-MAIL, "Faltam dados") */
   var pagaPor = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_PAGA_POR));
   if (!nome) return ContratoVenda.estadoComissaoCorretor("", null, null, formaAntiga, pagaPor);
-  var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
+  var lc = ctrAcharCorretor_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
   if (lc && lc.duplicado) return { pagaPor: pagaPor === "VENDEDOR" ? "VENDEDOR" : "COMPRADOR", corretor: nome, duplicado: true,
                                    campos: [], colunasFaltando: [], forma: "" };
   var linha = null, colunas;
@@ -1459,7 +1481,7 @@ function salvarPagamentoCorretor_(col, sess, p) {
   if (info.base === "CONDOMINIO") return { ok: false, erro: "SO_CASA_DE_RUA" };
   var nome = ctrIntermediador_(p.pageId, ctrPorChave_(pg.properties)).nome;   /* 27/11: corretor ou imobiliária */
   if (!nome) return { ok: false, erro: "CORRETOR_NA_VENDA_FALTANDO" };
-  var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
+  var lc = ctrAcharCorretor_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
   if (lc && lc.duplicado) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Corretor: cadastro duplicado em CORRETORES – CONTRATO"] };
   var erros = [], faltando = [], V = val.valores.corretor, dbc = "", props, tipos, titulo = "";
   if (lc && lc.id) tipos = ctrTiposDaLinha_(lc.props);
