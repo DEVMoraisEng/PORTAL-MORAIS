@@ -142,6 +142,16 @@ function ctrContaDaObra_(pg) {
   }
   return "";
 }
+/* 27/11/2026 (Juliana, TB 21 QD 51 LT 26 Casa 01): a CONTA da obra estava "DÚVIDA" — o contrato caía no banco do
+   vendedor enquanto o Mais Controle lançava na TERRA BELA - SICOOB (defaultAccount da obra no ERP). Sem conta da obra
+   no Notion, vale a conta que o robô do Mais Controle escreveu na prévia ("Conta da obra: X" em MC - SITUAÇÃO), achada
+   pelo nome na CONTAS BANCÁRIAS. Id da linha ou "". */
+function ctrContaPadrao_(obraPg, vendaPorChave) {
+  var id = ctrContaDaObra_(obraPg);
+  if (id) return id;
+  var nome = ContratoVenda.contaDaObraNoMC(ctrTxt_(ctrCampo_(vendaPorChave || {}, "MC - SITUAÇÃO")));
+  return nome ? ctrContaPorNome_(nome) : "";
+}
 function ctrContaPorNome_(nome) {
   var db = prop_("DB_CONTAS_BANCARIAS"), k = RegrasVenda.chave(nome);
   if (!db || !k) return "";
@@ -375,7 +385,9 @@ function ctrFontes_(col, pageId) {
     COMISSAO_VENCIMENTO: cv(CV.COMISSAO_VENCIMENTO), COMISSAO_PAGA_POR: cv(CV.COMISSAO_PAGA_POR),
     PRAZO_CONCLUSAO: cv(CV.PRAZO_CONCLUSAO), CONDICOES_ESPECIAIS: cv(CV.CONDICOES_ESPECIAIS),
     VALOR_CONTRATO: ctrNum_(cv("VALOR DE COMPRA E VENDA NO CONTRATO (VENDIDA)")), COMISSAO: ctrNum_(cv("COMISSÃO")),
-    VALOR_NA_MAO: ctrNum_(cv("VALOR NA MÃO")), CORRETOR: ctrTxt_(cv("CORRETOR")),
+    /* 27/11/2026 (Juliana): o intermediador do contrato pode ser o corretor, a imobiliária ou a imobiliária com o
+       corretor (ctrIntermediador_) — CORRETOR aqui é o NOME do cadastro que vai no contrato */
+    VALOR_NA_MAO: ctrNum_(cv("VALOR NA MÃO")), CORRETOR: ctrIntermediador_(pageId, v).nome,
     SETOR: ctrTxt_(cv("SETOR"))   /* 19/11/2026 (dono): SETOR é o bairro — vai no endereço do item 3 a) */
   };
   var setor = ctrTxt_(cv("SETOR"));
@@ -456,7 +468,7 @@ function ctrFontes_(col, pageId) {
   }
   /* conta de depósito: a da obra (CONTA da (EMP) Projeto 2.0 -> CONTAS BANCÁRIAS) vale antes da linha do vendedor,
      desde que traga ao menos banco ou número; sem ela, fica a do cadastro do vendedor, como antes */
-  var contaId = vendedor && !escolha ? ctrContaDaObra_(obraAuto.pg) : "";
+  var contaId = vendedor && !escolha ? ctrContaPadrao_(obraAuto.pg, v) : "";
   if (contaId) {
     var dc = ctrDadosDaConta_(contaId);
     if (dc && (dc.banco || dc.conta)) {
@@ -485,6 +497,13 @@ function ctrFontes_(col, pageId) {
        não tem sai vazia (nada trava) */
     pix: t(lc, "CHAVE PIX"), banco: t(lc, "BANCO"), agencia: t(lc, "AGÊNCIA"), conta: t(lc, "CONTA"), titular: t(lc, "TITULAR DA CONTA")
   } : null;
+  /* 27/11/2026: imobiliária + corretor — o corretor (pessoa) vai junto, com CRECI/CPF do cadastro dele se existir */
+  var interm = !cond ? ctrIntermediador_(pageId, v) : null;
+  if (corretor && interm && interm.modo === "AMBOS" && interm.pessoa) {
+    var lp = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), interm.pessoa);
+    corretor.pessoa = { nome: lp && !lp.duplicado ? lp.titulo : interm.pessoa,
+                        creci: lp && !lp.duplicado ? t(lp, "CRECI") : "", cpfCnpj: lp && !lp.duplicado ? t(lp, "CPF/CNPJ") : "" };
+  }
   /* condomínio: o corretor da linha do condomínio vale; CORRETORES – CONTRATO só completa o que faltar */
   if (cond && cond.corretor.nome) {
     var kc = cond.corretor, base = corretor || {};
@@ -623,6 +642,15 @@ function ctrTirarTrechosVazios_(sec, marcadores) {
     var rp, vp = 0;
     while ((rp = sec.findText(ContratoVenda.TRECHO_SO_PIX)) && vp++ < 50)
       rp.getElement().asText().deleteText(rp.getStartOffset(), rp.getEndOffsetInclusive());
+  }
+  /* 27/11/2026: o modelo diz "CPF nº {{CORRETOR_DOC}}" — corretor empresa (imobiliária) saía "CPF nº 61.423.023/0001-01" */
+  if (ContratoVenda.TRECHO_CPF_CORRETOR && ContratoVenda.ehCnpj && ContratoVenda.ehCnpj(String(marcadores.CORRETOR_DOC || "").split(",")[0]) /* AMBOS: o corretor vem depois da vírgula */) {
+    var rc, vc = 0;
+    while ((rc = sec.findText(ContratoVenda.TRECHO_CPF_CORRETOR)) && vc++ < 50) {
+      var tx = rc.getElement().asText(), ini = rc.getStartOffset();
+      tx.deleteText(ini, ini + 2);   /* "CPF" */
+      tx.insertText(ini, "CNPJ");
+    }
   }
   for (var chave in trechos) {
     if (!(chave in marcadores) || ctrTxt_(marcadores[chave]).trim()) continue;
@@ -837,6 +865,7 @@ function contratoEstado_(col, p) {
     try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_("contratoEstado conta", e); }
     /* 05/11/2026 (dono): casa de rua — bloco "Pagamento da comissão" (paga por COMPRADOR + dados do corretor), sempre */
     try { var cc = ctrComissaoCorretorEstado_(pgE); if (cc) r.comissaoCorretor = cc; } catch (e) { ctrErro_("contratoEstado comissao", e); }
+    try { r.intermediador = ctrIntermediadorEstado_(p.pageId, pgE); } catch (e) { ctrErro_("contratoEstado intermediador", e); }
     /* 23/11/2026 (Gustavo): casa de rua — o Gerar pré-contrato pergunta CASA PRONTA × CASA EM CONSTRUÇÃO (o tipo escolhe o
        modelo); vai o tipo gravado hoje para a pergunta mostrar qual está valendo */
     r.casaDeRua = true;
@@ -1152,7 +1181,7 @@ function contaRecebEstado_(pageId) {
   var padrao = "";
   try {
     var v = ctrPorChave_(ctrLerPaginaVenda_(pageId).properties || {});
-    padrao = ctrIdLimpo_(ctrContaDaObra_(ctrLerObraAuto_(ctrCampo_(v, "OBRA-AUTO")).pg));
+    padrao = ctrIdLimpo_(ctrContaPadrao_(ctrLerObraAuto_(ctrCampo_(v, "OBRA-AUTO")).pg, v));
   } catch (e) { ctrErro_("conta: conta da obra", e); }
   var esc = ctrLerContaReceb_(pageId), escolhida = null;
   if (esc && esc.contaId) escolhida = { id: ctrIdLimpo_(esc.contaId) };
@@ -1209,6 +1238,58 @@ function escolherContaRecebimento_(col, sess, p) {
   ctrGravarContaReceb_(p.pageId, c.valor);
   ctrLog_("escolherContaRecebimento " + String(p.pageId).slice(0, 8) + (c.valor === null ? " padrao" : c.valor.contaId ? " lista" : " digitada"));
   var r = { ok: true, conta: contaRecebEstado_(p.pageId) };
+  var pre = ctrLerPre_(p.pageId);
+  if (pre && !pre.conferidoEm) r.desatualizado = ctrPreDesatualizado_(col, p, pre);
+  return r;
+}
+
+/* ---- 27/11/2026 (Juliana): quem vai como corretor no contrato da casa de rua ----
+ * "Quando o corretor é de imobiliária, eles gostam que coloquem a imobiliária como corretor, às vezes a imobiliária +
+ * o corretor." Propriedade CORRETOR_MODO_<pageId> = "IMOBILIARIA" | "AMBOS"; sem ela (ou sem IMOBILIÁRIA na venda) vale
+ * o CORRETOR, como sempre. O nome devolvido é o do cadastro em CORRETORES – CONTRATO: a IMOBILIÁRIA da venda é uma lista
+ * curta ("A7 BROKER") e o cadastro costuma ter a razão social ("A7 BROKER LTDA") — vale o título igual ou, sem ele, o
+ * ÚNICO título que começa pelo nome da imobiliária. AMBOS: a imobiliária é a parte; o corretor (pessoa) vai junto no
+ * texto. { modo, nome, pessoa, corretor, imobiliaria } */
+var CTR_CORRETOR_MODO = "CORRETOR_MODO_";
+function ctrIntermediador_(pageId, vPorChave) {
+  var corretor = ctrTxt_(ctrCampo_(vPorChave || {}, "CORRETOR")).trim();
+  var imob = ctrTxt_(ctrCampo_(vPorChave || {}, "IMOBILIÁRIA")).trim();
+  var modo = String(prop_(CTR_CORRETOR_MODO + ctrIdLimpo_(pageId)) || "");
+  if ((modo !== "IMOBILIARIA" && modo !== "AMBOS") || !imob) modo = "CORRETOR";
+  var r = { modo: modo, nome: corretor, pessoa: "", corretor: corretor, imobiliaria: imob };
+  if (modo === "CORRETOR") return r;
+  r.nome = ctrNomeImobiliaria_(imob);
+  if (modo === "AMBOS" && RegrasVenda.chave(corretor) !== RegrasVenda.chave(r.nome)) r.pessoa = corretor;
+  return r;
+}
+function ctrNomeImobiliaria_(imob) {
+  var db = prop_("DB_CORRETORES"), k = RegrasVenda.chave(imob);
+  if (!db || !k) return imob;
+  try {
+    var titulos = ctrLinhasBase_(db).map(function (l) { return ctrTitulo_(l); });
+    for (var i = 0; i < titulos.length; i++) if (RegrasVenda.chave(titulos[i]) === k) return titulos[i];
+    var comeca = titulos.filter(function (x) { return RegrasVenda.chave(x).indexOf(k + " ") === 0; });
+    return comeca.length === 1 ? comeca[0] : imob;
+  } catch (e) { ctrErro_("contrato: imobiliaria pelo nome", e); return imob; }
+}
+function ctrIntermediadorEstado_(pageId, pg) {
+  var x = ctrIntermediador_(pageId, ctrPorChave_(pg.properties));
+  var gravado = String(prop_(CTR_CORRETOR_MODO + ctrIdLimpo_(pageId)) || "");
+  return { modo: x.modo, escolhido: gravado || "CORRETOR", corretor: x.corretor, imobiliaria: x.imobiliaria, nome: x.nome, pessoa: x.pessoa };
+}
+/* Ação "escolherCorretorContrato": p.modo = "CORRETOR" | "IMOBILIARIA" | "AMBOS". Só casa de rua. */
+function escolherCorretorContrato_(col, sess, p) {
+  var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
+  if (info.base === "CONDOMINIO") return { ok: false, erro: "SO_CASA_DE_RUA" };
+  var modo = String(p.modo || "");
+  if (["CORRETOR", "IMOBILIARIA", "AMBOS"].indexOf(modo) < 0) return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Corretor no contrato: escolha uma opção"] };
+  if (modo !== "CORRETOR" && !ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), "IMOBILIÁRIA")).trim())
+    return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["A venda não tem IMOBILIÁRIA — preencha a imobiliária na venda antes"] };
+  var ps = PropertiesService.getScriptProperties(), k = CTR_CORRETOR_MODO + ctrIdLimpo_(p.pageId);
+  if (modo === "CORRETOR") ps.deleteProperty(k); else ps.setProperty(k, modo);
+  ctrLog_("escolherCorretorContrato " + String(p.pageId).slice(0, 8) + " " + modo);
+  var r = { ok: true, intermediador: ctrIntermediadorEstado_(p.pageId, pg) };
+  try { r.comissaoCorretor = ctrComissaoCorretorEstado_(pg); } catch (e) { ctrErro_("escolherCorretorContrato comissao", e); }
   var pre = ctrLerPre_(p.pageId);
   if (pre && !pre.conferidoEm) r.desatualizado = ctrPreDesatualizado_(col, p, pre);
   return r;
@@ -1338,7 +1419,7 @@ function redigirCondicoesEspeciais_(col, sess, p) {
  * null = cadastro não configurado. duplicado = { duplicado: true }. */
 function ctrComissaoCorretorEstado_(pg) {
   if (!prop_("DB_CORRETORES")) return null;
-  var v = ctrPorChave_(pg.properties), nome = ctrTxt_(ctrCampo_(v, "CORRETOR")).trim();
+  var v = ctrPorChave_(pg.properties), nome = ctrIntermediador_(pg.id, v).nome;   /* 27/11: corretor ou imobiliária */
   var formaAntiga = ctrTxt_(ctrCampo_(v, ContratoVenda.COL.COMISSAO_FORMA));
   /* 19/11/2026 (dono): pagaPor é da própria venda (seletor no Gerar pré-contrato); o e-mail do corretor
      continua sendo a coluna E-MAIL do cadastro em CORRETORES – CONTRATO (CRECI/CPF/CNPJ/E-MAIL, "Faltam dados") */
@@ -1376,7 +1457,7 @@ function salvarPagamentoCorretor_(col, sess, p) {
   if (!prop_("DB_CORRETORES")) return { ok: false, erro: "CADASTRO_NAO_CONFIGURADO" };
   var info = {}, pg = ctrLerPaginaVenda_(p.pageId, info);
   if (info.base === "CONDOMINIO") return { ok: false, erro: "SO_CASA_DE_RUA" };
-  var nome = ctrTxt_(ctrCampo_(ctrPorChave_(pg.properties), "CORRETOR")).trim();
+  var nome = ctrIntermediador_(p.pageId, ctrPorChave_(pg.properties)).nome;   /* 27/11: corretor ou imobiliária */
   if (!nome) return { ok: false, erro: "CORRETOR_NA_VENDA_FALTANDO" };
   var lc = ctrAcharLinha_(ctrLinhasBase_(prop_("DB_CORRETORES")), nome);
   if (lc && lc.duplicado) return { ok: false, erro: "FALTAM_DADOS", faltas: ["Corretor: cadastro duplicado em CORRETORES – CONTRATO"] };
@@ -1510,5 +1591,8 @@ function salvarCamposContrato_(col, sess, p) {
   var r = gerarPreContrato_(col, sess, p);
   r.salvos = salvos;
   if (conta) { try { r.conta = contaRecebEstado_(p.pageId); } catch (e) { ctrErro_(rot + " conta", e); } }
+  /* 27/11/2026 (Juliana): o bloco "Pagamento da comissão" seguia dizendo "ainda não tem cadastro" depois de salvar —
+     parecia que não tinha salvo. Volta o estado novo do corretor junto. */
+  if (salvos.indexOf("corretor") >= 0) { try { var ccS = ctrComissaoCorretorEstado_(ctrLerPaginaVenda_(p.pageId)); if (ccS) r.comissaoCorretor = ccS; } catch (e) { ctrErro_(rot + " comissao", e); } }
   return r;
 }

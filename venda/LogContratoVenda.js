@@ -64,6 +64,7 @@ var LogContratoVenda = (function () {
       return p && p.conta !== undefined && p.conta !== null ? s + (nomes.length ? " e a conta de recebimento" : " (conta de recebimento)") : s;
     },
     escolherContaRecebimento: function () { return "escolheu a conta de recebimento"; },
+    escolherCorretorContrato: function (p) { return "escolheu quem vai como corretor no contrato" + (p && p.modo ? " (" + ({ CORRETOR: "o corretor", IMOBILIARIA: "a imobiliária", AMBOS: "imobiliária e corretor" }[p.modo] || p.modo) + ")" : ""); },
     mcLancar: function () { return "lançou a venda no Mais Controle"; },
     mcComissao: function (p) { return p && p.aplicar ? "lançou a comissão do corretor" : "pediu a prévia da comissão"; },
     gerarVendaCondominio: function () { return "gerou a venda do condomínio"; },

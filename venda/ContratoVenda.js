@@ -943,7 +943,9 @@ var ContratoVenda = (function () {
       },
       corretor: f.corretor ? {
         nome: txt(f.corretor.nome), creci: txt(f.corretor.creci), cpfCnpj: txt(f.corretor.cpfCnpj),
-        nacionalidade: txt(f.corretor.nacionalidade), endereco: txt(f.corretor.endereco), email: txt(f.corretor.email)
+        nacionalidade: txt(f.corretor.nacionalidade), endereco: txt(f.corretor.endereco), email: txt(f.corretor.email),
+        /* 27/11/2026: imobiliária + corretor — o corretor (pessoa) que vai junto no texto */
+        pessoa: f.corretor.pessoa ? { nome: txt(f.corretor.pessoa.nome), creci: txt(f.corretor.pessoa.creci), cpfCnpj: txt(f.corretor.pessoa.cpfCnpj) } : null
       } : null,
       corretorNaVenda: txt(v.CORRETOR),
       hojeISO: txt(f.hojeISO),
@@ -1310,7 +1312,8 @@ var ContratoVenda = (function () {
       /* 01/11/2026 (dono): o cônjuge assina tudo que o comprador 1 assina — também o memorial (AssinaturaVenda.assDocsDoComprador_) */
       MEMORIAL_ASSINATURA_NOMES: [c1.nome].concat(cjq ? [cjq.nome] : [], c2 ? [c2.nome] : [], cjq2 ? [cjq2.nome] : []).join(" / "),
       MEMORIAL_ASSINATURA_CPFS: [c1.cpf].concat(cjq ? [cjq.cpf] : [], c2 ? [c2.cpf] : [], cjq2 ? [cjq2.cpf] : []).join(" / "),
-      CORRETOR_DOC: txt(k.cpfCnpj),
+      /* 27/11/2026 (Juliana): imobiliária + corretor — a imobiliária é a parte e o corretor (pessoa) vai logo depois */
+      CORRETOR_DOC: txt(k.cpfCnpj) + corretorPessoaTexto(k.pessoa),
       LOTEAMENTO: txt(l.denominacao),
       MUNICIPIO_UF: txt(l.municipioUf),
       ALVARA_NUMERO: im.alvaraNumero,
@@ -1752,6 +1755,21 @@ var ContratoVenda = (function () {
     v = v || {};
     return !!txt(v.pix).trim() && !txt(v.banco).trim() && !txt(v.agencia).trim() && !txt(v.conta).trim();
   }
+  /* 27/11/2026: ", representada por seu corretor FULANO, CRECI nº X, CPF nº Y" (só o que o cadastro tiver) */
+  function corretorPessoaTexto(pe) {
+    if (!pe || !txt(pe.nome).trim()) return "";
+    var d = txt(pe.cpfCnpj).trim(), s = ", representada por seu corretor " + txt(pe.nome).trim();
+    if (txt(pe.creci).trim()) s += ", CRECI nº " + txt(pe.creci).trim();
+    if (d) s += ", " + (ehCnpj(d) ? "CNPJ" : "CPF") + " nº " + d;
+    return s;
+  }
+  function ehCnpj(v) { return txt(v).replace(/\D/g, "").length === 14; }
+  /* 27/11/2026 (Juliana, TB 21 QD 51 LT 26): "Conta da obra: X" que o robô do Mais Controle escreve em MC - SITUAÇÃO
+     (é a conta padrão da obra no ERP). "" sem a linha. */
+  function contaDaObraNoMC(situacao) {
+    var m = /(?:^|\n)\s*Conta da obra:\s*([^\n]+)/.exec(txt(situacao));
+    return m ? m[1].trim() : "";
+  }
   function validarContaDigitada(c) {
     if (!c || typeof c !== "object" || Array.isArray(c)) return { ok: false, erros: ["Conta: formato inválido"] };
     var o = {}, erros = [];
@@ -1846,6 +1864,9 @@ var ContratoVenda = (function () {
     /* 23/11/2026 (dono): conta só com a chave Pix (banco, agência e conta vazios) — sai de uma vez o trecho antes do
        "PIX:" ("Banco: – Agência: – Operação: – Conta – ") e o 6.3 fica "PIX: <chave> - Titularidade…".
        Regex (sintaxe do findText do Docs), aplicada antes dos TRECHOS_SE_VAZIO. */
+    /* 27/11/2026: corretor empresa — "CPF nº {{CORRETOR_DOC}}" vira "CNPJ nº …" (GerarContrato.ctrTirarTrechosVazios_) */
+    TRECHO_CPF_CORRETOR: "CPF\\s*nº\\s*\\{\\{CORRETOR_DOC\\}\\}", ehCnpj: ehCnpj, contaDaObraNoMC: contaDaObraNoMC,
+    corretorPessoaTexto: corretorPessoaTexto,
     TRECHO_SO_PIX: "Banco:\\s*\\{\\{BANCO\\}\\}\\s*[–-]\\s*Agência:\\s*\\{\\{AGENCIA\\}\\}(\\s*[–-]\\s*Operação:\\s*\\{\\{OPERACAO\\}\\})?\\s*[–-]\\s*Conta\\s*\\{\\{CONTA\\}\\}\\s*[–-]\\s*"
   };
   if (typeof module !== "undefined" && module.exports) module.exports = api;

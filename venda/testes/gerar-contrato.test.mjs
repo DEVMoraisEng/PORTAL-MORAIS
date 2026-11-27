@@ -386,6 +386,7 @@ test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url
   const c = cenario();
   const est0 = c.acao("contratoEstado"); delete est0.testemunhas; delete est0.conta;   /* testemunhas e conta de recebimento têm testes próprios */
   delete est0.comissaoCorretor;   /* 05/11/2026: bloco Pagamento da comissão (comissao-corretor.test.mjs) */
+  delete est0.intermediador;   /* 27/11/2026: corretor/imobiliária no contrato (rua-corretor-conta-confrontacoes.test.mjs) */
   /* 23/11/2026: casa de rua manda o tipo gravado para a pergunta do Gerar pré-contrato (tipo-casa-no-pre.test.mjs) */
   assert.equal(est0.casaDeRua, true); assert.equal(est0.tipoCasa, ""); delete est0.casaDeRua; delete est0.tipoCasa;
   assert.deepEqual(est0, { ok: true, gerado: false, etapa: "NENHUM", pre: null });
@@ -399,7 +400,7 @@ test("contratoEstado: sem arquivo -> gerado:false; depois de gerar -> nome e url
   assert.match(e.url, /^https:\/\/s3\.falso\//);
   const dois = cenario({ venda: { "CONTRATO GERADO": { files: [
     { name: "a.pdf", type: "file", file: { url: "https://s3.falso/a" } }, { name: "b.pdf", type: "file", file: { url: "https://s3.falso/b" } }] } } });
-  const estDois = dois.acao("contratoEstado"); delete estDois.conta; delete estDois.comissaoCorretor; delete estDois.casaDeRua; delete estDois.tipoCasa;
+  const estDois = dois.acao("contratoEstado"); delete estDois.conta; delete estDois.comissaoCorretor; delete estDois.casaDeRua; delete estDois.tipoCasa; delete estDois.intermediador;
   assert.deepEqual(estDois, { ok: true, gerado: true, etapa: "FINAL", pre: null, nome: "b.pdf", url: "https://s3.falso/b", envioDesatualizado: false });
 });
 
