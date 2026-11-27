@@ -1428,7 +1428,7 @@ html[data-tema="escuro"] .tarja-teste{background:#2a2113;border-color:#57431f;co
 
 <script src="app.js?v=47"></script>
 <script src="atv-contadores.js?v=1"></script>
-<script src="venda/painel-casa.js?v=11"></script>
+<script src="venda/painel-casa.js?v=12"></script>
 <script src="venda/FluxoLivre.js?v=28"></script><!-- 29/10: Alterar fluxo -->
 <script src="venda/quadro-fluxo.js?v=1"></script><!-- 31/10: quadro do pro soluto segue o fluxo alterado -->
 <script src="venda/Antecipacao.js?v=1"></script><!-- 31/10: Antecipação — a conta roda no navegador -->
@@ -5004,6 +5004,19 @@ function pnAlertaPreVistoriaHtml(V,sensPendente){
   const a=PC.alertaPreVistoria(faltam,ag?getV(V,ag):"");
   return a?`<div class="pn-alerta ${a.nivel}">⚠️ ${esc(a.texto)}</div>`:"";
 }
+/* 27/11/2026: aviso do bloco Reserva — a regra é a travada (REGRAS-TRAVADAS.md, 11/11): RESERVADA = SIM vale 24 h corridas
+   a partir da DATA DA RESERVA; depois o vigia do Apps Script volta para NÃO. Aqui só mostra até quando vale. */
+function pnReservaHtml(V){
+  const cr=campoExatoOuFrag("RESERVADA"), cd=campoPorNome("DATA DA RESERVA");
+  if(!cr||normNome(getV(V,cr.nome))!=="SIM") return `<div class="pn-alerta neutro">🔖 Marque RESERVADA = SIM para segurar a casa no mapa de vendas por 24 h.</div>`;
+  const d=cd?getV(V,cd.nome):"", ini=d&&new Date((d&&d.start)||d);
+  if(!ini||isNaN(ini)) return `<div class="pn-alerta laranja">🔖 Reservada — vale 24 h a partir da DATA DA RESERVA, que ainda não está preenchida.</div>`;
+  const fim=new Date(ini.getTime()+24*3600e3), resta=fim-Date.now();
+  const fmt=x=>x.toLocaleString("pt-BR",{day:"2-digit",month:"2-digit",hour:"2-digit",minute:"2-digit"});
+  return resta>0
+    ? `<div class="pn-alerta ok">🔖 Reservada até <b>${esc(fmt(fim))}</b> — faltam ${Math.floor(resta/3600e3)} h ${Math.floor(resta%3600e3/60e3)} min.</div>`
+    : `<div class="pn-alerta vermelho">🔖 A reserva venceu em ${esc(fmt(fim))} — o mapa já mostra a casa como disponível.</div>`;
+}
 /* 26/11/2026 (dono): "no modo de lista falta a parte de casa modelo" — na aba Links, a casa modelo que o cliente visita
    (mesma regra do mapa de vendas e da aba Casas Modelo: lcModeloRotulo) */
 function pnCasaModeloHtml(V,pageId){
@@ -5169,8 +5182,13 @@ function renderPainel(V,pageId,sensPendente){
   if(porAba.links.length){
     /* 26/11/2026 (dono): TIPO e MODELO? (casa modelo) também em Links, para preencher; os links (layout, fotos, localização)
        num bloco e o tipo/casa modelo em outro */
-    const ehRel=n=>/^(TIPO|MODELO\??)$/.test(normNome(n));
+    const ehRel=n=>/^(TIPO|MODELO\??|RESERVADA|DATA DA RESERVA)$/.test(normNome(n));
     const rel=porAba.links.filter(ehRel).sort((a,b)=>(normNome(a)==="TIPO"?0:1)-(normNome(b)==="TIPO"?0:1)), lnk=porAba.links.filter(n=>!ehRel(n));
+    /* 27/11/2026 (dono): RESERVADA (e a DATA DA RESERVA) na aba "Links e reserva", num bloco próprio */
+    const ehRes=n=>/^(RESERVADA|DATA DA RESERVA)$/.test(normNome(n));
+    const res=rel.filter(ehRes).sort((a,b)=>(normNome(a)==="RESERVADA"?0:1)-(normNome(b)==="RESERVADA"?0:1));
+    rel.splice(0,rel.length,...rel.filter(n=>!ehRes(n)));
+    if(res.length) sec.links+=blocoTitulado(res,"Reserva","","","",pnReservaHtml(V));
     if(rel.length) sec.links+=blocoTitulado(rel,"Tipo e casa modelo","","","",pnCasaModeloHtml(V,pageId));
     if(lnk.length) sec.links+=blocoTitulado(lnk,"Links da casa")+
       `<div class="pn-ajuda">Vazio = automático: no mapa de vendas a casa usa o layout e as fotos da casa modelo do tipo `+

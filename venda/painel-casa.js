@@ -83,7 +83,7 @@
   /* 26/11/2026 (dono, MELHORIAS ABA DE VENDAS): Andamento passa a ser a 2ª aba e o Mais Controle ganha aba própria
    * (saiu do fim da aba Contrato) */
   var ABAS = [["resumo", "Resumo"], ["andamento", "Andamento"], ["documentos", "Documentos"], ["compradores", "Compradores"],
-              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["mc", "Mais Controle"], ["links", "Links"]];
+              ["contrato", "Contrato"], ["recebimentos", "Recebimentos"], ["mc", "Mais Controle"], ["links", "Links e reserva"]];
   /* 13/11/2026 (dono): "algumas pessoas preferem ver em lista igual era antes" — o painel tem os dois jeitos. Em
    * LISTA ele volta a ser a coluna lateral à direita, com o resumo do processo parado no topo e só duas abas: tudo
    * do processo, na ordem (venda, compradores, contrato, etapas, links), e os documentos. Quem escolhe é a pessoa
@@ -91,9 +91,11 @@
   /* 26/11/2026 (dono): "fazer tudo que citei antes na parte em lista" — a lista ganha abas próprias para o Contrato
    * (dados, gerar, Clicksign e recebimentos), o Mais Controle e os Links (com TIPO e MODELO? = casa modelo) */
   var ABAS_LISTA = [["etapas", "Todas as etapas"], ["documentos", "Documentos"], ["contrato", "Contrato"],
-                    ["mc", "Mais Controle"], ["links", "Links"]];
+                    ["mc", "Mais Controle"], ["links", "Links e reserva"]];
   /* 26/11/2026 (dono): em Links também o TIPO e o MODELO? (casa modelo), para a pessoa preencher ali */
-  var RE_LINKS = /^(LAYOUT|FOTOS?|LOCALIZACAO)\b|^TIPO$|^MODELO\??$/;
+  /* 27/11/2026 (dono): "faltou o item RESERVADA — põe na aba dos links e muda o nome para Links e reserva". Vai junto a
+   * DATA DA RESERVA (de onde contam as 24 h). Só muda ONDE o campo aparece: a regra do mapa (REGRAS-TRAVADAS.md) é a mesma. */
+  var RE_LINKS = /^(LAYOUT|FOTOS?|LOCALIZACAO)\b|^TIPO$|^MODELO\??$|^RESERVADA$|^DATA DA RESERVA$/;
   function abaDoCampo(nome) {
     var n = norm(nome), g = GRUPO[n] || "";
     if (RE_LINKS.test(n)) return "links";
