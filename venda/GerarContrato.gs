@@ -143,7 +143,7 @@ function ctrContaDaObra_(pg) {
   return "";
 }
 /* 27/11/2026 (Juliana, TB 21 QD 51 LT 26 Casa 01): a CONTA da obra estava "DÚVIDA" — o contrato caía no banco do
-   vendedor enquanto o Mais Controle lançava na TERRA BELA - SICOOB (defaultAccount da obra no ERP). Sem conta da obra
+   vendedor enquanto o Mais Controle lançava na conta padrão da obra no ERP (defaultAccount). Sem conta da obra
    no Notion, vale a conta que o robô do Mais Controle escreveu na prévia ("Conta da obra: X" em MC - SITUAÇÃO), achada
    pelo nome na CONTAS BANCÁRIAS. Id da linha ou "". */
 function ctrContaPadrao_(obraPg, vendaPorChave) {
@@ -1247,7 +1247,7 @@ function escolherContaRecebimento_(col, sess, p) {
  * "Quando o corretor é de imobiliária, eles gostam que coloquem a imobiliária como corretor, às vezes a imobiliária +
  * o corretor." Propriedade CORRETOR_MODO_<pageId> = "IMOBILIARIA" | "AMBOS"; sem ela (ou sem IMOBILIÁRIA na venda) vale
  * o CORRETOR, como sempre. O nome devolvido é o do cadastro em CORRETORES – CONTRATO: a IMOBILIÁRIA da venda é uma lista
- * curta ("A7 BROKER") e o cadastro costuma ter a razão social ("A7 BROKER LTDA") — vale o título igual ou, sem ele, o
+ * curta ("EXEMPLO IMOVEIS") e o cadastro costuma ter a razão social ("EXEMPLO IMOVEIS LTDA") — vale o título igual ou, sem ele, o
  * ÚNICO título que começa pelo nome da imobiliária. AMBOS: a imobiliária é a parte; o corretor (pessoa) vai junto no
  * texto. { modo, nome, pessoa, corretor, imobiliaria } */
 var CTR_CORRETOR_MODO = "CORRETOR_MODO_";
