@@ -95,3 +95,11 @@ test("2/3/4: Documentos, Contrato (casa de rua) e Recebimentos em cartões", () 
   const r = D.htmlRecebimentos({ itens: [{ id: "SINAL", rotulo: "Sinal", modo: "lista", pagamentos: [], confirmado: true, data: "2026-11-01" }] }, {});
   assert.match(r, /class="dz-card rec-card rec-card-ok" data-rec-item="SINAL"/);
 });
+
+test("27/11: RESERVADA e DATA DA RESERVA na aba Links e reserva", () => {
+  assert.equal(P.abaDoCampo("RESERVADA"), "links");
+  assert.equal(P.abaDoCampo("DATA DA RESERVA"), "links");
+  assert.equal(P.ABAS.find(a => a[0] === "links")[1], "Links e reserva");
+  assert.equal(P.ABAS_LISTA.find(a => a[0] === "links")[1], "Links e reserva");
+  assert.match(vendas, /blocoTitulado\(res,"Reserva","","","",pnReservaHtml\(V\)\)/);
+});
