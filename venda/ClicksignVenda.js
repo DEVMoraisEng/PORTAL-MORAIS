@@ -227,8 +227,14 @@ var ClicksignVenda = (function () {
   function sigCorretor(dados, config) {
     if (!dados.corretor || vendaDireta(dados)) return [];
     if (dados.condominio && !config.incluirCorretor) return [];
-    return [sig("Corretor", PAPEIS.CORRETOR, { nome: dados.corretor.nome, email: dados.corretor.email, cpf: dados.corretor.cpfCnpj }, "corretor")];
+    var k = dados.corretor, pe = corretorQueAssina(k);
+    /* 27/11/2026 (dono): "imobiliária e o corretor" — a imobiliária é a parte, quem assina por ela é o corretor (como o
+       representante da vendedora PJ); o e-mail é o do cadastro da imobiliária, como em todos os contratos anteriores da
+       mesma imobiliária na Clicksign. A Clicksign não aceita nome de assinante com número ("A7 …"). */
+    if (pe) return [sig("Corretor", PAPEIS.CORRETOR, { nome: pe.nome, email: k.email, cpf: pe.cpfCnpj }, "corretor")];
+    return [sig("Corretor", PAPEIS.CORRETOR, { nome: k.nome, email: k.email, cpf: k.cpfCnpj }, "corretor")];
   }
+  function corretorQueAssina(k) { return k && k.pessoa && txt(k.pessoa.nome) ? k.pessoa : null; }
   /* 28/10: termos de confissão de dívida no mesmo envelope — os dois fiadores assinam SÓ os termos.
      30/10 (Súmula 332 do STJ): fiador casado cujo cônjuge não é o outro fiador leva o cônjuge junto, também só nos
      termos (outorga conjugal); fi.conjuge vem de ContratoVenda (null quando não precisa). */
@@ -315,8 +321,11 @@ var ClicksignVenda = (function () {
       var n = /([12])$/.exec(s.origem)[1];
       add(/^conjuge/.test(s.origem) ? "CÔNJUGE DO FIADOR " + n : "FIADOR " + n, s.nome, s.cpf);
     });
-    if (tipo === "CONTRATO" && dados.corretor && txt(dados.corretor.nome) && !vendaDireta(dados))
-      add("INTERMEDIADOR/CORRETOR", dados.corretor.nome, dados.corretor.cpfCnpj);
+    if (tipo === "CONTRATO" && dados.corretor && txt(dados.corretor.nome) && !vendaDireta(dados)) {
+      var pc = corretorQueAssina(dados.corretor);   /* 27/11: imobiliária + corretor — igual ao "Representante:" da vendedora */
+      add("INTERMEDIADOR/CORRETOR", dados.corretor.nome, dados.corretor.cpfCnpj,
+          pc ? "Representada por: " + txt(pc.nome) + (txt(pc.cpfCnpj) ? " – CPF: " + txt(pc.cpfCnpj) : "") : "");
+    }
     if (pre) return out;   /* 06/11/2026 (dono): "não precisa de tanta coisa na reserva" — sem testemunhas */
     var t = testemunhas(dados, config) || [null, null];
     [0, 1].forEach(function (i) { add("TESTEMUNHA " + (i + 1), t[i] && t[i].nome, t[i] && t[i].cpf); });
@@ -359,7 +368,10 @@ var ClicksignVenda = (function () {
     var vistos = {}, porPessoa = [];
     lista.forEach(function (s) {
       var f = [];
-      if (!nomeValido(s.nome)) f.push(s.papel + ": nome e sobrenome, sem números");
+      /* 27/11: imobiliária com número no nome ("A7 …") indo sozinha como corretor — a saída é o corretor assinar por ela */
+      if (!nomeValido(s.nome) && s.origem === "corretor" && soDigitos(s.cpf).length === 14)
+        f.push("Corretor: a Clicksign não aceita o nome da imobiliária (\"" + s.nome + "\") — escolha \"A imobiliária e o corretor\" para o corretor assinar por ela");
+      else if (!nomeValido(s.nome)) f.push(s.papel + ": nome e sobrenome, sem números");
       if (!s.email && s.origem === "representante") f.push("Vendedor: falta REPRESENTANTE E-MAIL no cadastro");
       else if (!s.email) f.push(s.papel + ": e-mail" + (ONDE_EMAIL[s.origem] ? " (" + ONDE_EMAIL[s.origem] + ")" : ""));
       else if (!emailValido(s.email)) f.push(s.papel + ": e-mail inválido");
