@@ -496,3 +496,24 @@ test("prazoAssinatura: AAAA-MM-DD vira deadline_at no fim do dia; vazio não man
   assert.equal(corpo.deadline_at, "2026-11-04T23:59:59.000-03:00");
   assert.equal("deadline_at" in CS.corpoEnvelope("Contrato - X").data.attributes, false);
 });
+
+/* 27/11/2026 (dono): imobiliária com número no nome ("A7 …") como corretor — a Clicksign recusa o nome. Com "A imobiliária e o
+ * corretor", a imobiliária fica no contrato e quem assina por ela é o corretor (pessoa), com o e-mail da imobiliária. */
+const IMOB = { nome: "B7 Imoveis Teste", cpfCnpj: "11.222.333/0001-81", email: "imob@teste.example" };
+test("imobiliária + corretor: assina o corretor (pessoa) com o e-mail da imobiliária; sem faltas de nome", () => {
+  const cfg = CS.montarConfig(PROPS);
+  const d = dadosPJ({ corretor: Object.assign({}, IMOB, { pessoa: { nome: "Corretor Pessoa Teste", creci: "CRECI 1", cpfCnpj: "000.000.003-53" } }) });
+  const c = CS.signatarios(d, cfg).find((s) => s.origem === "corretor");
+  assert.deepEqual([c.nome, c.email, c.cpf, c.role], ["Corretor Pessoa Teste", "imob@teste.example", "000.000.003-53", "real_estate_broker"]);
+  assert.deepEqual(CS.faltasAssinatura(d, cfg), []);
+  const bloco = CS.blocoAssinaturas(d, cfg, "CONTRATO");
+  assert.match(bloco, /Nome: B7 Imoveis Teste\nCNPJ: 11\.222\.333\/0001-81\nRepresentada por: Corretor Pessoa Teste – CPF: 000\.000\.003-53\nINTERMEDIADOR\/CORRETOR/);
+});
+test("só a imobiliária com número no nome: a falta diz o que escolher", () => {
+  const cfg = CS.montarConfig(PROPS);
+  const f = CS.faltasAssinatura(dadosPJ({ corretor: IMOB }), cfg);
+  assert.deepEqual(f, ["Corretor: a Clicksign não aceita o nome da imobiliária (\"B7 Imoveis Teste\") — escolha \"A imobiliária e o corretor\" para o corretor assinar por ela"]);
+  /* corretor pessoa com número no nome continua com a mensagem de sempre */
+  assert.deepEqual(CS.faltasAssinatura(dadosPJ({ corretor: { nome: "Corretor 2", cpfCnpj: "000.000.003-53", email: "c@teste.example" } }), cfg),
+    ["Corretor: nome e sobrenome, sem números"]);
+});
