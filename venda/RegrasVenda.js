@@ -198,6 +198,26 @@ var RegrasVenda = (function () {
   }
 
   /* identificação da casa para a IA achar ESTA unidade na certidão mãe (texto curto, numa linha) */
+  /* 27/11/2026: "Para um observador …, Casa 01: confrontando …; e Casa 02: confrontando …" -> só a casa pedida.
+     { texto, recortado, varias }: varias = o texto tem 2+ casas diferentes; recortado = achou a casa e cortou. */
+  function recortarConfrontacoes(textoLido, casa) {
+    var t = limpar(textoLido), alvo = String(casa || "").replace(/\D/g, "").replace(/^0+(?=\d)/, "");
+    /* começo do trecho de uma casa = "Casa 01: confrontando" / "Casa 02, confrontando" (também o "confontando" digitado);
+       "com a casa 02, pelo lado…" é vizinha citada no meio do texto, não começo */
+    var re = /\bcasa\s*0*(\d+)\s*[:,\-–]?\s*(?=conf)/gi, m, cab = [];
+    while ((m = re.exec(t))) cab.push({ i: m.index, n: m[1] });
+    var nums = {};
+    cab.forEach(function (c) { nums[c.n] = 1; });
+    if (Object.keys(nums).length < 2) return { texto: t, recortado: false, varias: false };
+    var k = -1;
+    for (var j = 0; j < cab.length; j++) if (cab[j].n === alvo) { k = j; break; }
+    if (!alvo || k < 0) return { texto: t, recortado: false, varias: true };
+    var fim = k + 1 < cab.length ? cab[k + 1].i : t.length;
+    var trecho = t.slice(cab[k].i, fim).replace(/[\s;,]*(?:\be\s*)?$/i, "").trim();
+    var antes = t.slice(0, cab[0].i).replace(/[\s,;:]+$/, "").trim();
+    var saida = (/observador/i.test(antes) ? antes + ", " : "") + trecho;
+    return { texto: saida.replace(/[.;,\s]*$/, "") + ".", recortado: true, varias: true };
+  }
   function contextoUnidade(ctx) {
     ctx = ctx || {};
     var end = limpar(ctx.endereco).replace(/"/g, "'").slice(0, 200);
@@ -559,7 +579,13 @@ var RegrasVenda = (function () {
          conferia tinha que ler o PDF inteiro de novo. Agora o texto achado aparece na observação para copiar,
          sem gravar sozinho. */
       var achou = chave(leitura.unidade_encontrada) === "SIM";
-      var confU = limpar(leitura.unidade_confrontacoes);
+      /* 27/11/2026 (Juliana, TB 21 QD 51 LT 26 Casa 01): a certidão descreve "Casa 01: …; e Casa 02: …" numa frase só e
+         a IA devolveu as duas — o contrato da Casa 01 saiu com as confrontações da Casa 02 junto. Com mais de uma casa no
+         texto, fica só o trecho da casa desta venda (e a referência do observador, se houver). */
+      var rec = recortarConfrontacoes(limpar(leitura.unidade_confrontacoes), atuais.__CASA);
+      if (rec.recortado) obs("as confrontações lidas traziam mais de uma casa — ficou só o trecho da casa " + texto(atuais.__CASA));
+      else if (rec.varias) { achou = false; obs("as confrontações lidas trazem mais de uma casa e não achei a casa " + texto(atuais.__CASA) + " — conferir"); }
+      var confU = rec.texto;
       var identU = limpar(leitura.unidade_identificacao);
       if (achou && confU) {
         if (confU.length > 1900) obs("as confrontações passam do tamanho do campo — conferir o fim do texto");
@@ -636,7 +662,7 @@ var RegrasVenda = (function () {
     COL_VENDEDOR_MAT: COL_VENDEDOR_MAT, TIPOS_VENDEDOR_MAT: TIPOS_VENDEDOR_MAT, COL_VENDEDOR_MC: COL_VENDEDOR_MC,
     COL_MC_DOCS: COL_MC_DOCS, espacosDoTexto: espacosDoTexto, cnpjValido: cnpjValido, formatarCnpj: formatarCnpj,
     ordenarEspacos: ordenarEspacos, marcarPendente: marcarPendente, pendentesValidos: pendentesValidos,
-    contextoUnidade: contextoUnidade, mesmaPessoa: mesmaPessoa, tokensNome: tokensNome, decidirEspaco: decidirEspaco, espacoDaPessoa: espacoDaPessoa,
+    contextoUnidade: contextoUnidade, recortarConfrontacoes: recortarConfrontacoes, mesmaPessoa: mesmaPessoa, tokensNome: tokensNome, decidirEspaco: decidirEspaco, espacoDaPessoa: espacoDaPessoa,
     estadoImovelAposLeitura: estadoImovelAposLeitura, dataValida: dataValida, areaM2: areaM2, isoParaBR: isoParaBR,
     chave: chave, soDigitos: soDigitos, cpfValido: cpfValido, cpfDoNotion: cpfDoNotion, mascararCpf: mascararCpf,
     formatarCpf: formatarCpf, contemNome: contemNome, dataDoc: dataDoc, diasEntre: diasEntre,

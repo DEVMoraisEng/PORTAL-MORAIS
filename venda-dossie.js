@@ -559,6 +559,9 @@
     /* 05/11/2026: casa de rua — bloco Pagamento da comissão (só vem fora do condomínio) */
     var cc = comissaoDoEstado(r && r.comissaoCorretor);
     if (cc) o.comissaoCorretor = cc;
+    /* 27/11/2026: quem vai como corretor no contrato (casa de rua) */
+    var im = intermediadorDoEstado(r && r.intermediador);
+    if (im) o.intermediador = im;
     /* 29/10: condições especiais desta venda (item 16 do quadro-resumo do condomínio) */
     if (r && r.condicoes && typeof r.condicoes === "object")
       o.condicoes = { coluna: !!r.condicoes.coluna, texto: String(r.condicoes.texto || ""), por: String(r.condicoes.por || ""),
@@ -668,6 +671,29 @@
              campos: (Array.isArray(x.campos) ? x.campos : []).map(function (c) {
                return { coluna: String(c.coluna || ""), rotulo: String(c.rotulo || c.coluna || ""), valor: String(c.valor || ""), existe: c.existe !== false };
              }).filter(function (c) { return c.coluna; }) };
+  }
+  /* ---- 27/11/2026 (Juliana): "quando o corretor é de imobiliária, eles gostam que coloquem a imobiliária como corretor,
+   * às vezes a imobiliária + o corretor". Só aparece quando a venda tem IMOBILIÁRIA. Grava na hora (escolherCorretorContrato). */
+  function intermediadorDoEstado(x) {
+    if (!x || typeof x !== "object") return null;
+    return { modo: ["IMOBILIARIA", "AMBOS"].indexOf(x.modo) >= 0 ? x.modo : "CORRETOR", corretor: String(x.corretor || ""),
+             imobiliaria: String(x.imobiliaria || ""), nome: String(x.nome || ""), pessoa: String(x.pessoa || "") };
+  }
+  function htmlIntermediador(im, u, dis) {
+    if (!im || !im.imobiliaria) return "";
+    u = u || {};
+    var d = dis || (u.ocupadoContrato === "intermediador" ? " disabled" : "");
+    var ops = [["CORRETOR", "O corretor" + (im.corretor ? " (" + im.corretor + ")" : "")],
+               ["IMOBILIARIA", "A imobiliária (" + im.imobiliaria + ")"],
+               ["AMBOS", "A imobiliária e o corretor"]];
+    var h = '<div class="dz-linha"><label class="dz-rot" for="dz-interm">Vai como corretor no contrato</label><select id="dz-interm" data-interm' + d + ">" +
+      ops.map(function (o) { return '<option value="' + o[0] + '"' + (o[0] === im.modo ? " selected" : "") + ">" + esc(o[1]) + "</option>"; }).join("") +
+      "</select></div>";
+    if (u.ocupadoContrato === "intermediador") h += '<div class="dz-linha"><b>salvando…</b></div>';
+    if (im.modo !== "CORRETOR")
+      h += '<div class="dz-msg dz-nota">No contrato: ' + esc(im.nome) + (im.pessoa ? ", representada por seu corretor " + esc(im.pessoa) : "") +
+        ". Os dados (CRECI, CNPJ, e-mail) vêm do cadastro de " + esc(im.nome) + " em CORRETORES – CONTRATO.</div>";
+    return h;
   }
   function htmlComissaoCorretor(cc, u, dis) {
     if (!cc) return "";
@@ -940,10 +966,20 @@
       h += '<div class="dz-linha"><span class="dz-rot">Pré-contrato: ' + esc(pre.nome || "") + "</span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver-pre"' + (ocupado ? " disabled" : "") + ">Visualizar pré-contrato</button></div>";
       h += '<div class="dz-msg">Confira no pré-contrato o que está grifado: amarelo = preenchido pelo app; vermelho = ficou em branco.</div>';
-      if (velho) h += '<div class="dz-aviso">Os dados mudaram depois deste pré-contrato — gere o pré-contrato de novo.</div>';
-      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-aprovar"' + ((ocupado || testes || velho) ? " disabled" : "") +
-        ">Conferi, está tudo certo — gerar contrato</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato de novo</button></div>";
+      /* 27/11/2026 (Juliana): depois de trocar a conta (ou outro dado) o pré-contrato fica velho — o aviso era discreto e o
+         botão certo ficava apagado ao lado; ela trocava a conta de novo achando que não tinha salvo. Agora o aviso é o
+         bloco principal, com o botão de gerar de novo dentro dele, e o "Conferi" some enquanto o pré-contrato está velho. */
+      if (velho) {
+        h += '<div class="dz-aviso dz-velho" role="alert" style="border-width:2px;padding:12px 14px;font-size:14px">' +
+          "<b>Este pré-contrato ficou velho:</b> você mudou dados depois de gerá-lo (conta, corretor ou outro campo). " +
+          "Os dados novos já estão salvos — falta só gerar o pré-contrato de novo." +
+          '<div class="dz-linha" style="margin-top:8px"><button type="button" class="bt" style="min-height:44px" data-acao="c-pre"' + dis +
+          ">Gerar o pré-contrato de novo agora</button></div></div>";
+      } else {
+        h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-aprovar"' + ((ocupado || testes) ? " disabled" : "") +
+          ">Conferi, está tudo certo — gerar contrato</button> " +
+          '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato de novo</button></div>";
+      }
       if (e.gerado) h += '<div class="dz-msg">Contrato anterior: ' + esc(e.nome) + " (será substituído ao conferir).</div>";
     } else if (etapa === "FINAL") {
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
@@ -967,7 +1003,7 @@
       msgs += '<div class="dz-msg">O navegador bloqueou a janela — clique em Abrir contrato. ' +
         '<a href="' + esc(u.link) + '" target="_blank" rel="noopener">Abrir contrato</a></div>';
     }
-    var conta = htmlConta(e.conta, u, dis), com = htmlComissaoCorretor(e.comissaoCorretor, u, dis),   /* 05/11/2026: casa de rua */
+    var conta = htmlConta(e.conta, u, dis), com = htmlIntermediador(e.intermediador, u, dis) + htmlComissaoCorretor(e.comissaoCorretor, u, dis),   /* 05/11/2026: casa de rua; 27/11: + intermediador */
         test = htmlTestemunhas(e.testemunhas, dis), fluxo = htmlFluxo(e.fluxo, u, dis, e), cond = htmlCondicoes(e.condicoes, u, dis),
         hist = htmlHistorico(e.historico);
     /* 26/11/2026 (dono): "a formatação está muito ruim e quem não sabe o que é fica em dúvida — separar a parte de conta,
@@ -4295,6 +4331,8 @@
         r = await chamarVenda({ action: "salvarCamposContrato", pageId: pageId, campos: pedido.campos, conta: pedido.conta }, 150000);
         if (seq !== seqC || !vivo()) return;
         if (r.conta && estadoC) { estadoC.conta = contaDoEstado(r.conta); uiC.contaDigitar = undefined; limparRascunhoConta(); }
+        /* 27/11/2026 (Juliana): o bloco do corretor seguia "ainda não tem cadastro" depois de salvar — parecia que não salvou */
+        if (r.comissaoCorretor && estadoC) { var ccN = comissaoDoEstado(r.comissaoCorretor); if (ccN) estadoC.comissaoCorretor = ccN; }
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
       }
@@ -4796,10 +4834,37 @@
     }
 
     /* entrega 12: "Conta de recebimento" — escolha da lista grava na hora; "Digitar outra conta" abre as caixas */
+    /* 27/11/2026: corretor × imobiliária × os dois no contrato — grava na hora e relê o bloco da comissão */
+    async function aoEscolherIntermediador(modo) {
+      if (!raiz || uiC.ocupadoContrato || !vivo()) return;
+      uiC.ocupadoContrato = "intermediador"; uiC.msg = ""; pintar();
+      var seq = ++seqC;
+      var r = await chamarVenda({ action: "escolherCorretorContrato", pageId: pageId, modo: modo });
+      if (seq !== seqC || !vivo()) return;
+      uiC.ocupadoContrato = null;
+      if (r.ok) {
+        if (estadoC) {
+          var im = intermediadorDoEstado(r.intermediador); if (im) estadoC.intermediador = im;
+          var cc = comissaoDoEstado(r.comissaoCorretor); if (cc) estadoC.comissaoCorretor = cc;
+          if (r.desatualizado && estadoC.pre && etapaContrato(estadoC) === "PRE") estadoC.pre.desatualizado = true;
+        }
+        uiC.msg = "Corretor do contrato salvo. Gere a prévia do contrato de novo.";
+      } else uiC.msg = mensagemContrato(r);
+      pintar();
+    }
     async function aoEscolherConta(valor) {
       if (!raiz || uiC.ocupadoContrato || !vivo()) return;
       if (valor === CONTA_DIGITAR) { uiC.contaDigitar = true; pintar(); return; }
       return salvarConta(valor ? { id: valor } : {});
+    }
+    /* 27/11/2026 (Juliana): conta salva — o aviso "Banco, agência e conta: escolha ou digite…" e a falta "Conta de
+       recebimento: …" saem na hora (antes ficavam até gerar de novo, e parecia que a conta não tinha salvo) */
+    function contaResolvidaNaTela() {
+      if (uiC.campos && uiC.campos.conta) {
+        uiC.campos.conta = false;
+        if (!(uiC.campos.grupos || []).length) uiC.campos = null;
+      }
+      if (Array.isArray(uiC.faltas)) uiC.faltas = uiC.faltas.filter(function (f) { return !/^Conta de recebimento:/.test(String(f)); });
     }
     async function salvarConta(conta) {
       uiC.ocupadoContrato = "conta"; uiC.msg = ""; pintar();
@@ -4813,7 +4878,8 @@
           if (r.desatualizado && estadoC.pre && etapaContrato(estadoC) === "PRE") estadoC.pre.desatualizado = true;
         }
         uiC.contaDigitar = undefined; limparRascunhoConta();
-        uiC.msg = "Conta de recebimento salva." + (r.desatualizado ? " Gere o pré-contrato de novo." : "");
+        contaResolvidaNaTela();
+        uiC.msg = "Conta de recebimento salva." + (r.desatualizado ? " Gere o pré-contrato de novo (botão acima)." : "");
       } else uiC.msg = mensagemContrato(r);
       pintar();
     }
@@ -4914,6 +4980,7 @@
           if (ev.target.hasAttribute("data-fx-pdf")) { carregarFluxoPdf(ev.target); return; }
           if (ev.target.hasAttribute("data-testemunha")) aoEscolherTestemunha();
           else if (ev.target.hasAttribute("data-conta")) aoEscolherConta(ev.target.value);
+          else if (ev.target.hasAttribute("data-interm")) aoEscolherIntermediador(ev.target.value);
           else if (ev.target.hasAttribute("data-rec-arq")) {
             var fl = ev.target.files && ev.target.files[0], k = ev.target.getAttribute("data-rec-arq");
             if (fl) uiR.arquivos[k] = fl; else delete uiR.arquivos[k];
