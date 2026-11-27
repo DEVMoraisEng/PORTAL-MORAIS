@@ -1871,7 +1871,8 @@ var ContratoVenda = (function () {
   function planoCreci(lido, atual) {
     atual = atual || {};
     var plano = { preencher: {}, divergencias: [] };
-    var iguais = { CRECI: function (a, b) { return a.replace(/[^0-9A-Za-z]/g, "").toUpperCase() === b.replace(/[^0-9A-Za-z]/g, "").toUpperCase(); },
+    /* CRECI: só os dígitos — o cadastro guarda "18.223" e o documento traz "18.223-F" (a letra é o tipo, não outro número) */
+    var iguais = { CRECI: function (a, b) { return a.replace(/\D/g, "") === b.replace(/\D/g, ""); },
                    "CPF/CNPJ": function (a, b) { return a.replace(/\D/g, "") === b.replace(/\D/g, ""); } };
     [["CRECI", lido.creci], ["CPF/CNPJ", lido.cpfCnpj]].forEach(function (par) {
       var col = par[0], novo = txt(par[1]).trim(), velho = txt(atual[col]).trim();

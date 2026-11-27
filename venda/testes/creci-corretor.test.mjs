@@ -85,7 +85,7 @@ test("CPF com dígito verificador errado é descartado e reportado; CRECI com li
 });
 
 test("sem cadastro: cria a linha com o nome lido em maiúsculas, APELIDO = o nome da venda, CRECI e CPF; arquivo na linha nova", () => {
-  const c = montar({ linhas: [{ NOME: tit("OUTRO CORRETOR"), CRECI: rt("1"), "CPF/CNPJ": rt(""), APELIDO: rt("RAINER"), "CRECI - DOCUMENTO": { files: [] } }] });
+  const c = montar({ linhas: [{ NOME: tit("OUTRO CORRETOR"), CRECI: rt("1"), "CPF/CNPJ": rt(""), APELIDO: rt("FULANINHO"), "CRECI - DOCUMENTO": { files: [] } }] });
   const r = c.subir();
   assert.equal(r.ok, true, JSON.stringify(r));
   assert.equal(r.linhaNova, true);
@@ -202,4 +202,8 @@ test("planoCreci: vazio preenche, igual (pontuação à parte) não faz nada, di
   assert.deepEqual(CV.planoCreci(lido, { CRECI: "1", "CPF/CNPJ": "" }),
     { preencher: { "CPF/CNPJ": "529.982.247-25" }, divergencias: [{ coluna: "CRECI", cadastro: "1", lido: "12.345-F" }] });
   assert.deepEqual(CV.planoCreci({ creci: "", cpfCnpj: "" }, { CRECI: "1" }), { preencher: {}, divergencias: [] });
+});
+
+test("CRECI do cadastro sem a letra do tipo não diverge do documento com a letra", () => {
+  assert.deepEqual(CV.planoCreci({ creci: "12.345-F" }, { CRECI: "12.345" }), { preencher: {}, divergencias: [] });
 });
