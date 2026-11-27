@@ -966,10 +966,20 @@
       h += '<div class="dz-linha"><span class="dz-rot">Pré-contrato: ' + esc(pre.nome || "") + "</span>" +
         '<button type="button" class="bt bt-mini" data-acao="c-ver-pre"' + (ocupado ? " disabled" : "") + ">Visualizar pré-contrato</button></div>";
       h += '<div class="dz-msg">Confira no pré-contrato o que está grifado: amarelo = preenchido pelo app; vermelho = ficou em branco.</div>';
-      if (velho) h += '<div class="dz-aviso">Os dados mudaram depois deste pré-contrato — gere o pré-contrato de novo.</div>';
-      h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-aprovar"' + ((ocupado || testes || velho) ? " disabled" : "") +
-        ">Conferi, está tudo certo — gerar contrato</button> " +
-        '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato de novo</button></div>";
+      /* 27/11/2026 (Juliana): depois de trocar a conta (ou outro dado) o pré-contrato fica velho — o aviso era discreto e o
+         botão certo ficava apagado ao lado; ela trocava a conta de novo achando que não tinha salvo. Agora o aviso é o
+         bloco principal, com o botão de gerar de novo dentro dele, e o "Conferi" some enquanto o pré-contrato está velho. */
+      if (velho) {
+        h += '<div class="dz-aviso dz-velho" role="alert" style="border-width:2px;padding:12px 14px;font-size:14px">' +
+          "<b>Este pré-contrato ficou velho:</b> você mudou dados depois de gerá-lo (conta, corretor ou outro campo). " +
+          "Os dados novos já estão salvos — falta só gerar o pré-contrato de novo." +
+          '<div class="dz-linha" style="margin-top:8px"><button type="button" class="bt" style="min-height:44px" data-acao="c-pre"' + dis +
+          ">Gerar o pré-contrato de novo agora</button></div></div>";
+      } else {
+        h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-aprovar"' + ((ocupado || testes) ? " disabled" : "") +
+          ">Conferi, está tudo certo — gerar contrato</button> " +
+          '<button type="button" class="bt ghost bt-mini" data-acao="c-pre"' + dis + ">Gerar pré-contrato de novo</button></div>";
+      }
       if (e.gerado) h += '<div class="dz-msg">Contrato anterior: ' + esc(e.nome) + " (será substituído ao conferir).</div>";
     } else if (etapa === "FINAL") {
       h += '<div class="dz-linha"><span class="dz-rot">Contrato gerado<span class="dz-arq-nome">: ' + esc(e.nome) + "</span></span>" +
@@ -4847,6 +4857,15 @@
       if (valor === CONTA_DIGITAR) { uiC.contaDigitar = true; pintar(); return; }
       return salvarConta(valor ? { id: valor } : {});
     }
+    /* 27/11/2026 (Juliana): conta salva — o aviso "Banco, agência e conta: escolha ou digite…" e a falta "Conta de
+       recebimento: …" saem na hora (antes ficavam até gerar de novo, e parecia que a conta não tinha salvo) */
+    function contaResolvidaNaTela() {
+      if (uiC.campos && uiC.campos.conta) {
+        uiC.campos.conta = false;
+        if (!(uiC.campos.grupos || []).length) uiC.campos = null;
+      }
+      if (Array.isArray(uiC.faltas)) uiC.faltas = uiC.faltas.filter(function (f) { return !/^Conta de recebimento:/.test(String(f)); });
+    }
     async function salvarConta(conta) {
       uiC.ocupadoContrato = "conta"; uiC.msg = ""; pintar();
       var seq = ++seqC;
@@ -4859,7 +4878,8 @@
           if (r.desatualizado && estadoC.pre && etapaContrato(estadoC) === "PRE") estadoC.pre.desatualizado = true;
         }
         uiC.contaDigitar = undefined; limparRascunhoConta();
-        uiC.msg = "Conta de recebimento salva." + (r.desatualizado ? " Gere o pré-contrato de novo." : "");
+        contaResolvidaNaTela();
+        uiC.msg = "Conta de recebimento salva." + (r.desatualizado ? " Gere o pré-contrato de novo (botão acima)." : "");
       } else uiC.msg = mensagemContrato(r);
       pintar();
     }

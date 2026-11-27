@@ -169,11 +169,16 @@ test("contrato (b) pré-contrato gerado: botão Visualizar pré-contrato (PDF ve
   assert.match(D.htmlContrato(Object.assign(PRE(), { gerado: true, nome: "<b>v</b>.pdf" }), uic()), /Contrato anterior: &lt;b&gt;v&lt;\/b&gt;\.pdf \(será substituído ao conferir\)/);
 });
 
-test("contrato (b) pré-contrato desatualizado: aviso e Conferi travado; Gerar de novo liberado", () => {
+test("contrato (b) pré-contrato desatualizado: aviso grande com o Gerar de novo dentro; sem Conferi (27/11/2026)", () => {
   const h = D.htmlContrato(PRE({ desatualizado: true }), uic());
-  assert.match(h, /Os dados mudaram depois deste pré-contrato/);
-  assert.match(botao(h, "c-aprovar"), /disabled/);
+  assert.match(h, /Este pré-contrato ficou velho/);
+  assert.match(h, /dz-velho[\s\S]*Gerar o pré-contrato de novo agora/);
+  assert.equal(botao(h, "c-aprovar"), null);
   assert.doesNotMatch(botao(h, "c-pre"), /disabled/);
+  /* pré-contrato em dia: Conferi liberado e o aviso não aparece */
+  const ok = D.htmlContrato(PRE(), uic());
+  assert.doesNotMatch(ok, /ficou velho/);
+  assert.doesNotMatch(botao(ok, "c-aprovar"), /disabled/);
 });
 
 test("contrato: gerando (pré-contrato ou final) avisa e desabilita todos os botões", () => {
