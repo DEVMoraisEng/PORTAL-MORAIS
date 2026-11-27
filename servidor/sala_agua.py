@@ -529,6 +529,16 @@ def recorrencia_resolvida(chave: str, obra: str, retrato: dict | None, hoje: dt.
     return False
 
 
+def robo_largou_a_uc(chave: str, retrato: dict | None, desde: str) -> bool:
+    """27/11/2026 (dono): a renovação só confere as casas LIGADO que ainda não foram entregues; as outras saem do
+    retrato do Mais Controle. Se o retrato foi tirado DEPOIS da dúvida e a UC não está nele, o robô não cuida mais
+    dela (Cassimiro B2 CS 2: entregue em 20/11, alerta de recorrência preso desde 03/11 sem nada em aberto no ERP)
+    e a dúvida não segura mais o alerta. Sem retrato, ou retrato mais velho que a dúvida: continua valendo."""
+    if not retrato or not str(retrato.get("quando") or "")[:16] > str(desde or "")[:16]:
+        return False
+    return _chave_uc(chave) not in (retrato.get("chaves") or {})
+
+
 def contas_publicas(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None,
                     agora: dt.datetime | None = None) -> dict:
     """O que a aba CONTROLE DE CONTAS VENCIDAS do ligacoes.html lê (dist/agua_contas.json): por UC/matrícula, o
@@ -611,7 +621,8 @@ def contas_publicas(pasta: pathlib.Path = PASTA, hoje: dt.date | None = None,
         # recorrência em dúvida segura o alerta até resolver — e "resolvido" é o Mais Controle mostrar parcela
         # futura na obra certa (13/11/2026: Cassimiro B2, TB 18 QD 49 LT 37 e RPB 24 LT 01 ficavam em alerta
         # depois de a equipe resolver à mão)
-        if cri and cri[-1]["st"] == "alerta" and not recorrencia_resolvida(ch, info[ch]["obra"], retrato, hoje):
+        if (cri and cri[-1]["st"] == "alerta" and not recorrencia_resolvida(ch, info[ch]["obra"], retrato, hoje)
+                and not robo_largou_a_uc(ch, retrato, cri[-1]["q"])):
             st = "alerta"
         hist.reverse()
         # o link é da parcela que o Mais Controle tem HOJE para a UC: só no registro mais novo que tem link

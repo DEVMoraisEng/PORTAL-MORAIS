@@ -279,3 +279,19 @@ def test_duvida_de_recorrencia_so_sai_com_parcela_futura_na_obra_certa():
     assert A.recorrencia_resolvida("449240901230", obra, None, hoje) is False             # sem retrato
     sem_obra = {"a": {"data": "2026-12-20", "pago": False}}
     assert A.recorrencia_resolvida("449240901230", obra, ret(sem_obra), hoje) is False    # retrato antigo, sem obra
+
+
+def test_casa_que_o_robo_largou_nao_segura_duvida_de_recorrencia(tmp_path):
+    # 27/11/2026 (dono): Cassimiro B2 CS 2 foi entregue em 20/11, a renovação deixou de conferir a UC e o alerta de
+    # recorrência ficou preso, com nada em aberto no Mais Controle
+    pasta = _pasta_contas(tmp_path)
+    ret = {"quando": "2026-11-08 09:00:00", "chaves": {"222": {"parcelas": {}}}}       # tirado depois da dúvida, sem a 111
+    (pasta / "dados" / "parcelas_retrato.json").write_text(json.dumps(ret), encoding="utf-8")
+    assert A.contas_publicas(pasta, hoje=dt.date(2026, 11, 9))["contas"]["111"]["st"] == "ok"
+    ret["quando"] = "2026-11-05 09:00:00"                                                # retrato mais velho que a dúvida
+    (pasta / "dados" / "parcelas_retrato.json").write_text(json.dumps(ret), encoding="utf-8")
+    assert A.contas_publicas(pasta, hoje=dt.date(2026, 11, 9))["contas"]["111"]["st"] == "alerta"
+    ret["quando"], ret["chaves"]["111"] = "2026-11-08 09:00:00", {"parcelas": {}}        # ainda no retrato, sem parcela certa
+    (pasta / "dados" / "parcelas_retrato.json").write_text(json.dumps(ret), encoding="utf-8")
+    assert A.contas_publicas(pasta, hoje=dt.date(2026, 11, 9))["contas"]["111"]["st"] == "alerta"
+    assert A.robo_largou_a_uc("111", None, "2026-11-06 08:30") is False                 # sem retrato
