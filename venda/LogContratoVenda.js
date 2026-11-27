@@ -65,6 +65,11 @@ var LogContratoVenda = (function () {
     },
     escolherContaRecebimento: function () { return "escolheu a conta de recebimento"; },
     escolherCorretorContrato: function (p) { return "escolheu quem vai como corretor no contrato" + (p && p.modo ? " (" + ({ CORRETOR: "o corretor", IMOBILIARIA: "a imobiliária", AMBOS: "imobiliária e corretor" }[p.modo] || p.modo) + ")" : ""); },
+    /* 27/11/2026: só os nomes das colunas, nunca o nome, o CRECI ou o CPF/CNPJ lidos */
+    lerCreciCorretor: function (p, r) {
+      var pre = (r && r.preenchidos) || [], dv = ((r && r.divergencias) || []).map(function (x) { return x.coluna; });
+      return "subiu o CRECI do corretor" + (pre.length ? ": preencheu " + curto(pre.join(", "), DETALHE_MAX) : "") + (dv.length ? " (diverge: " + curto(dv.join(", "), 80) + ")" : "");
+    },
     mcLancar: function () { return "lançou a venda no Mais Controle"; },
     mcComissao: function (p) { return p && p.aplicar ? "lançou a comissão do corretor" : "pediu a prévia da comissão"; },
     gerarVendaCondominio: function () { return "gerou a venda do condomínio"; },

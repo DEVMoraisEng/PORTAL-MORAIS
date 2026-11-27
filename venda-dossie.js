@@ -506,6 +506,9 @@
     FLUXO_JA_E_O_DA_PROPOSTA: "O fluxo desta venda já é o da proposta.",
     /* 03/11: CRLV da permuta */
     NAO_E_CRLV: "Esse arquivo não parece ser o CRLV do veículo — envie a foto ou o PDF do CRLV (ou preencha à mão).",
+    /* 27/11/2026: documento do CRECI do corretor (lerCreciCorretor) */
+    NAO_E_CRECI: "Esse arquivo não parece ser o documento do CRECI — envie a foto ou o PDF da carteira/certidão do CRECI.",
+    CRECI_ILEGIVEL: "Não consegui ler o CRECI nesse arquivo — tente uma foto mais nítida, de frente e com boa luz, ou digite à mão.",
     CRLV_ILEGIVEL: "Não consegui ler os dados do CRLV — tente uma foto mais nítida, de frente e com boa luz, ou preencha à mão.",
     /* 30/10: desconto "isentar a comissão" (venda direta) */
     FLUXO_ISENCAO_AGUARDANDO_MODELO: "Isentar a comissão ainda não está liberado: o contrato do advogado não tem o texto de venda sem corretor. Use desconto em R$ ou %.",
@@ -695,6 +698,26 @@
         ". Os dados (CRECI, CNPJ, e-mail) vêm do cadastro de " + esc(im.nome) + " em CORRETORES – CONTRATO.</div>";
     return h;
   }
+  /* 27/11/2026: "Subir CRECI do corretor" — a resposta do lerCreciCorretor vira linhas curtas: o que foi preenchido, o que
+     diverge (cadastro × documento; nunca é trocado), o que não deu para ler com segurança e o que faltou na base. */
+  function resumoCreci(r) {
+    if (!r || r.ok !== true) return null;
+    var L = [], pre = r.preenchidos || [], dv = r.divergencias || [], ds = r.descartados || [], cf = r.colunasFaltando || [];
+    if (pre.length) L.push({ texto: "Preenchido no cadastro do corretor: " + pre.join(", ") + (r.linhaNova ? " (cadastro novo criado)" : "") + "." });
+    else if (!dv.length && !ds.length) L.push({ texto: "O cadastro do corretor já está de acordo com o documento — nada a preencher." });
+    dv.forEach(function (d) {
+      L.push({ aviso: true, texto: "Diverge — " + d.coluna + ": cadastro \"" + d.cadastro + "\", documento \"" + d.lido + "\". Nada foi trocado; se o documento estiver certo, corrija no cadastro." });
+    });
+    if (ds.length) L.push({ aviso: true, texto: "Não deu para ler com segurança: " + ds.join(", ") + " (não foi gravado; digite à mão se precisar)." });
+    if (cf.length) L.push({ aviso: true, texto: "O cadastro de corretores não tem a coluna: " + cf.join(", ") + "." });
+    if (r.guardado) L.push({ texto: "Documento guardado no cadastro do corretor." });
+    else if (r.aviso === "UPLOAD_FALHOU") L.push({ aviso: true, texto: "O documento não subiu para o cadastro — tente de novo." });
+    else if (r.aviso) L.push({ aviso: true, texto: "Documento não guardado: " + r.aviso + " em CORRETORES – CONTRATO." });
+    return L;
+  }
+  function htmlResumoCreci(linhas) {
+    return (linhas || []).map(function (l) { return '<div class="' + (l.aviso ? "dz-aviso" : "dz-msg dz-nota") + '" data-creci-msg>' + esc(l.texto) + "</div>"; }).join("");
+  }
   function htmlComissaoCorretor(cc, u, dis) {
     if (!cc) return "";
     u = u || {};
@@ -709,6 +732,12 @@
     h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-com-rua-salvar"' + disRua + ">Salvar</button></div>";
     if (!nome) return h + '<div class="dz-msg dz-nota">A venda não tem corretor — preencha o CORRETOR na venda para cadastrar a conta e o e-mail dele.</div>';
     if (cc.duplicado) return h + '<div class="dz-aviso">O corretor tem cadastro duplicado em CORRETORES – CONTRATO — deixe uma linha só.</div>';
+    /* 27/11/2026: documento do CRECI — a IA lê e preenche CRECI e CPF/CNPJ vazios do cadastro (nunca troca o que já está) */
+    var disCr = dis || (u.ocupadoContrato === "creci" ? " disabled" : "");
+    h += '<div class="dz-linha"><button type="button" class="bt bt-mini" data-acao="c-creci-subir" style="min-height:44px"' + disCr + ">Subir CRECI do corretor</button> " +
+      '<span class="dz-nota">foto ou PDF do documento; preenche o que estiver vazio no cadastro</span></div>';
+    if (u.ocupadoContrato === "creci") h += '<div class="dz-linha"><b>lendo o documento…</b></div>';
+    else if (u.creci) h += htmlResumoCreci(u.creci);
     /* 23/11/2026 (dono): "deixa esses campos sempre recolhidos e se quem tiver preenchendo quiser preencher, preencha" —
        os dados de pagamento do corretor são opcionais (o contrato da casa de rua sempre imprime "PIX ou depósito bancário",
        19/11) e o aviso laranja de coluna faltando fez a equipe achar que o envio estava travado. O bloco abre sozinho só
@@ -2123,7 +2152,7 @@
                    contaDasEntradas: contaDasEntradas, faltasDaResposta: faltasDaResposta, detalheFluxoGravado: detalheFluxoGravado,
                    htmlFiadores: htmlFiadores, fiadoresDoEstado: fiadoresDoEstado, valoresFiadores: valoresFiadores,
                    rascunhoFia: rascunhoFia, perguntaConjugeFiador2: perguntaConjugeFiador2,
-                   comissaoDoEstado: comissaoDoEstado, htmlComissaoCorretor: htmlComissaoCorretor, pedidoComissao: pedidoComissao,
+                   comissaoDoEstado: comissaoDoEstado, htmlComissaoCorretor: htmlComissaoCorretor, resumoCreci: resumoCreci, htmlResumoCreci: htmlResumoCreci, pedidoComissao: pedidoComissao,
                    pedidoComissaoRua: pedidoComissaoRua,
 
                    htmlPerguntaReserva: htmlPerguntaReserva, htmlPreReserva: htmlPreReserva, htmlPreReservaRapida: htmlPreReservaRapida, sugestaoLimitePR: sugestaoLimitePR, mensagemPR: mensagemPR };
@@ -4335,6 +4364,29 @@
         if (r.comissaoCorretor && estadoC) { var ccN = comissaoDoEstado(r.comissaoCorretor); if (ccN) estadoC.comissaoCorretor = ccN; }
         if (r.ok) uiC.rascunho = {};
         return tratarGeracao(r, false);
+      }
+      if (acao === "c-creci-subir") {
+        /* 27/11/2026: escolhe a foto/PDF do CRECI, a IA lê no servidor (lerCreciCorretor) e preenche só o vazio do cadastro */
+        var fCr = await escolherArquivo(false, "image/*,application/pdf");
+        if (!fCr || !vivo() || uiC.ocupadoContrato) return;
+        var arqCr = await prepararArquivo(fCr, true);
+        if (!vivo() || uiC.ocupadoContrato) return;
+        if (arqCr.erro) { uiC.creci = [{ aviso: true, texto: mensagemDeErro(arqCr.erro) }]; pintar(); return; }
+        guardarRascunho();
+        uiC.ocupadoContrato = "creci"; uiC.msg = ""; uiC.creci = null; pintar();
+        seq = ++seqC;
+        r = await chamarVenda({ action: "lerCreciCorretor", pageId: pageId, arquivo: arqCr.base64, mime: arqCr.mime, nomeArquivo: arqCr.nome }, 120000);
+        if (seq !== seqC || !vivo()) return;
+        uiC.ocupadoContrato = null;
+        if (r.ok) {
+          var ccCr = comissaoDoEstado(r.comissaoCorretor); if (ccCr && estadoC) estadoC.comissaoCorretor = ccCr;
+          var resumoCr = resumoCreci(r);
+          await carregarContrato();   /* relê o bloco e o aviso de pré-contrato desatualizado (o CRECI vai no contrato) */
+          if (!vivo()) return;
+          uiC.creci = resumoCr;
+        } else uiC.creci = [{ aviso: true, texto: mensagemContrato(r) }];
+        pintar();
+        return;
       }
       if (acao === "c-com-salvar") {
         /* 05/11/2026: grava só os dados de pagamento no cadastro do corretor (não gera pré-contrato) */

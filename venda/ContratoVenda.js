@@ -1854,10 +1854,65 @@ var ContratoVenda = (function () {
     return plano;
   }
 
+  /* ---- 27/11/2026: cadastro do corretor — APELIDO e documento do CRECI ----
+   * apelidos("IVAN; IVAN IMÓVEIS, ivan imoveis") -> as CHAVES (RegrasVenda.chave) de cada item da coluna APELIDO. */
+  function apelidos(texto) {
+    return String(texto === null || texto === undefined ? "" : texto).split(/[,;]/)
+      .map(function (x) { return R().chave(x); }).filter(function (x) { return x; });
+  }
+
+  var UFS = "AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" ");
+  /* O que a IA leu do documento do CRECI, conferido de forma determinística ANTES de qualquer uso: campo que não passa na
+   * regra é descartado e fica em `descartados` (só o nome da coluna, nunca o valor). { ok, tipo, nome, creci, cpfCnpj,
+   * validade, uf, descartados } ou { ok:false, erro: NAO_E_CRECI | CRECI_ILEGIVEL }. */
+  function creciDaLeitura(L) {
+    L = L || {};
+    if (String(L.tipo_documento || "").toUpperCase() === "OUTRO") return { ok: false, erro: "NAO_E_CRECI" };
+    var out = { ok: true, tipo: "", nome: "", creci: "", cpfCnpj: "", validade: "", uf: "", descartados: [] };
+    var tipo = txt(L.tipo).trim().toUpperCase();
+    var nome = txt(L.nome).replace(/\{\{|\}\}/g, "").replace(/\s+/g, " ").trim();
+    if (nome) { if (nome.length >= 3 && nome.length <= 120) out.nome = nome.toUpperCase(); else out.descartados.push("NOME"); }
+    var doc = txt(L.cpf_cnpj).trim(), d = doc.replace(/\D/g, "");
+    if (doc) {
+      if (d.length === 11 && R().cpfValido(d)) { out.cpfCnpj = R().formatarCpf(d); out.tipo = "PF"; }
+      else if (d.length === 14 && cnpjValido(d)) { out.cpfCnpj = formatarCnpj(d); out.tipo = "PJ"; }
+      else out.descartados.push("CPF/CNPJ");
+    }
+    if (!out.tipo && (tipo === "PF" || tipo === "PJ")) out.tipo = tipo;
+    /* CRECI: só dígitos, pontos, hífen e letras (categoria/UF: 12.345-F, GO-12345); "CRECI" e "nº" na frente caem */
+    var c = txt(L.creci).replace(/\s+/g, " ").trim().replace(/^CRECI[\s:\/.-]*/i, "").replace(/^N[º°o]?\.?\s*/i, "").trim();
+    if (c) {
+      if (/^[0-9A-Za-z.\-]{2,20}$/.test(c) && /\d/.test(c)) out.creci = c.toUpperCase();
+      else out.descartados.push("CRECI");
+    }
+    var uf = txt(L.uf).trim().toUpperCase();
+    if (uf) { if (UFS.indexOf(uf) >= 0) out.uf = uf; else out.descartados.push("UF"); }
+    out.validade = txt(L.validade).replace(/\s+/g, " ").trim().slice(0, 20);
+    if (!out.nome && !out.creci && !out.cpfCnpj) return { ok: false, erro: "CRECI_ILEGIVEL" };
+    return out;
+  }
+  /* O que gravar na linha do corretor: SÓ campo vazio. atual = { CRECI, "CPF/CNPJ" } do cadastro. Campo já preenchido e
+   * diferente do documento vira divergência (cadastro × lido) e NUNCA é sobrescrito; igual não faz nada. */
+  function planoCreci(lido, atual) {
+    atual = atual || {};
+    var plano = { preencher: {}, divergencias: [] };
+    /* CRECI: só os dígitos — o cadastro guarda "18.223" e o documento traz "18.223-F" (a letra é o tipo, não outro número) */
+    var iguais = { CRECI: function (a, b) { return a.replace(/\D/g, "") === b.replace(/\D/g, ""); },
+                   "CPF/CNPJ": function (a, b) { return a.replace(/\D/g, "") === b.replace(/\D/g, ""); } };
+    [["CRECI", lido.creci], ["CPF/CNPJ", lido.cpfCnpj]].forEach(function (par) {
+      var col = par[0], novo = txt(par[1]).trim(), velho = txt(atual[col]).trim();
+      if (!novo) return;
+      if (!velho) plano.preencher[col] = novo;
+      else if (!iguais[col](velho, novo)) plano.divergencias.push({ coluna: col, cadastro: velho, lido: novo });
+    });
+    return plano;
+  }
+
   var api = {
     PARAGRAFOS_SE_VAZIO: PARAGRAFOS_SE_VAZIO, planoParagrafosVazios: planoParagrafosVazios,
     CAMPOS_CADASTRO: CAMPOS_CADASTRO, camposAbertos: camposAbertos, validarCampos: validarCampos,
     comporVendedor: comporVendedor, representantePadrao: representantePadrao,   /* 05/11/2026: vendedor automático */
+    apelidos: apelidos, creciDaLeitura: creciDaLeitura, planoCreci: planoCreci,   /* 27/11/2026 */
     CAMPOS_PAGAMENTO_CORRETOR: CAMPOS_PAGAMENTO_CORRETOR, formaComissaoCorretor: formaComissaoCorretor,   /* 05/11/2026 */
     estadoComissaoCorretor: estadoComissaoCorretor, formaPorExtenso: formaPorExtenso,
     validarContaDigitada: validarContaDigitada, contaSoPix: contaSoPix, cnpjValido: cnpjValido, telefoneFormatado: telefoneFormatado,
