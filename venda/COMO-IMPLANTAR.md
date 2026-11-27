@@ -1618,3 +1618,31 @@ cada parcela anexado. Antes, sempre, uma **prévia** com carimbo `[#…]`; o lan
     variáveis acima em `robos-portal.json`.
   - 1º teste ao vivo: uma prévia numa venda de teste; conferir na coluna o favorecido, o Pix, as parcelas e o "Já
     lançado"; só depois o lançamento, e conferir o título e os recibos no Mais Controle.
+
+## Corretor: coluna APELIDO e "Subir CRECI do corretor" (27/11/2026)
+
+Duas colunas novas na base **CORRETORES – CONTRATO** (Notion; a do teste primeiro, depois a de produção). Sem elas
+nada quebra: o portal se comporta como antes e avisa o que falta.
+
+| Coluna | Tipo | Para quê |
+|---|---|---|
+| `APELIDO` | texto (`rich_text`) | os nomes **como aparecem na VENDAS** (coluna CORRETOR ou IMOBILIÁRIA), separados por vírgula ou `;` (ex.: `IVAN; IVAN NETO`). O título da linha passa a ser o nome completo / razão social que vai no contrato. |
+| `CRECI - DOCUMENTO` | arquivos (`files`) | guarda o documento do CRECI subido pelo botão (os anexos antigos ficam; cada subida acrescenta). |
+
+- **Como a linha é achada** (corretor, imobiliária, "AMBOS" e comissão): 1º o **título igual** (como sempre); sem ele, a
+  linha cujo `APELIDO` tem o nome (item por item, sem acento e sem diferença de caixa). Apelido em 2 linhas = "cadastro
+  duplicado", igual a título repetido. Para a imobiliária o apelido vale antes da regra "único título que começa pelo
+  nome".
+- **Botão "Subir CRECI do corretor"** (bloco do corretor da aba Contrato da casa de rua; ação `lerCreciCorretor`, mesmas
+  permissões do `salvarCamposContrato`, travada com o contrato enviado): a IA configurada (`PROVEDOR_IA`) lê a foto/PDF;
+  CPF/CNPJ com dígito verificador e CRECI só com dígitos/pontos/hífen/letra são conferidos por regra antes de entrar
+  (o que não passa é descartado e avisado). Só campo **vazio** é preenchido (`CRECI`, `CPF/CNPJ`); campo preenchido e
+  diferente aparece como "diverge" e **nunca** é trocado. Sem linha do corretor, cria uma (título = nome lido, `APELIDO` =
+  o nome da venda); se o nome lido já é o título de uma linha, usa essa e acrescenta o apelido. O log tem só colunas e tokens.
+- **Implantar:** Apps Script (PORTAL-VENDA de teste, depois o de produção): `GerarContrato.gs`, `PortalVenda.gs`
+  (venda-v34), `AssinaturaVenda.gs`, `ContratoVenda.gs` (de `ContratoVenda.js`), `ClaudeLeitor.gs` e `OpenAILeitor.gs` (de
+  `ClaudeLeitor.js`/`OpenAILeitor.js`, esquema novo `creci`) e `LogContratoVenda.gs` (de `LogContratoVenda.js`). Site:
+  `venda-dossie.js` (v105) e `sw.js` (cache v441).
+- **1º teste ao vivo (teste):** preencher o `APELIDO` de uma linha, abrir uma venda com esse CORRETOR e conferir o nome
+  completo no pré-contrato; subir um CRECI de exemplo numa linha com CRECI e CPF/CNPJ vazios e conferir o preenchimento, o
+  arquivo em `CRECI - DOCUMENTO` e (subindo outro depois) a mensagem "diverge".
