@@ -102,3 +102,19 @@ test("25/11/2026 (financeiro): reserva paga na véspera é o ato; 30 dias no Nat
   const r = F.corrigirDatas(com([s(4000, "2027-01-24"), s(5000, "2027-03-30")], base), pr);
   assert.ok(r.linhas.filter((l) => l.t === "sinal").every((l) => !/-12-25$/.test(l.d)));
 });
+
+/* 27/11/2026 (dono): exceção autorizada para UMA venda — o sinal fora dos prazos vira aviso, fica gravado e volta ao ler */
+test("exceção do sinal autorizada: não trava, vira aviso, é gravada e lida de volta", () => {
+  const fora = com([s(1000, "2026-11-14"), s(3000, "2027-01-25"), s(3000, "2027-02-25"), s(3000, "2027-03-25")]);
+  assert.equal(errosSinal(fora).length, 3);
+  const exc = { ...fora, sinalExcecao: "  dono,   27/11 " };
+  const r = F.validar(exc, P);
+  assert.deepEqual(r.erros.filter((e) => /sinal/i.test(e)), []);
+  assert.equal(r.avisos.filter((a) => /exceção autorizada: dono, 27\/11/.test(a)).length, 3);
+  const lido = F.ler(F.serializar(exc));
+  assert.equal(lido.sinalExcecao, "dono, 27/11");
+  assert.equal(F.ler(F.serializar(fora)).sinalExcecao, undefined);
+  /* mais de 4 parcelas de sinal continua travando mesmo com a exceção */
+  const cinco = { ...com([s(1000, "2026-11-14"), s(2000, "2026-12-14"), s(2000, "2027-01-13"), s(2000, "2027-02-12"), s(3000, "2027-03-12")]), sinalExcecao: "dono" };
+  assert.ok(F.validar(cinco, P).erros.some((e) => /no máximo 4 parcelas/.test(e)));
+});

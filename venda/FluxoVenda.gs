@@ -80,6 +80,7 @@ function fluxoEditar_(col, sess, p) {
   var padrao = fluxoPadrao_(pg), pers = FluxoLivre.ler(fluxoTextoDaLinha_(pg));
   var atual = pers ? { valor: pers.valor, entrega: padrao.entrega, linhas: pers.linhas } : padrao;
   if (pers && pers.semComissao) atual.semComissao = true;
+  if (pers && pers.sinalExcecao) atual.sinalExcecao = pers.sinalExcecao;   /* 27/11 (dono) */
   var pode = fluxoPodePreco_(sess);
   return { ok: true, atual: atual, padrao: padrao, alterado: !!pers, trava: fluxoTrava_(pg), podePreco: pode, quemMudaPreco: fluxoNomesPreco_(),
            /* 30/10: desconto (só quem muda o valor da casa) — a comissão de hoje e se a isenção já vale */
@@ -129,6 +130,8 @@ function salvarFluxo_(col, sess, p) {
       return { ok: false, erro: "CAMPOS_INVALIDOS", erros: ["Motivo da mudança no valor da casa (" + FluxoLivre.moeda(padrao.valor) + " → " + FluxoLivre.moeda(f.valor) + ")"] };
     /* 30/10: isenção da comissão — só quem muda o valor da casa, e só depois do modelo do contrato pronto */
     if (f.semComissao && !fluxoPodePreco_(sess)) return { ok: false, erro: "FLUXO_PRECO_SEM_PERMISSAO" };
+    /* 27/11/2026 (dono): exceção do sinal nova ou trocada — só quem muda o valor da casa */
+    if (f.sinalExcecao && !(antes && antes.sinalExcecao === f.sinalExcecao) && !fluxoPodePreco_(sess)) return { ok: false, erro: "FLUXO_PRECO_SEM_PERMISSAO" };
     if (f.semComissao && !(antes && antes.semComissao) && !fluxoIsencaoLiberada_()) return { ok: false, erro: "FLUXO_ISENCAO_AGUARDANDO_MODELO" };
     texto = FluxoLivre.serializar(f);
     valor = f.valor;
@@ -145,6 +148,7 @@ function salvarFluxo_(col, sess, p) {
   var desc = String(p.desconto || "").replace(/\s+/g, " ").trim().slice(0, 200);   /* 30/10: resumo do desconto dado na tela */
   if (desc && !p.voltar) item.desconto = desc;
   if (texto && FluxoLivre.ler(texto).semComissao) item.semComissao = true;
+  if (texto && FluxoLivre.ler(texto).sinalExcecao) item.sinalExcecao = FluxoLivre.ler(texto).sinalExcecao;
   if (p.voltar) item.voltou = true;
   hist.push(item);
   while (hist.length > 2 && JSON.stringify(hist).length > FLUXO_HIST_MAX) hist.splice(1, 1);
