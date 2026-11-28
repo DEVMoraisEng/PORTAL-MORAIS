@@ -462,6 +462,7 @@
   function detalheFluxoGravado(pageId, ed, voltar) {
     var f = { valor: ed.valor, entrega: ed.entrega, linhas: ed.linhas };
     if (ed.semComissao) f.semComissao = true;
+    if (ed.sinalExcecao) f.sinalExcecao = ed.sinalExcecao;
     return { pageId: pageId, gravados: { "FLUXO PERSONALIZADO": voltar ? "" : FL().serializar(f) } };
   }
   /* espaço IMOVEL_* = seção do imóvel (a mensagem aparece lá) */
@@ -1291,6 +1292,14 @@
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
     h += '<div class="dz-linha"><label class="dz-campo" style="display:block">Motivo da alteração (obrigatório) <input type="text" maxlength="300" data-fx="motivo" value="' + esc(ed.motivo || "") + '"' + dis +
       ' placeholder="ex.: cliente pediu mais um balão e parcelas menores" style="width:100%;box-sizing:border-box"></label></div>';
+    /* 27/11/2026 (dono): exceção à regra do sinal (ato/30/60/90) para ESTA venda — só quem muda o valor da casa; quem
+       autorizou fica gravado no fluxo e no histórico. Aparece quando o sinal sai dos prazos ou a exceção já existe. */
+    var rSx = FL().validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null);
+    var sinalFora = rSx.erros.some(function (x) { return /sem pular prazo/.test(x); });
+    if (ed.podePreco && (sinalFora || String(ed.sinalExcecao || "").trim()))
+      h += '<div class="dz-linha"><label class="dz-campo" style="display:block">Exceção do sinal autorizada por (só se o dono autorizou fugir do ato + 30 + 60 + 90) ' +
+        '<input type="text" maxlength="120" data-fx="sinalExcecao" value="' + esc(ed.sinalExcecao || "") + '"' + dis +
+        ' placeholder="ex.: dono, 27/11" style="width:100%;box-sizing:border-box;font-size:16px"></label></div>';
     h += '<div class="dz-linha vb-fx-mp" style="display:' + (mudouPreco ? "block" : "none") + '"><label class="dz-campo" style="display:block">Motivo da mudança no valor da casa (obrigatório) ' +
       '<input type="text" maxlength="300" data-fx="motivoPreco" value="' + esc(ed.motivoPreco || "") + '"' + dis + ' style="width:100%;box-sizing:border-box"></label></div>';
     h += '<div class="dz-linha"><button type="button" class="bt ghost bt-mini" data-acao="c-fluxo-fechar"' + dis + ">Fechar sem salvar</button>" +
@@ -1461,7 +1470,7 @@
   }
   /* primeira linha de permuta sem os dados do bem completos (o que o Salvar pede), ou -1 */
   function permutaSemBem(ed) {
-    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null);
+    var r = FL().validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas, sinalExcecao: ed.sinalExcecao }, ed.padrao, ed.anterior || null);
     var ks = Object.keys(r.porBem || {}).map(Number).sort(function (a, b) { return a - b; });
     return ks.length ? ks[0] : -1;
   }
@@ -1599,7 +1608,7 @@
   }
   /* placar + o que falta + Salvar: redesenhado a cada tecla sem mexer na tabela (não perde o foco) */
   function htmlFluxoVivo(ed, dis) {
-    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
+    var F = FL(), r = F.validar({ valor: ed.valor, entrega: ed.entrega, hoje: hojeFluxo(), linhas: ed.linhas, sinalExcecao: ed.sinalExcecao }, ed.padrao, ed.anterior || null), soma = F.soma(ed.linhas), dif = r.diferenca;
     /* 03/11: o que falta no bem da permuta não trava o botão — o Salvar abre o formulário do bem */
     var errosBem = r.errosBem || [];
     var mudouPreco = Math.round(ed.valor * 100) !== Math.round(ed.valorOriginal * 100);
@@ -4515,6 +4524,7 @@
         if (r.ok) uiC.fluxoEd = { valor: r.atual.valor, valorOriginal: r.padrao.valor, entrega: r.atual.entrega || r.padrao.entrega,
                                   linhas: copiaLinhas(r.atual.linhas), padrao: r.padrao, historico: r.historico || [], alterado: !!r.alterado,
                                   podePreco: !!r.podePreco, quemMudaPreco: Array.isArray(r.quemMudaPreco) ? r.quemMudaPreco.map(String) : [], desconto: r.desconto || null, semComissao: !!r.atual.semComissao,
+                                  sinalExcecao: String(r.atual.sinalExcecao || ""),
                                   dsc: { modo: "rs", valor: "", de: "entrada" }, descontos: [],
                                   motivo: "", motivoPreco: "",
                                   /* 03/11: o fluxo gravado (permuta antiga só com a descrição continua valendo, como no servidor) */
@@ -4673,7 +4683,12 @@
                                  : "Salvar este fluxo? O pré-contrato precisa ser gerado de novo e fica registrado quem alterou e o motivo.")) return;
       uiC.ocupadoContrato = "fluxo-salvar"; pintar();
       var rs = await chamarVenda(voltar ? { action: "salvarFluxo", pageId: pageId, voltar: true, motivo: ed.motivo }
-        : { action: "salvarFluxo", pageId: pageId, fluxo: ed.semComissao ? { valor: ed.valor, linhas: ed.linhas, semComissao: true } : { valor: ed.valor, linhas: ed.linhas },
+        : { action: "salvarFluxo", pageId: pageId, fluxo: (function () {
+              var fx = { valor: ed.valor, linhas: ed.linhas };
+              if (ed.semComissao) fx.semComissao = true;
+              if (String(ed.sinalExcecao || "").trim()) fx.sinalExcecao = String(ed.sinalExcecao).trim();   /* 27/11 (dono) */
+              return fx;
+            })(),
             motivo: ed.motivo, motivoPreco: ed.motivoPreco || "", desconto: (ed.descontos || []).join("; ") });
       if (!vivo()) return;
       uiC.ocupadoContrato = null;
@@ -4725,7 +4740,7 @@
       var ed = uiC.fluxoEd, campo = alvo.getAttribute("data-fx");
       if (!ed || !campo) return;
       if (campo === "valor") ed.valor = lerNumBR(alvo.value);
-      else if (campo === "motivo" || campo === "motivoPreco") ed[campo] = alvo.value;
+      else if (campo === "motivo" || campo === "motivoPreco" || campo === "sinalExcecao") ed[campo] = alvo.value;
       else if (campo === "dmodo" || campo === "dvalor" || campo === "dde") { ed.dsc = ed.dsc || {}; ed.dsc[{ dmodo: "modo", dvalor: "valor", dde: "de" }[campo]] = alvo.value; return; }
       else {
         var l = ed.linhas[Number(alvo.getAttribute("data-k"))];

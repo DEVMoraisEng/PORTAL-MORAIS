@@ -367,6 +367,9 @@ var FluxoLivre = (function () {
     if (Array.isArray(o.prazosSinal) && o.prazosSinal.length === 4 && o.prazosSinal.every(isoValida)) out.prazosSinal = o.prazosSinal.slice();   /* 14/11: prazos do sinal (ato/30/60/90) da venda — não é gravado */
     if (isoValida(o.hoje)) out.hoje = o.hoje;   /* 07/11: data de hoje de quem chama (tela/servidor), para travar vencimento no passado */
     if (o.semComissao === true) out.semComissao = true;   /* 30/10: desconto "isentar a comissão" = venda direta */
+    /* 27/11/2026 (dono): exceção à regra do sinal (ato/30/60/90) autorizada para ESTA venda — quem autorizou; gravado */
+    var sx = String(o.sinalExcecao || "").replace(/\s+/g, " ").trim().slice(0, 120);
+    if (sx) out.sinalExcecao = sx;
     /* 14/11/2026 (dono): sinal mínimo autorizado para ESTA venda (coluna SINAL MÍNIMO AUTORIZADO; só vem na proposta, não é gravado) */
     if (Number(o.sinalMinimo) > 0) out.sinalMinimo = Math.round(Number(o.sinalMinimo) * 100) / 100;
     return out;
@@ -636,6 +639,8 @@ var FluxoLivre = (function () {
     /* 14/11/2026 (dono): sinal sempre 0+30+60+90, sem pular prazo (duas parcelas = ato + 30) */
     var sp = sinalNosPrazos(f, padrao ? normalizar(padrao) : null);
     sp.erradas.forEach(function (e) {
+      /* 27/11/2026 (dono): exceção autorizada para esta venda — o prazo do sinal vira aviso, não trava */
+      if (f.sinalExcecao) { avisos.push("Linha " + (e.k + 1) + ": sinal vence em " + dataBR(e.d) + " fora do ato + 30 + 60 + 90 — exceção autorizada: " + f.sinalExcecao); return; }
       erroLinha(e.k, "sinal vence em " + dataBR(e.d) + ": o sinal é ato + 30 + 60 + 90 dias, sem pular prazo — esta parcela vence em " + dataBR(e.certa) + " — use Corrigir datas");
     });
     if (sp.demais) erros.push("O sinal vai em no máximo 4 parcelas (ato, 30, 60 e 90 dias)");
@@ -1194,6 +1199,7 @@ var FluxoLivre = (function () {
     f = normalizar(f);
     var o = { v: 1, valor: f.valor, entrega: f.entrega, linhas: f.linhas };
     if (f.semComissao) o.semComissao = true;
+    if (f.sinalExcecao) o.sinalExcecao = f.sinalExcecao;
     return JSON.stringify(o);
   }
   function ler(s) {
